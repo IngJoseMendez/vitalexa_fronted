@@ -61,6 +61,17 @@ export default function Login() {
   return (
     <div className="login-container">
       <div className="login-card">
+        {/* 🏢 LOGO DE LA EMPRESA */}
+        <div className="login-logo">
+          <img
+            src="https://res.cloudinary.com/dxl97cptv/image/upload/v1766740054/vitalexa/products/file_w6vgnk.png"
+            alt="Vitalexa Logo"
+            onError={(e) => {
+              // Si falla, mostrar el nombre como antes
+              e.target.style.display = 'none';
+            }}
+          />
+        </div>
         <h1>Sistema Vitalexa</h1>
         <form onSubmit={handleLogin}>
           <div className="input-group">
