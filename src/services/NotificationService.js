@@ -18,7 +18,7 @@ class NotificationService {
     }
 
     console.log(`🔌 Conectando WebSocket como ${userRole}...`);
-    
+
     const socket = new SockJS('http://localhost:8080/ws');
     this.stompClient = Stomp.over(socket);
 
@@ -69,9 +69,9 @@ class NotificationService {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      
-      console.log(`🔄 Reintentando conexión en ${delay/1000}s (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
+
+      console.log(`🔄 Reintentando conexión en ${delay / 1000}s (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
       setTimeout(() => {
         this.connect(onMessageReceived, userRole);
       }, delay);
@@ -90,7 +90,7 @@ class NotificationService {
         }
       });
       this.subscriptions = [];
-      
+
       try {
         this.stompClient.disconnect(() => {
           console.log('🔌 Desconectado de WebSocket');
@@ -98,7 +98,7 @@ class NotificationService {
       } catch (error) {
         console.error('Error al desconectar:', error);
       }
-      
+
       this.connected = false;
       this.reconnectAttempts = 0;
     }

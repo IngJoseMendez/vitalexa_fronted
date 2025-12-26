@@ -1,83 +1,162 @@
+/* ============================================
+   LOGIN PREMIUM STYLE
+   ============================================ */
+
 .login-container {
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--bg-body);
+  position: relative;
+  overflow: hidden;
 }
 
-.login-box {
-  background: white;
-  padding: 40px;
-  border-radius: 15px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+/* Background elements */
+.login-container::before,
+.login-container::after {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  z-index: 0;
+}
+
+.login-container::before {
+  background: var(--primary);
+  top: -10%;
+  left: -10%;
+}
+
+.login-container::after {
+  background: var(--warning);
+  bottom: -10%;
+  right: -10%;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  padding: 3rem;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
+  position: relative;
+  z-index: 10;
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-.login-box h1 {
+.login-card h1 {
   text-align: center;
-  color: #667eea;
-  margin: 0 0 10px 0;
-  font-size: 32px;
+  color: var(--primary);
+  margin: 0 0 2rem 0;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
-.login-box h2 {
-  text-align: center;
-  color: #6b7280;
-  margin: 0 0 30px 0;
-  font-size: 18px;
-  font-weight: normal;
+.input-group {
+  position: relative;
+  margin-bottom: 1.5rem;
 }
 
-.form-group {
-  margin-bottom: 20px;
+.input-group .material-icons-round {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 20px;
+  transition: all 0.2s;
 }
 
-.form-group input {
+.input-group input {
   width: 100%;
-  padding: 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: border-color 0.3s;
+  padding: 1rem 1rem 1rem 3rem;
+  /* Space for icon */
+  border: 2px solid var(--bg-body);
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
+  transition: all 0.2s;
+  background: var(--bg-input);
 }
 
-.form-group input:focus {
+.input-group input:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
+}
+
+.input-group input:focus+.material-icons-round {
+  color: var(--primary);
 }
 
 button[type="submit"] {
   width: 100%;
-  padding: 14px;
-  background: #667eea;
+  padding: 1rem;
+  background: var(--primary);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
 }
 
 button[type="submit"]:hover {
-  background: #5568d3;
+  background: var(--primary-hover);
   transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
 }
 
 button[type="submit"]:disabled {
-  background: #9ca3af;
+  background: var(--text-muted);
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
-.error-message {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 10px;
-  border-radius: 6px;
-  margin-bottom: 15px;
-  font-size: 14px;
+.error {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  margin-top: 1rem;
   text-align: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.test-users {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.test-users p {
+  margin: 0.25rem 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.test-users strong {
+  color: var(--text-main);
+  display: block;
+  margin-bottom: 0.5rem;
 }

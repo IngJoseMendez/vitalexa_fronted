@@ -5,6 +5,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import VendedorDashboard from './pages/VendedorDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
 import NotificationCenter from './components/NotificationCenter';
+import { ToastProvider } from './components/ToastContainer';
+import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import './App.css';
 
 function App() {
@@ -27,18 +29,23 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
-      <AppContent 
-        getRole={getRole} 
-        getToken={getToken} 
-        ProtectedRoute={ProtectedRoute} 
-      />
-    </BrowserRouter>
+    <ToastProvider>
+      <ConfirmProvider>
+        <BrowserRouter>
+          <AppContent
+            getRole={getRole}
+            getToken={getToken}
+            ProtectedRoute={ProtectedRoute}
+          />
+        </BrowserRouter>
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }
 
 function AppContent({ getRole, getToken, ProtectedRoute }) {
   const location = useLocation();
+  const confirm = useConfirm();
   const isLoginPage = location.pathname === '/login';
   const token = getToken();
   const role = getRole();
@@ -58,8 +65,13 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
     return '';
   };
 
-  const handleLogout = () => {
-    if (window.confirm('¿Cerrar sesión?')) {
+  const handleLogout = async () => {
+    const confirmed = await confirm({
+      title: '¿Cerrar sesión?',
+      message: '¿Estás seguro de que deseas cerrar sesión?'
+    });
+
+    if (confirmed) {
       localStorage.clear();
       window.location.href = '/login';
     }
@@ -75,16 +87,16 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
               <h1 className="app-title">🏪 Vitalexa</h1>
               <span className="app-subtitle">Sistema de Gestión</span>
             </div>
-            
+
             <div className="header-right">
               <div className="user-info">
                 <span className="user-role">{getRoleName()}</span>
                 <span className="user-name">{localStorage.getItem('username')}</span>
               </div>
-              
+
               {/* Sistema de Notificaciones */}
               <NotificationCenter userRole={getUserRole()} />
-              
+
               <button className="btn-logout" onClick={handleLogout}>
                 🚪 Cerrar Sesión
               </button>
@@ -97,7 +109,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
       <main className="app-main">
         <Routes>
           <Route path="/login" element={<Login />} />
-          
+
           <Route
             path="/admin/*"
             element={
@@ -106,7 +118,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/vendedor/*"
             element={
@@ -115,7 +127,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/owner/*"
             element={
@@ -124,7 +136,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
               </ProtectedRoute>
             }
           />
-          
+
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </main>

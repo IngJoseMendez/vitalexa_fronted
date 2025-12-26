@@ -23,17 +23,17 @@ export default function Login() {
       const token = response.data.token;
 
       // 🔥 DEBUG: Ver qué hay en el token
-        const decoded = decodeJWT(token);
-        console.log('🔍 TOKEN COMPLETO DECODIFICADO:', decoded);
-        console.log('🔍 Authorities:', decoded?.authorities);
-        console.log('🔍 Role:', decoded?.role);
-        console.log('🔍 Auth:', decoded?.auth);
-        console.log('🔍 Todas las keys:', Object.keys(decoded || {}));
-      
+      const decoded = decodeJWT(token);
+      console.log('🔍 TOKEN COMPLETO DECODIFICADO:', decoded);
+      console.log('🔍 Authorities:', decoded?.authorities);
+      console.log('🔍 Role:', decoded?.role);
+      console.log('🔍 Auth:', decoded?.auth);
+      console.log('🔍 Todas las keys:', Object.keys(decoded || {}));
+
       // Extraer el rol del token
       const role = getRoleFromToken(token);
       console.log('🔍 ROL EXTRAÍDO:', role);
-      
+
       if (!role) {
         setError('No se pudo obtener el rol del usuario');
         return;
@@ -46,7 +46,7 @@ export default function Login() {
 
       // Redirigir según el rol (sin prefijo ROLE_)
       const roleClean = role.replace('ROLE_', '');
-      
+
       if (roleClean === 'ADMIN') {
         navigate('/admin');
       } else if (roleClean === 'VENDEDOR') {
@@ -64,31 +64,37 @@ export default function Login() {
     }
   };
 
-  
+
 
   return (
     <div className="login-container">
       <div className="login-card">
         <h1>Sistema Vitalexa</h1>
         <form onSubmit={handleLogin}>
-          <input
-            type="text"
-            placeholder="Usuario"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            disabled={loading}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={loading}
-            required
-          />
+          <div className="input-group">
+            <span className="material-icons-round">person</span>
+            <input
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+          <div className="input-group">
+            <span className="material-icons-round">lock</span>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
           <button type="submit" disabled={loading}>
-            {loading ? 'Ingresando...' : 'Ingresar'}
+            {loading ? 'Signing in...' : 'Sign In'} <span className="material-icons-round" style={{ fontSize: '18px' }}>arrow_forward</span>
           </button>
         </form>
         {error && <p className="error">{error}</p>}

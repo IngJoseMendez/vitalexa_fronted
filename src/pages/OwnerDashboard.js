@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import client from '../api/client';
+import { useToast } from '../components/ToastContainer';
 import '../styles/OwnerDashboard.css';
+
+// ✅ CONFIGURACIÓN CENTRALIZADA
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
+// ✅ FUNCIÓN HELPER PARA URL DE IMÁGENES
+const getImageUrl = (imageUrl) => {
+  if (!imageUrl) return null;
+  return `${API_BASE_URL}/api/images/products/${imageUrl}`;
+};
+
+// ✅ PLACEHOLDER SVG
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 function OwnerDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -9,25 +22,39 @@ function OwnerDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [vendedores, setVendedores] = useState([]);
+  const [saleGoals, setSaleGoals] = useState([]);
+  const toast = useToast();
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+
       const [ordersRes, productsRes] = await Promise.all([
-        client.get('/owner/orders'),
-        client.get('/owner/products')
+        client.get('/admin/orders'),
+        client.get('/admin/products')
       ]);
-      
+
       setOrders(ordersRes.data);
       setProducts(productsRes.data);
       calculateStats(ordersRes.data, productsRes.data);
+
+      try {
+        const vendedoresRes = await client.get('/admin/sale-goals/vendedores');
+        setVendedores(vendedoresRes.data);
+      } catch (vendedorError) {
+        console.warn('Error al cargar vendedores:', vendedorError);
+        setVendedores([]);
+      }
+
     } catch (error) {
       console.error('Error al cargar datos:', error);
-      alert('Error al cargar datos del dashboard');
+      toast.error('Error al cargar datos del dashboard');
     } finally {
       setLoading(false);
     }
@@ -36,7 +63,7 @@ function OwnerDashboard() {
   const calculateStats = (ordersData, productsData) => {
     const completedOrders = ordersData.filter(o => o.estado === 'COMPLETADO');
     const pendingOrders = ordersData.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO');
-    
+
     const totalRevenue = completedOrders.reduce((sum, o) => sum + parseFloat(o.total), 0);
     const activeProducts = productsData.filter(p => p.active).length;
     const lowStockProducts = productsData.filter(p => p.stock < 10 && p.active).length;
@@ -63,53 +90,66 @@ function OwnerDashboard() {
   return (
     <div className="owner-dashboard">
       <header className="dashboard-header">
-        <h1>👑 Panel de Owner</h1>
-        <p>Vista completa del negocio</p>
+        <h1><span className="material-icons-round" style={{ fontSize: '32px', verticalAlign: 'middle', color: '#fbbf24' }}>verified_user</span> Owner Panel</h1>
+        <p>Complete business overview</p>
       </header>
 
       <nav className="dashboard-tabs">
-        <button 
-          className={activeTab === 'overview' ? 'active' : ''} 
+        <button
+          className={activeTab === 'overview' ? 'active' : ''}
           onClick={() => setActiveTab('overview')}
         >
-          📊 Resumen
+          <span className="material-icons-round">dashboard</span> Overview
         </button>
-        <button 
-          className={activeTab === 'orders' ? 'active' : ''} 
+        <button
+          className={activeTab === 'orders' ? 'active' : ''}
           onClick={() => setActiveTab('orders')}
         >
-          📦 Órdenes ({stats?.totalOrders || 0})
+          <span className="material-icons-round">inventory</span> Orders ({stats?.totalOrders || 0})
         </button>
-        <button 
-          className={activeTab === 'products' ? 'active' : ''} 
+        <button
+          className={activeTab === 'products' ? 'active' : ''}
           onClick={() => setActiveTab('products')}
         >
-          🛍️ Productos ({stats?.totalProducts || 0})
+          <span className="material-icons-round">store</span> Products ({stats?.totalProducts || 0})
         </button>
-        <button 
-          className={activeTab === 'reports' ? 'active' : ''} 
+        <button
+          className={activeTab === 'metas' ? 'active' : ''}
+          onClick={() => setActiveTab('metas')}
+        >
+          <span className="material-icons-round">trending_up</span> Metas ({vendedores.length})
+        </button>
+        <button
+          className={activeTab === 'reports' ? 'active' : ''}
           onClick={() => setActiveTab('reports')}
         >
-          📈 Reportes
+          <span className="material-icons-round">insights</span> Reports
         </button>
       </nav>
 
       <div className="dashboard-content">
         {activeTab === 'overview' && <OverviewTab stats={stats} />}
         {activeTab === 'orders' && (
-          <OrdersTab 
-            orders={orders} 
+          <OrdersTab
+            orders={orders}
             onSelectOrder={setSelectedOrder}
           />
         )}
         {activeTab === 'products' && <ProductsTab products={products} />}
+        {activeTab === 'metas' && (
+          <SaleGoalsTab
+            vendedores={vendedores}
+            onUpdate={fetchData}
+            toast={toast}
+          />
+        )}
         {activeTab === 'reports' && <ReportsTab orders={orders} products={products} />}
       </div>
 
       {selectedOrder && (
-        <OrderDetailModal 
-          order={selectedOrder} 
-          onClose={() => setSelectedOrder(null)} 
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
         />
       )}
     </div>
@@ -122,46 +162,46 @@ function OverviewTab({ stats }) {
     <div className="overview-tab">
       <div className="stats-grid">
         <div className="stat-card revenue">
-          <div className="stat-icon">💰</div>
+          <div className="stat-icon"><span className="material-icons-round">payments</span></div>
           <div className="stat-info">
-            <h3>Ingresos Totales</h3>
+            <h3>Total Revenue</h3>
             <p className="stat-value">${stats?.totalRevenue?.toFixed(2) || '0.00'}</p>
           </div>
         </div>
 
         <div className="stat-card orders">
-          <div className="stat-icon">📦</div>
+          <div className="stat-icon"><span className="material-icons-round">shopping_bag</span></div>
           <div className="stat-info">
-            <h3>Órdenes Completadas</h3>
+            <h3>Completed Orders</h3>
             <p className="stat-value">{stats?.completedOrders || 0}</p>
-            <span className="stat-subtitle">de {stats?.totalOrders || 0} totales</span>
+            <span className="stat-subtitle">of {stats?.totalOrders || 0} total</span>
           </div>
         </div>
 
         <div className="stat-card pending">
-          <div className="stat-icon">⏳</div>
+          <div className="stat-icon"><span className="material-icons-round">hourglass_top</span></div>
           <div className="stat-info">
-            <h3>Órdenes Pendientes</h3>
+            <h3>Pending Orders</h3>
             <p className="stat-value">{stats?.pendingOrders || 0}</p>
           </div>
         </div>
 
         <div className="stat-card products">
-          <div className="stat-icon">🛍️</div>
+          <div className="stat-icon"><span className="material-icons-round">inventory_2</span></div>
           <div className="stat-info">
-            <h3>Productos Activos</h3>
+            <h3>Active Products</h3>
             <p className="stat-value">{stats?.activeProducts || 0}</p>
-            <span className="stat-subtitle">de {stats?.totalProducts || 0} totales</span>
+            <span className="stat-subtitle">of {stats?.totalProducts || 0} total</span>
           </div>
         </div>
 
         {stats?.lowStockProducts > 0 && (
           <div className="stat-card warning">
-            <div className="stat-icon">⚠️</div>
+            <div className="stat-icon"><span className="material-icons-round">warning_amber</span></div>
             <div className="stat-info">
-              <h3>Stock Bajo</h3>
+              <h3>Low Stock</h3>
               <p className="stat-value">{stats.lowStockProducts}</p>
-              <span className="stat-subtitle">productos necesitan reposición</span>
+              <span className="stat-subtitle">products need restock</span>
             </div>
           </div>
         )}
@@ -171,15 +211,11 @@ function OverviewTab({ stats }) {
 }
 
 // ===== ORDERS TAB =====
-// En tu OwnerDashboard.js
-
 function OrdersTab({ orders }) {
   const [filter, setFilter] = useState('pending');
 
-  // ✅ FILTRO CORREGIDO
   const filteredOrders = orders.filter(order => {
     if (filter === 'pending') {
-      // Incluir tanto PENDIENTE como CONFIRMADO
       return order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
     }
     if (filter === 'completed') {
@@ -194,25 +230,25 @@ function OrdersTab({ orders }) {
   return (
     <div className="orders-section">
       <div className="orders-header">
-        <h2>📦 Gestión de Órdenes</h2>
+        <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment</span> Orders Management</h2>
         <div className="filter-tabs">
           <button
             className={filter === 'pending' ? 'active' : ''}
             onClick={() => setFilter('pending')}
           >
-            ⏳ Pendientes ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO').length})
+            <span className="material-icons-round">pending_actions</span> Pending ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO').length})
           </button>
           <button
             className={filter === 'completed' ? 'active' : ''}
             onClick={() => setFilter('completed')}
           >
-            ✅ Completadas ({orders.filter(o => o.estado === 'COMPLETADO').length})
+            <span className="material-icons-round">check_circle</span> Completed ({orders.filter(o => o.estado === 'COMPLETADO').length})
           </button>
           <button
             className={filter === 'all' ? 'active' : ''}
             onClick={() => setFilter('all')}
           >
-            📊 Todas ({orders.length})
+            <span className="material-icons-round">analytics</span> All ({orders.length})
           </button>
         </div>
       </div>
@@ -220,7 +256,7 @@ function OrdersTab({ orders }) {
       <div className="orders-grid">
         {filteredOrders.length === 0 ? (
           <div className="empty-state">
-            <p>📭 No hay órdenes en esta categoría</p>
+            <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>search_off</span> No orders found</p>
           </div>
         ) : (
           filteredOrders.map(order => (
@@ -239,10 +275,10 @@ function OrdersTab({ orders }) {
                 <p className="order-total">
                   <strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}
                 </p>
-                
+
                 {order.notas && (
                   <div className="order-notes">
-                    <strong>📝 Notas:</strong>
+                    <strong><span className="material-icons-round">note</span> Notes:</strong>
                     <p>{order.notas}</p>
                   </div>
                 )}
@@ -272,8 +308,7 @@ function OrdersTab({ orders }) {
   );
 }
 
-
-// ===== PRODUCTS TAB =====
+// ===== ✅ PRODUCTS TAB - CORREGIDO =====
 function ProductsTab({ products }) {
   const [filter, setFilter] = useState('all');
 
@@ -288,22 +323,22 @@ function ProductsTab({ products }) {
   return (
     <div className="products-tab">
       <div className="tab-header">
-        <h2>Inventario de Productos</h2>
+        <h2>Product Inventory</h2>
         <div className="filter-buttons">
-          <button 
-            className={filter === 'all' ? 'active' : ''} 
+          <button
+            className={filter === 'all' ? 'active' : ''}
             onClick={() => setFilter('all')}
           >
             Todos ({products.length})
           </button>
-          <button 
-            className={filter === 'active' ? 'active' : ''} 
+          <button
+            className={filter === 'active' ? 'active' : ''}
             onClick={() => setFilter('active')}
           >
             Activos ({products.filter(p => p.active).length})
           </button>
-          <button 
-            className={filter === 'lowstock' ? 'active' : ''} 
+          <button
+            className={filter === 'lowstock' ? 'active' : ''}
             onClick={() => setFilter('lowstock')}
           >
             Stock Bajo ({products.filter(p => p.stock < 10 && p.active).length})
@@ -315,17 +350,22 @@ function ProductsTab({ products }) {
         {filteredProducts.map(product => (
           <div key={product.id} className="product-card">
             <div className="product-image">
-              {product.imageUrl ? (
-                <img src={product.imageUrl} alt={product.nombre} />
-              ) : (
-                <div className="no-image">📦</div>
-              )}
+              {/* ✅ IMAGEN CORREGIDA */}
+              <img
+                src={getImageUrl(product.imageUrl) || PLACEHOLDER_IMAGE}
+                alt={product.nombre}
+                onError={(e) => {
+                  console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
+                  e.target.src = PLACEHOLDER_IMAGE;
+                }}
+                loading="lazy"
+              />
             </div>
-            
+
             <div className="product-info">
               <h3>{product.nombre}</h3>
               <p className="product-description">{product.descripcion}</p>
-              
+
               <div className="product-stats">
                 <div className="stat">
                   <span className="label">Precio:</span>
@@ -341,7 +381,7 @@ function ProductsTab({ products }) {
 
               <div className="product-status">
                 <span className={`badge ${product.active ? 'active' : 'inactive'}`}>
-                  {product.active ? '✓ Activo' : '✗ Inactivo'}
+                  {product.active ? <><span className="material-icons-round">check_circle</span> Active</> : <><span className="material-icons-round">cancel</span> Inactive</>}
                 </span>
               </div>
             </div>
@@ -352,21 +392,21 @@ function ProductsTab({ products }) {
   );
 }
 
-// ===== REPORTS TAB (Placeholder) =====
 // ===== REPORTS TAB =====
-// ===== REPORTS TAB CON EXPORTACIÓN =====
 function ReportsTab({ orders, products }) {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
+  const toast = useToast();
   const [activeReportTab, setActiveReportTab] = useState('overview');
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchReportData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange]);
 
   const fetchReportData = async () => {
@@ -381,17 +421,16 @@ function ReportsTab({ orders, products }) {
       setReportData(response.data);
     } catch (error) {
       console.error('Error al cargar reportes:', error);
-      alert('Error al cargar reportes');
+      toast.error('Error al cargar reportes');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDateChange = (field, value) => {
-    setDateRange(prev => ({...prev, [field]: value}));
+    setDateRange(prev => ({ ...prev, [field]: value }));
   };
 
-  // ✅ NUEVA FUNCIÓN: Exportar reporte completo
   const handleExportReport = async (format) => {
     try {
       setExporting(true);
@@ -403,35 +442,33 @@ function ReportsTab({ orders, products }) {
         responseType: 'blob'
       });
 
-      // Crear enlace de descarga
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      
+
       const fileName = `reporte_completo_${dateRange.startDate}_${dateRange.endDate}.${format}`;
       link.setAttribute('download', fileName);
-      
+
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
-      alert(`Reporte ${format.toUpperCase()} descargado exitosamente`);
+
+      toast.success(`Reporte ${format.toUpperCase()} descargado exitosamente`);
     } catch (error) {
       console.error(`Error al exportar a ${format}:`, error);
-      alert(`Error al exportar reporte a ${format.toUpperCase()}`);
+      toast.error(`Error al exportar reporte a ${format.toUpperCase()}`);
     } finally {
       setExporting(false);
     }
   };
 
-  // ✅ NUEVA FUNCIÓN: Exportar reportes específicos
   const handleExportSpecific = async (type, format) => {
     try {
       setExporting(true);
       let endpoint = '';
       let params = {};
-      
-      switch(type) {
+
+      switch (type) {
         case 'sales':
           endpoint = `/reports/export/sales/${format}`;
           params = {
@@ -457,18 +494,18 @@ function ReportsTab({ orders, products }) {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      
+
       const fileName = `reporte_${type}_${new Date().toISOString().split('T')[0]}.${format}`;
       link.setAttribute('download', fileName);
-      
+
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
-      alert(`Reporte de ${type} descargado exitosamente`);
+
+      toast.success(`Reporte de ${type} descargado exitosamente`);
     } catch (error) {
       console.error(`Error al exportar ${type}:`, error);
-      alert(`Error al exportar reporte de ${type}`);
+      toast.error(`Error al exportar reporte de ${type}`);
     } finally {
       setExporting(false);
     }
@@ -509,26 +546,25 @@ function ReportsTab({ orders, products }) {
         </div>
       </div>
 
-      {/* ✅ NUEVA SECCIÓN: Botones de Exportación */}
       <div className="export-section">
         <h3>📥 Exportar Reporte Completo</h3>
         <div className="export-buttons">
-          <button 
-            onClick={() => handleExportReport('pdf')} 
+          <button
+            onClick={() => handleExportReport('pdf')}
             disabled={exporting}
             className="btn-export btn-pdf"
           >
             📄 Descargar PDF
           </button>
-          <button 
-            onClick={() => handleExportReport('excel')} 
+          <button
+            onClick={() => handleExportReport('excel')}
             disabled={exporting}
             className="btn-export btn-excel"
           >
             📊 Descargar Excel
           </button>
-          <button 
-            onClick={() => handleExportReport('csv')} 
+          <button
+            onClick={() => handleExportReport('csv')}
             disabled={exporting}
             className="btn-export btn-csv"
           >
@@ -617,15 +653,13 @@ function ReportsTab({ orders, products }) {
   );
 }
 
-
 // ===== OVERVIEW REPORT =====
 function OverviewReport({ data }) {
-  const { salesReport, productReport, vendorReport, clientReport } = data;
+  const { salesReport, productReport, clientReport } = data;
 
   return (
     <div className="overview-report">
       <div className="report-grid">
-        {/* Ventas */}
         <div className="report-card highlight">
           <div className="card-icon">💰</div>
           <div className="card-content">
@@ -637,7 +671,6 @@ function OverviewReport({ data }) {
           </div>
         </div>
 
-        {/* Órdenes */}
         <div className="report-card">
           <div className="card-icon">📦</div>
           <div className="card-content">
@@ -651,7 +684,6 @@ function OverviewReport({ data }) {
           </div>
         </div>
 
-        {/* Productos */}
         <div className="report-card">
           <div className="card-icon">🛍️</div>
           <div className="card-content">
@@ -666,7 +698,6 @@ function OverviewReport({ data }) {
           </div>
         </div>
 
-        {/* Clientes */}
         <div className="report-card">
           <div className="card-icon">👥</div>
           <div className="card-content">
@@ -679,13 +710,11 @@ function OverviewReport({ data }) {
         </div>
       </div>
 
-      {/* Gráfico de ventas diarias */}
       <div className="chart-section">
         <h3>📊 Tendencia de Ventas</h3>
         <SalesChart data={salesReport.dailySales} />
       </div>
 
-      {/* Top Productos */}
       <div className="chart-section">
         <h3>🏆 Top 5 Productos Más Vendidos</h3>
         <TopProductsChart data={productReport.topSellingProducts.slice(0, 5)} />
@@ -801,7 +830,7 @@ function SalesReport({ data }) {
   );
 }
 
-// ===== PRODUCTS REPORT =====
+// ===== ✅ PRODUCTS REPORT - CORREGIDO =====
 function ProductsReport({ data }) {
   return (
     <div className="products-report">
@@ -831,11 +860,16 @@ function ProductsReport({ data }) {
             <div key={idx} className="top-product-item">
               <div className="product-rank">#{idx + 1}</div>
               <div className="product-image">
-                {product.imageUrl ? (
-                  <img src={product.imageUrl} alt={product.productName} />
-                ) : (
-                  <div className="no-image">📦</div>
-                )}
+                {/* ✅ IMAGEN CORREGIDA */}
+                <img
+                  src={getImageUrl(product.imageUrl) || PLACEHOLDER_IMAGE}
+                  alt={product.productName}
+                  onError={(e) => {
+                    console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
+                    e.target.src = PLACEHOLDER_IMAGE;
+                  }}
+                  loading="lazy"
+                />
               </div>
               <div className="product-details">
                 <h4>{product.productName}</h4>
@@ -970,7 +1004,7 @@ function ClientsReport({ data }) {
   );
 }
 
-// ===== SALES CHART (Simple Bar Chart) =====
+// ===== SALES CHART =====
 function SalesChart({ data }) {
   if (!data || data.length === 0) {
     return <div className="no-data">No hay datos para mostrar</div>;
@@ -1035,7 +1069,6 @@ function TopProductsChart({ data }) {
   );
 }
 
-
 // ===== ORDER DETAIL MODAL =====
 function OrderDetailModal({ order, onClose }) {
   return (
@@ -1090,6 +1123,295 @@ function OrderDetailModal({ order, onClose }) {
       </div>
     </div>
   );
+}
+
+// ===== SALE GOALS TAB =====
+function SaleGoalsTab({ vendedores, onUpdate, toast }) {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedVendedor, setSelectedVendedor] = useState(null);
+  const [currentMonth] = useState(new Date().getMonth() + 1);
+  const [currentYear] = useState(new Date().getFullYear());
+
+  const handleCreateGoal = (vendedor) => {
+    setSelectedVendedor(vendedor);
+    setShowCreateModal(true);
+  };
+
+  const handleDeleteGoal = async (goalId) => {
+    if (!window.confirm('¿Estás seguro de eliminar esta meta?')) return;
+
+    try {
+      await client.delete(`/admin/sale-goals/${goalId}`);
+      toast.success('Meta eliminada exitosamente');
+      onUpdate();
+    } catch (error) {
+      console.error('Error al eliminar meta:', error);
+      toast.error('Error al eliminar meta');
+    }
+  };
+
+  return (
+    <div className="sale-goals-tab">
+      <div className="tab-header">
+        <h2>
+          <span className="material-icons-round">trending_up</span>
+          Gestión de Metas de Ventas
+        </h2>
+        <p className="subtitle">
+          Mes actual: {getMonthName(currentMonth)} {currentYear}
+        </p>
+      </div>
+
+      <div className="vendedores-grid">
+        {vendedores.length === 0 ? (
+          <div className="empty-state">
+            <span className="material-icons-round">person_off</span>
+            <p>No hay vendedores registrados</p>
+          </div>
+        ) : (
+          vendedores.map((vendedor) => (
+            <div key={vendedor.id} className="vendedor-card">
+              <div className="vendedor-header">
+                <div className="vendedor-info">
+                  <h3>
+                    <span className="material-icons-round">person</span>
+                    {vendedor.username}
+                  </h3>
+                  <span className={`status-badge ${vendedor.active ? 'active' : 'inactive'}`}>
+                    {vendedor.active ? 'Activo' : 'Inactivo'}
+                  </span>
+                </div>
+              </div>
+
+              {vendedor.currentGoal ? (
+                <div className="goal-details">
+                  <div className="goal-stats">
+                    <div className="stat">
+                      <span className="label">Meta:</span>
+                      <span className="value">${parseFloat(vendedor.currentGoal.targetAmount).toFixed(2)}</span>
+                    </div>
+                    <div className="stat">
+                      <span className="label">Actual:</span>
+                      <span className="value">${parseFloat(vendedor.currentGoal.currentAmount).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="progress-section">
+                    <div className="progress-header">
+                      <span>Progreso</span>
+                      <span className="percentage">{parseFloat(vendedor.currentGoal.percentage).toFixed(1)}%</span>
+                    </div>
+                    <div className="progress-bar">
+                      <div
+                        className={`progress-fill ${vendedor.currentGoal.completed ? 'completed' : ''}`}
+                        style={{ width: `${Math.min(parseFloat(vendedor.currentGoal.percentage), 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {vendedor.currentGoal.completed && (
+                    <div className="goal-completed">
+                      <span className="material-icons-round">check_circle</span>
+                      ¡Meta Completada!
+                    </div>
+                  )}
+
+                  <div className="goal-actions">
+                    <button
+                      className="btn-edit-goal"
+                      onClick={() => handleCreateGoal(vendedor)}
+                    >
+                      <span className="material-icons-round">edit</span>
+                      Editar Meta
+                    </button>
+                    <button
+                      className="btn-delete-goal"
+                      onClick={() => handleDeleteGoal(vendedor.currentGoal.id)}
+                    >
+                      <span className="material-icons-round">delete</span>
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="no-goal">
+                  <span className="material-icons-round">report_problem</span>
+                  <p>No tiene meta asignada este mes</p>
+                  <button
+                    className="btn-create-goal"
+                    onClick={() => handleCreateGoal(vendedor)}
+                  >
+                    <span className="material-icons-round">add</span>
+                    Asignar Meta
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {showCreateModal && (
+        <CreateGoalModal
+          vendedor={selectedVendedor}
+          existingGoal={selectedVendedor.currentGoal}
+          onClose={() => {
+            setShowCreateModal(false);
+            setSelectedVendedor(null);
+          }}
+          onSuccess={() => {
+            setShowCreateModal(false);
+            setSelectedVendedor(null);
+            onUpdate();
+          }}
+          toast={toast}
+        />
+      )}
+    </div>
+  );
+}
+
+// ===== CREATE/EDIT GOAL MODAL =====
+function CreateGoalModal({ vendedor, existingGoal, onClose, onSuccess, toast }) {
+  const [targetAmount, setTargetAmount] = useState(
+    existingGoal ? parseFloat(existingGoal.targetAmount) : ''
+  );
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!targetAmount || targetAmount <= 0) {
+      toast.error('La meta debe ser mayor a 0');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      if (existingGoal) {
+        await client.put(`/admin/sale-goals/${existingGoal.id}`, {
+          targetAmount: parseFloat(targetAmount)
+        });
+        toast.success('Meta actualizada exitosamente');
+      } else {
+        await client.post('/admin/sale-goals', {
+          vendedorId: vendedor.id,
+          targetAmount: parseFloat(targetAmount),
+          month: month,
+          year: year
+        });
+        toast.success('Meta creada exitosamente');
+      }
+
+      onSuccess();
+    } catch (error) {
+      console.error('Error al guardar meta:', error);
+      toast.error(error.response?.data?.message || 'Error al guardar meta');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>
+            {existingGoal ? 'Editar Meta' : 'Crear Nueva Meta'}
+          </h3>
+          <button className="btn-close" onClick={onClose}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="goal-form">
+          <div className="form-group">
+            <label>Vendedor</label>
+            <input
+              type="text"
+              value={vendedor.username}
+              disabled
+              className="input-disabled"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Meta de Ventas ($) *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              value={targetAmount}
+              onChange={(e) => setTargetAmount(e.target.value)}
+              placeholder="Ej: 50000.00"
+              required
+              className="input-amount"
+            />
+          </div>
+
+          {!existingGoal && (
+            <>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Mes *</label>
+                  <select
+                    value={month}
+                    onChange={(e) => setMonth(parseInt(e.target.value))}
+                    required
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>
+                        {getMonthName(m)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Año *</label>
+                  <input
+                    type="number"
+                    min="2024"
+                    max="2030"
+                    value={year}
+                    onChange={(e) => setYear(parseInt(e.target.value))}
+                    required
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="form-actions">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-cancel"
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn-save"
+              disabled={loading}
+            >
+              {loading ? 'Guardando...' : (existingGoal ? 'Actualizar' : 'Crear Meta')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function getMonthName(month) {
+  const months = [
+    '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  return months[month];
 }
 
 export default OwnerDashboard;

@@ -1,57 +1,63 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import { useToast } from '../components/ToastContainer';
 import '../styles/VendedorDashboard.css';
+
+// ✅ CONFIGURACIÓN CENTRALIZADA
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
+// ✅ FUNCIÓN HELPER PARA URL DE IMÁGENES
+const getImageUrl = (imageUrl) => {
+  if (!imageUrl) return null;
+  return `${API_BASE_URL}/api/images/products/${imageUrl}`;
+};
+
+// ✅ PLACEHOLDER SVG
+const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 function VendedorDashboard() {
   const [activeTab, setActiveTab] = useState('nueva-venta');
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
-
   return (
     <div className="vendedor-dashboard">
-      <header className="dashboard-header">
-        <h1>Panel de Vendedor - Vitalexa</h1>
-        <div className="header-info">
-          <span>👤 {localStorage.getItem('username')}</span>
-          <button onClick={handleLogout} className="btn-logout">Cerrar Sesión</button>
-        </div>
-      </header>
-
       <nav className="dashboard-nav">
-        <button 
-          className={activeTab === 'nueva-venta' ? 'active' : ''} 
+        <button
+          className={activeTab === 'nueva-venta' ? 'active' : ''}
           onClick={() => setActiveTab('nueva-venta')}
         >
-          🛒 Nueva Venta
+          <span className="material-icons-round">add_shopping_cart</span> New Sale
         </button>
-        <button 
-          className={activeTab === 'mis-ventas' ? 'active' : ''} 
+        <button
+          className={activeTab === 'mis-ventas' ? 'active' : ''}
           onClick={() => setActiveTab('mis-ventas')}
         >
-          📋 Mis Ventas
+          <span className="material-icons-round">receipt_long</span> My Sales
         </button>
-        <button 
-          className={activeTab === 'ventas-completadas' ? 'active' : ''} 
+        <button
+          className={activeTab === 'ventas-completadas' ? 'active' : ''}
           onClick={() => setActiveTab('ventas-completadas')}
         >
-          ✅ Completadas
+          <span className="material-icons-round">check_circle</span> Completed
         </button>
-        <button 
-          className={activeTab === 'clientes' ? 'active' : ''} 
+        <button
+          className={activeTab === 'mis-metas' ? 'active' : ''}
+          onClick={() => setActiveTab('mis-metas')}
+        >
+          <span className="material-icons-round">show_chart</span> My Goals
+        </button>
+        <button
+          className={activeTab === 'clientes' ? 'active' : ''}
           onClick={() => setActiveTab('clientes')}
         >
-          👥 Clientes
+          <span className="material-icons-round">people</span> Clients
         </button>
-        <button 
-          className={activeTab === 'productos' ? 'active' : ''} 
+        <button
+          className={activeTab === 'productos' ? 'active' : ''}
           onClick={() => setActiveTab('productos')}
         >
-          📦 Productos
+          <span className="material-icons-round">inventory_2</span> Products
         </button>
       </nav>
 
@@ -59,6 +65,7 @@ function VendedorDashboard() {
         {activeTab === 'nueva-venta' && <NuevaVentaPanel />}
         {activeTab === 'mis-ventas' && <MisVentasPanel />}
         {activeTab === 'ventas-completadas' && <VentasCompletadasPanel />}
+        {activeTab === 'mis-metas' && <MisMetasPanel />}
         {activeTab === 'clientes' && <ClientesPanel />}
         {activeTab === 'productos' && <ProductosPanel />}
       </div>
@@ -67,7 +74,7 @@ function VendedorDashboard() {
 }
 
 // ============================================
-// PANEL NUEVA VENTA
+// ✅ PANEL NUEVA VENTA - CORREGIDO
 // ============================================
 function NuevaVentaPanel() {
   const [clients, setClients] = useState([]);
@@ -77,6 +84,7 @@ function NuevaVentaPanel() {
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
+  const toast = useToast();
 
   useEffect(() => {
     fetchClients();
@@ -105,10 +113,10 @@ function NuevaVentaPanel() {
 
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.productId === product.id);
-    
+
     if (existingItem) {
       if (existingItem.cantidad >= product.stock) {
-        alert('No hay suficiente stock disponible');
+        toast.warning('No hay suficiente stock disponible');
         return;
       }
       setCart(cart.map(item =>
@@ -133,9 +141,9 @@ function NuevaVentaPanel() {
 
   const updateQuantity = (productId, newQuantity) => {
     const item = cart.find(i => i.productId === productId);
-    
+
     if (newQuantity > item.stockDisponible) {
-      alert('No hay suficiente stock disponible');
+      toast.warning('No hay suficiente stock disponible');
       return;
     }
 
@@ -157,12 +165,12 @@ function NuevaVentaPanel() {
 
   const handleSubmitOrder = async () => {
     if (cart.length === 0) {
-      alert('Agrega productos al carrito');
+      toast.warning('Agrega productos al carrito');
       return;
     }
 
     if (!selectedClient && !allowNoClient) {
-      alert('Selecciona un cliente o marca la casilla para confirmar venta sin cliente');
+      toast.warning('Selecciona un cliente o marca la casilla para confirmar venta sin cliente');
       return;
     }
 
@@ -177,8 +185,8 @@ function NuevaVentaPanel() {
       };
 
       await client.post('/vendedor/orders', orderData);
-      alert('¡Venta registrada exitosamente!');
-      
+      toast.success('¡Venta registrada exitosamente!');
+
       // Limpiar formulario
       setCart([]);
       setSelectedClient('');
@@ -187,7 +195,7 @@ function NuevaVentaPanel() {
       fetchProducts();
     } catch (error) {
       console.error('Error al crear orden:', error);
-      alert('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
+      toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
     }
   };
 
@@ -197,28 +205,30 @@ function NuevaVentaPanel() {
 
   return (
     <div className="nueva-venta-panel">
-      <h2>🛒 Nueva Venta</h2>
+      <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>add_shopping_cart</span> New Sale</h2>
 
       <div className="venta-layout">
-        {/* SECCIÓN IZQUIERDA - PRODUCTOS */}
+        {/* ✅ SECCIÓN IZQUIERDA - PRODUCTOS CON IMÁGENES CORREGIDAS */}
         <div className="productos-section">
           <h3>Productos Disponibles</h3>
           <div className="productos-grid">
             {products.map(product => (
               <div key={product.id} className="product-card">
-                <img 
-                  src={`http://localhost:8080/api/images/products/${product.imageUrl}`}
+                {/* ✅ IMAGEN CORREGIDA */}
+                <img
+                  src={getImageUrl(product.imageUrl) || PLACEHOLDER_IMAGE}
                   alt={product.nombre}
                   onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="150" height="150"%3E%3Crect fill="%23e5e7eb" width="150" height="150"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="12" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
+                    console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
+                    e.target.src = PLACEHOLDER_IMAGE;
                   }}
+                  loading="lazy"
                 />
                 <div className="product-info">
                   <h4>{product.nombre}</h4>
                   <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
                   <p className="product-stock">Stock: {product.stock}</p>
-                  <button 
+                  <button
                     onClick={() => addToCart(product)}
                     disabled={product.stock === 0}
                     className="btn-add-cart"
@@ -234,11 +244,11 @@ function NuevaVentaPanel() {
         {/* SECCIÓN DERECHA - CARRITO */}
         <div className="carrito-section">
           <h3>Carrito de Compra</h3>
-          
+
           <div className="form-group">
             <label>Cliente</label>
-            <select 
-              value={selectedClient} 
+            <select
+              value={selectedClient}
               onChange={(e) => {
                 setSelectedClient(e.target.value);
                 setAllowNoClient(false);
@@ -277,10 +287,10 @@ function NuevaVentaPanel() {
               onChange={(e) => setNotas(e.target.value)}
               rows="3"
               placeholder="Ej: Cliente solicita producto X sin stock, contactar proveedor..."
-              style={{fontSize: '13px'}}
+              style={{ fontSize: '13px' }}
             />
-            <small style={{color: '#6b7280', fontSize: '12px', marginTop: '5px', display: 'block'}}>
-              💡 Usa este campo para solicitar productos sin stock o agregar instrucciones especiales
+            <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span className="material-icons-round" style={{ fontSize: '14px' }}>lightbulb</span> Use this field for out-of-stock requests or special instructions
             </small>
           </div>
 
@@ -297,19 +307,19 @@ function NuevaVentaPanel() {
                     </div>
                     <div className="cart-item-controls">
                       <button onClick={() => updateQuantity(item.productId, item.cantidad - 1)}>-</button>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={item.cantidad}
                         onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
                         min="1"
                         max={item.stockDisponible}
                       />
                       <button onClick={() => updateQuantity(item.productId, item.cantidad + 1)}>+</button>
-                      <button 
+                      <button
                         className="btn-remove"
                         onClick={() => removeFromCart(item.productId)}
                       >
-                        🗑️
+                        <span className="material-icons-round">delete_outline</span>
                       </button>
                     </div>
                     <div className="cart-item-subtotal">
@@ -325,7 +335,7 @@ function NuevaVentaPanel() {
             <h3>Total: ${calculateTotal().toFixed(2)}</h3>
           </div>
 
-          <button 
+          <button
             className="btn-finalizar-venta"
             onClick={handleSubmitOrder}
             disabled={cart.length === 0 || (!selectedClient && !allowNoClient)}
@@ -338,9 +348,8 @@ function NuevaVentaPanel() {
   );
 }
 
-
 // ============================================
-// PANEL venta completadas
+// PANEL VENTAS COMPLETADAS
 // ============================================
 function VentasCompletadasPanel() {
   const [orders, setOrders] = useState([]);
@@ -353,7 +362,6 @@ function VentasCompletadasPanel() {
   const fetchCompletedOrders = async () => {
     try {
       const response = await client.get('/vendedor/orders/my');
-      // Filtrar solo las completadas
       const completed = response.data.filter(order => order.estado === 'COMPLETADO');
       setOrders(completed);
     } catch (error) {
@@ -369,7 +377,7 @@ function VentasCompletadasPanel() {
 
   return (
     <div className="ventas-completadas-panel">
-      <h2>✅ Ventas Completadas</h2>
+      <h2><span className="material-icons-round" style={{ color: 'var(--success)', verticalAlign: 'middle' }}>check_circle</span> Completed Sales</h2>
 
       {orders.length === 0 ? (
         <div className="empty-state">
@@ -382,7 +390,7 @@ function VentasCompletadasPanel() {
               <div className="venta-header">
                 <span className="venta-id">#{order.id.substring(0, 8)}</span>
                 <span className="venta-status status-completado">
-                  ✅ COMPLETADO
+                  <span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span> COMPLETED
                 </span>
               </div>
 
@@ -390,10 +398,10 @@ function VentasCompletadasPanel() {
                 <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
                 <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
                 <p><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
-                
+
                 {order.notas && (
                   <div className="venta-notes">
-                    <strong>📝 Notas:</strong>
+                    <strong><span className="material-icons-round" style={{ fontSize: '14px' }}>note</span> Notes:</strong>
                     <p>{order.notas}</p>
                   </div>
                 )}
@@ -417,12 +425,8 @@ function VentasCompletadasPanel() {
   );
 }
 
-
-
-
-
 // ============================================
-// PANEL CLIENTES (con opción de crear)
+// PANEL CLIENTES
 // ============================================
 function ClientesPanel() {
   const [clients, setClients] = useState([]);
@@ -451,7 +455,7 @@ function ClientesPanel() {
   return (
     <div className="clientes-panel">
       <div className="panel-header">
-        <h2>👥 Clientes</h2>
+        <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>people</span> Clients</h2>
         <button className="btn-add" onClick={() => setShowModal(true)}>
           + Nuevo Cliente
         </button>
@@ -461,18 +465,18 @@ function ClientesPanel() {
         {clients.map(cliente => (
           <div key={cliente.id} className="cliente-card">
             <h3>{cliente.nombre}</h3>
-            <p>📧 {cliente.email}</p>
-            <p>📞 {cliente.telefono}</p>
-            <p>📍 {cliente.direccion || 'Sin dirección'}</p>
+            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>email</span> {cliente.email}</p>
+            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>phone</span> {cliente.telefono}</p>
+            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>place</span> {cliente.direccion || 'No address'}</p>
             <div className="cliente-stats">
-              <span>💰 Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}</span>
+              <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Purchases: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}</span>
             </div>
           </div>
         ))}
       </div>
 
       {showModal && (
-        <ClientFormModal 
+        <ClientFormModal
           onClose={() => setShowModal(false)}
           onSuccess={() => {
             setShowModal(false);
@@ -495,6 +499,7 @@ function ClientFormModal({ onClose, onSuccess }) {
     direccion: ''
   });
   const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -502,11 +507,11 @@ function ClientFormModal({ onClose, onSuccess }) {
 
     try {
       await client.post('/vendedor/clients', formData);
-      alert('Cliente creado exitosamente');
+      toast.success('Cliente creado exitosamente');
       onSuccess();
     } catch (error) {
       console.error('Error al crear cliente:', error);
-      alert('Error al crear cliente: ' + (error.response?.data?.message || error.message));
+      toast.error('Error al crear cliente: ' + (error.response?.data?.message || error.message));
     } finally {
       setSaving(false);
     }
@@ -517,7 +522,7 @@ function ClientFormModal({ onClose, onSuccess }) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Nuevo Cliente</h3>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button className="btn-close" onClick={onClose}><span className="material-icons-round">close</span></button>
         </div>
 
         <form onSubmit={handleSubmit} className="client-form">
@@ -526,7 +531,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <input
               type="text"
               value={formData.nombre}
-              onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
               required
             />
           </div>
@@ -536,7 +541,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
             />
           </div>
@@ -546,7 +551,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <input
               type="tel"
               value={formData.telefono}
-              onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
               required
             />
           </div>
@@ -555,7 +560,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <label>Dirección</label>
             <textarea
               value={formData.direccion}
-              onChange={(e) => setFormData({...formData, direccion: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
               rows="3"
             />
           </div>
@@ -588,8 +593,7 @@ function MisVentasPanel() {
   const fetchMyOrders = async () => {
     try {
       const response = await client.get('/vendedor/orders/my');
-      // Filtrar solo pendientes y confirmadas (no completadas)
-      const pending = response.data.filter(order => 
+      const pending = response.data.filter(order =>
         order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO'
       );
       setOrders(pending);
@@ -606,7 +610,7 @@ function MisVentasPanel() {
 
   return (
     <div className="mis-ventas-panel">
-      <h2>📋 Mis Ventas (En Proceso)</h2>
+      <h2><span className="material-icons-round" style={{ verticalAlign: 'middle' }}>receipt_long</span> My Sales (In Progress)</h2>
 
       {orders.length === 0 ? (
         <div className="empty-state">
@@ -627,10 +631,10 @@ function MisVentasPanel() {
                 <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
                 <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
                 <p><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
-                
+
                 {order.notas && (
                   <div className="venta-notes">
-                    <strong>📝 Notas:</strong>
+                    <strong><span className="material-icons-round" style={{ fontSize: '14px' }}>note</span> Notes:</strong>
                     <p>{order.notas}</p>
                   </div>
                 )}
@@ -654,10 +658,8 @@ function MisVentasPanel() {
   );
 }
 
-
-
 // ============================================
-// PANEL PRODUCTOS (Solo lectura)
+// ✅ PANEL PRODUCTOS CATÁLOGO - CORREGIDO
 // ============================================
 function ProductosPanel() {
   const [products, setProducts] = useState([]);
@@ -684,18 +686,20 @@ function ProductosPanel() {
 
   return (
     <div className="productos-catalogo">
-      <h2>📦 Catálogo de Productos</h2>
+      <h2><span className="material-icons-round" style={{ fontSize: '32px', verticalAlign: 'middle' }}>inventory_2</span> Product Catalog</h2>
 
       <div className="productos-grid-catalogo">
         {products.map(product => (
           <div key={product.id} className="producto-card">
-            <img 
-              src={`http://localhost:8080/api/images/products/${product.imageUrl}`}
+            {/* ✅ IMAGEN CORREGIDA */}
+            <img
+              src={getImageUrl(product.imageUrl) || PLACEHOLDER_IMAGE}
               alt={product.nombre}
               onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
+                console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
+                e.target.src = PLACEHOLDER_IMAGE;
               }}
+              loading="lazy"
             />
             <div className="producto-info">
               <h3>{product.nombre}</h3>
@@ -712,6 +716,262 @@ function ProductosPanel() {
       </div>
     </div>
   );
+}
+
+// ============================================
+// PANEL MIS METAS
+// ============================================
+function MisMetasPanel() {
+  const [currentGoal, setCurrentGoal] = useState(null);
+  const [goalHistory, setGoalHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    fetchCurrentGoal();
+    fetchGoalHistory();
+  }, []);
+
+  const fetchCurrentGoal = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await client.get('/vendedor/sale-goals/my');
+      setCurrentGoal(response.data);
+    } catch (error) {
+      console.error('Error al cargar meta actual:', error);
+      if (error.response?.status === 404) {
+        setError('No tienes una meta asignada para este mes');
+      } else {
+        setError('Error al cargar tu meta actual');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchGoalHistory = async () => {
+    try {
+      const response = await client.get('/vendedor/sale-goals/history');
+      setGoalHistory(response.data);
+    } catch (error) {
+      console.error('Error al cargar historial:', error);
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Cargando tu meta...</div>;
+  }
+
+  return (
+    <div className="mis-metas-panel">
+      <div className="panel-header">
+        <h2>
+          <span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>
+            show_chart
+          </span>
+          {' '}My Sales Goals
+        </h2>
+      </div>
+
+      {error && !currentGoal ? (
+        <div className="no-goal-message">
+          <span className="material-icons-round" style={{ fontSize: '64px', color: 'var(--text-muted)' }}>
+            trending_up
+          </span>
+          <h3>{error}</h3>
+          <p>Contacta a tu supervisor para que te asigne una meta mensual</p>
+        </div>
+      ) : currentGoal && (
+        <div className="current-goal-section">
+          <div className="goal-card-large">
+            <div className="goal-header">
+              <div className="goal-period">
+                <span className="material-icons-round">calendar_today</span>
+                <span>{getMonthName(currentGoal.month)} {currentGoal.year}</span>
+              </div>
+              {currentGoal.completed && (
+                <div className="goal-completed-badge">
+                  <span className="material-icons-round">emoji_events</span>
+                  ¡Meta Completada!
+                </div>
+              )}
+            </div>
+
+            <div className="goal-stats-large">
+              <div className="stat-box">
+                <div className="stat-icon target">
+                  <span className="material-icons-round">flag</span>
+                </div>
+                <div className="stat-content">
+                  <span className="stat-label">Meta del Mes</span>
+                  <span className="stat-value">${parseFloat(currentGoal.targetAmount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              <div className="stat-box">
+                <div className="stat-icon current">
+                  <span className="material-icons-round">payments</span>
+                </div>
+                <div className="stat-content">
+                  <span className="stat-label">Ventas Actuales</span>
+                  <span className="stat-value">${parseFloat(currentGoal.currentAmount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              <div className="stat-box">
+                <div className="stat-icon remaining">
+                  <span className="material-icons-round">trending_up</span>
+                </div>
+                <div className="stat-content">
+                  <span className="stat-label">Falta por Lograr</span>
+                  <span className="stat-value">
+                    ${Math.max(0, parseFloat(currentGoal.targetAmount) - parseFloat(currentGoal.currentAmount)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="progress-section-large">
+              <div className="progress-header">
+                <span className="progress-label">Progreso de la Meta</span>
+                <span className="progress-percentage">
+                  {parseFloat(currentGoal.percentage).toFixed(1)}%
+                </span>
+              </div>
+              <div className="progress-bar-large">
+                <div
+                  className={`progress-fill ${currentGoal.completed ? 'completed' : ''}`}
+                  style={{ width: `${Math.min(parseFloat(currentGoal.percentage), 100)}%` }}
+                >
+                  {parseFloat(currentGoal.percentage) > 10 && (
+                    <span className="progress-text">
+                      {parseFloat(currentGoal.percentage).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="progress-labels">
+                <span>$0</span>
+                <span>${parseFloat(currentGoal.targetAmount).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+              </div>
+            </div>
+
+            {!currentGoal.completed && (
+              <div className="motivation-message">
+                {parseFloat(currentGoal.percentage) < 25 && (
+                  <>
+                    <span className="material-icons-round">rocket_launch</span>
+                    <p>¡Vamos! Apenas estás comenzando el mes. ¡Tú puedes lograrlo!</p>
+                  </>
+                )}
+                {parseFloat(currentGoal.percentage) >= 25 && parseFloat(currentGoal.percentage) < 50 && (
+                  <>
+                    <span className="material-icons-round">directions_run</span>
+                    <p>¡Buen ritmo! Ya llevas el 25% de tu meta.</p>
+                  </>
+                )}
+                {parseFloat(currentGoal.percentage) >= 50 && parseFloat(currentGoal.percentage) < 75 && (
+                  <>
+                    <span className="material-icons-round">local_fire_department</span>
+                    <p>¡Excelente! Ya superaste la mitad de tu meta. ¡Sigue así!</p>
+                  </>
+                )}
+                {parseFloat(currentGoal.percentage) >= 75 && parseFloat(currentGoal.percentage) < 100 && (
+                  <>
+                    <span className="material-icons-round">military_tech</span>
+                    <p>¡Increíble! Estás a punto de lograr tu meta. ¡El último empujón!</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {currentGoal.completed && (
+              <div className="completion-celebration">
+                <span className="material-icons-round celebration-icon">celebration</span>
+                <h3>¡Felicidades!</h3>
+                <p>Has superado tu meta de ventas para este mes</p>
+              </div>
+            )}
+
+            <div className="goal-timestamps">
+              <p>
+                <span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>update</span>
+                {' '}Última actualización: {new Date(currentGoal.updatedAt).toLocaleString('es-ES')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORIAL DE METAS */}
+      {goalHistory.length > 0 && (
+        <div className="goal-history-section">
+          <button
+            className="btn-toggle-history"
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            <span className="material-icons-round">history</span>
+            {showHistory ? 'Ocultar Historial' : 'Ver Historial de Metas'}
+            <span className="material-icons-round">
+              {showHistory ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+
+          {showHistory && (
+            <div className="history-grid">
+              {goalHistory.map((goal) => (
+                <div key={goal.id} className={`history-card ${goal.completed ? 'completed' : ''}`}>
+                  <div className="history-header">
+                    <h4>{getMonthName(goal.month)} {goal.year}</h4>
+                    {goal.completed && (
+                      <span className="completed-icon">
+                        <span className="material-icons-round">check_circle</span>
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="history-stats">
+                    <div className="history-stat">
+                      <span className="label">Meta:</span>
+                      <span className="value">${parseFloat(goal.targetAmount).toFixed(2)}</span>
+                    </div>
+                    <div className="history-stat">
+                      <span className="label">Logrado:</span>
+                      <span className="value">${parseFloat(goal.currentAmount).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="history-progress">
+                    <div className="progress-bar-small">
+                      <div
+                        className={`progress-fill ${goal.completed ? 'completed' : ''}`}
+                        style={{ width: `${Math.min(parseFloat(goal.percentage), 100)}%` }}
+                      />
+                    </div>
+                    <span className="percentage-text">
+                      {parseFloat(goal.percentage).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Utilidad para nombres de meses
+function getMonthName(month) {
+  const months = [
+    '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  return months[month];
 }
 
 export default VendedorDashboard;
