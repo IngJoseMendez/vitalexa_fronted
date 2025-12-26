@@ -22,17 +22,9 @@ export default function Login() {
       const response = await client.post('/auth/login', { username, password });
       const token = response.data.token;
 
-      // 🔥 DEBUG: Ver qué hay en el token
-      const decoded = decodeJWT(token);
-      console.log('🔍 TOKEN COMPLETO DECODIFICADO:', decoded);
-      console.log('🔍 Authorities:', decoded?.authorities);
-      console.log('🔍 Role:', decoded?.role);
-      console.log('🔍 Auth:', decoded?.auth);
-      console.log('🔍 Todas las keys:', Object.keys(decoded || {}));
-
       // Extraer el rol del token
       const role = getRoleFromToken(token);
-      console.log('🔍 ROL EXTRAÍDO:', role);
+
 
       if (!role) {
         setError('No se pudo obtener el rol del usuario');
@@ -98,12 +90,6 @@ export default function Login() {
           </button>
         </form>
         {error && <p className="error">{error}</p>}
-        <div className="test-users">
-          <p><strong>Usuarios de prueba:</strong></p>
-          <p>👑 owner / 1234</p>
-          <p>👨‍💼 admin / 1234</p>
-          <p>💼 vendedor / 1234</p>
-        </div>
       </div>
     </div>
   );
