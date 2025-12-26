@@ -64,7 +64,7 @@ export default function Login() {
         {/* 🏢 LOGO DE LA EMPRESA */}
         <div className="login-logo">
           <img
-            src="https://res.cloudinary.com/dxl97cptv/image/upload/v1766740054/vitalexa/products/file_w6vgnk.png"
+            src="https://res.cloudinary.com/dxl97cptv/image/upload/v1766743808/Black_and_Green_Flat_Illustrated_Organic_Cosmetics_Logo_200_x_200_px_200_x_100_px_1_qurn1e.png"
             alt="Vitalexa Logo"
             onError={(e) => {
               // Si falla, mostrar el nombre como antes
@@ -72,7 +72,6 @@ export default function Login() {
             }}
           />
         </div>
-        <h1>Sistema Vitalexa</h1>
         <form onSubmit={handleLogin}>
           <div className="input-group">
             <span className="material-icons-round">person</span>
