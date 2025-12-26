@@ -211,24 +211,16 @@ function NuevaVentaPanel() {
       <div className="venta-layout">
         {/* ✅ SECCIÓN IZQUIERDA - PRODUCTOS CON IMÁGENES CORREGIDAS */}
         <div className="productos-section">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <div className="products-header">
             <h3>Productos Disponibles</h3>
-            <div style={{ position: 'relative' }}>
-              <span className="material-icons-round" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}>search</span>
+            <div className="search-container">
+              <span className="material-icons-round search-icon">search</span>
               <input
                 type="text"
                 placeholder="Buscar productos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{
-                  padding: '8px 16px 8px 36px',
-                  borderRadius: '20px',
-                  border: '1px solid #e2e8f0',
-                  outline: 'none',
-                  fontSize: '14px',
-                  width: '250px',
-                  transition: 'all 0.2s'
-                }}
+                className="search-input"
               />
             </div>
           </div>
