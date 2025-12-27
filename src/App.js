@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import VendedorDashboard from './pages/VendedorDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
+import EmpacadorDashboard from './pages/EmpacadorDashboard';
 import NotificationCenter from './components/NotificationCenter';
 import { ToastProvider } from './components/ToastContainer';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
@@ -55,6 +56,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
     if (role === 'ROLE_ADMIN') return 'admin';
     if (role === 'ROLE_OWNER') return 'owner';
     if (role === 'ROLE_VENDEDOR') return 'vendedor';
+    if (role === 'ROLE_EMPACADOR') return 'empacador';
     return 'vendedor';
   };
 
@@ -62,6 +64,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
     if (role === 'ROLE_ADMIN') return '👨‍💼 Admin';
     if (role === 'ROLE_OWNER') return '👑 Owner';
     if (role === 'ROLE_VENDEDOR') return '🛒 Vendedor';
+    if (role === 'ROLE_EMPACADOR') return '📦 Empacador';
     return '';
   };
 
@@ -133,6 +136,15 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
             element={
               <ProtectedRoute allowedRoles={['ROLE_OWNER']}>
                 <OwnerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/empacador/*"
+            element={
+              <ProtectedRoute allowedRoles={['ROLE_EMPACADOR']}>
+                <EmpacadorDashboard />
               </ProtectedRoute>
             }
           />

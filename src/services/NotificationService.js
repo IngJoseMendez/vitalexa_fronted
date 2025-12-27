@@ -55,6 +55,17 @@ class NotificationService {
           console.log('📡 Suscrito a /topic/admin-owner/notifications');
         }
 
+        // ✅ SUSCRIPCIÓN PARA TODOS: Actualizaciones de inventario
+        this.subscriptions.push(
+          this.stompClient.subscribe('/topic/inventory', (message) => {
+            const event = JSON.parse(message.body);
+            console.log('📦 Actualización de inventario:', event.action);
+            // Enviamos el evento con un tipo especial
+            onMessageReceived({ type: 'INVENTORY_UPDATE', payload: event });
+          })
+        );
+        console.log('📡 Suscrito a /topic/inventory (Global)');
+
         // Todos reciben notificaciones generales (órdenes completadas)
         this.subscriptions.push(
           this.stompClient.subscribe('/topic/notifications', (message) => {

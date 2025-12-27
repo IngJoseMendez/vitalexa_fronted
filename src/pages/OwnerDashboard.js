@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
+import NotificationService from '../services/NotificationService';
 import '../styles/OwnerDashboard.css';
 
 // ✅ CONFIGURACIÓN CENTRALIZADA
@@ -20,12 +21,31 @@ function OwnerDashboard() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [vendedores, setVendedores] = useState([]);
   const [saleGoals, setSaleGoals] = useState([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const toast = useToast();
 
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // Connect with role 'owner'
+    NotificationService.connect((notification) => {
+      if (notification.type === 'INVENTORY_UPDATE') {
+        console.log("📦 Inventory update received, refreshing dashboard...");
+        // Trigger re-fetch of main data
+        setRefreshTrigger(Date.now());
+      }
+    }, 'owner');
+
+    return () => {
+      NotificationService.disconnect();
+    };
   }, []);
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      fetchData();
+    }
+  }, [refreshTrigger]);
 
   const fetchData = async () => {
     try {

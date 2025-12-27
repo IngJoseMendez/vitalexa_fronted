@@ -45,6 +45,8 @@ export default function Login() {
         navigate('/vendedor');
       } else if (roleClean === 'OWNER') {
         navigate('/owner');
+      } else if (roleClean === 'EMPACADOR') {
+        navigate('/empacador');
       } else {
         navigate('/dashboard'); // Fallback al dashboard antiguo
       }

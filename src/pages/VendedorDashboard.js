@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
+import NotificationService from '../services/NotificationService';
 import '../styles/VendedorDashboard.css';
 
 // ✅ CONFIGURACIÓN CENTRALIZADA
@@ -13,7 +14,22 @@ const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/20
 
 function VendedorDashboard() {
   const [activeTab, setActiveTab] = useState('nueva-venta');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Connect with role 'vendedor'
+    NotificationService.connect((notification) => {
+      if (notification.type === 'INVENTORY_UPDATE') {
+        console.log("📦 Inventory update received, refreshing seller dashboard...");
+        setRefreshTrigger(Date.now());
+      }
+    }, 'vendedor');
+
+    return () => {
+      NotificationService.disconnect();
+    };
+  }, []);
 
   return (
     <div className="vendedor-dashboard">
@@ -57,12 +73,12 @@ function VendedorDashboard() {
       </nav>
 
       <div className="dashboard-content">
-        {activeTab === 'nueva-venta' && <NuevaVentaPanel />}
+        {activeTab === 'nueva-venta' && <NuevaVentaPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'mis-ventas' && <MisVentasPanel />}
         {activeTab === 'ventas-completadas' && <VentasCompletadasPanel />}
         {activeTab === 'mis-metas' && <MisMetasPanel />}
         {activeTab === 'clientes' && <ClientesPanel />}
-        {activeTab === 'productos' && <ProductosPanel />}
+        {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
       </div>
     </div>
   );
@@ -71,7 +87,7 @@ function VendedorDashboard() {
 // ============================================
 // ✅ PANEL NUEVA VENTA - CORREGIDO
 // ============================================
-function NuevaVentaPanel() {
+function NuevaVentaPanel({ refreshTrigger }) {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
@@ -85,7 +101,7 @@ function NuevaVentaPanel() {
   useEffect(() => {
     fetchClients();
     fetchProducts();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchClients = async () => {
     try {
@@ -445,6 +461,7 @@ function ClientesPanel() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     fetchClients();

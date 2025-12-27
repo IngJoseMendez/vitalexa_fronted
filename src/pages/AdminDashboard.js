@@ -2,10 +2,28 @@ import { useState, useEffect } from 'react';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
+import NotificationService from '../services/NotificationService'; // Import Service
 import '../styles/AdminDashboard.css';
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // State for refresh
+  const toast = useToast();
+
+  useEffect(() => {
+    // Connect with role 'admin'
+    NotificationService.connect((notification) => {
+      if (notification.type === 'INVENTORY_UPDATE') {
+        console.log("📦 Inventory update received, refreshing data...");
+        setRefreshTrigger(Date.now());
+        // Optional: toast.info('Inventario actualizado');
+      }
+    }, 'admin');
+
+    return () => {
+      NotificationService.disconnect();
+    };
+  }, []);
 
   return (
     <div className="admin-dashboard">
@@ -25,8 +43,8 @@ function AdminDashboard() {
       </nav>
 
       <div className="dashboard-content">
-        {activeTab === 'orders' && <OrdersPanel />}
-        {activeTab === 'products' && <ProductsPanel />}
+        {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
       </div>
     </div>
   );
@@ -651,7 +669,10 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
 // ============================================
 // PANEL DE PRODUCTOS MEJORADO
 // ============================================
-function ProductsPanel() {
+// ============================================
+// PANEL DE PRODUCTOS MEJORADO
+// ============================================
+function ProductsPanel({ refreshTrigger }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -664,7 +685,7 @@ function ProductsPanel() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchProducts = async () => {
     try {
