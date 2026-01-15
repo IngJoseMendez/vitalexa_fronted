@@ -5,6 +5,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import VendedorDashboard from './pages/VendedorDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
 import EmpacadorDashboard from './pages/EmpacadorDashboard';
+import ClientDashboard from './pages/ClientDashboard';
 import NotificationCenter from './components/NotificationCenter';
 import { ToastProvider } from './components/ToastContainer';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
@@ -57,6 +58,9 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
     if (role === 'ROLE_OWNER') return 'owner';
     if (role === 'ROLE_VENDEDOR') return 'vendedor';
     if (role === 'ROLE_EMPACADOR') return 'empacador';
+    if (role === 'ROLE_VENDEDOR') return 'vendedor';
+    if (role === 'ROLE_EMPACADOR') return 'empacador';
+    if (role === 'ROLE_CLIENTE') return 'cliente';
     return 'vendedor';
   };
 
@@ -65,6 +69,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
     if (role === 'ROLE_OWNER') return '👑 Owner';
     if (role === 'ROLE_VENDEDOR') return '🛒 Vendedor';
     if (role === 'ROLE_EMPACADOR') return '📦 Empacador';
+    if (role === 'ROLE_CLIENTE') return '🛍️ Cliente';
     return '';
   };
 
@@ -145,6 +150,15 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
             element={
               <ProtectedRoute allowedRoles={['ROLE_EMPACADOR']}>
                 <EmpacadorDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cliente/*"
+            element={
+              <ProtectedRoute allowedRoles={['ROLE_CLIENTE']}>
+                <ClientDashboard />
               </ProtectedRoute>
             }
           />

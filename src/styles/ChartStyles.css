@@ -1,0 +1,338 @@
+/* =============================================
+   SALES CHART - GORGEOUS 2026 DESIGN
+   ============================================= */
+
+.sales-chart {
+    padding: 1.5rem 0;
+    position: relative;
+}
+
+.sales-chart .chart-bars {
+    display: flex;
+    align-items: flex-end;
+    /* CRITICAL: Align bars to bottom */
+    justify-content: space-around;
+    gap: 1.25rem;
+    height: 300px;
+    /* Fixed container height */
+    padding: 3rem 2rem 4rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    border-radius: 1.5rem;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    position: relative;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+.sales-chart .chart-bar-container {
+    flex: 1;
+    max-width: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.sales-chart .chart-bar-container:hover {
+    transform: translateY(-12px) scale(1.05);
+    z-index: 10;
+}
+
+/* FORZAR LA ALTURA VISUAL */
+.sales-chart .chart-bar {
+    width: 100%;
+    background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 100%);
+    border-radius: 1rem 1rem 0 0;
+
+    /* CRITICAL FIX: Ensure no min-height forces them to be equal */
+    min-height: 4px !important;
+    /* Only 4px min, not 40px */
+    height: auto;
+    /* Let the inline style control height */
+
+    position: relative;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
+
+    /* Remove flex layout from the bar itself if it causes expansion */
+    display: block;
+}
+
+/* Position the value text ABSOLUTELY so it doesn't affect bar height */
+.sales-chart .bar-value {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+
+    z-index: 2;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    margin-bottom: 5px;
+    pointer-events: none;
+}
+
+.sales-chart .chart-bar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.4) 0%,
+            transparent 50%);
+    border-radius: 1rem 1rem 0 0;
+}
+
+.sales-chart .chart-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.5) 50%,
+            transparent 100%);
+    animation: shimmer 3s infinite;
+    border-radius: 1rem 1rem 0 0;
+    z-index: 1;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.sales-chart .chart-bar-container:hover .chart-bar {
+    background: linear-gradient(180deg, #8b5cf6 0%, #a855f7 100%);
+    box-shadow: 0 12px 28px rgba(99, 102, 241, 0.5);
+}
+
+.sales-chart .bar-value {
+    position: relative;
+    z-index: 2;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.15);
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.sales-chart .bar-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #64748b;
+    text-align: center;
+    white-space: nowrap;
+    margin-top: 0.75rem;
+    transition: color 0.3s;
+}
+
+.sales-chart .chart-bar-container:hover .bar-label {
+    color: var(--primary);
+}
+
+.sales-chart .no-data {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+}
+
+/* =============================================
+   TOP PRODUCTS CHART - PREMIUM 2026 CARDS
+   ============================================= */
+
+.top-products-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.product-bar-row {
+    background: white;
+    border-radius: 1.5rem;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.03);
+    border: 2px solid rgba(0, 0, 0, 0.02);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 1.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    position: relative;
+}
+
+.product-bar-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+    border-radius: 1.5rem 0 0 1.5rem;
+    transition: width 0.3s;
+}
+
+.product-bar-row:hover::before {
+    width: 12px;
+}
+
+.product-bar-row:hover {
+    transform: translateX(8px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.product-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    min-width: 180px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.product-bar-container {
+    flex: 1;
+    height: 42px;
+    background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+    border: 2px solid #e2e8f0;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.product-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981 0%, #34d399 50%, #059669 100%);
+    border-radius: 99px;
+    transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    padding: 0 1.25rem;
+    min-width: 100px;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.product-bar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.4) 50%,
+            transparent 100%);
+    animation: shimmer 2.5s infinite;
+}
+
+.bar-text {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    position: relative;
+    z-index: 1;
+}
+
+.product-amount {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #10b981;
+    white-space: nowrap;
+    min-width: 140px;
+    text-align: right;
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    padding: 0.5rem 1rem;
+    border-radius: 99px;
+    border: 2px solid #86efac;
+}
+
+.top-products-chart .no-data {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    background: white;
+    border-radius: 1.5rem;
+    border: 2px dashed #e2e8f0;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+    .sales-chart .chart-bars {
+        height: 260px;
+        padding: 2rem 1rem 3.5rem;
+        gap: 0.75rem;
+    }
+
+    .sales-chart .chart-bar-container {
+        max-width: 60px;
+    }
+
+    .sales-chart .bar-value {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.4rem;
+    }
+
+    .sales-chart .bar-label {
+        font-size: 0.7rem;
+    }
+
+    .product-bar-row {
+        flex-direction: column;
+        gap: 1.25rem;
+        padding: 1.5rem;
+    }
+
+    .product-bar-row::before {
+        width: 6px;
+        height: 6px;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: auto;
+        border-radius: 1.5rem 1.5rem 0 0;
+    }
+
+    .product-name {
+        white-space: normal;
+        max-width: 100%;
+        min-width: 100%;
+    }
+
+    .product-bar-container {
+        width: 100%;
+    }
+
+    .product-amount {
+        text-align: center;
+        width: 100%;
+    }
+}

@@ -69,4 +69,36 @@ apiClient.interceptors.response.use(
 export default apiClient;
 
 // Named exports adicionales
+
+// === CLIENT ENDPOINTS ===
+export const clientService = {
+  // Products
+  getProducts: () => apiClient.get('/cliente/products'),
+  getProductsPage: (page = 0, size = 24, q = '', inStock = null) => {
+    const params = { page, size };
+    if (q) params.q = q;
+    if (inStock !== null) params.inStock = inStock;
+    return apiClient.get('/cliente/products/page', { params });
+  },
+
+  // Orders
+  createOrder: (orderData) => apiClient.post('/cliente/orders', orderData),
+  getOrders: () => apiClient.get('/cliente/orders'),
+  getOrderById: (id) => apiClient.get(`/cliente/orders/${id}`),
+  cancelOrder: (id) => apiClient.patch(`/cliente/orders/${id}/cancel`),
+  reorder: (id) => apiClient.post(`/cliente/orders/${id}/reorder`),
+
+  // Shopping Lists
+  getLists: () => apiClient.get('/cliente/lists'),
+  createList: (data) => apiClient.post('/cliente/lists', data),
+  addUpdateListItem: (listId, itemData) => apiClient.post(`/cliente/lists/${listId}/items`, itemData), // itemData: { productId, defaultQty }
+  updateListItem: (listId, itemId, data) => apiClient.patch(`/cliente/lists/${listId}/items/${itemId}`, data), // data: { defaultQty }
+  convertListToOrder: (listId) => apiClient.post(`/cliente/lists/${listId}/to-order`),
+
+  // Profile
+  getProfile: () => apiClient.get('/cliente/me'),
+  updateProfile: (data) => apiClient.patch('/cliente/me', data),
+};
+
 export { API_BASE_URL };
+

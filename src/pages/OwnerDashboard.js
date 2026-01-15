@@ -3,6 +3,7 @@ import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import '../styles/OwnerDashboard.css';
+import '../styles/ChartStyles.css';
 
 // ✅ CONFIGURACIÓN CENTRALIZADA
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
@@ -408,14 +409,19 @@ function ProductsTab({ products }) {
   );
 }
 
+
+// ===== REPORTS TAB =====
 // ===== REPORTS TAB =====
 function ReportsTab({ orders, products, vendedores }) {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: new Date(new Date().setMonth(new Date().getMonth() - 1))
+      .toISOString()
+      .split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
   });
+
   const toast = useToast();
   const [activeReportTab, setActiveReportTab] = useState('overview');
   const [exporting, setExporting] = useState(false);
@@ -423,7 +429,7 @@ function ReportsTab({ orders, products, vendedores }) {
   useEffect(() => {
     fetchReportData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange]);
+  }, [dateRange.startDate, dateRange.endDate]);
 
   const fetchReportData = async () => {
     try {
@@ -431,8 +437,8 @@ function ReportsTab({ orders, products, vendedores }) {
       const response = await client.get('/owner/reports/complete', {
         params: {
           startDate: dateRange.startDate,
-          endDate: dateRange.endDate
-        }
+          endDate: dateRange.endDate,
+        },
       });
       setReportData(response.data);
     } catch (error) {
@@ -444,31 +450,86 @@ function ReportsTab({ orders, products, vendedores }) {
   };
 
   const handleDateChange = (field, value) => {
-    setDateRange(prev => ({ ...prev, [field]: value }));
+    setDateRange((prev) => ({ ...prev, [field]: value }));
   };
 
+  // =========================
+  // Helpers de descarga
+  // =========================
+
+  const getExtensionByFormat = (format) => {
+    switch (format) {
+      case 'excel':
+        return 'xlsx';
+      case 'pdf':
+        return 'pdf';
+      case 'csv':
+        return 'csv';
+      default:
+        return format; // fallback
+    }
+  };
+
+  const getFilenameFromContentDisposition = (contentDisposition) => {
+    if (!contentDisposition) return null;
+
+    // Soporta filename= y filename*=UTF-8''
+    // Ej: attachment; filename="reporte.xlsx"
+    // Ej: attachment; filename*=UTF-8''reporte.xlsx
+    const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1].replace(/\"/g, ''));
+
+    const simpleMatch = contentDisposition.match(/filename\s*=\s*\"?([^\";]+)\"?/i);
+    if (simpleMatch?.[1]) return simpleMatch[1];
+
+    return null;
+  };
+
+  const downloadAxiosBlob = (axiosResponse, fallbackFilename) => {
+    const contentType = axiosResponse.headers?.['content-type'] || 'application/octet-stream';
+    const contentDisposition = axiosResponse.headers?.['content-disposition'];
+
+    const serverFilename = getFilenameFromContentDisposition(contentDisposition);
+    const filename = serverFilename || fallbackFilename;
+
+    const blob = new Blob([axiosResponse.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    // Evita memory leak por múltiples createObjectURL
+    window.URL.revokeObjectURL(url);
+  };
+
+  // =========================
+  // Export: completo
+  // =========================
   const handleExportReport = async (format) => {
+    if (exporting) return;
+
     try {
       setExporting(true);
+
+      // OJO: tu client.js ya tiene baseURL = http://localhost:8080/api
+      // Entonces aquí SIEMPRE va sin /api al inicio.
       const response = await client.get(`/reports/export/complete/${format}`, {
         params: {
           startDate: dateRange.startDate,
-          endDate: dateRange.endDate
+          endDate: dateRange.endDate,
         },
-        responseType: 'blob'
+        responseType: 'blob',
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
+      const ext = getExtensionByFormat(format);
+      const fallbackName = `reporte_completo_${dateRange.startDate}_${dateRange.endDate}.${ext}`;
 
-      const fileName = `reporte_completo_${dateRange.startDate}_${dateRange.endDate}.${format}`;
-      link.setAttribute('download', fileName);
-
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
+      downloadAxiosBlob(response, fallbackName);
       toast.success(`Reporte ${format.toUpperCase()} descargado exitosamente`);
     } catch (error) {
       console.error(`Error al exportar a ${format}:`, error);
@@ -478,46 +539,49 @@ function ReportsTab({ orders, products, vendedores }) {
     }
   };
 
+  // =========================
+  // Export: específico
+  // =========================
   const handleExportSpecific = async (type, format) => {
+    if (exporting) return;
+
     try {
       setExporting(true);
+
       let endpoint = '';
-      let params = {};
+      let params = undefined;
 
       switch (type) {
         case 'sales':
           endpoint = `/reports/export/sales/${format}`;
           params = {
             startDate: dateRange.startDate,
-            endDate: dateRange.endDate
+            endDate: dateRange.endDate,
           };
           break;
         case 'products':
           endpoint = `/reports/export/products/${format}`;
+          params = undefined;
           break;
         case 'clients':
           endpoint = `/reports/export/clients/${format}`;
+          params = undefined;
           break;
         default:
+          toast.error('Tipo de reporte inválido');
           return;
       }
 
       const response = await client.get(endpoint, {
-        params: params,
-        responseType: 'blob'
+        params,
+        responseType: 'blob',
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
+      const ext = getExtensionByFormat(format);
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fallbackName = `reporte_${type}_${timestamp}.${ext}`;
 
-      const fileName = `reporte_${type}_${new Date().toISOString().split('T')[0]}.${format}`;
-      link.setAttribute('download', fileName);
-
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
+      downloadAxiosBlob(response, fallbackName);
       toast.success(`Reporte de ${type} descargado exitosamente`);
     } catch (error) {
       console.error(`Error al exportar ${type}:`, error);
@@ -527,6 +591,9 @@ function ReportsTab({ orders, products, vendedores }) {
     }
   };
 
+  // =========================
+  // Render
+  // =========================
   if (loading) {
     return <div className="loading">Generando reportes...</div>;
   }
@@ -539,6 +606,7 @@ function ReportsTab({ orders, products, vendedores }) {
     <div className="reports-tab">
       <div className="reports-header">
         <h2>📈 Sistema de Reportes</h2>
+
         <div className="date-range-selector">
           <label>
             Desde:
@@ -548,6 +616,7 @@ function ReportsTab({ orders, products, vendedores }) {
               onChange={(e) => handleDateChange('startDate', e.target.value)}
             />
           </label>
+
           <label>
             Hasta:
             <input
@@ -556,7 +625,8 @@ function ReportsTab({ orders, products, vendedores }) {
               onChange={(e) => handleDateChange('endDate', e.target.value)}
             />
           </label>
-          <button onClick={fetchReportData} className="btn-refresh">
+
+          <button onClick={fetchReportData} className="btn-refresh" disabled={loading || exporting}>
             🔄 Actualizar
           </button>
         </div>
@@ -572,6 +642,7 @@ function ReportsTab({ orders, products, vendedores }) {
           >
             📄 Descargar PDF
           </button>
+
           <button
             onClick={() => handleExportReport('excel')}
             disabled={exporting}
@@ -579,6 +650,7 @@ function ReportsTab({ orders, products, vendedores }) {
           >
             📊 Descargar Excel
           </button>
+
           <button
             onClick={() => handleExportReport('csv')}
             disabled={exporting}
@@ -596,24 +668,28 @@ function ReportsTab({ orders, products, vendedores }) {
         >
           📊 Resumen General
         </button>
+
         <button
           className={activeReportTab === 'sales' ? 'active' : ''}
           onClick={() => setActiveReportTab('sales')}
         >
           💰 Ventas
         </button>
+
         <button
           className={activeReportTab === 'products' ? 'active' : ''}
           onClick={() => setActiveReportTab('products')}
         >
           📦 Productos
         </button>
+
         <button
           className={activeReportTab === 'vendors' ? 'active' : ''}
           onClick={() => setActiveReportTab('vendors')}
         >
           👥 Vendedores
         </button>
+
         <button
           className={activeReportTab === 'clients' ? 'active' : ''}
           onClick={() => setActiveReportTab('clients')}
@@ -624,32 +700,50 @@ function ReportsTab({ orders, products, vendedores }) {
 
       <div className="report-content">
         {activeReportTab === 'overview' && <OverviewReport data={reportData} />}
+
         {activeReportTab === 'sales' && (
           <>
             <div className="export-specific">
-              <button onClick={() => handleExportSpecific('sales', 'pdf')} disabled={exporting}>
-                📄 Exportar Ventas PDF
+              <button
+                onClick={() => handleExportSpecific('sales', 'pdf')}
+                disabled={exporting}
+                className="btn-export btn-pdf"
+              >
+                📄 Exportar Ventas a PDF
               </button>
             </div>
             <SalesReport data={reportData.salesReport} />
           </>
         )}
+
         {activeReportTab === 'products' && (
           <>
             <div className="export-specific">
-              <button onClick={() => handleExportSpecific('products', 'excel')} disabled={exporting}>
-                📊 Exportar Productos Excel
+              <button
+                onClick={() => handleExportSpecific('products', 'excel')}
+                disabled={exporting}
+                className="btn-export btn-excel"
+              >
+                📊 Exportar Productos a Excel
               </button>
             </div>
             <ProductsReport data={reportData.productReport} />
           </>
         )}
-        {activeReportTab === 'vendors' && <VendorsReport data={reportData.vendorReport} vendedores={vendedores} />}
+
+        {activeReportTab === 'vendors' && (
+          <VendorsReport data={reportData.vendorReport} vendedores={vendedores} />
+        )}
+
         {activeReportTab === 'clients' && (
           <>
             <div className="export-specific">
-              <button onClick={() => handleExportSpecific('clients', 'csv')} disabled={exporting}>
-                📋 Exportar Clientes CSV
+              <button
+                onClick={() => handleExportSpecific('clients', 'csv')}
+                disabled={exporting}
+                className="btn-export btn-csv"
+              >
+                📋 Exportar Clientes a CSV
               </button>
             </div>
             <ClientsReport data={reportData.clientReport} />
@@ -661,13 +755,15 @@ function ReportsTab({ orders, products, vendedores }) {
         <div className="exporting-overlay">
           <div className="exporting-message">
             <div className="spinner"></div>
-            <p>Generando reporte...</p>
+            <p>📥 Generando y descargando reporte...</p>
           </div>
         </div>
       )}
     </div>
   );
 }
+
+
 
 // ===== OVERVIEW REPORT =====
 function OverviewReport({ data }) {
@@ -1036,7 +1132,9 @@ function SalesChart({ data }) {
             <div
               className="chart-bar"
               style={{
-                height: `${(parseFloat(day.revenue) / maxRevenue) * 200}px`
+                // Calculate percentage relative to maxRevenue without extra scaling that shrinks bars
+                height: `${Math.max((parseFloat(day.revenue) / maxRevenue) * 100, 2)}%`,
+                minHeight: '20px' // Ensure visible minimal height for styling
               }}
               title={`$${parseFloat(day.revenue).toFixed(2)}`}
             >

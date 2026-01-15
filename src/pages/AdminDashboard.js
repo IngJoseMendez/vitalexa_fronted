@@ -767,7 +767,9 @@ function ProductsPanel({ refreshTrigger }) {
       ) : (
         <div className="products-grid">
           {filteredProducts.map(product => (
-            <div key={product.id} className={`product-card ${!product.active ? 'inactive' : ''}`}>
+            <div key={product.id} className="product-card">
+              <div className={`product-status-blob ${product.active ? 'active' : 'inactive'}`} />
+
               <div className="product-image">
                 <img
                   src={product.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E'}
@@ -776,32 +778,28 @@ function ProductsPanel({ refreshTrigger }) {
                     e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
                   }}
                 />
-
               </div>
 
               <div className="product-info">
                 <h3>{product.nombre}</h3>
-                <p className="product-description">{product.descripcion || 'Sin descripción'}</p>
-                <div className="product-details">
+
+                <div className="product-meta">
                   <span className="product-price">${parseFloat(product.precio).toFixed(2)}</span>
-                  <span className={`product-stock ${product.stock < 10 ? 'low-stock' : ''}`}>
-                    📦 Stock: {product.stock}
+                  <span className={`product-stock-badge ${product.stock < 10 ? 'low' : ''}`}>
+                    <span className="material-icons-round" style={{ fontSize: '14px' }}>inventory_2</span> {product.stock}
                   </span>
                 </div>
-                <span className={`product-status ${product.active ? 'active' : 'inactive'}`}>
-                  {product.active ? <><span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span> Activo</> : <><span className="material-icons-round" style={{ fontSize: '14px' }}>cancel</span> Inactivo</>}
-                </span>
               </div>
 
-              <div className="product-actions">
-                <button onClick={() => setEditingProduct(product)} className="btn-action">
+              <div className="product-actions-overlay">
+                <button onClick={() => setEditingProduct(product)} className="btn-icon-action edit" title="Editar">
                   <span className="material-icons-round">edit</span>
                 </button>
-                <button onClick={() => toggleStatus(product.id, product.active)} className="btn-action">
-                  {product.active ? <span className="material-icons-round">lock</span> : <span className="material-icons-round">lock_open</span>}
+                <button onClick={() => toggleStatus(product.id, product.active)} className="btn-icon-action toggle" title={product.active ? "Desactivar" : "Activar"}>
+                  <span className="material-icons-round">{product.active ? 'lock' : 'lock_open'}</span>
                 </button>
-                <button className="btn-action btn-delete" onClick={() => handleDelete(product)}>
-                  🗑️
+                <button onClick={() => handleDelete(product)} className="btn-icon-action delete" title="Eliminar">
+                  <span className="material-icons-round">delete_outline</span>
                 </button>
               </div>
             </div>

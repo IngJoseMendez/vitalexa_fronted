@@ -47,9 +47,12 @@ export default function Login() {
         navigate('/owner');
       } else if (roleClean === 'EMPACADOR') {
         navigate('/empacador');
+      } else if (roleClean === 'CLIENTE') {
+        navigate('/cliente', { replace: true });
       } else {
-        navigate('/dashboard'); // Fallback al dashboard antiguo
+        navigate('/login', { replace: true }); // o a donde quieras mandar roles desconocidos
       }
+
 
     } catch (err) {
       setError(err.response?.data?.message || 'Error en login');

@@ -131,13 +131,24 @@
 /* Mobile Responsive */
 @media (max-width: 768px) {
     .toast-container {
-        top: 70px;
-        right: 10px;
-        left: 10px;
+        top: auto;
+        bottom: 20px;
+        /* Move toasts to bottom on mobile for better visibility/reachability */
+        right: 12px;
+        left: 12px;
+        flex-direction: column-reverse;
+        /* Stack upwards from bottom */
     }
 
     .toast {
         min-width: auto;
-        max-width: none;
+        max-width: 100%;
+        width: 100%;
+        margin: 0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .toast-message {
+        font-size: 0.9rem;
     }
 }
