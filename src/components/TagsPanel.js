@@ -12,7 +12,11 @@ export default function TagsPanel() {
     const toast = useToast();
     const confirm = useConfirm();
 
-    const fetchTags = useCallback(async () => {
+    useEffect(() => {
+        fetchTags();
+    }, []);
+
+    const fetchTags = async () => {
         try {
             setLoading(true);
             const res = await tagService.getAll();
