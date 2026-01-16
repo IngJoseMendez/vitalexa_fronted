@@ -16,6 +16,7 @@
     height: 300px;
     /* Fixed container height */
     padding: 3rem 2rem 4rem;
+
     background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
     border-radius: 1.5rem;
     border: 1px solid rgba(0, 0, 0, 0.04);
