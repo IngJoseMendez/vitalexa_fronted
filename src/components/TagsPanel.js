@@ -12,11 +12,7 @@ export default function TagsPanel() {
     const toast = useToast();
     const confirm = useConfirm();
 
-    useEffect(() => {
-        fetchTags();
-    }, []);
-
-    const fetchTags = async () => {
+    const fetchTags = useCallback(async () => {
         try {
             setLoading(true);
             const res = await tagService.getAll();
@@ -25,7 +21,6 @@ export default function TagsPanel() {
             toast.error('Error al cargar etiquetas');
         } finally {
             setLoading(false);
-
         }
     }, [toast]);
 
