@@ -240,7 +240,7 @@ export const OrdersView = () => {
 
     useEffect(() => {
         loadOrders();
-    }, []);
+    }, [loadOrders]);
 
     const handleCancel = async (id) => {
         if (await confirm({ title: 'Cancelar', message: '¿Seguro que deseas cancelar este pedido?' })) {
