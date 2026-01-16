@@ -23,8 +23,7 @@ const ClientDashboard = () => {
 };
 
 const ClientDashboardContent = () => {
-    const navigate = useNavigate();
-    const { cartCount, toggleCart, isCartOpen } = useCart();
+    const { cartCount } = useCart();
     const [activeTab, setActiveTab] = useState('catalog');
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -76,10 +75,7 @@ const ClientDashboardContent = () => {
         setPage(0);
     }, [search, inStockOnly, activeTagId]);
 
-    const handleLogout = () => {
-        localStorage.clear();
-        window.location.href = '/login';
-    };
+
 
     // Shopping List Add State
     const [productToAdd, setProductToAdd] = useState(null);
@@ -172,7 +168,7 @@ const ClientDashboardContent = () => {
                             <div className="products-grid">
                                 {(() => {
                                     const filteredProducts = (products || []).filter(p =>
-                                        !activeTagId || p.tagId == activeTagId
+                                        !activeTagId || p.tagId === activeTagId
                                     );
 
                                     if (filteredProducts.length === 0) {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
-import { getRoleFromToken, decodeJWT } from '../utils/jwtHelper';
+import { getRoleFromToken } from '../utils/jwtHelper';
 import '../styles/Login.css';
 
 

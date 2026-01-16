@@ -8,7 +8,7 @@ import '../styles/OwnerDashboard.css';
 import '../styles/ChartStyles.css';
 
 // ✅ CONFIGURACIÓN CENTRALIZADA
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
 
 
 
@@ -26,29 +26,6 @@ function OwnerDashboard() {
   const [tags, setTags] = useState([]); // Added Tags State
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const toast = useToast();
-
-  useEffect(() => {
-    fetchData();
-
-    // Connect with role 'owner'
-    NotificationService.connect((notification) => {
-      if (notification.type === 'INVENTORY_UPDATE') {
-        console.log("📦 Inventory update received, refreshing dashboard...");
-        // Trigger re-fetch of main data
-        setRefreshTrigger(Date.now());
-      }
-    }, 'owner');
-
-    return () => {
-      NotificationService.disconnect();
-    };
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      fetchData();
-    }
-  }, [refreshTrigger, fetchData]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -81,6 +58,31 @@ function OwnerDashboard() {
       setLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    fetchData();
+
+    // Connect with role 'owner'
+    NotificationService.connect((notification) => {
+      if (notification.type === 'INVENTORY_UPDATE') {
+        console.log("📦 Inventory update received, refreshing dashboard...");
+        // Trigger re-fetch of main data
+        setRefreshTrigger(Date.now());
+      }
+    }, 'owner');
+
+    return () => {
+      NotificationService.disconnect();
+    };
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      fetchData();
+    }
+  }, [refreshTrigger, fetchData]);
+
+
 
   const calculateStats = (ordersData, productsData) => {
     const completedOrders = ordersData.filter(o => o.estado === 'COMPLETADO');

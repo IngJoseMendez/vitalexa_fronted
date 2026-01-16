@@ -11,7 +11,6 @@ import '../styles/AdminDashboard.css';
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
   const [refreshTrigger, setRefreshTrigger] = useState(0); // State for refresh
-  const toast = useToast();
 
   useEffect(() => {
     // Connect with role 'admin'
