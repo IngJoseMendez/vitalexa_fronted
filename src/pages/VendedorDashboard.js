@@ -100,31 +100,25 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [tags, setTags] = useState([]);
   const [activeTagId, setActiveTagId] = useState(null);
 
-  useEffect(() => {
-    fetchClients();
-    fetchProducts();
-    fetchTags();
-  }, [refreshTrigger, activeTagId]);
-
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     try {
       const res = await tagService.getAll();
       setTags(res.data);
     } catch (e) {
       console.error("Error loading tags");
     }
-  };
+  }, []);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const response = await client.get('/vendedor/clients');
       setClients(response.data);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       let url = '/vendedor/products';
       if (activeTagId) {
@@ -137,7 +131,13 @@ function NuevaVentaPanel({ refreshTrigger }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTagId]);
+
+  useEffect(() => {
+    fetchClients();
+    fetchProducts();
+    fetchTags();
+  }, [refreshTrigger, activeTagId, fetchClients, fetchProducts, fetchTags]);
 
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.productId === product.id);
@@ -240,7 +240,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const filteredProducts = (products || []).filter(p => {
     const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesTag = !activeTagId || p.tagId == activeTagId;
+    const matchesTag = !activeTagId || p.tagId === activeTagId;
     return matchesSearch && matchesTag;
   });
 
@@ -742,21 +742,16 @@ function ProductosPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTagId, setActiveTagId] = useState(null);
 
-  useEffect(() => {
-    fetchProducts();
-    fetchTags();
-  }, [activeTagId]);
-
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     try {
       const res = await tagService.getAll();
       setTags(res.data);
     } catch (e) {
       console.error("Error loading tags");
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       let url = '/vendedor/products';
@@ -770,12 +765,17 @@ function ProductosPanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTagId]);
+
+  useEffect(() => {
+    fetchProducts();
+    fetchTags();
+  }, [activeTagId, fetchProducts, fetchTags]);
 
   const filteredProducts = (products || []).filter(p => {
     const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesTag = !activeTagId || p.tagId == activeTagId;
+    const matchesTag = !activeTagId || p.tagId === activeTagId;
     return matchesSearch && matchesTag;
   });
 

@@ -23,7 +23,6 @@ function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [vendedores, setVendedores] = useState([]);
-  const [saleGoals, setSaleGoals] = useState([]);
   const [tags, setTags] = useState([]); // Added Tags State
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const toast = useToast();
@@ -43,15 +42,15 @@ function OwnerDashboard() {
     return () => {
       NotificationService.disconnect();
     };
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     if (refreshTrigger > 0) {
       fetchData();
     }
-  }, [refreshTrigger]);
+  }, [refreshTrigger, fetchData]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -81,7 +80,7 @@ function OwnerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const calculateStats = (ordersData, productsData) => {
     const completedOrders = ordersData.filter(o => o.estado === 'COMPLETADO');
@@ -351,15 +350,7 @@ function ProductsTab({ products, tags, onRefresh }) {
   const [localProducts, setLocalProducts] = useState(products);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (activeTagId) {
-      fetchProductsByTag();
-    } else {
-      setLocalProducts(products);
-    }
-  }, [activeTagId, products]);
-
-  const fetchProductsByTag = async () => {
+  const fetchProductsByTag = useCallback(async () => {
     try {
       setLoading(true);
       const res = await client.get(`/admin/products/tag/${activeTagId}`);
@@ -369,7 +360,15 @@ function ProductsTab({ products, tags, onRefresh }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTagId]);
+
+  useEffect(() => {
+    if (activeTagId) {
+      fetchProductsByTag();
+    } else {
+      setLocalProducts(products);
+    }
+  }, [activeTagId, products, fetchProductsByTag]);
 
   const filteredProducts = localProducts.filter(product => {
     if (filter === 'all') return true;
@@ -533,9 +532,9 @@ function ReportsTab({ orders, products, vendedores }) {
     // Ej: attachment; filename="reporte.xlsx"
     // Ej: attachment; filename*=UTF-8''reporte.xlsx
     const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1].replace(/\"/g, ''));
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1].replace(/"/g, ''));
 
-    const simpleMatch = contentDisposition.match(/filename\s*=\s*\"?([^\";]+)\"?/i);
+    const simpleMatch = contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
     if (simpleMatch?.[1]) return simpleMatch[1];
 
     return null;
