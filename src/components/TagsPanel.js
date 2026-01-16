@@ -14,7 +14,7 @@ export default function TagsPanel() {
 
     useEffect(() => {
         fetchTags();
-    }, []);
+    }, [fetchTags);
 
     const fetchTags = async () => {
         try {
