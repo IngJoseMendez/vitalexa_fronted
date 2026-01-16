@@ -21,6 +21,7 @@ export default function TagsPanel() {
             toast.error('Error al cargar etiquetas');
         } finally {
             setLoading(false);
+
         }
     }, [toast]);
 
