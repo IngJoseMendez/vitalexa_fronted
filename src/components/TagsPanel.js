@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { tagService } from '../api/tagService';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
@@ -12,11 +12,7 @@ export default function TagsPanel() {
     const toast = useToast();
     const confirm = useConfirm();
 
-    useEffect(() => {
-        fetchTags();
-    }, []);
-
-    const fetchTags = async () => {
+    const fetchTags = useCallback(async () => {
         try {
             setLoading(true);
             const res = await tagService.getAll();
@@ -26,7 +22,11 @@ export default function TagsPanel() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
+
+    useEffect(() => {
+        fetchTags();
+    }, [fetchTags]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import client from '../api/client';
 import { tagService } from '../api/tagService'; // Import Tag service
 import { useToast } from '../components/ToastContainer';
@@ -75,6 +75,19 @@ function OrdersPanel() {
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const toast = useToast();
 
+  const fetchOrders = useCallback(async () => {
+    try {
+      const response = await client.get('/admin/orders');
+      setOrders(response.data);
+      console.log('✅ Órdenes actualizadas:', response.data.length);
+    } catch (error) {
+      console.error('Error al cargar órdenes:', error);
+      toast.error('Error al cargar órdenes: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchOrders();
 
@@ -91,20 +104,7 @@ function OrdersPanel() {
       window.removeEventListener('new-order-notification', handleNewOrder);
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
-  }, []);
-
-  const fetchOrders = async () => {
-    try {
-      const response = await client.get('/admin/orders');
-      setOrders(response.data);
-      console.log('✅ Órdenes actualizadas:', response.data.length);
-    } catch (error) {
-      console.error('Error al cargar órdenes:', error);
-      toast.error('Error al cargar órdenes: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchOrders]);
 
   const changeStatus = async (orderId, newStatus) => {
     try {
@@ -735,21 +735,16 @@ function ProductsPanel({ refreshTrigger }) {
   const toast = useToast();
   const confirm = useConfirm();
 
-  useEffect(() => {
-    fetchProducts();
-    fetchTags();
-  }, [refreshTrigger, activeTagId]);
-
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     try {
       const res = await tagService.getAll();
       setTags(res.data);
     } catch (error) {
       console.error('Error al cargar etiquetas');
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       let url = '/admin/products';
@@ -764,7 +759,12 @@ function ProductsPanel({ refreshTrigger }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTagId, toast]);
+
+  useEffect(() => {
+    fetchProducts();
+    fetchTags();
+  }, [refreshTrigger, activeTagId, fetchProducts, fetchTags]);
 
   const toggleStatus = async (productId, currentStatus) => {
     try {

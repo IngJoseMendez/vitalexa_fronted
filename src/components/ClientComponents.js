@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useCart } from '../context/CartContext';
 import { clientService } from '../api/client';
 import { useConfirm } from './ConfirmDialog';
@@ -225,7 +225,7 @@ export const OrdersView = () => {
     const confirm = useConfirm();
     const toast = useToast();
 
-    const loadOrders = async () => {
+    const loadOrders = useCallback(async () => {
         setLoading(true);
         try {
             const res = await clientService.getOrders();
@@ -236,11 +236,11 @@ export const OrdersView = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         loadOrders();
-    }, []);
+    }, [loadOrders]);
 
     const handleCancel = async (id) => {
         if (await confirm({ title: 'Cancelar', message: '¿Seguro que deseas cancelar este pedido?' })) {
@@ -313,18 +313,18 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
     const confirm = useConfirm();
     const toast = useToast();
 
-    const loadLists = async () => {
+    const loadLists = useCallback(async () => {
         try {
             const res = await clientService.getLists();
             setLists(res.data);
         } catch (error) {
             console.error(error);
         }
-    };
+    }, []);
 
     useEffect(() => {
         loadLists();
-    }, []);
+    }, [loadLists]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -492,10 +492,16 @@ export const ClientProfile = () => {
     const toast = useToast();
 
     useEffect(() => {
-        clientService.getProfile().then(res => {
-            setProfile(res.data);
-            setFormData(res.data);
-        }).catch(console.error);
+        const fetchProfile = async () => {
+            try {
+                const res = await clientService.getProfile();
+                setProfile(res.data);
+                setFormData(res.data);
+            } catch (error) {
+                console.error(error);
+            }
+        };
+        fetchProfile();
     }, []);
 
     const handleSave = async () => {

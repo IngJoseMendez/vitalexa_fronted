@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CartProvider, useCart } from '../context/CartContext';
 import { clientService } from '../api/client';
@@ -51,7 +51,7 @@ const ClientDashboardContent = () => {
     }, []);
 
     // Load products
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         setLoading(true);
         try {
             const response = await clientService.getProductsPage(page, 24, search, inStockOnly ? true : null, activeTagId);
@@ -62,14 +62,14 @@ const ClientDashboardContent = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [page, search, inStockOnly, activeTagId]);
 
     useEffect(() => {
         if (activeTab === 'catalog') {
             const debounce = setTimeout(fetchProducts, 400);
             return () => clearTimeout(debounce);
         }
-    }, [search, inStockOnly, page, activeTab, activeTagId]);
+    }, [activeTab, fetchProducts]);
 
     // Reset page on filter change
     useEffect(() => {

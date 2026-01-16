@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
@@ -72,11 +72,7 @@ function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const toast = useToast();
 
-    useEffect(() => {
-        fetchProducts();
-    }, [refreshTrigger]);
-
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         try {
             const response = await client.get('/empacador/products');
             setProducts(response.data);
@@ -86,7 +82,11 @@ function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
+
+    useEffect(() => {
+        fetchProducts();
+    }, [refreshTrigger, fetchProducts]);
 
     const addToCart = (product) => {
         const existingItem = cart.find(item => item.productoId === product.id);
@@ -308,11 +308,7 @@ function HistorialReembolsosPanel() {
     const [reembolsos, setReembolsos] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        fetchHistory();
-    }, []);
-
-    const fetchHistory = async () => {
+    const fetchHistory = useCallback(async () => {
         try {
             const response = await client.get('/empacador/reembolsos');
             setReembolsos(response.data);
@@ -321,7 +317,11 @@ function HistorialReembolsosPanel() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchHistory();
+    }, [fetchHistory]);
 
     if (loading) return <div className="loading">Cargando historial...</div>;
 
