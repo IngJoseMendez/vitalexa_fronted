@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { CartProvider, useCart } from '../context/CartContext';
 import { clientService } from '../api/client';
 import { tagService } from '../api/tagService';
