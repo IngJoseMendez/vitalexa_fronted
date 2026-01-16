@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import client from '../api/client';
+import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
+import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import NotificationService from '../services/NotificationService';
 import '../styles/VendedorDashboard.css';
 
@@ -95,10 +97,23 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [searchTerm, setSearchTerm] = useState('');
   const toast = useToast();
 
+  const [tags, setTags] = useState([]);
+  const [activeTagId, setActiveTagId] = useState(null);
+
   useEffect(() => {
     fetchClients();
     fetchProducts();
-  }, [refreshTrigger]);
+    fetchTags();
+  }, [refreshTrigger, activeTagId]);
+
+  const fetchTags = async () => {
+    try {
+      const res = await tagService.getAll();
+      setTags(res.data);
+    } catch (e) {
+      console.error("Error loading tags");
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -111,8 +126,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
   const fetchProducts = async () => {
     try {
-      const response = await client.get('/vendedor/products');
-      setProducts(response.data);
+      let url = '/vendedor/products';
+      if (activeTagId) {
+        url = `/vendedor/products/tag/${activeTagId}`;
+      }
+      const response = await client.get(url);
+      setProducts(response.data.content || response.data || []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
     } finally {
@@ -193,8 +212,14 @@ function NuevaVentaPanel({ refreshTrigger }) {
         notas: notas.trim() || null
       };
 
-      await client.post('/vendedor/orders', orderData);
-      toast.success('¡Venta registrada exitosamente!');
+      const res = await client.post('/vendedor/orders', orderData);
+
+      // Check if it was a split order (2 orders created)
+      if (res.data && res.data.createdOrders && res.data.createdOrders.length > 1) {
+        toast.info('Se detectaron productos S/R: se generaron 2 órdenes con facturas consecutivas.', { duration: 6000 });
+      } else {
+        toast.success('¡Venta registrada exitosamente!');
+      }
 
       // Limpiar formulario
       setCart([]);
@@ -212,10 +237,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
     return <div className="loading">Cargando...</div>;
   }
 
-  const filteredProducts = products.filter(p =>
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredProducts = (products || []).filter(p => {
+    const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesTag = !activeTagId || p.tagId == activeTagId;
+    return matchesSearch && matchesTag;
+  });
 
   return (
     <div className="nueva-venta-panel">
@@ -237,6 +264,14 @@ function NuevaVentaPanel({ refreshTrigger }) {
               />
             </div>
           </div>
+
+          <TagFilterBar
+            tags={tags}
+            activeTagId={activeTagId}
+            onSelectTag={setActiveTagId}
+            onClear={() => setActiveTagId(null)}
+          />
+
           <div className="productos-grid">
             {filteredProducts.map(product => (
               <div key={product.id} className="product-card">
@@ -251,7 +286,10 @@ function NuevaVentaPanel({ refreshTrigger }) {
                   loading="lazy"
                 />
                 <div className="product-info">
-                  <h4>{product.nombre}</h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
+                    <h4 style={{ margin: 0 }}>{product.nombre}</h4>
+                    {product.tagName && <TagBadge tagName={product.tagName} />}
+                  </div>
                   <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
                   <p className="product-stock">Stock: {product.stock}</p>
                   <button
@@ -645,11 +683,18 @@ function MisVentasPanel() {
       ) : (
         <div className="ventas-list">
           {orders.map(order => (
-            <div key={order.id} className="venta-card">
+            <div key={order.id} className={`venta-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
               <div className="venta-header">
-                <span className="venta-id">#{order.id.substring(0, 8)}</span>
-                <span className={`venta-status status-${order.estado.toLowerCase()}`}>
-                  {order.estado}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span className="venta-id">
+                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                  </span>
+                  {order.isSROrder && (
+                    <span className="tag-badge tag-sr" style={{ padding: '0.15rem 0.5rem', fontSize: '0.65rem' }}>S/N</span>
+                  )}
+                </div>
+                <span className={`venta-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                  {order.estado || 'PENDIENTE'}
                 </span>
               </div>
 
@@ -692,17 +737,34 @@ function MisVentasPanel() {
 // ============================================
 function ProductosPanel() {
   const [products, setProducts] = useState([]);
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTagId, setActiveTagId] = useState(null);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+    fetchTags();
+  }, [activeTagId]);
+
+  const fetchTags = async () => {
+    try {
+      const res = await tagService.getAll();
+      setTags(res.data);
+    } catch (e) {
+      console.error("Error loading tags");
+    }
+  };
 
   const fetchProducts = async () => {
     try {
-      const response = await client.get('/vendedor/products');
-      setProducts(response.data);
+      setLoading(true);
+      let url = '/vendedor/products';
+      if (activeTagId) {
+        url = `/vendedor/products/tag/${activeTagId}`;
+      }
+      const response = await client.get(url);
+      setProducts(response.data.content || response.data || []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
     } finally {
@@ -710,10 +772,12 @@ function ProductosPanel() {
     }
   };
 
-  const filteredProducts = products.filter(p =>
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredProducts = (products || []).filter(p => {
+    const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesTag = !activeTagId || p.tagId == activeTagId;
+    return matchesSearch && matchesTag;
+  });
 
   if (loading) {
     return <div className="loading">Cargando...</div>;
@@ -735,6 +799,13 @@ function ProductosPanel() {
         </div>
       </div>
 
+      <TagFilterBar
+        tags={tags}
+        activeTagId={activeTagId}
+        onSelectTag={setActiveTagId}
+        onClear={() => setActiveTagId(null)}
+      />
+
       <div className="productos-grid-catalogo">
         {filteredProducts.map(product => (
           <div key={product.id} className="producto-card">
@@ -751,7 +822,10 @@ function ProductosPanel() {
               />
             </div>
             <div className="producto-info">
-              <h3>{product.nombre}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <h3 style={{ margin: 0 }}>{product.nombre}</h3>
+                {product.tagName && <TagBadge tagName={product.tagName} />}
+              </div>
               <p className="producto-descripcion">{product.descripcion}</p>
               <div className="producto-details">
                 <span className="producto-precio">${parseFloat(product.precio).toFixed(2)}</span>

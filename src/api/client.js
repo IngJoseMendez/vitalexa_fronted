@@ -74,10 +74,11 @@ export default apiClient;
 export const clientService = {
   // Products
   getProducts: () => apiClient.get('/cliente/products'),
-  getProductsPage: (page = 0, size = 24, q = '', inStock = null) => {
+  getProductsPage: (page = 0, size = 24, q = '', inStock = null, tagId = null) => {
     const params = { page, size };
     if (q) params.q = q;
     if (inStock !== null) params.inStock = inStock;
+    if (tagId !== null) params.tagId = tagId;
     return apiClient.get('/cliente/products/page', { params });
   },
 

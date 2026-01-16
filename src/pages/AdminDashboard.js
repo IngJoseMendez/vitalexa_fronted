@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import client from '../api/client';
+import { tagService } from '../api/tagService'; // Import Tag service
 import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
 import NotificationService from '../services/NotificationService'; // Import Service
+import TagsPanel from '../components/TagsPanel'; // Import TagsPanel
+import { TagBadge, TagSelect, TagFilterBar } from '../components/TagComponents'; // Import Tag UI components
 import '../styles/AdminDashboard.css';
 
 function AdminDashboard() {
@@ -16,7 +19,6 @@ function AdminDashboard() {
       if (notification.type === 'INVENTORY_UPDATE') {
         console.log("📦 Inventory update received, refreshing data...");
         setRefreshTrigger(Date.now());
-        // Optional: toast.info('Inventario actualizado');
       }
     }, 'admin');
 
@@ -40,11 +42,18 @@ function AdminDashboard() {
         >
           <span className="material-icons-round">inventory_2</span> Productos
         </button>
+        <button
+          className={activeTab === 'tags' ? 'active' : ''}
+          onClick={() => setActiveTab('tags')}
+        >
+          <span className="material-icons-round">local_offer</span> Etiquetas
+        </button>
       </nav>
 
       <div className="dashboard-content">
         {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'tags' && <TagsPanel />}
       </div>
     </div>
   );
@@ -61,6 +70,8 @@ function OrdersPanel() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filter, setFilter] = useState('pending');
+  const [sortBy, setSortBy] = useState('fecha');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const toast = useToast();
 
@@ -161,12 +172,28 @@ function OrdersPanel() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    if (filter === 'pending') return order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
-    if (filter === 'completed') return order.estado === 'COMPLETADO';
-    if (filter === 'all') return true;
-    return order.estado === filter;
-  });
+  const filteredOrders = orders
+    .filter(order => {
+      if (filter === 'pending') return order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
+      if (filter === 'completed') return order.estado === 'COMPLETADO';
+      if (filter === 'all') return true;
+      return order.estado === filter;
+    })
+    .sort((a, b) => {
+      let valA, valB;
+      if (sortBy === 'fecha') {
+        valA = new Date(a.fecha);
+        valB = new Date(b.fecha);
+      } else if (sortBy === 'total') {
+        valA = parseFloat(a.total);
+        valB = parseFloat(b.total);
+      } else if (sortBy === 'cantidad') {
+        valA = a.items.reduce((sum, i) => sum + i.cantidad, 0);
+        valB = b.items.reduce((sum, i) => sum + i.cantidad, 0);
+      }
+
+      return sortOrder === 'desc' ? valB - valA : valA - valB;
+    });
 
   if (loading) {
     return <div className="loading">Cargando órdenes...</div>;
@@ -196,6 +223,24 @@ function OrdersPanel() {
             <span className="material-icons-round">analytics</span> Todas ({orders.length})
           </button>
         </div>
+
+        <div className="sorting-controls">
+          <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>sort</span>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="sort-select">
+            <option value="fecha">Fecha</option>
+            <option value="total">Precio Total</option>
+            <option value="cantidad">Cantidad Productos</option>
+          </select>
+          <button
+            className="btn-sort-order"
+            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
+          >
+            <span className="material-icons-round">
+              {sortOrder === 'asc' ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+        </div>
       </div>
 
       {filteredOrders.length === 0 ? (
@@ -205,11 +250,18 @@ function OrdersPanel() {
       ) : (
         <div className="orders-grid">
           {filteredOrders.map(order => (
-            <div key={order.id} className="order-card">
+            <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
               <div className="order-header">
-                <span className="order-id">#{order.id.substring(0, 8)}</span>
-                <span className={`order-status status-${order.estado.toLowerCase()}`}>
-                  {order.estado}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span className="order-id">
+                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                  </span>
+                  {order.isSROrder && (
+                    <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                  )}
+                </div>
+                <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                  {order.estado || 'PENDIENTE'}
                 </span>
               </div>
 
@@ -674,23 +726,38 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
 // ============================================
 function ProductsPanel({ refreshTrigger }) {
   const [products, setProducts] = useState([]);
+  const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [activeTagId, setActiveTagId] = useState(null);
   const toast = useToast();
   const confirm = useConfirm();
 
   useEffect(() => {
     fetchProducts();
-  }, [refreshTrigger]);
+    fetchTags();
+  }, [refreshTrigger, activeTagId]);
+
+  const fetchTags = async () => {
+    try {
+      const res = await tagService.getAll();
+      setTags(res.data);
+    } catch (error) {
+      console.error('Error al cargar etiquetas');
+    }
+  };
 
   const fetchProducts = async () => {
     try {
-      const response = await client.get('/admin/products');
-      setProducts(response.data);
+      setLoading(true);
+      let url = '/admin/products';
+      if (activeTagId) {
+        url = `/admin/products/tag/${activeTagId}`;
+      }
+      const response = await client.get(url);
+      setProducts(response.data.content || response.data || []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
       toast.error('Error al cargar productos');
@@ -754,6 +821,13 @@ function ProductsPanel({ refreshTrigger }) {
         </div>
       </div>
 
+      <TagFilterBar
+        tags={tags}
+        activeTagId={activeTagId}
+        onSelectTag={setActiveTagId}
+        onClear={() => setActiveTagId(null)}
+      />
+
       <div className="products-stats">
         <span>Total: {products.length}</span>
         <span>Activos: {products.filter(p => p.active).length}</span>
@@ -782,6 +856,12 @@ function ProductsPanel({ refreshTrigger }) {
 
               <div className="product-info">
                 <h3>{product.nombre}</h3>
+
+                {product.tagName && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <TagBadge tagName={product.tagName} />
+                  </div>
+                )}
 
                 <div className="product-meta">
                   <span className="product-price">${parseFloat(product.precio).toFixed(2)}</span>
@@ -835,12 +915,27 @@ function ProductModal({ product, onClose, onSuccess }) {
     precio: product?.precio || '',
     stock: product?.stock || '',
     reorderPoint: product?.reorderPoint || 10,
-    active: product?.active !== undefined ? product.active : true
+    active: product?.active !== undefined ? product.active : true,
+    tagId: product?.tagId || null
   });
+  const [tags, setTags] = useState([]);
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(null);
   const toast = useToast();
+
+  useEffect(() => {
+    fetchTags();
+  }, []);
+
+  const fetchTags = async () => {
+    try {
+      const res = await tagService.getAll();
+      setTags(res.data);
+    } catch (error) {
+      console.error('Error al cargar etiquetas');
+    }
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -872,12 +967,14 @@ function ProductModal({ product, onClose, onSuccess }) {
 
       if (product) {
         formDataToSend.append('active', formData.active);
-        await client.put(`/admin/products/${product.id}`, formDataToSend, {
+        const url = `/admin/products/${product.id}${formData.tagId ? `?tagId=${formData.tagId}` : ''}`;
+        await client.put(url, formDataToSend, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         toast.success('Producto actualizado exitosamente');
       } else {
-        await client.post('/admin/products', formDataToSend, {
+        const url = `/admin/products${formData.tagId ? `?tagId=${formData.tagId}` : ''}`;
+        await client.post(url, formDataToSend, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         toast.success('Producto creado exitosamente');
@@ -922,6 +1019,13 @@ function ProductModal({ product, onClose, onSuccess }) {
               placeholder="Descripción del producto"
             />
           </div>
+
+          <TagSelect
+            tags={tags}
+            value={formData.tagId}
+            onChange={(val) => setFormData({ ...formData, tagId: val })}
+            disabled={uploading}
+          />
 
           <div className="form-row">
             <div className="form-group">

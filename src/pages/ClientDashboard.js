@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CartProvider, useCart } from '../context/CartContext';
 import { clientService } from '../api/client';
+import { tagService } from '../api/tagService';
+import { TagFilterBar } from '../components/TagComponents';
 import {
     ClientProductCard,
     CartView,
@@ -32,12 +34,27 @@ const ClientDashboardContent = () => {
     const [inStockOnly, setInStockOnly] = useState(false);
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+    const [tags, setTags] = useState([]);
+    const [activeTagId, setActiveTagId] = useState(null);
+
+    // Load tags
+    useEffect(() => {
+        const fetchTags = async () => {
+            try {
+                const res = await tagService.getAll();
+                setTags(res.data);
+            } catch (err) {
+                console.error("Error loading tags");
+            }
+        };
+        fetchTags();
+    }, []);
 
     // Load products
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await clientService.getProductsPage(page, 24, search, inStockOnly ? true : null);
+            const response = await clientService.getProductsPage(page, 24, search, inStockOnly ? true : null, activeTagId);
             setProducts(response.data.content || []);
             setTotalPages(response.data.totalPages || 0);
         } catch (error) {
@@ -52,7 +69,12 @@ const ClientDashboardContent = () => {
             const debounce = setTimeout(fetchProducts, 400);
             return () => clearTimeout(debounce);
         }
-    }, [search, inStockOnly, page, activeTab]);
+    }, [search, inStockOnly, page, activeTab, activeTagId]);
+
+    // Reset page on filter change
+    useEffect(() => {
+        setPage(0);
+    }, [search, inStockOnly, activeTagId]);
 
     const handleLogout = () => {
         localStorage.clear();
@@ -137,18 +159,34 @@ const ClientDashboardContent = () => {
                             </label>
                         </div>
 
+                        <TagFilterBar
+                            tags={tags}
+                            activeTagId={activeTagId}
+                            onSelectTag={setActiveTagId}
+                            onClear={() => setActiveTagId(null)}
+                        />
+
                         {loading ? (
                             <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando catálogo...</div>
                         ) : (
                             <div className="products-grid">
-                                {products.length === 0 && <p>No se encontraron productos.</p>}
-                                {products.map(p => (
-                                    <ClientProductCard
-                                        key={p.id}
-                                        product={p}
-                                        onAddToList={handleAddToList}
-                                    />
-                                ))}
+                                {(() => {
+                                    const filteredProducts = (products || []).filter(p =>
+                                        !activeTagId || p.tagId == activeTagId
+                                    );
+
+                                    if (filteredProducts.length === 0) {
+                                        return <p>No se encontraron productos.</p>;
+                                    }
+
+                                    return filteredProducts.map(p => (
+                                        <ClientProductCard
+                                            key={p.id}
+                                            product={p}
+                                            onAddToList={handleAddToList}
+                                        />
+                                    ));
+                                })()}
                             </div>
                         )}
 

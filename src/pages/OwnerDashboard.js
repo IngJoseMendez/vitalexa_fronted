@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
+import { tagService } from '../api/tagService'; // Added Tag Service
+import { TagBadge, TagFilterBar } from '../components/TagComponents'; // Added Tag Components
 import '../styles/OwnerDashboard.css';
 import '../styles/ChartStyles.css';
 
@@ -22,6 +24,7 @@ function OwnerDashboard() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [vendedores, setVendedores] = useState([]);
   const [saleGoals, setSaleGoals] = useState([]);
+  const [tags, setTags] = useState([]); // Added Tags State
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const toast = useToast();
 
@@ -60,6 +63,9 @@ function OwnerDashboard() {
       setOrders(ordersRes.data);
       setProducts(productsRes.data);
       calculateStats(ordersRes.data, productsRes.data);
+
+      const tagsRes = await tagService.getAll();
+      setTags(tagsRes.data);
 
       try {
         const vendedoresRes = await client.get('/admin/sale-goals/vendedores');
@@ -152,7 +158,13 @@ function OwnerDashboard() {
             onSelectOrder={setSelectedOrder}
           />
         )}
-        {activeTab === 'products' && <ProductsTab products={products} />}
+        {activeTab === 'products' && (
+          <ProductsTab
+            products={products}
+            tags={tags}
+            onRefresh={fetchData}
+          />
+        )}
         {activeTab === 'metas' && (
           <SaleGoalsTab
             vendedores={vendedores}
@@ -277,11 +289,18 @@ function OrdersTab({ orders }) {
           </div>
         ) : (
           filteredOrders.map(order => (
-            <div key={order.id} className="order-card">
+            <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
               <div className="order-header">
-                <span className="order-id">#{order.id.substring(0, 8)}</span>
-                <span className={`order-status status-${order.estado.toLowerCase()}`}>
-                  {order.estado}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span className="order-id">
+                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                  </span>
+                  {order.isSROrder && (
+                    <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                  )}
+                </div>
+                <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                  {order.estado || 'PENDIENTE'}
                 </span>
               </div>
 
@@ -326,10 +345,33 @@ function OrdersTab({ orders }) {
 }
 
 // ===== ✅ PRODUCTS TAB - CORREGIDO =====
-function ProductsTab({ products }) {
+function ProductsTab({ products, tags, onRefresh }) {
   const [filter, setFilter] = useState('all');
+  const [activeTagId, setActiveTagId] = useState(null);
+  const [localProducts, setLocalProducts] = useState(products);
+  const [loading, setLoading] = useState(false);
 
-  const filteredProducts = products.filter(product => {
+  useEffect(() => {
+    if (activeTagId) {
+      fetchProductsByTag();
+    } else {
+      setLocalProducts(products);
+    }
+  }, [activeTagId, products]);
+
+  const fetchProductsByTag = async () => {
+    try {
+      setLoading(true);
+      const res = await client.get(`/admin/products/tag/${activeTagId}`);
+      setLocalProducts(res.data);
+    } catch (error) {
+      console.error("Error filtering by tag");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredProducts = localProducts.filter(product => {
     if (filter === 'all') return true;
     if (filter === 'active') return product.active;
     if (filter === 'inactive') return !product.active;
@@ -363,48 +405,62 @@ function ProductsTab({ products }) {
         </div>
       </div>
 
-      <div className="products-grid">
-        {filteredProducts.map(product => (
-          <div key={product.id} className="product-card">
-            <div className="product-image">
-              {/* ✅ IMAGEN CORREGIDA */}
-              <img
-                src={product.imageUrl || PLACEHOLDER_IMAGE}
-                alt={product.nombre}
-                onError={(e) => {
-                  console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
-                  e.target.src = PLACEHOLDER_IMAGE;
-                }}
-                loading="lazy"
-              />
-            </div>
+      <TagFilterBar
+        tags={tags}
+        activeTagId={activeTagId}
+        onSelectTag={setActiveTagId}
+        onClear={() => setActiveTagId(null)}
+      />
 
-            <div className="product-info">
-              <h3>{product.nombre}</h3>
-              <p className="product-description">{product.descripcion}</p>
+      {loading ? (
+        <div style={{ padding: '3rem', textAlign: 'center' }}>Filtrando productos...</div>
+      ) : (
+        <div className="products-grid">
+          {filteredProducts.map(product => (
+            <div key={product.id} className="product-card">
+              <div className="product-image">
+                {/* ✅ IMAGEN CORREGIDA */}
+                <img
+                  src={product.imageUrl || PLACEHOLDER_IMAGE}
+                  alt={product.nombre}
+                  onError={(e) => {
+                    console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
+                    e.target.src = PLACEHOLDER_IMAGE;
+                  }}
+                  loading="lazy"
+                />
+              </div>
 
-              <div className="product-stats">
-                <div className="stat">
-                  <span className="label">Precio:</span>
-                  <span className="value">${parseFloat(product.precio).toFixed(2)}</span>
+              <div className="product-info">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                  <h3 style={{ margin: 0 }}>{product.nombre}</h3>
+                  {product.tagName && <TagBadge tagName={product.tagName} />}
                 </div>
-                <div className="stat">
-                  <span className="label">Stock:</span>
-                  <span className={`value ${product.stock < 10 ? 'low' : ''}`}>
-                    {product.stock} unidades
+                <p className="product-description">{product.descripcion}</p>
+
+                <div className="product-stats">
+                  <div className="stat">
+                    <span className="label">Precio:</span>
+                    <span className="value">${parseFloat(product.precio).toFixed(2)}</span>
+                  </div>
+                  <div className="stat">
+                    <span className="label">Stock:</span>
+                    <span className={`value ${product.stock < 10 ? 'low' : ''}`}>
+                      {product.stock} unidades
+                    </span>
+                  </div>
+                </div>
+
+                <div className="product-status">
+                  <span className={`badge ${product.active ? 'active' : 'inactive'}`}>
+                    {product.active ? <><span className="material-icons-round">check_circle</span> Activo</> : <><span className="material-icons-round">cancel</span> Inactivo</>}
                   </span>
                 </div>
               </div>
-
-              <div className="product-status">
-                <span className={`badge ${product.active ? 'active' : 'inactive'}`}>
-                  {product.active ? <><span className="material-icons-round">check_circle</span> Activo</> : <><span className="material-icons-round">cancel</span> Inactivo</>}
-                </span>
-              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

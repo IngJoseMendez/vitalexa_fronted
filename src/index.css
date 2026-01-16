@@ -107,7 +107,6 @@ body {
   direction: ltr;
   -webkit-font-feature-settings: 'liga';
   font-feature-settings: 'liga';
-  /* Added for compatibility */
   -webkit-font-smoothing: antialiased;
 }
 
@@ -228,4 +227,214 @@ button {
   transform: translateY(-2px);
   filter: brightness(1.1);
   box-shadow: 0 12px 20px -5px rgba(99, 102, 241, 0.4);
+}
+
+/* === TAG SYSTEM STYLES === */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tag-badge .material-icons-round {
+  font-size: 0.9rem;
+}
+
+.tag-user {
+  background: var(--primary-light);
+  color: var(--primary-hover);
+}
+
+.tag-sr {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
+
+.tag-filter-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-chip {
+  background: white;
+  border: 1px solid var(--border);
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.filter-chip.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.filter-chip.chip-sr.active {
+  background: #f97316;
+  border-color: #ea580c;
+}
+
+.tag-select-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.tag-select-container label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.tag-select {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: 1rem;
+  background: white;
+  cursor: pointer;
+}
+
+.tag-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+/* === TAG BADGES === */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s;
+}
+
+.tag-badge .material-icons-round {
+  font-size: 14px;
+}
+
+.tag-user {
+  background: #f5f3ff;
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.tag-sr {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid rgba(225, 29, 72, 0.2);
+  box-shadow: 0 0 10px rgba(225, 29, 72, 0.1);
+  animation: pulse-border-sr 2s infinite;
+}
+
+@keyframes pulse-border-sr {
+  0% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(225, 29, 72, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 29, 72, 0);
+  }
+}
+
+
+/* === GLOBAL ORDER TYPES (S/N vs Normal) === */
+.is-normal {
+  border: 1px solid #93c5fd !important;
+  /* Borde Azul suave */
+  background: white !important;
+}
+
+.is-normal .order-id,
+.is-normal .venta-id {
+  color: #2563eb !important;
+  /* Azul */
+}
+
+.is-sr {
+  position: relative !important;
+  overflow: hidden !important;
+  border: 2px solid #fca5a5 !important;
+  /* Borde Rojo */
+  background: #fff5f5 !important;
+  /* Fondo Rojo muy claro */
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1) !important;
+}
+
+.is-sr .order-id,
+.is-sr .venta-id {
+  color: #dc2626 !important;
+  /* Rojo */
+}
+
+/* Ribbon S/N corner */
+.is-sr::before {
+  content: 'SIN REGISTRO';
+  position: absolute;
+  top: 15px;
+  right: -35px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 4px 40px;
+  transform: rotate(45deg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Pulsing border for S/N cards if they are PENDIENTE */
+.is-sr.status-pendiente {
+  animation: pulse-border-sr 2s infinite;
+}
+
+@keyframes pulse-border-sr {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }
