@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import client from '../api/client';
 import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
