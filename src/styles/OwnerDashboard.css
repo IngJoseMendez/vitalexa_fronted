@@ -392,6 +392,51 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
+/* Grid Columns Selector */
+.grid-columns-selector {
+  display: flex;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  padding: 0.4rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
+}
+
+.grid-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.grid-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.grid-btn.active {
+  background: white;
+  color: #059669;
+  border-color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.grid-btn .material-icons-round {
+  font-size: 1.1rem;
+}
+
 /* Products Grid */
 .products-tab .products-grid {
   display: grid;
@@ -612,6 +657,11 @@
     font-size: 1.75rem;
   }
 
+  .products-tab .tab-header .header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
   .filter-buttons {
     width: 100%;
     overflow-x: auto;
@@ -621,6 +671,11 @@
 
   .filter-buttons::-webkit-scrollbar {
     display: none;
+  }
+
+  .grid-columns-selector {
+    width: 100%;
+    justify-content: center;
   }
 
   .products-tab .products-grid {
@@ -641,6 +696,24 @@
   .filter-buttons button {
     padding: 0.625rem 1.25rem;
     font-size: 0.875rem;
+  }
+
+  .grid-columns-selector {
+    width: 100%;
+    gap: 0.3rem;
+    padding: 0.3rem;
+    justify-content: center;
+  }
+
+  .grid-btn {
+    flex: 1;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.7rem;
+    min-width: auto;
+  }
+
+  .grid-btn .material-icons-round {
+    font-size: 0.95rem;
   }
 
   .products-tab .products-grid {

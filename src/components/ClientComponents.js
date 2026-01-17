@@ -6,24 +6,35 @@ import { useToast } from './ToastContainer';
 import { TagBadge } from './TagComponents';
 
 // === PRODUCT CARD ===
-export const ClientProductCard = ({ product, onAddToList }) => {
+export const ClientProductCard = ({ product, onAddToList, cart }) => {
     const { addToCart } = useCart();
     const [qty, setQty] = useState(1);
 
+    // Calculate available stock (considering items in cart)
+    const cartItem = cart?.find(item => item.product?.id === product.id);
+    const quantityInCart = cartItem?.quantity || 0;
+    const availableStock = product.stock - quantityInCart;
+    
     const handleAdd = () => {
         addToCart(product, qty);
         setQty(1);
     };
 
-    const isOutOfStock = product.stock <= 0;
+    const isOutOfStock = availableStock <= 0;
+    const stockPercentage = (availableStock / product.stock) * 100;
 
     return (
         <div className="client-product-card animate-fade-in">
             <div className="card-img-wrapper">
                 <img src={product.imageUrl || '/placeholder.png'} alt={product.nombre} />
                 {isOutOfStock && <span className="stock-badge out">Agotado</span>}
-                {!isOutOfStock && product.stock < 10 && (
-                    <span className="stock-badge low">¡Últimos {product.stock}!</span>
+                {!isOutOfStock && availableStock < 10 && (
+                    <span className="stock-badge low">¡Últimos {availableStock}!</span>
+                )}
+                {quantityInCart > 0 && (
+                    <span className="stock-badge in-cart" title="Cantidad en carrito">
+                        <span className="material-icons-round">shopping_cart</span> {quantityInCart}
+                    </span>
                 )}
             </div>
             <div className="card-body">
@@ -32,9 +43,20 @@ export const ClientProductCard = ({ product, onAddToList }) => {
                     {product.tagName && <TagBadge tagName={product.tagName} />}
                 </div>
                 <p className="card-desc">{product.descripcion}</p>
-                <div className="stock-display">
-                    <span className={`stock-status ${product.stock > 0 ? 'in-stock' : 'no-stock'}`}>
-                        {product.stock > 0 ? `Stock: ${product.stock} disponibles` : 'Sin Stock'}
+                
+                {/* Visual Stock Indicator */}
+                <div className="stock-indicator">
+                    <div className="stock-bar">
+                        <div 
+                            className="stock-fill" 
+                            style={{
+                                width: `${Math.max(0, stockPercentage)}%`,
+                                background: stockPercentage > 30 ? '#10b981' : stockPercentage > 10 ? '#f59e0b' : '#ef4444'
+                            }}
+                        />
+                    </div>
+                    <span className={`stock-status ${availableStock > 0 ? 'in-stock' : 'no-stock'}`}>
+                        {availableStock > 0 ? `${availableStock} de ${product.stock} disponibles` : 'Sin Stock'}
                     </span>
                 </div>
 
@@ -58,7 +80,7 @@ export const ClientProductCard = ({ product, onAddToList }) => {
                                 <div className="qty-control">
                                     <button className="qty-btn" onClick={() => setQty(Math.max(1, qty - 1))}>-</button>
                                     <span className="qty-val">{qty}</span>
-                                    <button className="qty-btn" onClick={() => setQty(Math.min(product.stock, qty + 1))}>+</button>
+                                    <button className="qty-btn" onClick={() => setQty(Math.min(availableStock, qty + 1))}>+</button>
                                 </div>
                                 <button className="add-btn" onClick={handleAdd}>
                                     <span className="material-icons-round">add</span>

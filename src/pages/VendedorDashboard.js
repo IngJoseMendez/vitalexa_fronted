@@ -95,10 +95,18 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [gridColumns, setGridColumns] = useState(() => {
+    const saved = localStorage.getItem('vendedorGridColumns');
+    return saved ? parseInt(saved) : 2;
+  });
   const toast = useToast();
 
   const [tags, setTags] = useState([]);
   const [activeTagId, setActiveTagId] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem('vendedorGridColumns', gridColumns.toString());
+  }, [gridColumns]);
 
   const fetchTags = useCallback(async () => {
     try {
@@ -253,15 +261,30 @@ function NuevaVentaPanel({ refreshTrigger }) {
         <div className="productos-section">
           <div className="products-header">
             <h3>Productos Disponibles</h3>
-            <div className="search-container">
-              <span className="material-icons-round search-icon">search</span>
-              <input
-                type="text"
-                placeholder="Buscar productos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
+            <div className="products-header-toolbar">
+              <div className="search-container">
+                <span className="material-icons-round search-icon">search</span>
+                <input
+                  type="text"
+                  placeholder="Buscar productos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+              </div>
+              <div className="grid-columns-selector">
+                {[1, 2, 3].map(cols => (
+                  <button
+                    key={cols}
+                    className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                    onClick={() => setGridColumns(cols)}
+                    title={`${cols} columnas`}
+                  >
+                    <span className="material-icons-round">dashboard</span>
+                    {cols}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -272,46 +295,87 @@ function NuevaVentaPanel({ refreshTrigger }) {
             onClear={() => setActiveTagId(null)}
           />
 
-          <div className="productos-grid">
-            {filteredProducts.map(product => (
-              <div key={product.id} className="product-card">
-                {/* ✅ IMAGEN CORREGIDA */}
-                <img
-                  src={product.imageUrl || PLACEHOLDER_IMAGE}
-                  alt={product.nombre}
-                  onError={(e) => {
-                    console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
-                    e.target.src = PLACEHOLDER_IMAGE;
-                  }}
-                  loading="lazy"
-                />
-                <div className="product-info">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                    <h4 style={{ margin: 0 }}>{product.nombre}</h4>
-                    {product.tagName && <TagBadge tagName={product.tagName} />}
-                  </div>
-                  <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
-                  <p className="product-stock">Stock: {product.stock}</p>
-                  <button
-                    onClick={() => addToCart(product)}
-                    disabled={product.stock === 0}
-                    className="btn-add-cart"
-                  >
-                    {product.stock === 0 ? 'Sin Stock' : '+ Agregar'}
-                  </button>
-                </div>
+          <div className="productos-grid" style={{ 
+            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
+          }}>
+            {filteredProducts.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>inventory_2</span>
+                <p style={{ marginTop: '1rem', fontSize: '0.95rem' }}>No se encontraron productos</p>
               </div>
-            ))}
+            ) : (
+              filteredProducts.map(product => (
+                <div key={product.id} className="product-card">
+                  {/* ✅ IMAGEN CORREGIDA */}
+                  <img
+                    src={product.imageUrl || PLACEHOLDER_IMAGE}
+                    alt={product.nombre}
+                    onError={(e) => {
+                      console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
+                      e.target.src = PLACEHOLDER_IMAGE;
+                    }}
+                    loading="lazy"
+                  />
+                  {/* Stock indicator badge showing items in cart */}
+                  {cart.some(item => item.productId === product.id) && (
+                    <span className="product-cart-badge" title="Cantidad en carrito">
+                      <span className="material-icons-round">shopping_cart</span>
+                      {cart.find(item => item.productId === product.id)?.cantidad || 0}
+                    </span>
+                  )}
+                  <div className="product-info">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem', gap: '0.5rem' }}>
+                      <h4 style={{ margin: 0, flex: 1 }}>{product.nombre}</h4>
+                      {product.tagName && <TagBadge tagName={product.tagName} />}
+                    </div>
+                    <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
+                    
+                    {/* Visual Stock Display */}
+                    <div className="stock-visual-indicator">
+                      <div className="stock-bar-small">
+                        <div 
+                          className="stock-fill-small" 
+                          style={{
+                            width: `${Math.max(0, ((product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0)) / product.stock) * 100)}%`
+                          }}
+                        />
+                      </div>
+                      <span className="stock-text">
+                        {Math.max(0, product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0))}/{product.stock} disponibles
+                      </span>
+                    </div>
+                    
+                    <button
+                      onClick={() => addToCart(product)}
+                      disabled={product.stock === 0 || product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0}
+                      className="btn-add-cart"
+                    >
+                      <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>
+                        {product.stock === 0 || product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0 ? 'block' : 'add'}
+                      </span>
+                      {product.stock === 0 ? 'Sin Stock' : product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0 ? 'Agotado' : 'Agregar'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
         {/* SECCIÓN DERECHA - CARRITO */}
         <div className="carrito-section">
-          <h3>Carrito de Compra</h3>
+          <h3>
+            <span className="material-icons-round" style={{ fontSize: '1.25rem' }}>shopping_cart</span>
+            Carrito
+          </h3>
 
           <div className="form-group">
-            <label>Cliente</label>
+            <label htmlFor="cliente-select">
+              <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>person</span>
+              Cliente
+            </label>
             <select
+              id="cliente-select"
               value={selectedClient}
               onChange={(e) => {
                 setSelectedClient(e.target.value);
@@ -328,75 +392,90 @@ function NuevaVentaPanel({ refreshTrigger }) {
             </select>
           </div>
 
-          <div className="form-group checkbox-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={allowNoClient}
-                onChange={(e) => {
-                  setAllowNoClient(e.target.checked);
-                  if (e.target.checked) {
-                    setSelectedClient('');
-                  }
-                }}
-              />
-              {' '}Venta sin cliente registrado (confirmo que estoy seguro)
+          <div className="checkbox-group">
+            <input
+              id="sin-cliente"
+              type="checkbox"
+              checked={allowNoClient}
+              onChange={(e) => {
+                setAllowNoClient(e.target.checked);
+                if (e.target.checked) {
+                  setSelectedClient('');
+                }
+              }}
+            />
+            <label htmlFor="sin-cliente">
+              Venta sin cliente (confirmo que estoy seguro)
             </label>
           </div>
 
           <div className="form-group">
-            <label>Notas / Productos sin stock</label>
+            <label htmlFor="notas">
+              <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>notes</span>
+              Notas / Productos sin stock
+            </label>
             <textarea
+              id="notas"
               value={notas}
               onChange={(e) => setNotas(e.target.value)}
               rows="3"
               placeholder="Ej: Cliente solicita producto X sin stock, contactar proveedor..."
-              style={{ fontSize: '13px' }}
             />
-            <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span className="material-icons-round" style={{ fontSize: '14px' }}>lightbulb</span> Use este campo para solicitudes sin stock o instrucciones especiales
             </small>
           </div>
 
           <div className="cart-items">
             {cart.length === 0 ? (
-              <p className="empty-cart">El carrito está vacío</p>
+              <div className="empty-cart">
+                <span className="material-icons-round" style={{ fontSize: '2.5rem', opacity: 0.5 }}>shopping_bag</span>
+                <span>El carrito está vacío</span>
+              </div>
             ) : (
               <>
-                {cart.map(item => (
-                  <div key={item.productId} className="cart-item">
-                    <div className="cart-item-info">
-                      <h4>{item.nombre}</h4>
-                      <p>${parseFloat(item.precio).toFixed(2)} c/u</p>
+                {cart.map(item => {
+                  const product = products.find(p => p.id === item.productId);
+                  const availableStock = product ? product.stock - item.cantidad : 0;
+                  
+                  return (
+                    <div key={item.productId} className="cart-item">
+                      <div className="cart-item-info">
+                        <h4>{item.nombre}</h4>
+                        <p>${parseFloat(item.precio).toFixed(2)} c/u</p>
+                      </div>
+                      <div className="cart-item-controls">
+                        <div>
+                          <button onClick={() => updateQuantity(item.productId, item.cantidad - 1)} title="Reducir cantidad">−</button>
+                          <input
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            min="1"
+                            max={item.stockDisponible}
+                          />
+                          <button onClick={() => updateQuantity(item.productId, item.cantidad + 1)} title="Aumentar cantidad">+</button>
+                        </div>
+                        <button
+                          className="btn-remove"
+                          onClick={() => removeFromCart(item.productId)}
+                          title="Eliminar del carrito"
+                        >
+                          <span className="material-icons-round">delete_outline</span>
+                        </button>
+                      </div>
+                      <div className="cart-item-subtotal">
+                        ${(item.precio * item.cantidad).toFixed(2)}
+                      </div>
                     </div>
-                    <div className="cart-item-controls">
-                      <button onClick={() => updateQuantity(item.productId, item.cantidad - 1)}>-</button>
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
-                        min="1"
-                        max={item.stockDisponible}
-                      />
-                      <button onClick={() => updateQuantity(item.productId, item.cantidad + 1)}>+</button>
-                      <button
-                        className="btn-remove"
-                        onClick={() => removeFromCart(item.productId)}
-                      >
-                        <span className="material-icons-round">delete_outline</span>
-                      </button>
-                    </div>
-                    <div className="cart-item-subtotal">
-                      ${(item.precio * item.cantidad).toFixed(2)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>
 
           <div className="cart-total">
-            <h3>Total: ${calculateTotal().toFixed(2)}</h3>
+            Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${calculateTotal().toFixed(2)}</span>
           </div>
 
           <button
@@ -404,6 +483,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
             onClick={handleSubmitOrder}
             disabled={cart.length === 0 || (!selectedClient && !allowNoClient)}
           >
+            <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
             Finalizar Venta
           </button>
         </div>

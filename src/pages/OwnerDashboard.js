@@ -351,6 +351,10 @@ function ProductsTab({ products, tags, onRefresh }) {
   const [activeTagId, setActiveTagId] = useState(null);
   const [localProducts, setLocalProducts] = useState(products);
   const [loading, setLoading] = useState(false);
+  const [gridColumns, setGridColumns] = useState(() => {
+    const saved = localStorage.getItem('ownerGridColumns');
+    return saved ? parseInt(saved) : 2;
+  });
 
   const fetchProductsByTag = useCallback(async () => {
     try {
@@ -384,25 +388,40 @@ function ProductsTab({ products, tags, onRefresh }) {
     <div className="products-tab">
       <div className="tab-header">
         <h2>Inventario de Productos</h2>
-        <div className="filter-buttons">
-          <button
-            className={filter === 'all' ? 'active' : ''}
-            onClick={() => setFilter('all')}
-          >
-            Todos ({products.length})
-          </button>
-          <button
-            className={filter === 'active' ? 'active' : ''}
-            onClick={() => setFilter('active')}
-          >
-            Activos ({products.filter(p => p.active).length})
-          </button>
-          <button
-            className={filter === 'lowstock' ? 'active' : ''}
-            onClick={() => setFilter('lowstock')}
-          >
-            Stock Bajo ({products.filter(p => p.stock < 10 && p.active).length})
-          </button>
+        <div className="header-actions">
+          <div className="filter-buttons">
+            <button
+              className={filter === 'all' ? 'active' : ''}
+              onClick={() => setFilter('all')}
+            >
+              Todos ({products.length})
+            </button>
+            <button
+              className={filter === 'active' ? 'active' : ''}
+              onClick={() => setFilter('active')}
+            >
+              Activos ({products.filter(p => p.active).length})
+            </button>
+            <button
+              className={filter === 'lowstock' ? 'active' : ''}
+              onClick={() => setFilter('lowstock')}
+            >
+              Stock Bajo ({products.filter(p => p.stock < 10 && p.active).length})
+            </button>
+          </div>
+          <div className="grid-columns-selector">
+            {[1, 2, 3].map(cols => (
+              <button
+                key={cols}
+                className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                onClick={() => setGridColumns(cols)}
+                title={`${cols} columnas`}
+              >
+                <span className="material-icons-round">dashboard</span>
+                {cols}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -416,7 +435,9 @@ function ProductsTab({ products, tags, onRefresh }) {
       {loading ? (
         <div style={{ padding: '3rem', textAlign: 'center' }}>Filtrando productos...</div>
       ) : (
-        <div className="products-grid">
+        <div className="products-grid" style={{
+          gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
+        }}>
           {filteredProducts.map(product => (
             <div key={product.id} className="product-card">
               <div className="product-image">

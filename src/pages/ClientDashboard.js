@@ -22,16 +22,24 @@ const ClientDashboard = () => {
 };
 
 const ClientDashboardContent = () => {
-    const { cartCount } = useCart();
+    const { cartCount, cart } = useCart();
     const [activeTab, setActiveTab] = useState('catalog');
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [gridColumns, setGridColumns] = useState(() => {
+        const saved = localStorage.getItem('clientGridColumns');
+        return saved ? parseInt(saved) : 2;
+    });
 
     // Search state
     const [search, setSearch] = useState('');
     const [inStockOnly, setInStockOnly] = useState(false);
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+
+    useEffect(() => {
+        localStorage.setItem('clientGridColumns', gridColumns.toString());
+    }, [gridColumns]);
     const [tags, setTags] = useState([]);
     const [activeTagId, setActiveTagId] = useState(null);
 
@@ -137,21 +145,36 @@ const ClientDashboardContent = () => {
                 {activeTab === 'catalog' && (
                     <>
                         <div className="catalog-toolbar">
-                            <input
-                                type="text"
-                                className="search-input"
-                                placeholder="Buscar productos..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                            <label className="stock-toggle">
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1 }}>
                                 <input
-                                    type="checkbox"
-                                    checked={inStockOnly}
-                                    onChange={(e) => setInStockOnly(e.target.checked)}
+                                    type="text"
+                                    className="search-input"
+                                    placeholder="Buscar productos..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
                                 />
-                                Solo en stock
-                            </label>
+                                <label className="stock-toggle">
+                                    <input
+                                        type="checkbox"
+                                        checked={inStockOnly}
+                                        onChange={(e) => setInStockOnly(e.target.checked)}
+                                    />
+                                    Solo en stock
+                                </label>
+                            </div>
+                            <div className="grid-columns-selector">
+                                {[1, 2, 3].map(cols => (
+                                    <button
+                                        key={cols}
+                                        className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                                        onClick={() => setGridColumns(cols)}
+                                        title={`${cols} columnas`}
+                                    >
+                                        <span className="material-icons-round">dashboard</span>
+                                        {cols}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <TagFilterBar
@@ -164,7 +187,9 @@ const ClientDashboardContent = () => {
                         {loading ? (
                             <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando catálogo...</div>
                         ) : (
-                            <div className="products-grid">
+                            <div className="products-grid" style={{
+                                gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
+                            }}>
                                 {(() => {
                                     const filteredProducts = (products || []).filter(p =>
                                         !activeTagId || p.tagId === activeTagId
@@ -179,6 +204,7 @@ const ClientDashboardContent = () => {
                                             key={p.id}
                                             product={p}
                                             onAddToList={handleAddToList}
+                                            cart={cart}
                                         />
                                     ));
                                 })()}

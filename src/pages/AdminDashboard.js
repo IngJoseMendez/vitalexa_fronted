@@ -731,8 +731,16 @@ function ProductsPanel({ refreshTrigger }) {
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTagId, setActiveTagId] = useState(null);
+  const [gridColumns, setGridColumns] = useState(() => {
+    const saved = localStorage.getItem('adminGridColumns');
+    return saved ? parseInt(saved) : 2;
+  });
   const toast = useToast();
   const confirm = useConfirm();
+
+  useEffect(() => {
+    localStorage.setItem('adminGridColumns', gridColumns.toString());
+  }, [gridColumns]);
 
   const fetchTags = useCallback(async () => {
     try {
@@ -814,6 +822,19 @@ function ProductsPanel({ refreshTrigger }) {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
+          <div className="grid-columns-selector">
+            {[1, 2, 3].map(cols => (
+              <button
+                key={cols}
+                className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                onClick={() => setGridColumns(cols)}
+                title={`${cols} columnas`}
+              >
+                <span className="material-icons-round">dashboard</span>
+                {cols}
+              </button>
+            ))}
+          </div>
           <button className="btn-add" onClick={() => setShowForm(true)}>
             + Nuevo Producto
           </button>
@@ -838,7 +859,9 @@ function ProductsPanel({ refreshTrigger }) {
           <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>search_off</span><br />No se encontraron productos</p>
         </div>
       ) : (
-        <div className="products-grid">
+        <div className="products-grid" style={{
+          gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
+        }}>
           {filteredProducts.map(product => (
             <div key={product.id} className="product-card">
               <div className={`product-status-blob ${product.active ? 'active' : 'inactive'}`} />
