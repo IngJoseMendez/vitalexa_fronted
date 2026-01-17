@@ -435,8 +435,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
             ) : (
               <>
                 {cart.map(item => {
-                  const product = products.find(p => p.id === item.productId);
-                  
+
                   
                   return (
                     <div key={item.productId} className="cart-item">
