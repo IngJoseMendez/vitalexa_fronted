@@ -542,9 +542,6 @@ function VentasCompletadasPanel() {
                 <span className="venta-status status-completado">
                   <span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span> COMPLETADO
                 </span>
-                <span className={`payment-status-badge ${order.paymentStatus?.toLowerCase() || 'pending'}`}>
-                  {order.paymentStatus || 'PENDING'}
-                </span>
               </div>
 
               <div className="venta-info">
@@ -795,9 +792,6 @@ function MisVentasPanel() {
                 </div>
                 <span className={`venta-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
                   {order.estado || 'PENDIENTE'}
-                </span>
-                <span className={`payment-status-badge ${order.paymentStatus?.toLowerCase() || 'pending'}`}>
-                  {order.paymentStatus || 'PENDING'}
                 </span>
               </div>
 

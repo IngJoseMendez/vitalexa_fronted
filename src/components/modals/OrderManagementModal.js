@@ -94,8 +94,21 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
     // Calculate payment summary
     const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-    const orderTotal = parseFloat(order.discountedTotal || order.total || 0);
-    const pendingBalance = orderTotal - totalPaid;
+
+    // Calculate totals based on LOCAL fetched discounts to ensure sync
+    // This fixes the issue where order prop is stale or missing discountedTotal
+    const activeDiscounts = discounts.filter(d => d.status === 'APPLIED');
+    const totalDiscountPercent = activeDiscounts.reduce((sum, d) => sum + parseFloat(d.percentage || 0), 0);
+    const originalTotal = parseFloat(order.total || 0);
+
+    // logic: effectiveTotal = Total - (Total * % / 100)
+    const currentDiscountAmount = (originalTotal * totalDiscountPercent) / 100;
+    const effectiveTotal = originalTotal - currentDiscountAmount;
+
+    const pendingBalance = effectiveTotal - totalPaid;
+
+    // Determine if we should show "Discounted Total" (if there are active discounts)
+    const hasDiscounts = activeDiscounts.length > 0;
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -245,16 +258,22 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         {/* Payment Summary */}
                         <div className="payment-summary">
                             <div className="summary-item">
-                                <span>Total Orden:</span>
-                                <strong>${orderTotal.toFixed(2)}</strong>
+                                <span>Total {hasDiscounts ? 'Original' : 'Orden'}:</span>
+                                <strong className={hasDiscounts ? 'strike-through' : ''}>${originalTotal.toFixed(2)}</strong>
                             </div>
+                            {hasDiscounts && (
+                                <div className="summary-item highlight">
+                                    <span>Total con Descuento:</span>
+                                    <strong className="success">${effectiveTotal.toFixed(2)}</strong>
+                                </div>
+                            )}
                             <div className="summary-item paid">
                                 <span>Total Pagado:</span>
                                 <strong>${totalPaid.toFixed(2)}</strong>
                             </div>
                             <div className={`summary-item ${pendingBalance <= 0.01 ? 'success' : 'warning'}`}>
                                 <span>Saldo Pendiente:</span>
-                                <strong>${pendingBalance.toFixed(2)}</strong>
+                                <strong style={{ fontSize: '1.2rem' }}>${Math.max(0, pendingBalance).toFixed(2)}</strong>
                             </div>
                         </div>
 
@@ -306,7 +325,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                 {showPaymentForm && (
                     <PaymentFormModal
                         orderId={order.id || order.orderId}
-                        orderTotal={orderTotal}
+                        orderTotal={effectiveTotal}
                         totalPaid={totalPaid}
                         onClose={() => setShowPaymentForm(false)}
                         onSuccess={() => {
@@ -345,7 +364,20 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
     const [saving, setSaving] = useState(false);
     const toast = useToast();
 
+    // Calculate pending balance first
     const pendingBalance = orderTotal - totalPaid;
+
+    // Dynamic calculation of context values
+    const discountPercent = parseFloat(formData.discountApplied || 0);
+    const discountAmount = (pendingBalance * discountPercent) / 100;
+    const finalPaymentAmount = parseFloat(formData.amount || 0);
+
+    // We start with the CURRENT pending balance
+    // If a discount is applied during this payment, it effectively reduces the debt
+    // The "Remaining Balance" after this transaction would be: 
+    // Current Pending - Discount Amount (from this transaction) - Payment Amount
+
+    const effectivePendingAfter = Math.max(0, pendingBalance - discountAmount - finalPaymentAmount);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -394,23 +426,58 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                         <strong>${totalPaid.toFixed(2)}</strong>
                     </div>
                     <div className="context-item highlight">
-                        <span>Saldo Pendiente:</span>
-                        <strong>${pendingBalance.toFixed(2)}</strong>
+                        <span>Saldo Pendiente Actual:</span>
+                        <strong className="warning">${pendingBalance.toFixed(2)}</strong>
                     </div>
+                    {/* Dynamic Preview Line */}
+                    {(discountPercent > 0 || finalPaymentAmount > 0) && (
+                        <div className="context-item preview" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #e2e8f0' }}>
+                            <span>Saldo Restante (Estimado):</span>
+                            <strong className={effectivePendingAfter <= 0.01 ? 'success' : ''}>
+                                ${effectivePendingAfter.toFixed(2)}
+                            </strong>
+                        </div>
+                    )}
                 </div>
 
                 <form onSubmit={handleSubmit} className="payment-form">
+                    {/* Discount Field Moved Up for workflow logic */}
+                    <div className="form-group">
+                        <label>Descuento a Aplicar (%) <small>- Opcional</small></label>
+                        <div className="input-group-text">
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={formData.discountApplied}
+                                onChange={(e) => setFormData({ ...formData, discountApplied: e.target.value })}
+                                placeholder="Ej: 5 (5%)"
+                            />
+                            <span className="suffix">%</span>
+                        </div>
+                        {discountPercent > 0 && (
+                            <div className="input-help success">
+                                <span className="material-icons-round" style={{ fontSize: '14px' }}>trending_down</span>
+                                Reduce la deuda en: -${discountAmount.toFixed(2)}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="form-group">
                         <label>Monto del Pago *</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={formData.amount}
-                            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                            placeholder={`Máximo sugerido: $${pendingBalance.toFixed(2)}`}
-                            required
-                        />
+                        <div className="input-group-text">
+                            <span className="prefix">$</span>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                value={formData.amount}
+                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                placeholder={`Máximo sugerido: ${(pendingBalance - discountAmount).toFixed(2)}`}
+                                required
+                            />
+                        </div>
                     </div>
 
                     <div className="form-group checkbox">
@@ -424,19 +491,6 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                             <span className="material-icons-round">schedule</span>
                             Pago dentro del plazo establecido
                         </label>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Descuento Aplicado (%) <small>- Opcional</small></label>
-                        <input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            max="100"
-                            value={formData.discountApplied}
-                            onChange={(e) => setFormData({ ...formData, discountApplied: e.target.value })}
-                            placeholder="Ej: 5"
-                        />
                     </div>
 
                     <div className="form-group">

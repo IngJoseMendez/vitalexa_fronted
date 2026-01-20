@@ -1513,6 +1513,57 @@
   color: var(--warning-text);
 }
 
+.status-confirmado {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Mobile responsive for venta headers and badges */
+@media (max-width: 600px) {
+  .venta-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .venta-id {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .venta-status {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .venta-status .material-icons-round {
+    font-size: 12px !important;
+  }
+
+  .venta-card {
+    padding: 0.75rem;
+  }
+
+  .venta-info p {
+    font-size: 0.85rem;
+    margin: 0.25rem 0;
+  }
+}
+
+@media (max-width: 400px) {
+  .venta-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .venta-id {
+    order: -1;
+  }
+}
+
 .venta-details summary {
   color: var(--primary);
   cursor: pointer;
@@ -2387,5 +2438,134 @@
 
   .motivation-message p {
     font-size: 0.8rem;
+  }
+}
+
+/* ============================================
+   ADDITIONAL MOBILE FIXES
+   ============================================ */
+
+/* Modal buttons fix - prevent overlap on mobile */
+@media (max-width: 480px) {
+  .modal-content {
+    margin: 0.5rem;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .client-form {
+    overflow-y: auto;
+    flex: 1;
+    padding-bottom: 120px;
+    /* Space for fixed buttons */
+  }
+
+  .client-form .form-actions {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 1rem;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+    z-index: 1001;
+    border-radius: 1rem 1rem 0 0;
+  }
+
+  .client-form .form-actions button {
+    width: 100%;
+    padding: 1rem;
+    margin: 0;
+  }
+
+  /* Header logout button fix */
+  .header-info {
+    gap: 0.5rem;
+  }
+
+  .header-info span:not(.btn-logout) {
+    display: none;
+    /* Hide user name on very small screens */
+  }
+
+  .btn-logout {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .btn-logout span.logout-text {
+    display: none;
+  }
+
+  .btn-logout .material-icons-round {
+    margin: 0;
+  }
+}
+
+/* Product cards spacing on narrow mobile */
+@media (max-width: 600px) {
+  .productos-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    padding: 0.5rem;
+  }
+
+  .producto-card {
+    padding: 0.75rem;
+  }
+
+  .producto-card img {
+    height: 80px;
+  }
+
+  .producto-card h3 {
+    font-size: 0.85rem;
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+  }
+
+  .producto-card .price {
+    font-size: 1rem;
+  }
+
+  .stock-info {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .btn-add-to-cart {
+    padding: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .btn-add-to-cart .material-icons-round {
+    font-size: 16px;
+  }
+}
+
+/* Catalog panel more space on mobile */
+@media (max-width: 768px) {
+  .catalogo-panel {
+    padding: 0.75rem;
+  }
+
+  .productos-grid {
+    gap: 0.75rem;
+  }
+
+  /* Header improvements on mobile */
+  .dashboard-header {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.25rem;
+    flex: 1;
   }
 }

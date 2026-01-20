@@ -78,6 +78,7 @@ function OrdersPanel() {
   const [sortBy, setSortBy] = useState('fecha');
   const [sortOrder, setSortOrder] = useState('desc');
   const [downloadingPdf, setDownloadingPdf] = useState(null);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
   const toast = useToast();
 
   const fetchOrders = useCallback(async () => {
@@ -179,6 +180,16 @@ function OrdersPanel() {
 
   const filteredOrders = orders
     .filter(order => {
+      // Invoice search filter (if provided)
+      if (invoiceSearch.trim()) {
+        const searchStr = invoiceSearch.toLowerCase().trim();
+        const invoiceNum = String(order.invoiceNumber || '').toLowerCase();
+        const orderId = String(order.id || '').toLowerCase();
+        if (!invoiceNum.includes(searchStr) && !orderId.includes(searchStr)) {
+          return false;
+        }
+      }
+      // Status filter
       if (filter === 'pending') return order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
       if (filter === 'completed') return order.estado === 'COMPLETADO';
       if (filter === 'all') return true;
@@ -227,6 +238,38 @@ function OrdersPanel() {
           >
             <span className="material-icons-round">analytics</span> Todas ({orders.length})
           </button>
+
+          {/* Invoice Search Input */}
+          <div className="invoice-search-box" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
+            <input
+              type="text"
+              placeholder="Buscar por factura..."
+              value={invoiceSearch}
+              onChange={(e) => setInvoiceSearch(e.target.value)}
+              style={{
+                padding: '0.5rem 1rem',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                width: '180px'
+              }}
+            />
+            {invoiceSearch && (
+              <button
+                onClick={() => setInvoiceSearch('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: '4px'
+                }}
+              >
+                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="sorting-controls">

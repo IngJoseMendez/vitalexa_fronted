@@ -165,10 +165,21 @@ function BalancesPage() {
                                         </div>
                                     </div>
                                     <div className="client-balance">
-                                        <span className={`balance - amount ${client.pendingBalance > 0 ? 'warning' : 'success'} `}>
-                                            ${(client.pendingBalance || 0).toFixed(2)}
-                                        </span>
-                                        <span className="balance-label">Pendiente</span>
+                                        {client.pendingBalance > 0 ? (
+                                            <>
+                                                <span className="balance-amount warning">
+                                                    ${(client.pendingBalance || 0).toFixed(2)}
+                                                </span>
+                                                <span className="balance-label">Pendiente</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="balance-amount success" style={{ fontSize: '1.1rem' }}>
+                                                    Al día
+                                                </span>
+                                                <span className="balance-label success">Sin deuda</span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -581,6 +592,8 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                     onRefresh={() => {
                         // Refresh client detail to update balances
                         fetchClientDetail();
+                        // Also refresh the specific order to update totals/discounts
+                        handleManageOrder(selectedOrderForModal.id || selectedOrderForModal.orderId);
                     }}
                 />
             )}

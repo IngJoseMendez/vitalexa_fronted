@@ -625,3 +625,256 @@
 .input-with-suffix input {
     padding-right: 2.5rem;
 }
+
+/* Input Groups for Suffix/Prefix */
+.input-group-text {
+    display: flex;
+    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    overflow: hidden;
+}
+
+.input-group-text input {
+    flex: 1;
+    border: none;
+    box-shadow: none;
+    margin: 0;
+}
+
+.input-group-text input:focus {
+    box-shadow: none;
+}
+
+.input-group-text .prefix,
+.input-group-text .suffix {
+    padding: 0 12px;
+    color: #64748b;
+    font-weight: 500;
+    font-size: 0.9rem;
+    background: #f8fafc;
+    border-left: 1px solid #e2e8f0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.input-group-text .prefix {
+    border-left: none;
+    border-right: 1px solid #e2e8f0;
+}
+
+.strike-through {
+    text-decoration: line-through;
+    color: #94a3b8;
+    font-weight: normal;
+    font-size: 0.9em;
+}
+
+.input-help {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.input-help.success {
+    color: #10b981;
+}
+
+.context-item.preview {
+    background: #f0fdf4;
+    border-radius: 6px;
+    padding: 8px;
+    margin-top: 8px;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE STYLES
+   ============================================ */
+
+@media (max-width: 768px) {
+    .modal-content-large {
+        max-width: 100%;
+        max-height: 95vh;
+        border-radius: 1rem;
+        margin: 0.5rem;
+    }
+
+    .modal-header {
+        padding: 1rem;
+    }
+
+    .modal-header h3 {
+        font-size: 1.1rem;
+    }
+
+    .order-detail-content {
+        padding: 1rem;
+    }
+
+    /* Info Grid - Stack on mobile */
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .info-item {
+        padding: 0.75rem;
+    }
+
+    /* Payment Summary - 2x2 grid on tablet, stack on mobile */
+    .payment-summary {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .payment-summary .summary-item {
+        min-width: 100%;
+        padding: 0.75rem;
+    }
+
+    /* Payment Context in Form */
+    .payment-context {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .context-item {
+        padding: 0.75rem;
+    }
+
+    /* Discount Items - stack content */
+    .discount-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .discount-info {
+        flex-wrap: wrap;
+    }
+
+    .btn-revoke {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Payment Items - stack content */
+    .payment-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .payment-main {
+        flex-wrap: wrap;
+    }
+
+    .btn-cancel-payment {
+        align-self: flex-end;
+    }
+
+    /* Section Headers */
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .section-header .btn-add-small {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Products Table - Scroll on small screens */
+    .products-table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .items-table {
+        min-width: 400px;
+        font-size: 0.85rem;
+    }
+
+    .items-table th,
+    .items-table td {
+        padding: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-overlay {
+        padding: 0;
+    }
+
+    .modal-content-large {
+        border-radius: 0;
+        max-height: 100vh;
+        height: 100%;
+    }
+
+    .modal-content.form-modal {
+        max-width: 100%;
+        border-radius: 1rem 1rem 0 0;
+        margin-top: auto;
+    }
+
+    .order-detail-content {
+        padding: 0.75rem;
+    }
+
+    .detail-section {
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .detail-section h4 {
+        font-size: 0.9rem;
+    }
+
+    /* Further simplify payment summary */
+    .payment-summary .summary-item {
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .payment-summary .summary-item span {
+        margin-bottom: 0;
+    }
+
+    .payment-summary .summary-item strong {
+        font-size: 1.1rem;
+    }
+
+    /* Form adjustments */
+    .form-group label {
+        font-size: 0.85rem;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        padding: 0.65rem;
+        font-size: 0.95rem;
+    }
+
+    .form-actions {
+        flex-direction: column-reverse;
+        gap: 0.75rem;
+    }
+
+    .form-actions button {
+        width: 100%;
+    }
+
+    /* Notes box */
+    .notes-box {
+        padding: 0.75rem;
+    }
+}
