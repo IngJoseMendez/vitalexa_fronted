@@ -144,12 +144,12 @@
     height: auto;
     gap: 1.5rem;
   }
-  
+
   .productos-section {
     height: auto;
     min-height: 500px;
   }
-  
+
   .carrito-section {
     height: auto;
     position: sticky;
@@ -165,12 +165,12 @@
     align-items: center;
     gap: 0.75rem;
   }
-  
+
   .search-container {
     flex: 1;
     min-width: 200px;
   }
-  
+
   .search-input {
     width: 100%;
   }
@@ -194,47 +194,47 @@
   .grid-btn .material-icons-round {
     font-size: 0.9rem;
   }
-  
+
   .productos-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     padding: 0.75rem;
   }
-  
+
   .product-card {
     border-radius: 1rem;
   }
-  
+
   .product-card img {
     height: 160px;
   }
-  
+
   .product-info {
     padding: 1rem;
     gap: 0.5rem;
   }
-  
+
   .product-price {
     font-size: 1.25rem;
   }
-  
+
   .btn-add-cart {
     padding: 0.8rem 0.75rem;
     font-size: 0.85rem;
     gap: 0.35rem;
   }
-  
+
   .carrito-section {
     padding: 1.5rem;
     border-radius: 1.5rem;
   }
-  
+
   .cart-total {
     font-size: 1.2rem;
     padding: 1rem;
     border-radius: 1rem;
   }
-  
+
   .btn-finalizar-venta {
     padding: 1rem;
     font-size: 0.95rem;
@@ -247,23 +247,23 @@
     font-size: 1.25rem;
     margin-bottom: 1rem;
   }
-  
+
   .venta-layout {
     gap: 1rem;
   }
-  
+
   .productos-section {
     border-radius: 1.5rem;
     padding: 0;
   }
-  
+
   .products-header {
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
     padding: 1rem;
   }
-  
+
   .products-header h3 {
     font-size: 1.1rem;
     margin: 0;
@@ -277,18 +277,18 @@
     align-items: stretch;
     width: 100%;
   }
-  
+
   .search-container {
     width: 100%;
     min-width: auto;
   }
-  
+
   .search-input {
     padding: 0.75rem 1rem 0.75rem 2.5rem;
     font-size: 1rem;
     border-radius: 0.75rem;
   }
-  
+
   .grid-columns-selector {
     display: flex;
     gap: 0.3rem;
@@ -298,67 +298,67 @@
     width: 100%;
     justify-content: center;
   }
-  
+
   .grid-btn {
     flex: 1;
     padding: 0.4rem 0.5rem;
     font-size: 0.75rem;
     min-width: auto;
   }
-  
+
   .grid-btn .material-icons-round {
     font-size: 0.9rem;
   }
-  
+
   .tag-filter-bar {
     padding: 0.5rem 1rem;
   }
-  
+
   .productos-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     padding: 0.75rem;
     max-height: calc(100vh - 350px);
   }
-  
+
   .product-card {
     border-radius: 0.875rem;
   }
-  
+
   .product-card img {
     height: 140px;
     padding: 1rem;
   }
-  
+
   .product-info {
     padding: 0.85rem;
     gap: 0.4rem;
   }
-  
+
   .product-info h4 {
     font-size: 0.85rem;
     line-height: 1.2;
   }
-  
+
   .product-price {
     font-size: 1.1rem;
     margin-bottom: 0.25rem;
   }
-  
+
   .stock-visual-indicator {
     margin-bottom: 0.75rem;
     padding: 0.6rem;
     gap: 0.35rem;
   }
-  
+
   .stock-bar-small {
     height: 5px;
   }
-  
+
   .stock-text {
     font-size: 0.7rem;
   }
-  
+
   .product-cart-badge {
     width: 38px;
     height: 38px;
@@ -366,56 +366,56 @@
     top: 0.6rem;
     left: 0.6rem;
   }
-  
+
   .btn-add-cart {
     padding: 0.7rem 0.6rem;
     font-size: 0.75rem;
     border-radius: 0.75rem;
     gap: 0.3rem;
   }
-  
+
   .btn-add-cart .material-icons-round {
     font-size: 0.95rem;
   }
-  
+
   .product-card {
     border-radius: 0.875rem;
   }
-  
+
   .product-card img {
     height: 140px;
     padding: 1rem;
   }
-  
+
   .product-info {
     padding: 0.85rem;
     gap: 0.4rem;
   }
-  
+
   .product-info h4 {
     font-size: 0.85rem;
     line-height: 1.2;
   }
-  
+
   .product-price {
     font-size: 1.1rem;
     margin-bottom: 0.25rem;
   }
-  
+
   .stock-visual-indicator {
     margin-bottom: 0.75rem;
     padding: 0.6rem;
     gap: 0.35rem;
   }
-  
+
   .stock-bar-small {
     height: 5px;
   }
-  
+
   .stock-text {
     font-size: 0.7rem;
   }
-  
+
   .product-cart-badge {
     width: 38px;
     height: 38px;
@@ -423,18 +423,18 @@
     top: 0.6rem;
     left: 0.6rem;
   }
-  
+
   .btn-add-cart {
     padding: 0.7rem 0.6rem;
     font-size: 0.75rem;
     border-radius: 0.75rem;
     gap: 0.3rem;
   }
-  
+
   .btn-add-cart .material-icons-round {
     font-size: 0.95rem;
   }
-  
+
   /* Cart Section Mobile */
   .carrito-section {
     padding: 1.25rem;
@@ -442,115 +442,115 @@
     gap: 1rem;
     position: static;
   }
-  
+
   .carrito-section h3 {
     font-size: 1.1rem;
     margin: 0;
     margin-bottom: 0.5rem;
   }
-  
+
   .form-group {
     margin-bottom: 0.75rem;
   }
-  
+
   .form-group label {
     font-size: 0.75rem;
     margin-bottom: 0.4rem;
   }
-  
+
   .form-group select,
   .form-group textarea {
     padding: 0.75rem 0.85rem;
     font-size: 1rem;
     border-radius: 0.75rem;
   }
-  
+
   .checkbox-group {
     gap: 0.6rem;
     margin-bottom: 0.75rem;
   }
-  
+
   .checkbox-group input {
     width: 18px;
     height: 18px;
   }
-  
+
   .checkbox-group label {
     font-size: 0.85rem;
   }
-  
+
   .cart-items {
     max-height: 250px;
     padding: 0.75rem;
     border-radius: 1rem;
   }
-  
+
   .cart-item {
     padding: 0.75rem;
     margin-bottom: 0.6rem;
     border-radius: 0.75rem;
   }
-  
+
   .cart-item-info h4 {
     font-size: 0.8rem;
   }
-  
+
   .cart-item-info p {
     font-size: 0.75rem;
     margin-top: 0.2rem;
   }
-  
+
   .cart-item-controls {
     gap: 0.5rem;
   }
-  
-  .cart-item-controls > div:first-child {
+
+  .cart-item-controls>div:first-child {
     gap: 0.3rem;
     padding: 0.25rem;
   }
-  
+
   .cart-item-controls button {
     width: 26px;
     height: 26px;
     font-size: 0.8rem;
   }
-  
+
   .cart-item-controls input {
     width: 28px;
     font-size: 0.8rem;
   }
-  
+
   .btn-remove {
     width: 26px;
     height: 26px;
   }
-  
+
   .btn-remove .material-icons-round {
     font-size: 0.95rem;
   }
-  
+
   .cart-item-subtotal {
     font-size: 0.85rem;
   }
-  
+
   .cart-total {
     font-size: 1rem;
     padding: 1rem;
     border-radius: 1rem;
     margin: 0;
   }
-  
+
   .cart-total span {
     font-size: 1.3rem;
   }
-  
+
   .btn-finalizar-venta {
     padding: 0.95rem 0.85rem;
     font-size: 0.9rem;
     border-radius: 1rem;
     gap: 0.5rem;
   }
-  
+
   .btn-finalizar-venta .material-icons-round {
     font-size: 1rem;
   }
@@ -563,43 +563,43 @@
     margin-bottom: 0.75rem;
     gap: 0.5rem;
   }
-  
+
   .nueva-venta-panel h2 .material-icons-round {
     font-size: 24px;
   }
-  
+
   .productos-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 0.6rem;
     padding: 0.75rem;
   }
-  
+
   .product-card img {
     height: 120px;
     padding: 0.75rem;
   }
-  
+
   .product-info {
     padding: 0.7rem;
     gap: 0.3rem;
   }
-  
+
   .product-info h4 {
     font-size: 0.75rem;
   }
-  
+
   .product-price {
     font-size: 0.95rem;
   }
-  
+
   .form-group label {
     font-size: 0.7rem;
   }
-  
+
   .carrito-section h3 {
     font-size: 0.95rem;
   }
-  
+
   .cart-items {
     max-height: 200px;
   }
@@ -634,7 +634,7 @@
   padding: 1.5rem 1.5rem 1rem;
   border-bottom: 1px solid rgba(226, 232, 240, 0.6);
   gap: 1rem;
-  background: linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(248,250,252,0.5) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 250, 252, 0.5) 100%);
   flex-wrap: wrap;
 }
 
@@ -874,9 +874,9 @@
   right: 0;
   bottom: 0;
   background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.3) 50%,
-    transparent 100%);
+      transparent 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      transparent 100%);
   animation: shimmer 2s infinite;
 }
 
@@ -884,6 +884,7 @@
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(100%);
   }
@@ -923,9 +924,12 @@
 }
 
 @keyframes badgePulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
   }
+
   50% {
     transform: scale(1.05);
   }
@@ -1096,7 +1100,7 @@
   border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: 1.25rem;
   padding: 1rem;
-  background: linear-gradient(135deg, rgba(248,250,252,0.5) 0%, rgba(255,255,255,0.5) 100%);
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.5) 0%, rgba(255, 255, 255, 0.5) 100%);
   min-height: 200px;
   max-height: 350px;
 }
@@ -1177,7 +1181,7 @@
   justify-content: space-between;
 }
 
-.cart-item-controls > div:first-child {
+.cart-item-controls>div:first-child {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -1260,7 +1264,7 @@
   font-weight: 800;
   color: var(--text-main);
   padding: 1.25rem;
-  background: linear-gradient(135deg, rgba(99,102,241,0.05) 0%, rgba(124,58,237,0.05) 100%);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%);
   border-radius: 1.25rem;
   border: 2px solid rgba(99, 102, 241, 0.2);
   margin: 0;
@@ -1294,7 +1298,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 

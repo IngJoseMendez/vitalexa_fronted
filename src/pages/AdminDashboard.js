@@ -47,6 +47,12 @@ function AdminDashboard() {
         >
           <span className="material-icons-round">local_offer</span> Etiquetas
         </button>
+        <button
+          className="nav-external"
+          onClick={() => window.location.href = '/balances'}
+        >
+          <span className="material-icons-round">account_balance_wallet</span> Saldos
+        </button>
       </nav>
 
       <div className="dashboard-content">
@@ -248,104 +254,133 @@ function OrdersPanel() {
         </div>
       ) : (
         <div className="orders-grid">
-          {filteredOrders.map(order => (
-            <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
-              <div className="order-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span className="order-id">
-                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+          {filteredOrders.map(order => {
+            // Determine payment status class
+            const paymentStatusClass = order.paymentStatus
+              ? `payment-${order.paymentStatus.toLowerCase()}`
+              : '';
+
+            return (
+              <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
+                <div className="order-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span className="order-id">
+                      {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                    </span>
+                    {order.isSROrder && (
+                      <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                    )}
+                    {/* Payment Status Badge */}
+                    {order.paymentStatus && (
+                      <span className={`payment-status-badge ${order.paymentStatus.toLowerCase()}`}>
+                        <span className="material-icons-round" style={{ fontSize: '12px' }}>
+                          {order.paymentStatus === 'PAID' ? 'check_circle' : order.paymentStatus === 'PARTIAL' ? 'pending' : 'schedule'}
+                        </span>
+                        {order.paymentStatus === 'PAID' ? 'Pagado' : order.paymentStatus === 'PARTIAL' ? 'Parcial' : 'Pendiente'}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                    {order.estado || 'PENDIENTE'}
                   </span>
-                  {order.isSROrder && (
-                    <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                </div>
+
+                <div className="order-info">
+                  <p><strong>Vendedor:</strong> {order.vendedor}</p>
+                  <p><strong>Cliente:</strong> {order.cliente}</p>
+                  <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
+                  <p className="order-total"><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
+                  {order.discountedTotal && order.discountedTotal !== order.total && (
+                    <p className="order-discounted-total">
+                      <span className="material-icons-round" style={{ fontSize: '14px', color: '#10b981' }}>discount</span>
+                      <strong>Con descuento:</strong>
+                      <span className="discounted-value">${parseFloat(order.discountedTotal).toFixed(2)}</span>
+                    </p>
+                  )}
+
+                  {order.notas && (
+                    <div className="order-notes">
+                      <strong><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>note</span> Notas:</strong>
+                      <p>{order.notas}</p>
+                    </div>
                   )}
                 </div>
-                <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
-                  {order.estado || 'PENDIENTE'}
-                </span>
-              </div>
 
-              <div className="order-info">
-                <p><strong>Vendedor:</strong> {order.vendedor}</p>
-                <p><strong>Cliente:</strong> {order.cliente}</p>
-                <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
-                <p className="order-total"><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
+                <details className="order-details">
+                  <summary>Ver productos ({order.items.length})</summary>
+                  <ul>
+                    {order.items.map((item, idx) => (
+                      <li key={idx}>
+                        <span className="item-name">{item.productName}</span>
+                        <span className="item-qty">{item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}</span>
+                        <span className="item-subtotal">${parseFloat(item.subtotal).toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
 
-                {order.notas && (
-                  <div className="order-notes">
-                    <strong><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>note</span> Notas:</strong>
-                    <p>{order.notas}</p>
+                {/* ✅ NUEVA SECCIÓN: BOTONES DE FACTURA PDF */}
+                <div className="invoice-actions">
+                  <h4 style={{ fontSize: '13px', marginBottom: '8px', color: '#6b7280' }}>
+                    📄 Factura / Orden de Empaque
+                  </h4>
+                  <div className="invoice-buttons">
+                    <button
+                      className="btn-invoice btn-preview"
+                      onClick={() => handlePreviewInvoice(order.id)}
+                      title="Ver factura en nueva pestaña"
+                    >
+                      <span className="material-icons-round">visibility</span> Vista Previa
+                    </button>
+
+                    <button
+                      className="btn-invoice btn-download"
+                      onClick={() => handleDownloadInvoice(order.id)}
+                      disabled={downloadingPdf === order.id}
+                      title="Descargar archivo PDF"
+                    >
+                      {downloadingPdf === order.id ? <span className="material-icons-round spin">sync</span> : <span className="material-icons-round">download</span>} Descargar
+                    </button>
                   </div>
-                )}
-              </div>
+                </div>
 
-              <details className="order-details">
-                <summary>Ver productos ({order.items.length})</summary>
-                <ul>
-                  {order.items.map((item, idx) => (
-                    <li key={idx}>
-                      <span className="item-name">{item.productName}</span>
-                      <span className="item-qty">{item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}</span>
-                      <span className="item-subtotal">${parseFloat(item.subtotal).toFixed(2)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
+                {/* ✅ SECCIÓN DE DESCUENTOS - ADMIN */}
+                <AdminDiscountSection
+                  orderId={order.id}
+                  onSuccess={fetchOrders}
+                />
 
-              {/* ✅ NUEVA SECCIÓN: BOTONES DE FACTURA PDF */}
-              <div className="invoice-actions">
-                <h4 style={{ fontSize: '13px', marginBottom: '8px', color: '#6b7280' }}>
-                  📄 Factura / Orden de Empaque
-                </h4>
-                <div className="invoice-buttons">
-                  <button
-                    className="btn-invoice btn-preview"
-                    onClick={() => handlePreviewInvoice(order.id)}
-                    title="Ver factura en nueva pestaña"
-                  >
-                    <span className="material-icons-round">visibility</span> Vista Previa
-                  </button>
+                {/* ✅ BOTONES DE GESTIÓN DE ORDEN */}
+                <div className="order-actions">
+                  {order.estado === 'PENDIENTE' && (
+                    <button
+                      className="btn-confirm"
+                      onClick={() => changeStatus(order.id, 'CONFIRMADO')}
+                    >
+                      <span className="material-icons-round">check</span> Confirmar
+                    </button>
+                  )}
 
-                  <button
-                    className="btn-invoice btn-download"
-                    onClick={() => handleDownloadInvoice(order.id)}
-                    disabled={downloadingPdf === order.id}
-                    title="Descargar archivo PDF"
-                  >
-                    {downloadingPdf === order.id ? <span className="material-icons-round spin">sync</span> : <span className="material-icons-round">download</span>} Descargar
-                  </button>
+                  {order.estado === 'CONFIRMADO' && (
+                    <>
+                      <button
+                        className="btn-edit"
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        <span className="material-icons-round">edit</span> Editar
+                      </button>
+                      <button
+                        className="btn-complete"
+                        onClick={() => changeStatus(order.id, 'COMPLETADO')}
+                      >
+                        <span className="material-icons-round">done_all</span> Completar
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-
-              {/* ✅ BOTONES DE GESTIÓN DE ORDEN */}
-              <div className="order-actions">
-                {order.estado === 'PENDIENTE' && (
-                  <button
-                    className="btn-confirm"
-                    onClick={() => changeStatus(order.id, 'CONFIRMADO')}
-                  >
-                    <span className="material-icons-round">check</span> Confirmar
-                  </button>
-                )}
-
-                {order.estado === 'CONFIRMADO' && (
-                  <>
-                    <button
-                      className="btn-edit"
-                      onClick={() => setSelectedOrder(order)}
-                    >
-                      <span className="material-icons-round">edit</span> Editar
-                    </button>
-                    <button
-                      className="btn-complete"
-                      onClick={() => changeStatus(order.id, 'COMPLETADO')}
-                    >
-                      <span className="material-icons-round">done_all</span> Completar
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1138,6 +1173,184 @@ function ProductModal({ product, onClose, onSuccess }) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ============================================
+// ADMIN DISCOUNT SECTION COMPONENT
+// ============================================
+function AdminDiscountSection({ orderId, onSuccess }) {
+  const [discounts, setDiscounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customPercentage, setCustomPercentage] = useState('');
+  const toast = useToast();
+
+  // Fetch discounts for this order
+  const fetchDiscounts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const discountService = (await import('../api/discountService')).default;
+      const response = await discountService.getOrderDiscounts(orderId);
+      setDiscounts(response.data || []);
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        console.error('Error fetching discounts:', error);
+      }
+      setDiscounts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    fetchDiscounts();
+  }, [fetchDiscounts]);
+
+  // Apply preset discount
+  const applyPresetDiscount = async (percentage) => {
+    try {
+      setApplying(percentage);
+      const discountService = (await import('../api/discountService')).default;
+
+      if (percentage === 10) {
+        await discountService.applyDiscount10(orderId);
+      } else if (percentage === 12) {
+        await discountService.applyDiscount12(orderId);
+      } else if (percentage === 15) {
+        await discountService.applyDiscount15(orderId);
+      }
+
+      toast.success(`Descuento del ${percentage}% aplicado`);
+      fetchDiscounts();
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      console.error('Error applying discount:', error);
+      toast.error('Error al aplicar descuento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  // Apply custom discount
+  const applyCustomDiscount = async () => {
+    if (!customPercentage || parseFloat(customPercentage) <= 0 || parseFloat(customPercentage) > 100) {
+      toast.warning('Ingrese un porcentaje válido (1-100)');
+      return;
+    }
+
+    try {
+      setApplying('custom');
+      const discountService = (await import('../api/discountService')).default;
+      await discountService.applyCustomDiscount({
+        orderId,
+        percentage: parseFloat(customPercentage)
+      });
+
+      toast.success(`Descuento del ${customPercentage}% aplicado`);
+      setCustomPercentage('');
+      setShowCustom(false);
+      fetchDiscounts();
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      console.error('Error applying custom discount:', error);
+      toast.error('Error al aplicar descuento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  // Check if there's an active discount
+  const hasActiveDiscount = discounts.some(d => d.status === 'APPLIED');
+
+  return (
+    <div className="discount-section-admin">
+      <h4 className="discount-section-title">
+        <span className="material-icons-round">discount</span>
+        Descuentos
+      </h4>
+
+      {/* Current Discounts */}
+      {loading ? (
+        <div className="discount-loading">Cargando...</div>
+      ) : discounts.length > 0 ? (
+        <div className="discount-badges">
+          {discounts.map(d => (
+            <span
+              key={d.id}
+              className={`discount-badge ${d.status?.toLowerCase()}`}
+            >
+              {d.percentage}% - {d.status === 'APPLIED' ? 'Activo' : 'Revocado'}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Discount Buttons */}
+      {!hasActiveDiscount && (
+        <div className="discount-buttons-row">
+          <button
+            className="btn-discount"
+            onClick={() => applyPresetDiscount(10)}
+            disabled={applying !== null}
+          >
+            {applying === 10 ? '...' : '10%'}
+          </button>
+          <button
+            className="btn-discount"
+            onClick={() => applyPresetDiscount(12)}
+            disabled={applying !== null}
+          >
+            {applying === 12 ? '...' : '12%'}
+          </button>
+          <button
+            className="btn-discount"
+            onClick={() => applyPresetDiscount(15)}
+            disabled={applying !== null}
+          >
+            {applying === 15 ? '...' : '15%'}
+          </button>
+          <button
+            className="btn-discount custom"
+            onClick={() => setShowCustom(!showCustom)}
+            disabled={applying !== null}
+          >
+            <span className="material-icons-round">tune</span>
+          </button>
+        </div>
+      )}
+
+      {/* Custom Discount Input */}
+      {showCustom && !hasActiveDiscount && (
+        <div className="custom-discount-row">
+          <input
+            type="number"
+            value={customPercentage}
+            onChange={(e) => setCustomPercentage(e.target.value)}
+            placeholder="Ej: 8"
+            min="0.1"
+            max="100"
+            step="0.1"
+          />
+          <span className="suffix">%</span>
+          <button
+            className="btn-apply-custom"
+            onClick={applyCustomDiscount}
+            disabled={applying === 'custom'}
+          >
+            {applying === 'custom' ? '...' : 'Aplicar'}
+          </button>
+        </div>
+      )}
+
+      {hasActiveDiscount && (
+        <div className="discount-active-note">
+          <span className="material-icons-round">check_circle</span>
+          Descuento ya aplicado
+        </div>
+      )}
     </div>
   );
 }

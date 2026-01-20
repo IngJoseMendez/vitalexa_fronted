@@ -6,6 +6,7 @@ import VendedorDashboard from './pages/VendedorDashboard';
 import OwnerDashboard from './pages/OwnerDashboard';
 import EmpacadorDashboard from './pages/EmpacadorDashboard';
 import ClientDashboard from './pages/ClientDashboard';
+import BalancesPage from './pages/BalancesPage';
 import NotificationCenter from './components/NotificationCenter';
 import { ToastProvider } from './components/ToastContainer';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
@@ -159,6 +160,16 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
             element={
               <ProtectedRoute allowedRoles={['ROLE_CLIENTE']}>
                 <ClientDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Balances Page - Accessible by Owner, Admin, Vendedor */}
+          <Route
+            path="/balances"
+            element={
+              <ProtectedRoute allowedRoles={['ROLE_OWNER', 'ROLE_ADMIN', 'ROLE_VENDEDOR']}>
+                <BalancesPage />
               </ProtectedRoute>
             }
           />

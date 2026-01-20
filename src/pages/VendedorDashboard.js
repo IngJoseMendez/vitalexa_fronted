@@ -9,7 +9,7 @@ import '../styles/VendedorDashboard.css';
 
 
 
-// ✅ PLACEHOLDER SVG
+
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 function VendedorDashboard() {
@@ -68,6 +68,12 @@ function VendedorDashboard() {
           onClick={() => setActiveTab('productos')}
         >
           <span className="material-icons-round">inventory_2</span> Productos
+        </button>
+        <button
+          className="nav-external"
+          onClick={() => window.location.href = '/balances'}
+        >
+          <span className="material-icons-round">account_balance_wallet</span> Saldos
         </button>
       </nav>
 
@@ -230,14 +236,15 @@ function NuevaVentaPanel({ refreshTrigger }) {
       }
 
       // Limpiar formulario
-      setCart([]);
-      setSelectedClient('');
-      setAllowNoClient(false);
       setNotas('');
       fetchProducts();
     } catch (error) {
       console.error('Error al crear orden:', error);
-      toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
+      if (error.response?.status === 403 && error.response?.data?.message?.includes('Límite de crédito')) {
+        toast.error('⛔ ' + error.response.data.message);
+      } else {
+        toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
+      }
     }
   };
 
@@ -295,7 +302,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
             onClear={() => setActiveTagId(null)}
           />
 
-          <div className="productos-grid" style={{ 
+          <div className="productos-grid" style={{
             gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
           }}>
             {filteredProducts.length === 0 ? (
@@ -329,12 +336,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
                       {product.tagName && <TagBadge tagName={product.tagName} />}
                     </div>
                     <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
-                    
+
                     {/* Visual Stock Display */}
                     <div className="stock-visual-indicator">
                       <div className="stock-bar-small">
-                        <div 
-                          className="stock-fill-small" 
+                        <div
+                          className="stock-fill-small"
                           style={{
                             width: `${Math.max(0, ((product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0)) / product.stock) * 100)}%`
                           }}
@@ -344,7 +351,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                         {Math.max(0, product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0))}/{product.stock} disponibles
                       </span>
                     </div>
-                    
+
                     <button
                       onClick={() => addToCart(product)}
                       disabled={product.stock === 0 || product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0}
@@ -436,7 +443,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
               <>
                 {cart.map(item => {
 
-                  
+
                   return (
                     <div key={item.productId} className="cart-item">
                       <div className="cart-item-info">
@@ -529,11 +536,14 @@ function VentasCompletadasPanel() {
       ) : (
         <div className="ventas-list">
           {orders.map(order => (
-            <div key={order.id} className="venta-card completed">
+            <div key={order.id} className={`venta-card completed payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
                 <span className="venta-id">#{order.id.substring(0, 8)}</span>
                 <span className="venta-status status-completado">
                   <span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span> COMPLETADO
+                </span>
+                <span className={`payment-status-badge ${order.paymentStatus?.toLowerCase() || 'pending'}`}>
+                  {order.paymentStatus || 'PENDING'}
                 </span>
               </div>
 
@@ -611,6 +621,7 @@ function ClientesPanel() {
             <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>email</span> {cliente.email}</p>
             <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>phone</span> {cliente.telefono}</p>
             <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>place</span> {cliente.direccion || 'Sin dirección'}</p>
+            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>home_work</span> {cliente.nit}</p>
             <div className="cliente-stats">
               <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}</span>
             </div>
@@ -708,6 +719,16 @@ function ClientFormModal({ onClose, onSuccess }) {
             />
           </div>
 
+          <div className="form-group">
+            <label>NIT</label>
+            <input
+              type="text"
+              value={formData.nit}
+              onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+              required
+            />
+          </div>
+
           <div className="form-actions">
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
@@ -762,7 +783,7 @@ function MisVentasPanel() {
       ) : (
         <div className="ventas-list">
           {orders.map(order => (
-            <div key={order.id} className={`venta-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
+            <div key={order.id} className={`venta-card ${order.isSROrder ? 'is-sr' : 'is-normal'} payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <span className="venta-id">
@@ -774,6 +795,9 @@ function MisVentasPanel() {
                 </div>
                 <span className={`venta-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
                   {order.estado || 'PENDIENTE'}
+                </span>
+                <span className={`payment-status-badge ${order.paymentStatus?.toLowerCase() || 'pending'}`}>
+                  {order.paymentStatus || 'PENDING'}
                 </span>
               </div>
 

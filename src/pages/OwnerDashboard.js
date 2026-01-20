@@ -3,7 +3,8 @@ import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import { tagService } from '../api/tagService'; // Added Tag Service
-import { TagBadge, TagFilterBar } from '../components/TagComponents'; // Added Tag Components
+import { TagBadge, TagFilterBar } from '../components/TagComponents';
+import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import '../styles/OwnerDashboard.css';
 import '../styles/ChartStyles.css';
 
@@ -149,6 +150,12 @@ function OwnerDashboard() {
         >
           <span className="material-icons-round">insights</span> Reports
         </button>
+        <button
+          className="nav-external"
+          onClick={() => window.location.href = '/balances'}
+        >
+          <span className="material-icons-round">account_balance_wallet</span> Saldos
+        </button>
       </nav>
 
       <div className="dashboard-content">
@@ -179,7 +186,9 @@ function OwnerDashboard() {
       {selectedOrder && (
         <OrderDetailModal
           order={selectedOrder}
+          userRole="ROLE_OWNER"
           onClose={() => setSelectedOrder(null)}
+          onRefresh={fetchData}
         />
       )}
     </div>
@@ -241,20 +250,28 @@ function OverviewTab({ stats }) {
 }
 
 // ===== ORDERS TAB =====
-function OrdersTab({ orders }) {
+function OrdersTab({ orders, onSelectOrder }) {
   const [filter, setFilter] = useState('pending');
+  const [clientSearch, setClientSearch] = useState('');
 
   const filteredOrders = orders.filter(order => {
+    // Basic status filter
+    let statusMatch = false;
     if (filter === 'pending') {
-      return order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
+      statusMatch = order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
+    } else if (filter === 'completed') {
+      statusMatch = order.estado === 'COMPLETADO';
+    } else if (filter === 'all') {
+      statusMatch = true;
+    } else {
+      statusMatch = order.estado === filter;
     }
-    if (filter === 'completed') {
-      return order.estado === 'COMPLETADO';
-    }
-    if (filter === 'all') {
-      return true;
-    }
-    return order.estado === filter;
+
+    // Client search filter
+    const searchMatch = !clientSearch ||
+      (order.cliente && order.cliente.toLowerCase().includes(clientSearch.toLowerCase()));
+
+    return statusMatch && searchMatch;
   });
 
   return (
@@ -262,6 +279,30 @@ function OrdersTab({ orders }) {
       <div className="orders-header">
         <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment</span> Gestión de Órdenes</h2>
         <div className="filter-tabs">
+          <div className="search-orders" style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
+            <span className="material-icons-round" style={{
+              position: 'absolute',
+              left: '0.75rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
+              fontSize: '20px'
+            }}>search</span>
+            <input
+              type="text"
+              placeholder="Buscar por cliente..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.6rem 1rem',
+                paddingLeft: '2.5rem',
+                borderRadius: '0.5rem',
+                border: '1px solid #e2e8f0',
+                fontSize: '0.9rem'
+              }}
+            />
+          </div>
           <button
             className={filter === 'pending' ? 'active' : ''}
             onClick={() => setFilter('pending')}
@@ -289,57 +330,104 @@ function OrdersTab({ orders }) {
             <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>search_off</span> No se encontraron órdenes</p>
           </div>
         ) : (
-          filteredOrders.map(order => (
-            <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
-              <div className="order-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span className="order-id">
-                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+          filteredOrders.map(order => {
+            // Determine payment status class
+            const paymentStatusClass = order.paymentStatus
+              ? `payment-${order.paymentStatus.toLowerCase()}`
+              : '';
+
+            return (
+              <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
+                <div className="order-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span className="order-id">
+                      {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                    </span>
+                    {order.isSROrder && (
+                      <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                    )}
+                    {/* Payment Status Badge */}
+                    {order.paymentStatus && (
+                      <span className={`payment-status-badge ${order.paymentStatus.toLowerCase()}`}>
+                        <span className="material-icons-round" style={{ fontSize: '12px' }}>
+                          {order.paymentStatus === 'PAID' ? 'check_circle' : order.paymentStatus === 'PARTIAL' ? 'pending' : 'schedule'}
+                        </span>
+                        {order.paymentStatus === 'PAID' ? 'Pagado' : order.paymentStatus === 'PARTIAL' ? 'Parcial' : 'Pendiente'}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                    {order.estado || 'PENDIENTE'}
                   </span>
-                  {order.isSROrder && (
-                    <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                </div>
+
+                <div className="order-info">
+                  <p><strong>Vendedor:</strong> {order.vendedor}</p>
+                  <p><strong>Cliente:</strong> {order.cliente}</p>
+                  <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
+                  <p className="order-total">
+                    <strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}
+                  </p>
+                  {order.discountedTotal && order.discountedTotal !== order.total && (
+                    <p className="order-discounted-total">
+                      <span className="material-icons-round" style={{ fontSize: '14px', color: '#10b981' }}>discount</span>
+                      <strong>Con descuento:</strong>
+                      <span className="discounted-value">${parseFloat(order.discountedTotal).toFixed(2)}</span>
+                    </p>
+                  )}
+
+                  {order.notas && (
+                    <div className="order-notes">
+                      <strong><span className="material-icons-round">note</span> Notes:</strong>
+                      <p>{order.notas}</p>
+                    </div>
                   )}
                 </div>
-                <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
-                  {order.estado || 'PENDIENTE'}
-                </span>
+
+                <details className="order-details">
+                  <summary>Ver productos ({order.items.length})</summary>
+                  <ul>
+                    {order.items.map((item, idx) => (
+                      <li key={idx}>
+                        <span className="item-name">{item.productName}</span>
+                        <span className="item-qty">
+                          {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
+                        </span>
+                        <span className="item-subtotal">
+                          ${parseFloat(item.subtotal).toFixed(2)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+
+                <div className="order-actions" style={{ marginTop: '1rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                  <button
+                    className="btn-details"
+                    onClick={() => onSelectOrder(order)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'var(--primary)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <span className="material-icons-round">edit</span>
+                    Gestionar Orden / Pagos
+                  </button>
+                </div>
               </div>
-
-              <div className="order-info">
-                <p><strong>Vendedor:</strong> {order.vendedor}</p>
-                <p><strong>Cliente:</strong> {order.cliente}</p>
-                <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
-                <p className="order-total">
-                  <strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}
-                </p>
-
-                {order.notas && (
-                  <div className="order-notes">
-                    <strong><span className="material-icons-round">note</span> Notes:</strong>
-                    <p>{order.notas}</p>
-                  </div>
-                )}
-              </div>
-
-              <details className="order-details">
-                <summary>Ver productos ({order.items.length})</summary>
-                <ul>
-                  {order.items.map((item, idx) => (
-                    <li key={idx}>
-                      <span className="item-name">{item.productName}</span>
-                      <span className="item-qty">
-                        {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
-                      </span>
-                      <span className="item-subtotal">
-                        ${parseFloat(item.subtotal).toFixed(2)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            </div>
-          ))
-        )}
+            );
+          }))
+        }
       </div>
     </div>
   );
@@ -1261,61 +1349,7 @@ function TopProductsChart({ data }) {
   );
 }
 
-// ===== ORDER DETAIL MODAL =====
-function OrderDetailModal({ order, onClose }) {
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content-large" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Detalle de Orden #{order.id.substring(0, 8)}</h3>
-          <button className="btn-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="order-detail">
-          <div className="detail-section">
-            <h4>Información General</h4>
-            <p><strong>Estado:</strong> <span className={`badge ${order.estado.toLowerCase()}`}>{order.estado}</span></p>
-            <p><strong>Vendedor:</strong> {order.vendedor}</p>
-            <p><strong>Cliente:</strong> {order.cliente}</p>
-            <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
-            <p><strong>Total:</strong> <span className="total-amount">${parseFloat(order.total).toFixed(2)}</span></p>
-          </div>
-
-          {order.notas && (
-            <div className="detail-section notes-section">
-              <h4>📝 Notas</h4>
-              <p>{order.notas}</p>
-            </div>
-          )}
-
-          <div className="detail-section">
-            <h4>Productos ({order.items.length})</h4>
-            <table className="items-table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Cantidad</th>
-                  <th>Precio Unit.</th>
-                  <th>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td>{item.productName}</td>
-                    <td>{item.cantidad}</td>
-                    <td>${parseFloat(item.precioUnitario).toFixed(2)}</td>
-                    <td>${parseFloat(item.subtotal).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ... (previous code)
 
 // ===== SALE GOALS TAB =====
 function SaleGoalsTab({ vendedores, onUpdate, toast }) {
