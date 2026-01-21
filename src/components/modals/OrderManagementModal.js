@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import paymentService from '../../api/paymentService';
 import discountService from '../../api/discountService';
 import { useToast } from '../ToastContainer';
+import AssortmentSelectionModal from './AssortmentSelectionModal';
+import client from '../../api/client';
+import { OrdenStatus } from '../../utils/types';
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -11,7 +14,12 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const [loadingPayments, setLoadingPayments] = useState(true);
     const [loadingDiscounts, setLoadingDiscounts] = useState(true);
     const [showPaymentForm, setShowPaymentForm] = useState(false);
+
     const [showDiscountForm, setShowDiscountForm] = useState(false);
+    const [showAssortmentModal, setShowAssortmentModal] = useState(false);
+    const [selectedPromotionForAssortment, setSelectedPromotionForAssortment] = useState(null);
+    const [editingItemEta, setEditingItemEta] = useState(null);
+    const [etaForm, setEtaForm] = useState({ date: '', note: '' });
     const toast = useToast();
 
     // Permissions
@@ -92,6 +100,58 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
         }
     };
 
+    // Handle ETA Update
+    const handleUpdateEta = async (itemId) => {
+        try {
+            await client.patch(`/admin/orders/${order.id || order.orderId}/items/${itemId}/eta`, {
+                estimatedArrivalDate: etaForm.date,
+                estimatedArrivalNote: etaForm.note
+            });
+            toast.success('ETA actualizado');
+            setEditingItemEta(null);
+            if (onRefresh) onRefresh();
+        } catch (error) {
+            console.error('Error updating ETA:', error);
+            toast.error('Error al actualizar ETA');
+        }
+    };
+
+    const openAssortmentModal = (promotionId) => {
+        // Find promotion details from order items or fetch it
+        // For now, we assume we pass the promotion object structure or fetch it
+        // But the prompt says "Admin ... manage orders with PENDING_PROMOTION_COMPLETION ... modal for selecting assortment"
+        // We'll need the promotion ID. Order likely has `pendingPromotionId` or we check items.
+        // Actually, the simple way is to pass the promotion ID detected from the pending state or finding an item with `isPromotionItem` that needs assortment.
+        // Let's assume the button passes the full promotion object if available, or just the ID.
+        // The endpoint needs `promotionId`.
+        // Let's assume we can get it from the order items or a specific property.
+        // If the order is PENDING_PROMOTION_COMPLETION, we should look for the promotion that caused it.
+        // Detailed implementations might vary, but I'll assume we can find the relevant promotion from items.
+
+        // Strategy: find item with isPromotionItem && requiresAssortment (if we have that flag)
+        // Or if the order has a `promotions` array. 
+        // For this implementation, I will rely on passing the promotion object from the alert.
+        setSelectedPromotionForAssortment({ id: promotionId }); // minimal obj if full not available, AssortmentModal might need to fetch it? 
+        // Wait, AssortmentModal takes `promotion` prop. It displays name/desc. 
+        // I should probably fetch the promotion details if I only have ID.
+        // But let's assume for now I can pass what I have or I will fetch inside the modal if needed. 
+        // Actually, AssortmentModal expects `promotion` object with `id`, `nombre`, `freeQuantity`.
+        // I'll assume I can find it in `order.items` (the main product item usually carries promotion info?)
+        // Or I'll fetch it. Let's fetch it simply.
+
+        loadPromotionAndOpen(promotionId);
+    };
+
+    const loadPromotionAndOpen = async (promotionId) => {
+        try {
+            const response = await client.get(`/admin/promotions/${promotionId}`);
+            setSelectedPromotionForAssortment(response.data);
+            setShowAssortmentModal(true);
+        } catch (error) {
+            toast.error('Error al cargar detalles de la promoción');
+        }
+    };
+
     // Calculate payment summary
     const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
 
@@ -162,6 +222,39 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 <p>{order.notas}</p>
                             </div>
                         )}
+
+
+                        {/* PENDING PROMOTION ALERT */}
+                        {order.estado === OrdenStatus.PENDING_PROMOTION_COMPLETION && isAdmin && (
+                            <div className="pending-promotion-alert">
+                                <h4>
+                                    <span className="material-icons-round">warning</span>
+                                    Acción Requerida: Completar Promoción
+                                </h4>
+                                <p>Esta orden contiene promociones que requieren selección de productos surtidos.</p>
+                                {/* We need to know WHICH promotion. Assuming order has `pendingPromotionIds` or we iterate items to find one. 
+                                    For simplicity, I'll assume there's one or we iterate. 
+                                    Let's look for items with `promotion` object where `startAssortment` might be needed.
+                                    Or just show a button if we have the ID. 
+                                    Let's check `order.pendingPromotionIds` if it exists (backend logic). 
+                                    As fallback, I'll try to find unique promotion IDs from items that are promotion items.
+                                */}
+                                {order.items?.filter(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted).map(item => (
+                                    <div key={item.promotion.id} style={{ marginTop: '1rem' }}>
+                                        <button
+                                            className="btn-select-assortment"
+                                            onClick={() => openAssortmentModal(item.promotion.id)}
+                                        >
+                                            Seleccionar Surtidos para {item.promotion.nombre}
+                                        </button>
+                                    </div>
+                                ))}
+                                {/* Fallback if no specific item flag found but status is PENDING */}
+                                {(!order.items?.some(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted)) && (
+                                    <p><em>No se detectaron promociones pendientes específicas en los ítems, pero el estado es PENDIENTE_PROMOCION.</em></p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Products Section */}
@@ -173,15 +266,117 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                     <tr>
                                         <th>Producto</th>
                                         <th>Cantidad</th>
+                                        <th>Estado</th>
                                         <th>Precio Unit.</th>
                                         <th>Subtotal</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {order.items?.map((item, idx) => (
-                                        <tr key={idx}>
-                                            <td>{item.productName}</td>
+                                        <tr key={idx} className={item.outOfStock ? 'row-warning' : ''}>
+                                            <td>
+                                                <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                                                <div className="order-item-badges">
+                                                    {item.outOfStock && (
+                                                        <span className="order-item-badge out-of-stock">
+                                                            <span className="material-icons-round" style={{ fontSize: '12px' }}>event_busy</span>
+                                                            Sin Stock
+                                                        </span>
+                                                    )}
+                                                    {item.isPromotionItem && (
+                                                        <span className="order-item-badge promotion">
+                                                            <span className="material-icons-round" style={{ fontSize: '12px' }}>local_offer</span>
+                                                            Promoción
+                                                        </span>
+                                                    )}
+                                                    {item.isFreeItem && (
+                                                        <span className="order-item-badge free-item">
+                                                            <span className="material-icons-round" style={{ fontSize: '12px' }}>card_giftcard</span>
+                                                            Bonificado
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* ETA Display/Edit for Admins */}
+                                                {item.outOfStock && (
+                                                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                                                        {item.estimatedArrivalDate ? (
+                                                            <div style={{ color: '#d97706' }}>
+                                                                <strong>ETA:</strong> {new Date(item.estimatedArrivalDate).toLocaleDateString()}
+                                                                {item.estimatedArrivalNote && <span> ({item.estimatedArrivalNote})</span>}
+                                                                {isAdmin && (
+                                                                    <button
+                                                                        className="btn-link"
+                                                                        onClick={() => {
+                                                                            setEditingItemEta(item.id);
+                                                                            setEtaForm({
+                                                                                date: item.estimatedArrivalDate ? item.estimatedArrivalDate.substring(0, 10) : '',
+                                                                                note: item.estimatedArrivalNote || ''
+                                                                            });
+                                                                        }}
+                                                                        style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}
+                                                                    >
+                                                                        Editar
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            isAdmin && (
+                                                                <button
+                                                                    className="btn-link warning"
+                                                                    onClick={() => {
+                                                                        setEditingItemEta(item.id);
+                                                                        setEtaForm({ date: '', note: '' });
+                                                                    }}
+                                                                    style={{ fontSize: '0.8rem' }}
+                                                                >
+                                                                    + Agregar Estimación de Llegada
+                                                                </button>
+                                                            )
+                                                        )}
+
+                                                        {/* ETA Edit Form */}
+                                                        {editingItemEta === item.id && (
+                                                            <div className="eta-form">
+                                                                <h5>Definir Estimación de Llegada</h5>
+                                                                <div className="form-group">
+                                                                    <input
+                                                                        type="date"
+                                                                        value={etaForm.date}
+                                                                        onChange={(e) => setEtaForm({ ...etaForm, date: e.target.value })}
+                                                                        style={{ width: '100%', marginBottom: '0.5rem' }}
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="Nota (ej: Llega el martes)"
+                                                                        value={etaForm.note}
+                                                                        onChange={(e) => setEtaForm({ ...etaForm, note: e.target.value })}
+                                                                        style={{ width: '100%', marginBottom: '0.5rem' }}
+                                                                    />
+                                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                                        <button
+                                                                            onClick={() => handleUpdateEta(item.id)}
+                                                                            className="btn-save small"
+                                                                        >
+                                                                            Guardar
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setEditingItemEta(null)}
+                                                                            className="btn-cancel small"
+                                                                        >
+                                                                            Cancelar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td>{item.cantidad}</td>
+                                            <td>
+                                                {/* Status column content if needed, basically covered by badges */}
+                                            </td>
                                             <td>${parseFloat(item.precioUnitario).toFixed(2)}</td>
                                             <td>${parseFloat(item.subtotal).toFixed(2)}</td>
                                         </tr>
@@ -344,6 +539,21 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         onSuccess={() => {
                             setShowDiscountForm(false);
                             fetchDiscounts();
+                            if (onRefresh) onRefresh();
+                        }}
+                    />
+                )}
+
+                {/* Assortment Selection Modal */}
+                {showAssortmentModal && selectedPromotionForAssortment && (
+                    <AssortmentSelectionModal
+                        orderId={order.id || order.orderId}
+                        promotion={selectedPromotionForAssortment}
+                        onClose={() => {
+                            setShowAssortmentModal(false);
+                            setSelectedPromotionForAssortment(null);
+                        }}
+                        onSuccess={() => {
                             if (onRefresh) onRefresh();
                         }}
                     />

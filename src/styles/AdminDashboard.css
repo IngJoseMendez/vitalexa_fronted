@@ -429,6 +429,12 @@
   border: 1px solid #fca5a5;
 }
 
+.status-pending-promo {
+  background: #fdf4ff;
+  color: #a21caf;
+  border: 1px solid #e879f9;
+}
+
 .order-info {
   flex: 1;
 }
@@ -814,6 +820,15 @@
 .btn-icon-action.delete:hover {
   background: #fef2f2;
   color: #ef4444;
+}
+
+.btn-icon-action.delete-permanent {
+  color: #dc2626;
+}
+
+.btn-icon-action.delete-permanent:hover {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
 }
 
 /* ============================================

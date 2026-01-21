@@ -4,6 +4,7 @@ import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import NotificationService from '../services/NotificationService';
+import VendedorPromotionsCatalog from '../components/VendedorPromotionsCatalog';
 import '../styles/VendedorDashboard.css';
 
 
@@ -97,6 +98,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [products, setProducts] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [cart, setCart] = useState([]);
+  const [promotionsCart, setPromotionsCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
@@ -157,9 +159,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
     const existingItem = cart.find(item => item.productId === product.id);
 
     if (existingItem) {
-      if (existingItem.cantidad >= product.stock) {
-        toast.warning('No hay suficiente stock disponible');
-        return;
+      // Logic for stock check warning, BUT if we want to allow OOS sales, we might warn but proceed?
+      // Prompt says: Checkbox "Permitir venta sin stock" visible when stock < cantidad.
+      // So we allow adding.
+      if (existingItem.cantidad >= product.stock && product.stock > 0) {
+        // Standard warning if they haven't opted into OOS yet? 
+        // Let's just allow adding and rely on the cart checkbox.
       }
       setCart(cart.map(item =>
         item.productId === product.id
@@ -172,9 +177,23 @@ function NuevaVentaPanel({ refreshTrigger }) {
         nombre: product.nombre,
         precio: product.precio,
         cantidad: 1,
-        stockDisponible: product.stock
+        stockDisponible: product.stock,
+        allowOutOfStock: false // Default false
       }]);
     }
+  };
+
+  const addPromotionToCart = (promotion) => {
+    if (promotionsCart.some(p => p.id === promotion.id)) {
+      toast.warning('Esta promoción ya está en el carrito');
+      return;
+    }
+    setPromotionsCart([...promotionsCart, promotion]);
+    toast.success('Promoción agregada');
+  };
+
+  const removePromotionFromCart = (promotionId) => {
+    setPromotionsCart(promotionsCart.filter(p => p.id !== promotionId));
   };
 
   const removeFromCart = (productId) => {
@@ -182,12 +201,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const updateQuantity = (productId, newQuantity) => {
-    const item = cart.find(i => i.productId === productId);
 
-    if (newQuantity > item.stockDisponible) {
-      toast.warning('No hay suficiente stock disponible');
-      return;
-    }
 
     if (newQuantity <= 0) {
       removeFromCart(productId);
@@ -201,8 +215,18 @@ function NuevaVentaPanel({ refreshTrigger }) {
     ));
   };
 
+  const toggleAllowOutOfStock = (productId) => {
+    setCart(cart.map(item =>
+      item.productId === productId
+        ? { ...item, allowOutOfStock: !item.allowOutOfStock }
+        : item
+    ));
+  };
+
   const calculateTotal = () => {
-    return cart.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    const productsTotal = cart.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    const promotionsTotal = promotionsCart.reduce((sum, item) => sum + (item.packPrice || 0), 0);
+    return productsTotal + promotionsTotal;
   };
 
   const handleSubmitOrder = async () => {
@@ -221,8 +245,10 @@ function NuevaVentaPanel({ refreshTrigger }) {
         clientId: selectedClient || null,
         items: cart.map(item => ({
           productId: item.productId,
-          cantidad: item.cantidad
+          cantidad: item.cantidad,
+          allowOutOfStock: item.allowOutOfStock
         })),
+        promotionIds: promotionsCart.map(p => p.id),
         notas: notas.trim() || null
       };
 
@@ -237,6 +263,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
       // Limpiar formulario
       setNotas('');
+      setCart([]);
+      setPromotionsCart([]);
       fetchProducts();
     } catch (error) {
       console.error('Error al crear orden:', error);
@@ -294,6 +322,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
               </div>
             </div>
           </div>
+
+          {/* CATALOGO DE PROMOCIONES */}
+          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} />
 
           <TagFilterBar
             tags={tags}
@@ -354,13 +385,14 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
                     <button
                       onClick={() => addToCart(product)}
-                      disabled={product.stock === 0 || product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0}
+                      disabled={false} // Always allow adding, logic handles OOS flag in cart
                       className="btn-add-cart"
+                      style={product.stock === 0 ? { background: '#f59e0b', border: '1px solid #d97706' } : {}}
                     >
                       <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>
-                        {product.stock === 0 || product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0 ? 'block' : 'add'}
+                        {product.stock === 0 ? 'warning' : 'add'}
                       </span>
-                      {product.stock === 0 ? 'Sin Stock' : product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0) <= 0 ? 'Agotado' : 'Agregar'}
+                      {product.stock === 0 ? 'Vender S/Stock' : 'Agregar'}
                     </button>
                   </div>
                 </div>
@@ -434,21 +466,65 @@ function NuevaVentaPanel({ refreshTrigger }) {
           </div>
 
           <div className="cart-items">
-            {cart.length === 0 ? (
+            {cart.length === 0 && promotionsCart.length === 0 ? (
               <div className="empty-cart">
                 <span className="material-icons-round" style={{ fontSize: '2.5rem', opacity: 0.5 }}>shopping_bag</span>
                 <span>El carrito está vacío</span>
               </div>
             ) : (
               <>
+                {/* PROMOTIONS IN CART */}
+                {promotionsCart.map(promo => (
+                  <div key={promo.id} className="cart-item promotion-item" style={{ background: '#fff1f2', border: '1px solid #fecdd3' }}>
+                    <div className="cart-item-info">
+                      <h4 style={{ color: '#be123c' }}>
+                        <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>local_offer</span>
+                        {promo.nombre}
+                      </h4>
+                      <p style={{ fontSize: '0.8rem' }}>{promo.type === 'PACK' ? 'Pack' : 'Oferta'}</p>
+                    </div>
+                    <div className="cart-item-controls">
+                      {promo.packPrice && (
+                        <span style={{ fontWeight: 700, color: '#059669', marginRight: '0.5rem' }}>${promo.packPrice}</span>
+                      )}
+                      <button
+                        className="btn-remove"
+                        onClick={() => removePromotionFromCart(promo.id)}
+                        title="Eliminar promoción"
+                      >
+                        <span className="material-icons-round">delete_outline</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* PRODUCTS IN CART */}
                 {cart.map(item => {
+                  const isOutOfStock = item.cantidad > item.stockDisponible;
 
 
                   return (
-                    <div key={item.productId} className="cart-item">
+                    <div key={item.productId} className={`cart-item ${isOutOfStock ? 'has-warning' : ''}`}>
                       <div className="cart-item-info">
                         <h4>{item.nombre}</h4>
                         <p>${parseFloat(item.precio).toFixed(2)} c/u</p>
+                        {isOutOfStock && (
+                          <div className="out-of-stock-controls" style={{ marginTop: '0.5rem' }}>
+                            <label className="checkbox-small" style={{ color: '#d97706', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
+                              <input
+                                type="checkbox"
+                                checked={item.allowOutOfStock}
+                                onChange={() => toggleAllowOutOfStock(item.productId)}
+                              />
+                              Permitir sin stock
+                            </label>
+                            {!item.allowOutOfStock && (
+                              <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
+                                ⚠️ Excede stock ({item.stockDisponible})
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="cart-item-controls">
                         <div>
@@ -458,7 +534,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
                             value={item.cantidad}
                             onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
                             min="1"
-                            max={item.stockDisponible}
                           />
                           <button onClick={() => updateQuantity(item.productId, item.cantidad + 1)} title="Aumentar cantidad">+</button>
                         </div>
@@ -487,7 +562,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           <button
             className="btn-finalizar-venta"
             onClick={handleSubmitOrder}
-            disabled={cart.length === 0 || (!selectedClient && !allowNoClient)}
+            disabled={(cart.length === 0 && promotionsCart.length === 0) || (!selectedClient && !allowNoClient) || cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)}
           >
             <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
             Finalizar Venta
@@ -644,6 +719,7 @@ function ClientesPanel() {
 // ============================================
 function ClientFormModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
+    nit: '',
     nombre: '',
     email: '',
     telefono: '',
@@ -658,7 +734,7 @@ function ClientFormModal({ onClose, onSuccess }) {
 
     try {
       await client.post('/vendedor/clients', formData);
-      toast.success('Cliente creado exitosamente');
+      toast.success(`¡Cliente creado! Credenciales de acceso - Usuario: ${formData.nit} | Contraseña: ${formData.nit}`);
       onSuccess();
     } catch (error) {
       console.error('Error al crear cliente:', error);
@@ -676,53 +752,78 @@ function ClientFormModal({ onClose, onSuccess }) {
           <button className="btn-close" onClick={onClose}><span className="material-icons-round">close</span></button>
         </div>
 
+        {/* Información sobre credenciales del cliente */}
+        <div className="client-credentials-info" style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          margin: '0 0 16px 0',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px'
+        }}>
+          <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '20px', marginTop: '2px' }}>info</span>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>Credenciales del cliente:</strong>
+            <br />
+            El cliente podrá acceder al sistema usando su <strong>NIT</strong> como usuario y contraseña.
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="client-form">
           <div className="form-group">
-            <label>Nombre *</label>
-            <input
-              type="text"
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Email *</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Teléfono *</label>
-            <input
-              type="tel"
-              value={formData.telefono}
-              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Dirección</label>
-            <textarea
-              value={formData.direccion}
-              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-              rows="3"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>NIT</label>
+            <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
             <input
               type="text"
               value={formData.nit}
               onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+              placeholder="Ej: 123456789"
               required
+            />
+            <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+              <span className="material-icons-round" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '4px' }}>vpn_key</span>
+              Este será el usuario y contraseña del cliente
+            </small>
+          </div>
+
+          <div className="form-group">
+            <label>Nombre <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <input
+              type="text"
+              value={formData.nombre}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+              placeholder="Nombre del cliente"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Email <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="correo@ejemplo.com"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Teléfono <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <input
+              type="tel"
+              value={formData.telefono}
+              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+              placeholder="Número de teléfono"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Dirección <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <textarea
+              value={formData.direccion}
+              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+              rows="2"
+              placeholder="Dirección del cliente"
             />
           </div>
 
@@ -730,7 +831,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="submit" disabled={saving} className="btn-save">
+            <button type="submit" disabled={saving || !formData.nit.trim()} className="btn-save">
               {saving ? 'Guardando...' : 'Crear Cliente'}
             </button>
           </div>
@@ -755,7 +856,7 @@ function MisVentasPanel() {
     try {
       const response = await client.get('/vendedor/orders/my');
       const pending = response.data.filter(order =>
-        order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO'
+        ['PENDIENTE', 'CONFIRMADO', 'PENDING_PROMOTION_COMPLETION'].includes(order.estado)
       );
       setOrders(pending);
     } catch (error) {
@@ -791,7 +892,12 @@ function MisVentasPanel() {
                   )}
                 </div>
                 <span className={`venta-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
-                  {order.estado || 'PENDIENTE'}
+                  {order.estado === 'PENDING_PROMOTION_COMPLETION' ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-icons-round" style={{ fontSize: '14px' }}>warning_amber</span>
+                      PENDIENTE SURTIDO
+                    </span>
+                  ) : (order.estado || 'PENDIENTE')}
                 </span>
               </div>
 
@@ -813,7 +919,22 @@ function MisVentasPanel() {
                 <ul>
                   {order.items.map((item, idx) => (
                     <li key={idx}>
-                      {item.productName} - {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div>
+                          {item.productName} - {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
+                        </div>
+                        <div className="order-item-badges" style={{ marginTop: '2px', gap: '0.25rem', display: 'flex', flexWrap: 'wrap' }}>
+                          {item.outOfStock && (
+                            <span className="tag-badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontSize: '0.7rem', padding: '0 0.3rem' }}>Sin Stock</span>
+                          )}
+                          {item.isPromotionItem && (
+                            <span className="tag-badge" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #93c5fd', fontSize: '0.7rem', padding: '0 0.3rem' }}>Promo</span>
+                          )}
+                          {item.isFreeItem && (
+                            <span className="tag-badge" style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #6ee7b7', fontSize: '0.7rem', padding: '0 0.3rem' }}>Bonificado</span>
+                          )}
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>

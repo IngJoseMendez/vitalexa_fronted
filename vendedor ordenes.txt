@@ -1,79 +1,3 @@
-import { useState, useEffect, useCallback } from 'react';
-import client from '../api/client';
-import { tagService } from '../api/tagService'; // Import Tag service
-import { useToast } from '../components/ToastContainer';
-import { useConfirm } from '../components/ConfirmDialog';
-import NotificationService from '../services/NotificationService'; // Import Service
-import TagsPanel from '../components/TagsPanel'; // Import TagsPanel
-import PromotionsPanel from '../components/PromotionsPanel'; // Import PromotionsPanel
-import { TagBadge, TagSelect, TagFilterBar } from '../components/TagComponents';
-import { OrderDetailModal } from '../components/modals/OrderManagementModal';
-import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
-import '../styles/AdminDashboard.css';
-
-function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('orders');
-  const [refreshTrigger, setRefreshTrigger] = useState(0); // State for refresh
-
-  useEffect(() => {
-    // Connect with role 'admin'
-    NotificationService.connect((notification) => {
-      if (notification.type === 'INVENTORY_UPDATE') {
-        console.log("📦 Inventory update received, refreshing data...");
-        setRefreshTrigger(Date.now());
-      }
-    }, 'admin');
-
-    return () => {
-      NotificationService.disconnect();
-    };
-  }, []);
-
-  return (
-    <div className="admin-dashboard">
-      <nav className="dashboard-nav">
-        <button
-          className={activeTab === 'orders' ? 'active' : ''}
-          onClick={() => setActiveTab('orders')}
-        >
-          <span className="material-icons-round">assignment</span> Órdenes
-        </button>
-        <button
-          className={activeTab === 'products' ? 'active' : ''}
-          onClick={() => setActiveTab('products')}
-        >
-          <span className="material-icons-round">inventory_2</span> Productos
-        </button>
-        <button
-          className={activeTab === 'tags' ? 'active' : ''}
-          onClick={() => setActiveTab('tags')}
-        >
-          <span className="material-icons-round">local_offer</span> Etiquetas
-        </button>
-        <button
-          className={activeTab === 'promotions' ? 'active' : ''}
-          onClick={() => setActiveTab('promotions')}
-        >
-          <span className="material-icons-round">card_giftcard</span> Promociones
-        </button>
-        <button
-          className="nav-external"
-          onClick={() => window.location.href = '/balances'}
-        >
-          <span className="material-icons-round">account_balance_wallet</span> Saldos
-        </button>
-      </nav>
-
-      <div className="dashboard-content">
-        {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'tags' && <TagsPanel />}
-        {activeTab === 'promotions' && <PromotionsPanel />}
-      </div>
-    </div>
-  );
-}
-
 // ============================================
 // PANEL DE ÓRDENES CON AUTO-ACTUALIZACIÓN
 // ============================================
@@ -84,7 +8,6 @@ function OrdersPanel() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [viewingOrder, setViewingOrder] = useState(null);
   const [filter, setFilter] = useState('pending');
   const [sortBy, setSortBy] = useState('fecha');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -334,8 +257,8 @@ function OrdersPanel() {
                       </span>
                     )}
                   </div>
-                  <span className={`order-status ${getStatusBadgeClass(order.estado)}`}>
-                    {getStatusLabel(order.estado)}
+                  <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                    {order.estado || 'PENDIENTE'}
                   </span>
                 </div>
 
@@ -406,14 +329,6 @@ function OrdersPanel() {
 
                 {/* ✅ BOTONES DE GESTIÓN DE ORDEN */}
                 <div className="order-actions">
-                  <button
-                    className="btn-edit"
-                    onClick={() => setViewingOrder(order)}
-                    style={{ backgroundColor: '#6366f1', color: 'white', marginRight: '5px' }}
-                    title="Ver Detalle y Gestionar"
-                  >
-                    <span className="material-icons-round">visibility</span> Detalle
-                  </button>
                   {order.estado === 'PENDIENTE' && (
                     <button
                       className="btn-confirm"
@@ -454,15 +369,6 @@ function OrdersPanel() {
             setSelectedOrder(null);
             fetchOrders();
           }}
-        />
-      )}
-
-      {viewingOrder && (
-        <OrderDetailModal
-          order={viewingOrder}
-          userRole="ROLE_ADMIN"
-          onClose={() => setViewingOrder(null)}
-          onRefresh={fetchOrders}
         />
       )}
     </div>
@@ -837,8 +743,6 @@ function ProductsPanel({ refreshTrigger }) {
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTagId, setActiveTagId] = useState(null);
-  const [sortOrder, setSortOrder] = useState('az'); // 'az', 'za', 'newest'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
   const [gridColumns, setGridColumns] = useState(() => {
     const saved = localStorage.getItem('adminGridColumns');
     return saved ? parseInt(saved) : 2;
@@ -859,106 +763,60 @@ function ProductsPanel({ refreshTrigger }) {
     }
   }, []);
 
-  const fetchProducts = useCallback(async (showLoading = true) => {
+  const fetchProducts = useCallback(async () => {
     try {
-      // Only show loading on initial load, not on refreshes
-      if (showLoading && products.length === 0) {
-        setLoading(true);
-      }
-
-      // Save scroll position before fetch
-      const scrollY = window.scrollY;
-
+      setLoading(true);
       let url = '/admin/products';
       if (activeTagId) {
         url = `/admin/products/tag/${activeTagId}`;
       }
       const response = await client.get(url);
       setProducts(response.data.content || response.data || []);
-
-      // Restore scroll position after state update
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
     } catch (error) {
       console.error('Error al cargar productos:', error);
       toast.error('Error al cargar productos');
     } finally {
       setLoading(false);
     }
-  }, [activeTagId, toast, products.length]);
+  }, [activeTagId, toast]);
 
   useEffect(() => {
-    // Initial load shows loading, refreshes don't
-    const isRefresh = refreshTrigger > 0;
-    fetchProducts(!isRefresh);
+    fetchProducts();
     fetchTags();
   }, [refreshTrigger, activeTagId, fetchProducts, fetchTags]);
 
   const toggleStatus = async (productId, currentStatus) => {
     try {
       await client.patch(`/admin/products/${productId}/estado?activo=${!currentStatus}`);
-      toast.success(currentStatus ? 'Producto desactivado' : 'Producto activado');
-      // Update local state directly to avoid scroll jump
-      setProducts(prev => prev.map(p =>
-        p.id === productId ? { ...p, active: !currentStatus } : p
-      ));
+      await fetchProducts();
     } catch (error) {
       console.error('Error al cambiar estado:', error);
       toast.error('Error al cambiar el estado del producto');
     }
   };
 
-
-
-  // Hard delete - permanently removes from database
-  const handleHardDelete = async (product) => {
+  const handleDelete = async (product) => {
     const confirmed = await confirm({
-      title: '⚠️ ELIMINAR PERMANENTEMENTE',
-      message: `¿Estás SEGURO de eliminar "${product.nombre}" PERMANENTEMENTE?\n\nEsta acción eliminará el producto de la base de datos y NO SE PUEDE DESHACER.\n\nTodos los datos asociados se perderán.`,
-      confirmText: 'Sí, eliminar permanentemente',
-      cancelText: 'Cancelar',
-      isDangerous: true
+      title: '¿Eliminar producto?',
+      message: `¿Estás seguro de eliminar "${product.nombre}"? Esta acción no se puede deshacer.`
     });
 
     if (!confirmed) return;
 
     try {
-      await client.delete(`/admin/products/${product.id}?hard=true`);
-      toast.success('Producto eliminado permanentemente');
+      await client.delete(`/admin/products/${product.id}`);
+      toast.success('Producto eliminado');
       fetchProducts();
     } catch (error) {
       console.error('Error al eliminar producto:', error);
-      toast.error('Error al eliminar producto: ' + (error.response?.data?.message || error.message));
+      toast.error('Error al eliminar producto');
     }
   };
 
-  // Filter by search term and status
-  const filteredProducts = products
-    .filter(p => {
-      // Search filter
-      const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.descripcion?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // Status filter
-      const matchesStatus = statusFilter === 'all' ||
-        (statusFilter === 'active' && p.active) ||
-        (statusFilter === 'inactive' && !p.active);
-
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      switch (sortOrder) {
-        case 'az':
-          return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-        case 'za':
-          return b.nombre.localeCompare(a.nombre, 'es', { sensitivity: 'base' });
-        case 'newest':
-          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-        default:
-          return 0;
-      }
-    });
+  const filteredProducts = products.filter(p =>
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.descripcion?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return <div className="loading">Cargando productos...</div>;
@@ -991,100 +849,6 @@ function ProductsPanel({ refreshTrigger }) {
           </div>
           <button className="btn-add" onClick={() => setShowForm(true)}>
             + Nuevo Producto
-          </button>
-        </div>
-      </div>
-
-      {/* Filters Row */}
-      <div className="products-filters" style={{
-        display: 'flex',
-        gap: '1rem',
-        marginBottom: '1rem',
-        flexWrap: 'wrap',
-        alignItems: 'center'
-      }}>
-        {/* Sort Order */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-muted)' }}>sort</span>
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'white',
-              fontFamily: 'inherit',
-              fontSize: '0.9rem',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="az">A → Z</option>
-            <option value="za">Z → A</option>
-            <option value="newest">Más recientes</option>
-          </select>
-        </div>
-
-        {/* Status Filter */}
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`filter-btn ${statusFilter === 'all' ? 'active' : ''}`}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: statusFilter === 'all' ? '2px solid var(--primary)' : '1px solid var(--border)',
-              background: statusFilter === 'all' ? 'rgba(99, 102, 241, 0.1)' : 'white',
-              color: statusFilter === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
-              fontWeight: statusFilter === 'all' ? '600' : '500',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              transition: 'all 0.2s'
-            }}
-          >
-            Todos ({products.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('active')}
-            className={`filter-btn ${statusFilter === 'active' ? 'active' : ''}`}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: statusFilter === 'active' ? '2px solid #10b981' : '1px solid var(--border)',
-              background: statusFilter === 'active' ? 'rgba(16, 185, 129, 0.1)' : 'white',
-              color: statusFilter === 'active' ? '#10b981' : 'var(--text-secondary)',
-              fontWeight: statusFilter === 'active' ? '600' : '500',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
-            Activos ({products.filter(p => p.active).length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('inactive')}
-            className={`filter-btn ${statusFilter === 'inactive' ? 'active' : ''}`}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: statusFilter === 'inactive' ? '2px solid #ef4444' : '1px solid var(--border)',
-              background: statusFilter === 'inactive' ? 'rgba(239, 68, 68, 0.1)' : 'white',
-              color: statusFilter === 'inactive' ? '#ef4444' : 'var(--text-secondary)',
-              fontWeight: statusFilter === 'inactive' ? '600' : '500',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
-            Inactivos ({products.filter(p => !p.active).length})
           </button>
         </div>
       </div>
@@ -1142,23 +906,14 @@ function ProductsPanel({ refreshTrigger }) {
               </div>
 
               <div className="product-actions-overlay">
-                {/* Edit button - always visible regardless of product state */}
-                <button onClick={() => setEditingProduct(product)} className="btn-icon-action edit" title="Editar producto">
+                <button onClick={() => setEditingProduct(product)} className="btn-icon-action edit" title="Editar">
                   <span className="material-icons-round">edit</span>
                 </button>
-
-                {/* Toggle active/inactive status */}
-                <button onClick={() => toggleStatus(product.id, product.active)} className="btn-icon-action toggle" title={product.active ? "Desactivar producto" : "Activar producto"}>
-                  <span className="material-icons-round">{product.active ? 'visibility_off' : 'visibility'}</span>
+                <button onClick={() => toggleStatus(product.id, product.active)} className="btn-icon-action toggle" title={product.active ? "Desactivar" : "Activar"}>
+                  <span className="material-icons-round">{product.active ? 'lock' : 'lock_open'}</span>
                 </button>
-
-                {/* Hard delete - permanent deletion */}
-                <button
-                  onClick={() => handleHardDelete(product)}
-                  className="btn-icon-action delete"
-                  title="Eliminar permanentemente (no se puede deshacer)"
-                >
-                  <span className="material-icons-round">delete_forever</span>
+                <button onClick={() => handleDelete(product)} className="btn-icon-action delete" title="Eliminar">
+                  <span className="material-icons-round">delete_outline</span>
                 </button>
               </div>
             </div>
@@ -1183,398 +938,3 @@ function ProductsPanel({ refreshTrigger }) {
     </div>
   );
 }
-
-// ============================================
-// FORMULARIO DE PRODUCTO MEJORADO
-// ============================================
-function ProductModal({ product, onClose, onSuccess }) {
-  const [formData, setFormData] = useState({
-    nombre: product?.nombre || '',
-    descripcion: product?.descripcion || '',
-    precio: product?.precio || '',
-    stock: product?.stock || '',
-    reorderPoint: product?.reorderPoint || 10,
-    active: product?.active !== undefined ? product.active : true,
-    tagId: product?.tagId || null
-  });
-  const [tags, setTags] = useState([]);
-  const [imageFile, setImageFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const toast = useToast();
-
-  useEffect(() => {
-    fetchTags();
-  }, []);
-
-  const fetchTags = async () => {
-    try {
-      const res = await tagService.getAll();
-      setTags(res.data);
-    } catch (error) {
-      console.error('Error al cargar etiquetas');
-    }
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setUploading(true);
-
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('nombre', formData.nombre);
-      formDataToSend.append('descripcion', formData.descripcion || '');
-      formDataToSend.append('precio', formData.precio);
-      formDataToSend.append('stock', formData.stock);
-      formDataToSend.append('reorderPoint', formData.reorderPoint);
-
-      if (imageFile) {
-        formDataToSend.append('image', imageFile);
-      }
-
-      if (product) {
-        formDataToSend.append('active', formData.active);
-        const url = `/admin/products/${product.id}${formData.tagId ? `?tagId=${formData.tagId}` : ''}`;
-        await client.put(url, formDataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Producto actualizado exitosamente');
-      } else {
-        const url = `/admin/products${formData.tagId ? `?tagId=${formData.tagId}` : ''}`;
-        await client.post(url, formDataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Producto creado exitosamente');
-      }
-
-      onSuccess();
-    } catch (error) {
-      console.error('Error completo:', error);
-      const errorMsg = error.response?.data?.message || error.response?.data || error.message || 'Error desconocido';
-      toast.error('Error al guardar el producto: ' + errorMsg);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{product ? '✏️ Editar Producto' : '➕ Nuevo Producto'}</h3>
-          <button className="btn-close" onClick={onClose}>✕</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="product-form">
-          <div className="form-group">
-            <label>Nombre *</label>
-            <input
-              type="text"
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              required
-              placeholder="Nombre del producto"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Descripción</label>
-            <textarea
-              value={formData.descripcion}
-              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-              rows="3"
-              placeholder="Descripción del producto"
-            />
-          </div>
-
-          <TagSelect
-            tags={tags}
-            value={formData.tagId}
-            onChange={(val) => setFormData({ ...formData, tagId: val })}
-            disabled={uploading}
-          />
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Precio *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.precio}
-                onChange={(e) => setFormData({ ...formData, precio: e.target.value })}
-                required
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Stock *</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                required
-                placeholder="0"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Punto de Reorden</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.reorderPoint}
-                onChange={(e) => setFormData({ ...formData, reorderPoint: e.target.value })}
-                placeholder="10"
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Imagen del producto</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-            />
-
-            {preview && (
-              <div className="image-preview">
-                <img src={preview} alt="Preview" />
-              </div>
-            )}
-
-            {product?.imageUrl && !preview && (
-              <div className="current-image">
-                <p>Imagen actual:</p>
-                <img
-                  src={product.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E'}
-                  alt={product.nombre}
-                  onError={(e) => {
-                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {product && (
-            <div className="form-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                />
-                Producto activo
-              </label>
-            </div>
-          )}
-
-          <div className="form-actions">
-            <button type="button" onClick={onClose} className="btn-cancel">
-              Cancelar
-            </button>
-            <button type="submit" disabled={uploading} className="btn-save">
-              {uploading ? '⏳ Guardando...' : (product ? '💾 Actualizar' : '➕ Crear')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// ADMIN DISCOUNT SECTION COMPONENT
-// ============================================
-function AdminDiscountSection({ orderId, onSuccess }) {
-  const [discounts, setDiscounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState(null);
-  const [showCustom, setShowCustom] = useState(false);
-  const [customPercentage, setCustomPercentage] = useState('');
-  const toast = useToast();
-
-  // Fetch discounts for this order
-  const fetchDiscounts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const discountService = (await import('../api/discountService')).default;
-      const response = await discountService.getOrderDiscounts(orderId);
-      setDiscounts(response.data || []);
-    } catch (error) {
-      if (error.response?.status !== 404) {
-        console.error('Error fetching discounts:', error);
-      }
-      setDiscounts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [orderId]);
-
-  useEffect(() => {
-    fetchDiscounts();
-  }, [fetchDiscounts]);
-
-  // Apply preset discount
-  const applyPresetDiscount = async (percentage) => {
-    try {
-      setApplying(percentage);
-      const discountService = (await import('../api/discountService')).default;
-
-      if (percentage === 10) {
-        await discountService.applyDiscount10(orderId);
-      } else if (percentage === 12) {
-        await discountService.applyDiscount12(orderId);
-      } else if (percentage === 15) {
-        await discountService.applyDiscount15(orderId);
-      }
-
-      toast.success(`Descuento del ${percentage}% aplicado`);
-      fetchDiscounts();
-      if (onSuccess) onSuccess();
-    } catch (error) {
-      console.error('Error applying discount:', error);
-      toast.error('Error al aplicar descuento: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setApplying(null);
-    }
-  };
-
-  // Apply custom discount
-  const applyCustomDiscount = async () => {
-    if (!customPercentage || parseFloat(customPercentage) <= 0 || parseFloat(customPercentage) > 100) {
-      toast.warning('Ingrese un porcentaje válido (1-100)');
-      return;
-    }
-
-    try {
-      setApplying('custom');
-      const discountService = (await import('../api/discountService')).default;
-      await discountService.applyCustomDiscount({
-        orderId,
-        percentage: parseFloat(customPercentage)
-      });
-
-      toast.success(`Descuento del ${customPercentage}% aplicado`);
-      setCustomPercentage('');
-      setShowCustom(false);
-      fetchDiscounts();
-      if (onSuccess) onSuccess();
-    } catch (error) {
-      console.error('Error applying custom discount:', error);
-      toast.error('Error al aplicar descuento: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setApplying(null);
-    }
-  };
-
-  // Check if there's an active discount
-  const hasActiveDiscount = discounts.some(d => d.status === 'APPLIED');
-
-  return (
-    <div className="discount-section-admin">
-      <h4 className="discount-section-title">
-        <span className="material-icons-round">discount</span>
-        Descuentos
-      </h4>
-
-      {/* Current Discounts */}
-      {loading ? (
-        <div className="discount-loading">Cargando...</div>
-      ) : discounts.length > 0 ? (
-        <div className="discount-badges">
-          {discounts.map(d => (
-            <span
-              key={d.id}
-              className={`discount-badge ${d.status?.toLowerCase()}`}
-            >
-              {d.percentage}% - {d.status === 'APPLIED' ? 'Activo' : 'Revocado'}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      {/* Discount Buttons */}
-      {!hasActiveDiscount && (
-        <div className="discount-buttons-row">
-          <button
-            className="btn-discount"
-            onClick={() => applyPresetDiscount(10)}
-            disabled={applying !== null}
-          >
-            {applying === 10 ? '...' : '10%'}
-          </button>
-          <button
-            className="btn-discount"
-            onClick={() => applyPresetDiscount(12)}
-            disabled={applying !== null}
-          >
-            {applying === 12 ? '...' : '12%'}
-          </button>
-          <button
-            className="btn-discount"
-            onClick={() => applyPresetDiscount(15)}
-            disabled={applying !== null}
-          >
-            {applying === 15 ? '...' : '15%'}
-          </button>
-          <button
-            className="btn-discount custom"
-            onClick={() => setShowCustom(!showCustom)}
-            disabled={applying !== null}
-          >
-            <span className="material-icons-round">tune</span>
-          </button>
-        </div>
-      )}
-
-      {/* Custom Discount Input */}
-      {showCustom && !hasActiveDiscount && (
-        <div className="custom-discount-row">
-          <input
-            type="number"
-            value={customPercentage}
-            onChange={(e) => setCustomPercentage(e.target.value)}
-            placeholder="Ej: 8"
-            min="0.1"
-            max="100"
-            step="0.1"
-          />
-          <span className="suffix">%</span>
-          <button
-            className="btn-apply-custom"
-            onClick={applyCustomDiscount}
-            disabled={applying === 'custom'}
-          >
-            {applying === 'custom' ? '...' : 'Aplicar'}
-          </button>
-        </div>
-      )}
-
-      {hasActiveDiscount && (
-        <div className="discount-active-note">
-          <span className="material-icons-round">check_circle</span>
-          Descuento ya aplicado
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default AdminDashboard;
