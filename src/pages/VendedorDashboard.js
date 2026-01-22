@@ -658,6 +658,8 @@ function ClientesPanel() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchClients();
@@ -674,6 +676,24 @@ function ClientesPanel() {
     }
   };
 
+  const handleEdit = (cliente) => {
+    setEditingClient(cliente);
+  };
+
+  const handleCloseEdit = () => {
+    setEditingClient(null);
+  };
+
+  // Filter clients by nombre, administrador, or representanteLegal
+  const filteredClients = clients.filter(c => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (c.nombre || '').toLowerCase().includes(term) ||
+      (c.administrador || '').toLowerCase().includes(term) ||
+      (c.representanteLegal || '').toLowerCase().includes(term)
+    );
+  });
+
   if (loading) {
     return <div className="loading">Cargando...</div>;
   }
@@ -687,19 +707,63 @@ function ClientesPanel() {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="search-container" style={{ marginBottom: '1rem' }}>
+        <span className="material-icons-round search-icon">search</span>
+        <input
+          type="text"
+          placeholder="Buscar por nombre, administrador o representante legal..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+          style={{ width: '100%', maxWidth: '400px' }}
+        />
+      </div>
+
       <div className="clientes-grid">
-        {clients.map(cliente => (
-          <div key={cliente.id} className="cliente-card">
-            <h3>{cliente.nombre}</h3>
-            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>email</span> {cliente.email}</p>
-            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>phone</span> {cliente.telefono}</p>
-            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>place</span> {cliente.direccion || 'Sin dirección'}</p>
-            <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>home_work</span> {cliente.nit}</p>
-            <div className="cliente-stats">
-              <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}</span>
-            </div>
+        {filteredClients.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+            <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>person_search</span>
+            <p style={{ marginTop: '0.5rem' }}>No se encontraron clientes</p>
           </div>
-        ))}
+        ) : (
+          filteredClients.map(cliente => (
+            <div key={cliente.id} className="cliente-card">
+              <h3>{cliente.nombre}</h3>
+              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>email</span> {cliente.email}</p>
+              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>phone</span> {cliente.telefono}</p>
+              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>place</span> {cliente.direccion || 'Sin dirección'}</p>
+              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>home_work</span> {cliente.nit}</p>
+              <div className="cliente-stats">
+                <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}</span>
+              </div>
+              <button
+                className="btn-edit-client"
+                onClick={() => handleEdit(cliente)}
+                style={{
+                  marginTop: '12px',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
+                Editar
+              </button>
+            </div>
+          ))
+        )}
       </div>
 
       {showModal && (
@@ -707,6 +771,17 @@ function ClientesPanel() {
           onClose={() => setShowModal(false)}
           onSuccess={() => {
             setShowModal(false);
+            fetchClients();
+          }}
+        />
+      )}
+
+      {editingClient && (
+        <ClientEditModal
+          clientData={editingClient}
+          onClose={handleCloseEdit}
+          onSuccess={() => {
+            handleCloseEdit();
             fetchClients();
           }}
         />
@@ -862,6 +937,141 @@ function ClientFormModal({ onClose, onSuccess }) {
             </button>
             <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim() || !formData.email.trim() || !formData.telefono.trim() || !formData.direccion.trim()} className="btn-save">
               {saving ? 'Guardando...' : 'Crear Cliente'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// MODAL EDITAR CLIENTE
+// ============================================
+function ClientEditModal({ clientData, onClose, onSuccess }) {
+  const [formData, setFormData] = useState({
+    nit: clientData.nit || '',
+    nombre: clientData.nombre || '',
+    administrador: clientData.administrador || '',
+    representanteLegal: clientData.representanteLegal || '',
+    email: clientData.email || '',
+    telefono: clientData.telefono || '',
+    direccion: clientData.direccion || ''
+  });
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+
+    try {
+      await client.put(`/vendedor/clients/${clientData.id}`, formData);
+      toast.success('¡Cliente actualizado exitosamente!');
+      onSuccess();
+    } catch (error) {
+      console.error('Error al actualizar cliente:', error);
+      toast.error('Error al actualizar cliente: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>
+            <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>edit</span>
+            Editar Cliente
+          </h3>
+          <button className="btn-close" onClick={onClose}><span className="material-icons-round">close</span></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="client-form">
+          <div className="form-group">
+            <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="text"
+              value={formData.nit}
+              onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+              placeholder="Ej: 123456789"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="text"
+              value={formData.nombre}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+              placeholder="Nombre del establecimiento"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="text"
+              value={formData.administrador}
+              onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+              placeholder="Nombre del administrador"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="text"
+              value={formData.representanteLegal}
+              onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+              placeholder="Nombre del representante legal"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Email <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="correo@ejemplo.com"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Teléfono <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="tel"
+              value={formData.telefono}
+              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+              placeholder="Número de teléfono"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Dirección <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <textarea
+              value={formData.direccion}
+              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+              rows="2"
+              placeholder="Dirección del cliente"
+              required
+            />
+          </div>
+
+          <div className="form-actions">
+            <button type="button" onClick={onClose} className="btn-cancel">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim() || !formData.email.trim() || !formData.telefono.trim() || !formData.direccion.trim()} className="btn-save">
+              {saving ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
         </form>
