@@ -201,7 +201,11 @@ function OrdersPanel() {
         }
       }
       // Status filter
-      if (filter === 'pending') return order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
+      if (filter === 'pending') {
+        return order.estado === 'PENDIENTE' ||
+          order.estado === 'CONFIRMADO' ||
+          order.estado === 'PENDING_PROMOTION_COMPLETION';
+      }
       if (filter === 'completed') return order.estado === 'COMPLETADO';
       if (filter === 'all') return true;
       return order.estado === filter;
@@ -215,8 +219,9 @@ function OrdersPanel() {
         valA = parseFloat(a.total);
         valB = parseFloat(b.total);
       } else if (sortBy === 'cantidad') {
-        valA = a.items.reduce((sum, i) => sum + i.cantidad, 0);
-        valB = b.items.reduce((sum, i) => sum + i.cantidad, 0);
+        // Handle empty items arrays for promotion-only orders
+        valA = a.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
+        valB = b.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
       }
 
       return sortOrder === 'desc' ? valB - valA : valA - valB;
@@ -235,7 +240,7 @@ function OrdersPanel() {
             className={filter === 'pending' ? 'active' : ''}
             onClick={() => setFilter('pending')}
           >
-            <span className="material-icons-round">pending_actions</span> Pendientes ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO').length})
+            <span className="material-icons-round">pending_actions</span> Pendientes ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO' || o.estado === 'PENDING_PROMOTION_COMPLETION').length})
           </button>
           <button
             className={filter === 'completed' ? 'active' : ''}
@@ -314,6 +319,9 @@ function OrdersPanel() {
               ? `payment-${order.paymentStatus.toLowerCase()}`
               : '';
 
+            // Check if order has promotions
+            const hasPromotions = order.items?.some(item => item.isPromotionItem || item.isFreeItem) || false;
+
             return (
               <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
                 <div className="order-header">
@@ -323,6 +331,23 @@ function OrdersPanel() {
                     </span>
                     {order.isSROrder && (
                       <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                    )}
+                    {/* Promotion Badge */}
+                    {hasPromotions && (
+                      <span className="promotion-badge" style={{
+                        padding: '0.2rem 0.6rem',
+                        fontSize: '0.7rem',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
+                        color: 'white',
+                        borderRadius: '99px',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}>
+                        <span className="material-icons-round" style={{ fontSize: '12px' }}>card_giftcard</span>
+                        PROMO
+                      </span>
                     )}
                     {/* Payment Status Badge */}
                     {order.paymentStatus && (
@@ -360,18 +385,84 @@ function OrdersPanel() {
                   )}
                 </div>
 
-                <details className="order-details">
-                  <summary>Ver productos ({order.items.length})</summary>
-                  <ul>
-                    {order.items.map((item, idx) => (
-                      <li key={idx}>
-                        <span className="item-name">{item.productName}</span>
-                        <span className="item-qty">{item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}</span>
-                        <span className="item-subtotal">${parseFloat(item.subtotal).toFixed(2)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
+                {order.items && order.items.length > 0 ? (
+                  <details className="order-details">
+                    <summary>Ver productos ({order.items.length})</summary>
+                    <ul>
+                      {order.items.map((item, idx) => (
+                        <li key={idx}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span className="item-name">{item.productName}</span>
+                              {item.isFreeItem && (
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.4rem',
+                                  background: '#10b981',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  fontWeight: 700
+                                }}>BONIFICADO</span>
+                              )}
+                              {item.isPromotionItem && !item.isFreeItem && (
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.4rem',
+                                  background: '#3b82f6',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  fontWeight: 700
+                                }}>PROMO</span>
+                              )}
+                              {item.outOfStock && (
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  padding: '0.15rem 0.4rem',
+                                  background: '#f97316',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  fontWeight: 700
+                                }}>SIN STOCK</span>
+                              )}
+                            </div>
+                            {item.promotionName && (
+                              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>
+                                🎁 {item.promotionName}
+                              </span>
+                            )}
+                            {item.outOfStock && item.estimatedArrivalDate && (
+                              <span style={{ fontSize: '0.75rem', color: '#d97706' }}>
+                                📅 ETA: {new Date(item.estimatedArrivalDate).toLocaleDateString('es-ES')}
+                                {item.estimatedArrivalNote && ` - ${item.estimatedArrivalNote}`}
+                              </span>
+                            )}
+                          </div>
+                          <span className="item-qty">
+                            {item.cantidad} x ${item.isFreeItem ? '0.00' : parseFloat(item.precioUnitario || 0).toFixed(2)}
+                          </span>
+                          <span className="item-subtotal" style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                            ${parseFloat(item.subtotal || 0).toFixed(2)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : (
+                  <div style={{
+                    padding: '1rem',
+                    background: '#fef3c7',
+                    borderRadius: '0.5rem',
+                    color: '#92400e',
+                    fontSize: '0.9rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    border: '1px solid #fde68a'
+                  }}>
+                    <span className="material-icons-round" style={{ fontSize: '1.25rem' }}>card_giftcard</span>
+                    <span>Orden solo con promoción (sin productos regulares)</span>
+                  </div>
+                )}
 
                 {/* ✅ NUEVA SECCIÓN: BOTONES DE FACTURA PDF */}
                 <div className="invoice-actions">

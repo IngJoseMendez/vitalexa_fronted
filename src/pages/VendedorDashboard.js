@@ -230,8 +230,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const handleSubmitOrder = async () => {
-    if (cart.length === 0) {
-      toast.warning('Agrega productos al carrito');
+    // Allow orders with products OR promotions (or both)
+    if (cart.length === 0 && promotionsCart.length === 0) {
+      toast.warning('Agrega productos o promociones al carrito');
       return;
     }
 
@@ -721,6 +722,8 @@ function ClientFormModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     nit: '',
     nombre: '',
+    administrador: '',
+    representanteLegal: '',
     email: '',
     telefono: '',
     direccion: ''
@@ -788,42 +791,68 @@ function ClientFormModal({ onClose, onSuccess }) {
           </div>
 
           <div className="form-group">
-            <label>Nombre <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
             <input
               type="text"
               value={formData.nombre}
               onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              placeholder="Nombre del cliente"
+              placeholder="Nombre del establecimiento"
+              required
             />
           </div>
 
           <div className="form-group">
-            <label>Email <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="text"
+              value={formData.administrador}
+              onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+              placeholder="Nombre del administrador"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <input
+              type="text"
+              value={formData.representanteLegal}
+              onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+              placeholder="Nombre del representante legal"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Email <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               placeholder="correo@ejemplo.com"
+              required
             />
           </div>
 
           <div className="form-group">
-            <label>Teléfono <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <label>Teléfono <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
             <input
               type="tel"
               value={formData.telefono}
               onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
               placeholder="Número de teléfono"
+              required
             />
           </div>
 
           <div className="form-group">
-            <label>Dirección <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 'normal' }}>(opcional)</span></label>
+            <label>Dirección <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
             <textarea
               value={formData.direccion}
               onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
               rows="2"
               placeholder="Dirección del cliente"
+              required
             />
           </div>
 
@@ -831,7 +860,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="submit" disabled={saving || !formData.nit.trim()} className="btn-save">
+            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim() || !formData.email.trim() || !formData.telefono.trim() || !formData.direccion.trim()} className="btn-save">
               {saving ? 'Guardando...' : 'Crear Cliente'}
             </button>
           </div>

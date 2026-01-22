@@ -377,8 +377,12 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                             <td>
                                                 {/* Status column content if needed, basically covered by badges */}
                                             </td>
-                                            <td>${parseFloat(item.precioUnitario).toFixed(2)}</td>
-                                            <td>${parseFloat(item.subtotal).toFixed(2)}</td>
+                                            <td style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                                                ${item.isFreeItem ? '0.00' : parseFloat(item.precioUnitario || 0).toFixed(2)}
+                                            </td>
+                                            <td style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                                                ${parseFloat(item.subtotal || 0).toFixed(2)}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
