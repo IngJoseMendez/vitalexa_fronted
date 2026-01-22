@@ -5,6 +5,7 @@ import NotificationService from '../services/NotificationService';
 import { tagService } from '../api/tagService'; // Added Tag Service
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
+import AdminClientsPanel from '../components/AdminClientsPanel'; // Import AdminClientsPanel
 import '../styles/OwnerDashboard.css';
 import '../styles/ChartStyles.css';
 
@@ -139,6 +140,12 @@ function OwnerDashboard() {
           <span className="material-icons-round">store</span> Productos ({stats?.totalProducts || 0})
         </button>
         <button
+          className={activeTab === 'clients' ? 'active' : ''}
+          onClick={() => setActiveTab('clients')}
+        >
+          <span className="material-icons-round">people</span> Clientes
+        </button>
+        <button
           className={activeTab === 'metas' ? 'active' : ''}
           onClick={() => setActiveTab('metas')}
         >
@@ -173,6 +180,7 @@ function OwnerDashboard() {
             onRefresh={fetchData}
           />
         )}
+        {activeTab === 'clients' && <AdminClientsPanel />}
         {activeTab === 'metas' && (
           <SaleGoalsTab
             vendedores={vendedores}

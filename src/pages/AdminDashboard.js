@@ -6,6 +6,7 @@ import { useConfirm } from '../components/ConfirmDialog';
 import NotificationService from '../services/NotificationService'; // Import Service
 import TagsPanel from '../components/TagsPanel'; // Import TagsPanel
 import PromotionsPanel from '../components/PromotionsPanel'; // Import PromotionsPanel
+import AdminClientsPanel from '../components/AdminClientsPanel'; // Import AdminClientsPanel
 import { TagBadge, TagSelect, TagFilterBar } from '../components/TagComponents';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
@@ -45,6 +46,12 @@ function AdminDashboard() {
           <span className="material-icons-round">inventory_2</span> Productos
         </button>
         <button
+          className={activeTab === 'clients' ? 'active' : ''}
+          onClick={() => setActiveTab('clients')}
+        >
+          <span className="material-icons-round">people</span> Clientes
+        </button>
+        <button
           className={activeTab === 'tags' ? 'active' : ''}
           onClick={() => setActiveTab('tags')}
         >
@@ -67,6 +74,7 @@ function AdminDashboard() {
       <div className="dashboard-content">
         {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'clients' && <AdminClientsPanel />}
         {activeTab === 'tags' && <TagsPanel />}
         {activeTab === 'promotions' && <PromotionsPanel />}
       </div>
