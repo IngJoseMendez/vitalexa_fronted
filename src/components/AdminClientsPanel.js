@@ -12,6 +12,7 @@ function AdminClientsPanel() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedVendedor, setSelectedVendedor] = useState(''); // Filter by vendor
     const toast = useToast();
 
     const fetchData = useCallback(async () => {
@@ -34,15 +35,24 @@ function AdminClientsPanel() {
         fetchData();
     }, [fetchData]);
 
-    // Filter clients by nombre, administrador, representanteLegal, or vendedor username
+    // Filter clients by search term AND vendor
     const filteredClients = clients.filter(c => {
+        // Vendor filter
+        if (selectedVendedor && c.vendedorAsignadoNombre !== selectedVendedor) {
+            return false;
+        }
+
+        // Text search filter
         const term = searchTerm.toLowerCase();
-        return (
-            (c.nombre || '').toLowerCase().includes(term) ||
-            (c.administrador || '').toLowerCase().includes(term) ||
-            (c.representanteLegal || '').toLowerCase().includes(term) ||
-            (c.vendedorAsignadoNombre || '').toLowerCase().includes(term)
-        );
+        if (term) {
+            return (
+                (c.nombre || '').toLowerCase().includes(term) ||
+                (c.administrador || '').toLowerCase().includes(term) ||
+                (c.representanteLegal || '').toLowerCase().includes(term) ||
+                (c.vendedorAsignadoNombre || '').toLowerCase().includes(term)
+            );
+        }
+        return true;
     });
 
     if (loading) {
@@ -62,18 +72,79 @@ function AdminClientsPanel() {
                 </button>
             </div>
 
-            {/* Search Bar */}
-            <div className="search-container" style={{ marginBottom: '1.5rem' }}>
-                <span className="material-icons-round search-icon">search</span>
-                <input
-                    type="text"
-                    placeholder="Buscar por nombre, administrador, representante o vendedor..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="search-input"
-                    style={{ width: '100%', maxWidth: '500px' }}
-                />
+            {/* Filters Row */}
+            <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                marginBottom: '1.5rem',
+                alignItems: 'center'
+            }}>
+                {/* Search Bar */}
+                <div className="search-container" style={{ flex: '1', minWidth: '250px', marginBottom: 0 }}>
+                    <span className="material-icons-round search-icon">search</span>
+                    <input
+                        type="text"
+                        placeholder="Buscar por nombre, administrador, representante..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="search-input"
+                        style={{ width: '100%' }}
+                    />
+                </div>
+
+                {/* Vendor Filter Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '20px' }}>badge</span>
+                    <select
+                        value={selectedVendedor}
+                        onChange={(e) => setSelectedVendedor(e.target.value)}
+                        style={{
+                            padding: '0.6rem 1rem',
+                            borderRadius: '8px',
+                            border: '1px solid #e5e7eb',
+                            fontSize: '0.9rem',
+                            minWidth: '180px',
+                            background: selectedVendedor ? '#f0fdf4' : 'white',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <option value="">Todos los vendedores</option>
+                        {vendedores.map(v => (
+                            <option key={v.id} value={v.username}>{v.username}</option>
+                        ))}
+                    </select>
+                    {selectedVendedor && (
+                        <button
+                            onClick={() => setSelectedVendedor('')}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                color: '#6b7280',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                            title="Limpiar filtro"
+                        >
+                            <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Results count */}
+                <span style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--text-muted)',
+                    padding: '0.5rem 0.75rem',
+                    background: '#f3f4f6',
+                    borderRadius: '20px'
+                }}>
+                    {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}
+                </span>
             </div>
+
 
             {/* Clients Grid */}
             <div className="clients-grid" style={{
