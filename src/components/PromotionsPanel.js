@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
-import { getPromotionTypeLabel, isPromotionValid } from '../utils/types';
+import { getPromotionTypeLabel, isPromotionValid, PromotionType } from '../utils/types';
 import PromotionFormModal from './modals/PromotionFormModal';
 import '../styles/Promotions.css';
 
@@ -153,10 +153,31 @@ function PromotionsPanel() {
 
                                 <div className="promotion-info">
                                     <div className="promotion-info-row">
-                                        <span className="promotion-info-label">Cantidades:</span>
+                                        <span className="promotion-info-label">Compra:</span>
                                         <span className="promotion-quantities">
-                                            Compra {promotion.buyQuantity} + {promotion.freeQuantity} Gratis
+                                            {promotion.buyQuantity} {promotion.mainProduct?.nombre}
                                         </span>
+                                    </div>
+
+                                    <div className="promotion-info-row" style={{ alignItems: 'flex-start' }}>
+                                        <span className="promotion-info-label">Recibe Gratis:</span>
+                                        <div className="promotion-gifts-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                                            {promotion.type === PromotionType.PACK ? (
+                                                promotion.giftItems && promotion.giftItems.length > 0 ? (
+                                                    promotion.giftItems.map((gift, idx) => (
+                                                        <span key={idx} className="promotion-quantities" style={{ fontSize: '0.85rem' }}>
+                                                            {gift.quantity}x {gift.product ? gift.product.nombre : 'Producto'}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="promotion-quantities" style={{ color: 'var(--text-muted)' }}>Sin regalos definidos</span>
+                                                )
+                                            ) : (
+                                                <span className="promotion-quantities">
+                                                    {promotion.freeQuantity} Unidades a Elección
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {promotion.packPrice && (
@@ -174,52 +195,56 @@ function PromotionsPanel() {
                                     </div>
 
                                     <div className="promotion-info-row">
-                                        <span className="promotion-info-label">Requiere surtidos:</span>
+                                        <span className="promotion-info-label">Surtidos Extra:</span>
                                         <span className="promotion-info-value">
                                             {promotion.requiresAssortmentSelection ? 'Sí' : 'No'}
                                         </span>
                                     </div>
                                 </div>
 
-                                {promotion.mainProduct && (
-                                    <div className="promotion-product">
-                                        {promotion.mainProduct.imageUrl && (
-                                            <img
-                                                src={promotion.mainProduct.imageUrl}
-                                                alt={promotion.mainProduct.nombre}
-                                                className="promotion-product-image"
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                }}
-                                            />
-                                        )}
-                                        <div>
-                                            <div className="promotion-product-name">
-                                                {promotion.mainProduct.nombre}
-                                            </div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                Producto Principal
+                                {
+                                    promotion.mainProduct && (
+                                        <div className="promotion-product">
+                                            {promotion.mainProduct.imageUrl && (
+                                                <img
+                                                    src={promotion.mainProduct.imageUrl}
+                                                    alt={promotion.mainProduct.nombre}
+                                                    className="promotion-product-image"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                    }}
+                                                />
+                                            )}
+                                            <div>
+                                                <div className="promotion-product-name">
+                                                    {promotion.mainProduct.nombre}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                                    Producto Principal
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )
+                                }
 
-                                {(promotion.validFrom || promotion.validUntil) && (
-                                    <div className="promotion-validity">
-                                        <strong>
-                                            <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>
-                                                event
+                                {
+                                    (promotion.validFrom || promotion.validUntil) && (
+                                        <div className="promotion-validity">
+                                            <strong>
+                                                <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>
+                                                    event
+                                                </span>
+                                                {' '}Vigencia
+                                            </strong>
+                                            <span>
+                                                {promotion.validFrom ? `Desde: ${formatDate(promotion.validFrom)}` : 'Sin fecha de inicio'}
                                             </span>
-                                            {' '}Vigencia
-                                        </strong>
-                                        <span>
-                                            {promotion.validFrom ? `Desde: ${formatDate(promotion.validFrom)}` : 'Sin fecha de inicio'}
-                                        </span>
-                                        <span>
-                                            {promotion.validUntil ? `Hasta: ${formatDate(promotion.validUntil)}` : 'Sin fecha de fin'}
-                                        </span>
-                                    </div>
-                                )}
+                                            <span>
+                                                {promotion.validUntil ? `Hasta: ${formatDate(promotion.validUntil)}` : 'Sin fecha de fin'}
+                                            </span>
+                                        </div>
+                                    )
+                                }
 
                                 <div className="promotion-actions">
                                     <button
@@ -253,16 +278,19 @@ function PromotionsPanel() {
                         );
                     })}
                 </div>
-            )}
+            )
+            }
 
-            {showForm && (
-                <PromotionFormModal
-                    promotion={editingPromotion}
-                    onClose={handleFormClose}
-                    onSuccess={handleFormSuccess}
-                />
-            )}
-        </div>
+            {
+                showForm && (
+                    <PromotionFormModal
+                        promotion={editingPromotion}
+                        onClose={handleFormClose}
+                        onSuccess={handleFormSuccess}
+                    />
+                )
+            }
+        </div >
     );
 }
 

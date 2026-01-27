@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getPromotionTypeLabel, PromotionType } from '../utils/types';
 import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
 import '../styles/Promotions.css';
@@ -51,13 +52,31 @@ function VendedorPromotionsCatalog({ onAddToCart }) {
                         <div className="promotion-header-compact">
                             <h4 className="promotion-title">{promotion.nombre}</h4>
                             <span className={`promotion-badge type-${promotion.type.toLowerCase().replace('_', '-')}`}>
-                                {promotion.type === 'PACK' ? 'Pack' : 'Oferta'}
+                                {getPromotionTypeLabel(promotion.type)}
                             </span>
                         </div>
 
-                        <p className="promotion-desc-compact">
-                            Compra {promotion.buyQuantity} + {promotion.freeQuantity} Gratis
-                        </p>
+                        <div className="promotion-desc-compact">
+                            <div style={{ marginBottom: '4px' }}>Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}</div>
+                            <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
+                                Recibe Gratis:
+                                {promotion.type === PromotionType.PACK ? (
+                                    promotion.giftItems && promotion.giftItems.length > 0 ? (
+                                        <ul style={{ margin: '4px 0 0 0', paddingLeft: '1.2rem', fontSize: '0.8rem' }}>
+                                            {promotion.giftItems.map((gift, idx) => (
+                                                <li key={idx}>
+                                                    {gift.quantity}x {gift.product ? gift.product.nombre : 'Producto'}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}> Sin regalos definidos</span>
+                                    )
+                                ) : (
+                                    <span> {promotion.freeQuantity} Unidades a Elección</span>
+                                )}
+                            </div>
+                        </div>
 
                         {promotion.mainProduct && (
                             <div className="promotion-product-compact">

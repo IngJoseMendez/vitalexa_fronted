@@ -264,6 +264,10 @@
     gap: 1rem;
 }
 
+.promotion-form .form-row.validity-row {
+    grid-template-columns: 1fr;
+}
+
 .promotion-form .form-section {
     background: #f8fafc;
     padding: 1rem;

@@ -36,6 +36,10 @@ export const PromotionShape = PropTypes.shape({
     packPrice: PropTypes.number,
     mainProduct: ProductShape.isRequired,
     freeProduct: ProductShape,
+    giftItems: PropTypes.arrayOf(PropTypes.shape({
+        product: ProductShape,
+        quantity: PropTypes.number
+    })),
     allowStackWithDiscounts: PropTypes.bool,
     requiresAssortmentSelection: PropTypes.bool,
     active: PropTypes.bool.isRequired,
@@ -84,8 +88,8 @@ export const getStatusLabel = (status) => {
 
 export const getPromotionTypeLabel = (type) => {
     const labelMap = {
-        [PromotionType.PACK]: 'Pack',
-        [PromotionType.BUY_GET_FREE]: 'Compra y Recibe'
+        [PromotionType.PACK]: 'Concreta (Fija)',
+        [PromotionType.BUY_GET_FREE]: 'Surtido (Variable)'
     };
     return labelMap[type] || type;
 };

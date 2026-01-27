@@ -9,6 +9,7 @@ import PromotionsPanel from '../components/PromotionsPanel'; // Import Promotion
 import AdminClientsPanel from '../components/AdminClientsPanel'; // Import AdminClientsPanel
 import { TagBadge, TagSelect, TagFilterBar } from '../components/TagComponents';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
+import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
 import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
 import '../styles/AdminDashboard.css';
 
@@ -98,6 +99,12 @@ function OrdersPanel() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+
+  // ✅ NEW STATE FOR ASSORTMENT
+  const [showAssortmentModal, setShowAssortmentModal] = useState(false);
+  const [selectedPromotionForAssortment, setSelectedPromotionForAssortment] = useState(null);
+  const [selectedOrderForAssortment, setSelectedOrderForAssortment] = useState(null);
+
   const toast = useToast();
 
   const fetchOrders = useCallback(async () => {
@@ -194,6 +201,27 @@ function OrdersPanel() {
     } catch (error) {
       console.error('Error al previsualizar factura:', error);
       toast.error('Error al abrir la vista previa');
+    }
+  };
+
+  // ✅ HANDLER FOR OPENING ASSORTMENT MODAL
+  const handleOpenAssortment = async (order, item) => {
+    try {
+      let promotionId = item.promotionId || (item.promotion && item.promotion.id);
+
+      if (!promotionId) {
+        console.error("No promotion ID found on item", item);
+        toast.error("No se pudo identificar la promoción");
+        return;
+      }
+
+      const response = await client.get(`/admin/promotions/${promotionId}`);
+      setSelectedPromotionForAssortment(response.data);
+      setSelectedOrderForAssortment(order);
+      setShowAssortmentModal(true);
+    } catch (error) {
+      console.error('Error fetching promotion:', error);
+      toast.error('Error al cargar detalles de la promoción');
     }
   };
 
@@ -508,11 +536,30 @@ function OrdersPanel() {
                   <button
                     className="btn-edit"
                     onClick={() => setViewingOrder(order)}
-                    style={{ backgroundColor: '#6366f1', color: 'white', marginRight: '5px' }}
+                    style={{ backgroundColor: '#6366f1', color: 'white' }}
                     title="Ver Detalle y Gestionar"
                   >
                     <span className="material-icons-round">visibility</span> Detalle
                   </button>
+
+                  {order.estado === 'PENDING_PROMOTION_COMPLETION' && (
+                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                      {order.items
+                        .filter(item => item.isPromotionItem && !item.isFreeItem) // Filter for the main promotion triggers
+                        .map((item, idx) => (
+                          <button
+                            key={idx}
+                            className="btn-confirm"
+                            style={{ backgroundColor: '#ec4899', fontSize: '0.8rem' }}
+                            onClick={() => handleOpenAssortment(order, item)}
+                          >
+                            <span className="material-icons-round" style={{ fontSize: '14px' }}>inventory_2</span>
+                            Surtir {item.productName?.substring(0, 15)}...
+                          </button>
+                        ))}
+                    </div>
+                  )}
+
                   {order.estado === 'PENDIENTE' && (
                     <button
                       className="btn-confirm"
@@ -527,12 +574,14 @@ function OrdersPanel() {
                       <button
                         className="btn-edit"
                         onClick={() => setSelectedOrder(order)}
+                        style={{ color: '#1f2937' }} // Dark text for visibility
                       >
                         <span className="material-icons-round">edit</span> Editar
                       </button>
                       <button
                         className="btn-complete"
                         onClick={() => changeStatus(order.id, 'COMPLETADO')}
+                        style={{ color: '#ffffff' }} // Keep white if background is dark, or adjust if needed. Assuming btn-complete has dark bg.
                       >
                         <span className="material-icons-round">done_all</span> Completar
                       </button>
@@ -562,6 +611,22 @@ function OrdersPanel() {
           userRole="ROLE_ADMIN"
           onClose={() => setViewingOrder(null)}
           onRefresh={fetchOrders}
+        />
+      )}
+
+      {/* ✅ ASSORTMENT MODAL */}
+      {showAssortmentModal && selectedPromotionForAssortment && selectedOrderForAssortment && (
+        <AssortmentSelectionModal
+          orderId={selectedOrderForAssortment.id}
+          promotion={selectedPromotionForAssortment}
+          onClose={() => {
+            setShowAssortmentModal(false);
+            setSelectedPromotionForAssortment(null);
+            setSelectedOrderForAssortment(null);
+          }}
+          onSuccess={() => {
+            fetchOrders(); // Refresh to see status update
+          }}
         />
       )}
     </div>
@@ -676,7 +741,8 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
           productId: item.productId,
           cantidad: item.cantidad
         })),
-        notas: formData.notas || null
+        notas: formData.notas || null,
+        allowOutOfStock: true // ✅ Allow admins to override stock limits
       };
 
       console.log('📦 Payload a enviar:', payload);
@@ -702,10 +768,10 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
       // ✅ Producto ya existe en la orden - INCREMENTAR cantidad
       const currentQty = existing.cantidad;
 
-      // Validar stock disponible
+      // Validar stock disponible (Soft check for admin - allow proceed but warn)
       if (currentQty >= product.stock) {
-        toast.warning(`Stock insuficiente. Solo hay ${product.stock} unidades disponibles de ${product.nombre}`);
-        return;
+        // Optional: Visual feedback but DON'T return/block
+        // toast.info(`Agregando producto sin stock (${product.stock} disponibles)`);
       }
 
       // Incrementar cantidad del item existente
@@ -852,6 +918,11 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
                     </div>
                     <span className="item-price">
                       ${(item.precioUnitario * item.cantidad).toFixed(2)}
+                      {/* Show current stock info if available from product lookup */}
+                      {(() => {
+                        const prod = products.find(p => p.id === item.productId);
+                        return prod ? <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>Stock: {prod.stock}</div> : null;
+                      })()}
                     </span>
                   </div>
                 ))}
@@ -866,25 +937,34 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
           {/* ✅ SECCIÓN MEJORADA: Solo productos con stock */}
           <div className="form-section">
             <h4>➕ Agregar más productos</h4>
-            <div className="products-quick-add">
+            <div className="product-add-grid">
               {products
-                .filter(p => p.active && p.stock > 0) // ✅ SOLO PRODUCTOS CON STOCK
-                .map(product => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    className="btn-quick-add"
-                    onClick={() => addItem(product)}
-                    title={`Stock disponible: ${product.stock}`}
-                  >
-                    + {product.nombre} (${parseFloat(product.precio).toFixed(2)})
-                    <span className="stock-badge"><span className="material-icons-round" style={{ fontSize: '12px' }}>inventory</span> {product.stock}</span>
-                  </button>
-                ))}
+                .filter(p => p.active)
+                .map(product => {
+                  const hasStock = product.stock > 0;
+                  return (
+                    <div
+                      key={product.id}
+                      className={`product-add-card ${!hasStock ? 'out-of-stock' : ''}`}
+                      onClick={() => addItem(product)}
+                      title={hasStock ? `Stock: ${product.stock}` : 'Sin Stock (Admin puede agregar)'}
+                    >
+                      <div className="card-top">
+                        <span className="card-name">{product.nombre}</span>
+                        <span className={`card-badge ${hasStock ? 'instock' : 'nostock'}`}>
+                          {hasStock ? product.stock : '0'}
+                        </span>
+                      </div>
+                      <div className="card-price">
+                        ${parseFloat(product.precio).toFixed(2)}
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
-            {products.filter(p => p.active && p.stock > 0).length === 0 && (
+            {products.filter(p => p.active).length === 0 && (
               <p className="no-products-available">
-                <span className="material-icons-round">block</span> No hay productos disponibles en stock
+                <span className="material-icons-round">block</span> No hay productos activos
               </p>
             )}
           </div>

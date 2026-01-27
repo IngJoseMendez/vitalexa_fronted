@@ -22,11 +22,33 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const [etaForm, setEtaForm] = useState({ date: '', note: '' });
     const toast = useToast();
 
+    const [currentOrder, setCurrentOrder] = useState(order);
+    const [loadingOrder, setLoadingOrder] = useState(false); // New loading state for order details
+
     // Permissions
     const isOwner = userRole === 'ROLE_OWNER';
     const isAdmin = userRole === 'ROLE_ADMIN';
     const canManagePayments = isOwner; // Only Owner can manage payments
     const canManageDiscounts = isOwner || isAdmin; // Owner and Admin can manage discounts
+
+    // Fetch full order details (to ensure we have IDs for items)
+    const fetchOrderDetails = useCallback(async () => {
+        const orderId = order.id || order.orderId;
+        if (!orderId) return;
+
+        try {
+            setLoadingOrder(true);
+            const response = await client.get(`/admin/orders/${orderId}`);
+            // Merge with existing order prop to keep any client-side info if needed, but prioritize server data
+            setCurrentOrder(response.data);
+            console.log("📦 Full order details loaded:", response.data);
+        } catch (error) {
+            console.error('Error fetching order details:', error);
+            // Fallback to prop order is already handled by initial state, but toast if critical
+        } finally {
+            setLoadingOrder(false);
+        }
+    }, [order.id, order.orderId]);
 
     // Fetch payments for this order
     const fetchPayments = useCallback(async () => {
@@ -66,9 +88,10 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     }, [order.id, order.orderId, toast]);
 
     useEffect(() => {
+        fetchOrderDetails();
         fetchPayments();
         fetchDiscounts();
-    }, [fetchPayments, fetchDiscounts]);
+    }, [fetchOrderDetails, fetchPayments, fetchDiscounts]);
 
     // Cancel a payment
     const handleCancelPayment = async (paymentId) => {
@@ -159,7 +182,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     // This fixes the issue where order prop is stale or missing discountedTotal
     const activeDiscounts = discounts.filter(d => d.status === 'APPLIED');
     const totalDiscountPercent = activeDiscounts.reduce((sum, d) => sum + parseFloat(d.percentage || 0), 0);
-    const originalTotal = parseFloat(order.total || 0);
+    const originalTotal = parseFloat(currentOrder.total || 0);
 
     // logic: effectiveTotal = Total - (Total * % / 100)
     const currentDiscountAmount = (originalTotal * totalDiscountPercent) / 100;
@@ -168,6 +191,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const pendingBalance = effectiveTotal - totalPaid;
 
     // Determine if we should show "Discounted Total" (if there are active discounts)
+    // Also use currentOrder.discountedTotal if available and consistent
     const hasDiscounts = activeDiscounts.length > 0;
 
     return (
@@ -184,62 +208,60 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                 </div>
 
                 <div className="order-detail-content">
+                    {loadingOrder && (
+                        <div className="loading-overlay-inline">
+                            <span className="material-icons-round spin">sync</span> Cargando detalles actualizados...
+                        </div>
+                    )}
                     {/* Order Info Section */}
                     <div className="detail-section order-summary-section">
                         <h4><span className="material-icons-round">info</span> Información General</h4>
                         <div className="info-grid">
                             <div className="info-item">
                                 <span className="label">Estado:</span>
-                                <span className={`badge status-${order.estado?.toLowerCase()}`}>{order.estado}</span>
+                                <span className={`badge status-${currentOrder.estado?.toLowerCase()}`}>{currentOrder.estado}</span>
                             </div>
                             <div className="info-item">
                                 <span className="label">Vendedor:</span>
-                                <span>{order.vendedor}</span>
+                                <span>{currentOrder.vendedor}</span>
                             </div>
                             <div className="info-item">
                                 <span className="label">Cliente:</span>
-                                <span>{order.cliente}</span>
+                                <span>{currentOrder.cliente}</span>
                             </div>
                             <div className="info-item">
                                 <span className="label">Fecha:</span>
-                                <span>{new Date(order.fecha).toLocaleString()}</span>
+                                <span>{new Date(currentOrder.fecha).toLocaleString()}</span>
                             </div>
                             <div className="info-item highlight">
                                 <span className="label">Total Original:</span>
-                                <span className="value">${parseFloat(order.total).toFixed(2)}</span>
+                                <span className="value">${parseFloat(currentOrder.total).toFixed(2)}</span>
                             </div>
-                            {order.discountedTotal && order.discountedTotal !== order.total && (
+                            {currentOrder.discountedTotal && currentOrder.discountedTotal !== currentOrder.total && (
                                 <div className="info-item highlight success">
                                     <span className="label">Total con Descuento:</span>
-                                    <span className="value">${parseFloat(order.discountedTotal).toFixed(2)}</span>
+                                    <span className="value">${parseFloat(currentOrder.discountedTotal).toFixed(2)}</span>
                                 </div>
                             )}
                         </div>
 
-                        {order.notas && (
+                        {currentOrder.notas && (
                             <div className="notes-box">
                                 <strong><span className="material-icons-round">note</span> Notas:</strong>
-                                <p>{order.notas}</p>
+                                <p>{currentOrder.notas}</p>
                             </div>
                         )}
 
 
                         {/* PENDING PROMOTION ALERT */}
-                        {order.estado === OrdenStatus.PENDING_PROMOTION_COMPLETION && isAdmin && (
+                        {currentOrder.estado === OrdenStatus.PENDING_PROMOTION_COMPLETION && isAdmin && (
                             <div className="pending-promotion-alert">
                                 <h4>
                                     <span className="material-icons-round">warning</span>
                                     Acción Requerida: Completar Promoción
                                 </h4>
                                 <p>Esta orden contiene promociones que requieren selección de productos surtidos.</p>
-                                {/* We need to know WHICH promotion. Assuming order has `pendingPromotionIds` or we iterate items to find one. 
-                                    For simplicity, I'll assume there's one or we iterate. 
-                                    Let's look for items with `promotion` object where `startAssortment` might be needed.
-                                    Or just show a button if we have the ID. 
-                                    Let's check `order.pendingPromotionIds` if it exists (backend logic). 
-                                    As fallback, I'll try to find unique promotion IDs from items that are promotion items.
-                                */}
-                                {order.items?.filter(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted).map(item => (
+                                {currentOrder.items?.filter(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted).map(item => (
                                     <div key={item.promotion.id} style={{ marginTop: '1rem' }}>
                                         <button
                                             className="btn-select-assortment"
@@ -249,8 +271,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                         </button>
                                     </div>
                                 ))}
-                                {/* Fallback if no specific item flag found but status is PENDING */}
-                                {(!order.items?.some(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted)) && (
+                                {(!currentOrder.items?.some(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted)) && (
                                     <p><em>No se detectaron promociones pendientes específicas en los ítems, pero el estado es PENDIENTE_PROMOCION.</em></p>
                                 )}
                             </div>
@@ -259,7 +280,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
                     {/* Products Section */}
                     <div className="detail-section">
-                        <h4><span className="material-icons-round">inventory_2</span> Productos ({order.items?.length || 0})</h4>
+                        <h4><span className="material-icons-round">inventory_2</span> Productos ({currentOrder.items?.length || 0})</h4>
                         <div className="products-table-wrapper">
                             <table className="items-table">
                                 <thead>
@@ -272,7 +293,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {order.items?.map((item, idx) => (
+                                    {currentOrder.items?.map((item, idx) => (
                                         <tr key={idx} className={item.outOfStock ? 'row-warning' : ''}>
                                             <td>
                                                 <div style={{ fontWeight: 600 }}>{item.productName}</div>
@@ -308,7 +329,8 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                                     <button
                                                                         className="btn-link"
                                                                         onClick={() => {
-                                                                            setEditingItemEta(item.id);
+                                                                            const idToUse = item.id || item.orderItemId;
+                                                                            setEditingItemEta(idToUse);
                                                                             setEtaForm({
                                                                                 date: item.estimatedArrivalDate ? item.estimatedArrivalDate.substring(0, 10) : '',
                                                                                 note: item.estimatedArrivalNote || ''
@@ -325,7 +347,8 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                                 <button
                                                                     className="btn-link warning"
                                                                     onClick={() => {
-                                                                        setEditingItemEta(item.id);
+                                                                        const idToUse = item.id || item.orderItemId;
+                                                                        setEditingItemEta(idToUse);
                                                                         setEtaForm({ date: '', note: '' });
                                                                     }}
                                                                     style={{ fontSize: '0.8rem' }}
@@ -336,7 +359,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                         )}
 
                                                         {/* ETA Edit Form */}
-                                                        {editingItemEta === item.id && (
+                                                        {editingItemEta === (item.id || item.orderItemId) && (
                                                             <div className="eta-form">
                                                                 <h5>Definir Estimación de Llegada</h5>
                                                                 <div className="form-group">
@@ -355,7 +378,15 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                                     />
                                                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                                         <button
-                                                                            onClick={() => handleUpdateEta(item.id)}
+                                                                            onClick={() => {
+                                                                                const idToUse = item.id || item.orderItemId;
+                                                                                if (!idToUse) {
+                                                                                    console.error("❌ No valid ID found for item:", item);
+                                                                                    toast.error("Error: No se pudo identificar el ítem para actualizar ETA");
+                                                                                    return;
+                                                                                }
+                                                                                handleUpdateEta(idToUse);
+                                                                            }}
                                                                             className="btn-save small"
                                                                         >
                                                                             Guardar

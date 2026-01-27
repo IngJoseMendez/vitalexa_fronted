@@ -287,7 +287,37 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
             onSuccess();
         } catch (error) {
             console.error('Error al crear cliente:', error);
-            toast.error('Error al crear cliente: ' + (error.response?.data?.message || error.message));
+
+            let errorMessage = 'Error al crear cliente';
+            const serverData = error.response?.data;
+
+            if (serverData) {
+                const messageStr = typeof serverData === 'string' ? serverData : serverData.message;
+
+                if (messageStr) {
+                    // Attempt to extract the specific business exception message
+                    // Handles "BusinessExeption" (typo in backend) and "BusinessException"
+                    // Regex looks for the exception name followed by a colon and catches the rest of the message
+                    const match = messageStr.match(/BusinessExce?ption:\s*(.+?)(?:$|;|with root cause)/);
+
+                    if (match && match[1]) {
+                        errorMessage = match[1].trim();
+                    } else {
+                        // If no specific exception format found but we have a message, use it
+                        // but limit length just in case it's a huge stack trace
+                        if (messageStr.length < 200) {
+                            errorMessage = messageStr;
+                        } else {
+                            errorMessage = 'Error del servidor: verifique los datos ingresados';
+                        }
+                    }
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            // Show the error toast
+            toast.error(errorMessage);
         } finally {
             setSaving(false);
         }
