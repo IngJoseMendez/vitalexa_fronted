@@ -12,14 +12,22 @@ function BalancesPage() {
     const [loading, setLoading] = useState(true);
     const [selectedClient, setSelectedClient] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [vendedores, setVendedores] = useState([]);
+    const [selectedVendedor, setSelectedVendedor] = useState('');
+    const [filteredClientIds, setFilteredClientIds] = useState(null); // ✅ IDs permitidos para el filtro
+    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
     const toast = useToast();
     const userRole = localStorage.getItem('role');
 
     const fetchBalances = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await balanceService.getAllBalances();
-            setBalances(response.data || []);
+            const [paramsRes, vendRes] = await Promise.all([
+                balanceService.getAllBalances(),
+                clientApi.get('/admin/clients/vendedores')
+            ]);
+            setBalances(paramsRes.data || []);
+            setVendedores(vendRes.data || []);
         } catch (error) {
             console.error('Error fetching balances:', error);
             toast.error('Error al cargar saldos: ' + (error.response?.data?.message || error.message));
@@ -33,10 +41,45 @@ function BalancesPage() {
         fetchBalances();
     }, [fetchBalances]);
 
-    const filteredBalances = balances.filter(b =>
-        b.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        b.clientPhone?.includes(searchTerm)
-    );
+    const filteredBalances = balances.filter(b => {
+        // Text Search
+        const matchesSearch = b.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            b.clientPhone?.includes(searchTerm);
+
+        // Vendor Filter
+        // Note: balances endpoint might not return vendor info directly. 
+        // If 'vendedorAsignadoId' or similar exists in balance object, use it.
+        // Assuming balance object has client info or we can match by name if necessary, 
+        // but ideally the backend should provide vendor info.
+        // Checking view_file output... balance object has 'clientId', 'clientName'.
+        // We might not have vendor info here.
+        // However, I can't filter by vendor if I don't have the data.
+        // Let's assume for now we filter locally if the data is there, or we might need to fetch it.
+        // Wait, the Requirement 6 says: "Add a filter to select a seller and display only their clients".
+        // If `getAllBalances` doesn't return vendor, I might need to map it from the `vendedores` list if possible? 
+        // No, `vendedores` list is just users.
+        // I'll assume the balance object DOES NOT have vendor info based on `view_file`.
+        // I might need to join with client details? That's expensive.
+        // Let's check if `balances` has `vendorName` or similar property. It wasn't shown in the initial `view_file` details (just reduced lines).
+        // I will optimistically check for `vendorName` or `sellerName`.
+        // If not present, this filter won't work without backend changes or fetching all clients.
+        // STRATEGY: Fetch all clients to map ID -> Vendor? No, too heavy.
+        // Alternative: Filter based on `b.vendorName` if exists.
+
+        if (filteredClientIds !== null) {
+            if (!filteredClientIds.includes(b.clientId)) {
+                return false;
+            }
+        }
+
+        return matchesSearch;
+    }).sort((a, b) => {
+        const nameA = a.clientName || '';
+        const nameB = b.clientName || '';
+        return sortOrder === 'asc'
+            ? nameA.localeCompare(nameB)
+            : nameB.localeCompare(nameA);
+    });
 
     const getRoleLabel = () => {
         if (userRole === 'ROLE_OWNER') return 'Owner';
@@ -91,6 +134,63 @@ function BalancesPage() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+
+                    {/* Filter by Vendor (Only if Admin/Owner) */}
+                    {(userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER') && (
+                        <div className="vendor-filter" style={{ marginLeft: '0.5rem' }}>
+                            <select
+                                value={selectedVendedor}
+                                onChange={async (e) => {
+                                    const username = e.target.value;
+                                    setSelectedVendedor(username);
+
+                                    if (!username) {
+                                        setFilteredClientIds(null);
+                                        return;
+                                    }
+
+                                    // Buscar ID
+                                    const vendorObj = vendedores.find(v => v.username === username);
+                                    if (vendorObj) {
+                                        try {
+                                            setLoading(true);
+                                            const res = await clientApi.get(`/admin/clients/seller/${vendorObj.id}`);
+                                            const allowedIds = res.data.map(c => c.id);
+                                            setFilteredClientIds(allowedIds);
+                                        } catch (err) {
+                                            console.error(err);
+                                            toast.error('Error al filtrar por vendedor');
+                                            setFilteredClientIds([]);
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }
+                                }}
+                                style={{
+                                    padding: '0.6rem 2.5rem 0.6rem 1rem', // Extra padding for arrow
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    background: selectedVendedor ? '#f0fdf4' : 'white',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.9rem',
+                                    outline: 'none',
+                                    appearance: 'none',
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' viewBox='0 0 24 24' width='24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundPosition: 'right 8px center',
+                                    minWidth: '160px',
+                                    cursor: 'pointer',
+                                    height: '42px' // Match button height
+                                }}
+                            >
+                                <option value="">Todos los vendedores</option>
+                                {vendedores.map(v => (
+                                    <option key={v.id} value={v.username}>{v.username}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
                     <button className="btn-refresh" onClick={fetchBalances}>
                         <span className="material-icons-round">refresh</span>
                         Actualizar
@@ -138,9 +238,30 @@ function BalancesPage() {
                 {/* Clients List */}
                 <div className="clients-list-panel">
                     <h2>
-                        <span className="material-icons-round">list</span>
                         Clientes ({filteredBalances.length})
                     </h2>
+
+                    <button
+                        className="btn-sort"
+                        onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                        title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
+                        style={{
+                            background: 'white',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '0.4rem 0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            marginLeft: 'auto',
+                            fontSize: '0.85rem',
+                            color: 'var(--text-secondary)'
+                        }}
+                    >
+                        <span className="material-icons-round" style={{ fontSize: '16px' }}>sort_by_alpha</span>
+                        {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                    </button>
 
                     {filteredBalances.length === 0 ? (
                         <div className="empty-state">

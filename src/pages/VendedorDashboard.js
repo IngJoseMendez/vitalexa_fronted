@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import client from '../api/client';
 import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import NotificationService from '../services/NotificationService';
 import VendedorPromotionsCatalog from '../components/VendedorPromotionsCatalog';
+import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
+import { PromotionType } from '../utils/types';
 import '../styles/VendedorDashboard.css';
 
 
@@ -107,10 +109,21 @@ function NuevaVentaPanel({ refreshTrigger }) {
     const saved = localStorage.getItem('vendedorGridColumns');
     return saved ? parseInt(saved) : 2;
   });
+  const [includeFreight, setIncludeFreight] = useState(false);
+  const [vendedores, setVendedores] = useState([]);
+  const [assignedVendor, setAssignedVendor] = useState('');
+  const [userRole] = useState(localStorage.getItem('role'));
   const toast = useToast();
 
   const [tags, setTags] = useState([]);
   const [activeTagId, setActiveTagId] = useState(null);
+
+  // Check if user is Admin or Owner
+  const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
+
+  // Assortment Selection State
+  const [showAssortmentModal, setShowAssortmentModal] = useState(false);
+  const [selectedPromotion, setSelectedPromotion] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('vendedorGridColumns', gridColumns.toString());
@@ -124,6 +137,16 @@ function NuevaVentaPanel({ refreshTrigger }) {
       console.error("Error loading tags");
     }
   }, []);
+
+  const fetchVendedores = useCallback(async () => {
+    if (!isAdminOrOwner) return;
+    try {
+      const response = await client.get('/admin/clients/vendedores');
+      setVendedores(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar vendedores:', error);
+    }
+  }, [isAdminOrOwner]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -153,7 +176,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
     fetchClients();
     fetchProducts();
     fetchTags();
-  }, [refreshTrigger, activeTagId, fetchClients, fetchProducts, fetchTags]);
+    fetchVendedores();
+  }, [refreshTrigger, activeTagId, fetchClients, fetchProducts, fetchTags, fetchVendedores]);
 
   const addToCart = (product) => {
     const existingItem = cart.find(item => item.productId === product.id);
@@ -188,8 +212,53 @@ function NuevaVentaPanel({ refreshTrigger }) {
       toast.warning('Esta promoción ya está en el carrito');
       return;
     }
+
+    // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
+    if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
+      setSelectedPromotion(promotion);
+      setShowAssortmentModal(true);
+      return;
+    }
+
     setPromotionsCart([...promotionsCart, promotion]);
     toast.success('Promoción agregada');
+  };
+
+  const handleAssortmentConfirmation = (items) => {
+    // Add selected assortment items to main cart (Main Products for the promo)
+    // We mix them with existing cart items or add new ones
+
+    // Process items to match cart structure
+    const newCartItems = [...cart];
+
+    items.forEach(item => {
+      const existingItemIndex = newCartItems.findIndex(cartItem => cartItem.productId === item.productId);
+
+      if (existingItemIndex >= 0) {
+        newCartItems[existingItemIndex].cantidad += item.cantidad;
+      } else {
+        newCartItems.push({
+          productId: item.productId,
+          nombre: item.nombre,
+          precio: item.precio, // NORMAL PRICE (These are the buy items)
+          cantidad: item.cantidad,
+          stockDisponible: item.stock || 9999,
+          allowOutOfStock: true,
+          promotionId: item.promotionId
+        });
+      }
+    });
+
+    setCart(newCartItems);
+
+    // Add the promotion itself to track it (for the ID)
+    if (selectedPromotion) {
+      setPromotionsCart([...promotionsCart, selectedPromotion]);
+    }
+
+    setShowAssortmentModal(false);
+    setSelectedPromotion(null);
+    toast.success('Productos de la promoción agregados al carrito');
   };
 
   const removePromotionFromCart = (promotionId) => {
@@ -241,19 +310,29 @@ function NuevaVentaPanel({ refreshTrigger }) {
       return;
     }
 
+    // If Admin/Owner and trying to create order, vendor must be assigned
+    if (isAdminOrOwner && !assignedVendor) {
+      toast.warning('Debe asignar un vendedor para crear esta orden');
+      return;
+    }
+
     try {
       const orderData = {
         clientId: selectedClient || null,
         items: cart.map(item => ({
           productId: item.productId,
           cantidad: item.cantidad,
-          allowOutOfStock: item.allowOutOfStock
+          allowOutOfStock: item.allowOutOfStock,
+          relatedPromotionId: item.promotionId || null // Send promotion ID for assortment items
         })),
         promotionIds: promotionsCart.map(p => p.id),
-        notas: notas.trim() || null
+        notas: notas.trim() || null,
+        includeFreight: includeFreight || false,
+        sellerId: isAdminOrOwner ? assignedVendor : null
       };
 
-      const res = await client.post('/vendedor/orders', orderData);
+      const endpoint = isAdminOrOwner ? '/admin/orders' : '/vendedor/orders';
+      const res = await client.post(endpoint, orderData);
 
       // Check if it was a split order (2 orders created)
       if (res.data && res.data.createdOrders && res.data.createdOrders.length > 1) {
@@ -266,6 +345,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
       setNotas('');
       setCart([]);
       setPromotionsCart([]);
+      setIncludeFreight(false);
+      setAssignedVendor('');
       fetchProducts();
     } catch (error) {
       console.error('Error al crear orden:', error);
@@ -466,6 +547,50 @@ function NuevaVentaPanel({ refreshTrigger }) {
             </small>
           </div>
 
+          {/* ADMIN/OWNER ONLY: Asignar Vendedor */}
+          {isAdminOrOwner && (
+            <div className="form-group">
+              <label htmlFor="vendedor-select">
+                <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>badge</span>
+                Asignar Vendedor <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                id="vendedor-select"
+                value={assignedVendor}
+                onChange={(e) => setAssignedVendor(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  fontSize: '0.95rem',
+                  background: assignedVendor ? '#f0fdf4' : 'white'
+                }}
+              >
+                <option value="">-- Seleccionar vendedor --</option>
+                {vendedores.map(v => (
+                  <option key={v.id} value={v.id}>{v.username}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* ADMIN/OWNER ONLY: Incluir Flete */}
+          {isAdminOrOwner && (
+            <div className="checkbox-group">
+              <input
+                id="incluir-flete"
+                type="checkbox"
+                checked={includeFreight}
+                onChange={(e) => setIncludeFreight(e.target.checked)}
+              />
+              <label htmlFor="incluir-flete">
+                <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>local_shipping</span>
+                Incluir Flete en Orden
+              </label>
+            </div>
+          )}
+
           <div className="cart-items">
             {cart.length === 0 && promotionsCart.length === 0 ? (
               <div className="empty-cart">
@@ -556,6 +681,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
             )}
           </div>
 
+
+
           <div className="cart-total">
             Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${calculateTotal().toFixed(2)}</span>
           </div>
@@ -570,6 +697,21 @@ function NuevaVentaPanel({ refreshTrigger }) {
           </button>
         </div>
       </div>
+
+      {/* Assortment Selection Modal */}
+      {showAssortmentModal && selectedPromotion && (
+        <AssortmentSelectionModal
+          orderId={null} // Standalone mode
+          promotion={selectedPromotion}
+          isStandalone={true}
+          existingProducts={products}
+          onClose={() => {
+            setShowAssortmentModal(false);
+            setSelectedPromotion(null);
+          }}
+          onConfirm={handleAssortmentConfirmation}
+        />
+      )}
     </div>
   );
 }
@@ -823,7 +965,7 @@ function ClientFormModal({ onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Nuevo Cliente</h3>
@@ -935,7 +1077,7 @@ function ClientFormModal({ onClose, onSuccess }) {
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim() || !formData.email.trim() || !formData.telefono.trim() || !formData.direccion.trim()} className="btn-save">
+            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim()} className="btn-save">
               {saving ? 'Guardando...' : 'Crear Cliente'}
             </button>
           </div>
@@ -978,7 +1120,7 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>
@@ -1034,35 +1176,32 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
           </div>
 
           <div className="form-group">
-            <label>Email <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <label>Email</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="correo@ejemplo.com"
-              required
+              placeholder="correo@ejemplo.com (Opcional)"
             />
           </div>
 
           <div className="form-group">
-            <label>Teléfono <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <label>Teléfono</label>
             <input
               type="tel"
               value={formData.telefono}
               onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              placeholder="Número de teléfono"
-              required
+              placeholder="Número de teléfono (Opcional)"
             />
           </div>
 
           <div className="form-group">
-            <label>Dirección <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+            <label>Dirección</label>
             <textarea
               value={formData.direccion}
               onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
               rows="2"
-              placeholder="Dirección del cliente"
-              required
+              placeholder="Dirección del cliente (Opcional)"
             />
           </div>
 
@@ -1070,7 +1209,7 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
             <button type="button" onClick={onClose} className="btn-cancel">
               Cancelar
             </button>
-            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim() || !formData.email.trim() || !formData.telefono.trim() || !formData.direccion.trim()} className="btn-save">
+            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim()} className="btn-save">
               {saving ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>

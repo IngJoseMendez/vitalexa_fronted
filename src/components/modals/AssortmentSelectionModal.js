@@ -3,9 +3,9 @@ import client from '../../api/client';
 import promotionService from '../../api/promotionService';
 import { useToast } from '../ToastContainer';
 
-function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
+function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onConfirm, isStandalone = false, existingProducts = [] }) {
     const [selectedProducts, setSelectedProducts] = useState([]);
-    const [products, setProducts] = useState([]);
+    const [products, setProducts] = useState(existingProducts);
     const [searchTerm, setSearchTerm] = useState('');
     const [showResults, setShowResults] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -13,6 +13,12 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
     const toast = useToast();
 
     useEffect(() => {
+        if (existingProducts && existingProducts.length > 0) {
+            setProducts(existingProducts.filter(p => p.active));
+            setLoadingProducts(false);
+            return;
+        }
+
         const fetchProducts = async () => {
             try {
                 setLoadingProducts(true);
@@ -28,7 +34,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
         };
 
         fetchProducts();
-    }, [toast]);
+    }, [toast, existingProducts]);
 
     const filteredProducts = products.filter(p =>
         p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -36,8 +42,15 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
     );
 
     const totalSelected = selectedProducts.reduce((sum, p) => sum + p.cantidad, 0);
-    const isValid = totalSelected === promotion.freeQuantity;
-    const remaining = promotion.freeQuantity - totalSelected;
+    // CORRECTION: Validate against buyQuantity (Main items), not freeQuantity
+    // If we are in "standalone" mode (VendedorDashboard), we usually want buyQuantity.
+    // But if we are in "complete promotion" mode (OrderManagement), it might be freeQuantity?
+    // The prompt says: "Modal de Promociones Surtidas... es para seleccionar los Productos que COMPONE la compra... El contador: Debe leer promotion.buyQuantity"
+    // We need to differentiate. Since we pass 'isStandalone' for VendedorDashboard, we assume that means "Buy Flow".
+    const targetQuantity = isStandalone ? promotion.buyQuantity : promotion.freeQuantity;
+
+    const isValid = totalSelected === targetQuantity;
+    const remaining = targetQuantity - totalSelected;
 
     const handleAddProduct = (product) => {
         const maxToAdd = remaining;
@@ -49,6 +62,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
         setSelectedProducts(prev => [...prev, {
             id: product.id,
             nombre: product.nombre,
+            precio: product.precio, // Include price
             stock: product.stock,
             cantidad: 1
         }]);
@@ -75,7 +89,22 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
 
     const handleComplete = async () => {
         if (!isValid) {
-            toast.warning(`Debe seleccionar exactamente ${promotion.freeQuantity} productos`);
+            toast.warning(`Debe seleccionar exactamente ${targetQuantity} productos`);
+            return;
+        }
+
+        // STANDALONE MODE: Return items to parent instead of calling API
+        if (isStandalone && onConfirm) {
+            const payload = selectedProducts.map(p => ({
+                productId: p.id,
+                nombre: p.nombre, // Include name for UI display in cart
+                precio: p.precio, // NORMAL PRICE
+                cantidad: p.cantidad,
+                // Remove isAssortmentItem tag as these are MAIN products
+                promotionId: promotion.id
+            }));
+            onConfirm(payload);
+            onClose();
             return;
         }
 
@@ -89,7 +118,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
 
             await promotionService.completeAssortment(orderId, promotion.id, payload);
             toast.success('Promoción completada exitosamente');
-            onSuccess();
+            if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
             console.error('Error al completar promoción:', error);
@@ -101,7 +130,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess }) {
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay">
             <div className="modal-content assortment-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>

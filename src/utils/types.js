@@ -70,7 +70,8 @@ export const getStatusBadgeClass = (status) => {
         [OrdenStatus.PENDING_PROMOTION_COMPLETION]: 'status-pending-promo',
         [OrdenStatus.CONFIRMADO]: 'status-confirmado',
         [OrdenStatus.COMPLETADO]: 'status-completado',
-        [OrdenStatus.CANCELADO]: 'status-cancelado'
+        [OrdenStatus.CANCELADO]: 'status-cancelado',
+        [OrdenStatus.ANULADA]: 'status-anulada'
     };
     return statusMap[status] || 'status-default';
 };
@@ -81,7 +82,8 @@ export const getStatusLabel = (status) => {
         [OrdenStatus.PENDING_PROMOTION_COMPLETION]: 'Pendiente Surtidos',
         [OrdenStatus.CONFIRMADO]: 'Confirmado',
         [OrdenStatus.COMPLETADO]: 'Completado',
-        [OrdenStatus.CANCELADO]: 'Cancelado'
+        [OrdenStatus.CANCELADO]: 'Cancelado',
+        [OrdenStatus.ANULADA]: 'Anulada'
     };
     return labelMap[status] || status;
 };

@@ -3,8 +3,10 @@ import paymentService from '../../api/paymentService';
 import discountService from '../../api/discountService';
 import { useToast } from '../ToastContainer';
 import AssortmentSelectionModal from './AssortmentSelectionModal';
+import OrderAnnulationModal from './OrderAnnulationModal';
+import orderService from '../../api/orderService';
 import client from '../../api/client';
-import { OrdenStatus } from '../../utils/types';
+import { OrdenStatus, PromotionType } from '../../utils/types';
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -20,6 +22,8 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const [selectedPromotionForAssortment, setSelectedPromotionForAssortment] = useState(null);
     const [editingItemEta, setEditingItemEta] = useState(null);
     const [etaForm, setEtaForm] = useState({ date: '', note: '' });
+    const [showAnnulationModal, setShowAnnulationModal] = useState(false);
+    const [annulationLoading, setAnnulationLoading] = useState(false);
     const toast = useToast();
 
     const [currentOrder, setCurrentOrder] = useState(order);
@@ -139,6 +143,30 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
         }
     };
 
+
+
+    // Handle Order Annulling
+    const handleAnnulOrder = () => {
+        if (!isAdmin) return;
+        setShowAnnulationModal(true);
+    };
+
+    const handleConfirmAnnulation = async (reason) => {
+        try {
+            setAnnulationLoading(true);
+            await orderService.annulOrder(order.id || order.orderId, reason);
+            toast.success("Orden anulada correctamente");
+            setShowAnnulationModal(false);
+            if (onRefresh) onRefresh();
+            onClose(); // Close modal after annulment
+        } catch (error) {
+            console.error("Error annulling order:", error);
+            toast.error("Error al anular la orden: " + (error.response?.data?.message || error.message));
+        } finally {
+            setAnnulationLoading(false);
+        }
+    };
+
     const openAssortmentModal = (promotionId) => {
         // Find promotion details from order items or fetch it
         // For now, we assume we pass the promotion object structure or fetch it
@@ -195,16 +223,28 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const hasDiscounts = activeDiscounts.length > 0;
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay">
             <div className="modal-content-large order-detail-enhanced" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>
                         <span className="material-icons-round">receipt_long</span>
                         Detalle de Orden #{order.invoiceNumber || (order.id || order.orderId)?.substring(0, 8)}
                     </h3>
-                    <button className="btn-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        {isAdmin && currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
+                            <button
+                                className="btn-cancel"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                onClick={handleAnnulOrder}
+                            >
+                                <span className="material-icons-round" style={{ fontSize: '16px' }}>block</span>
+                                Anular Venta
+                            </button>
+                        )}
+                        <button className="btn-close" onClick={onClose}>
+                            <span className="material-icons-round">close</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="order-detail-content">
@@ -261,7 +301,12 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                     Acción Requerida: Completar Promoción
                                 </h4>
                                 <p>Esta orden contiene promociones que requieren selección de productos surtidos.</p>
-                                {currentOrder.items?.filter(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted).map(item => (
+                                {currentOrder.items?.filter(i =>
+                                    i.isPromotionItem &&
+                                    i.promotion?.requiresAssortmentSelection &&
+                                    !i.assortmentCompleted &&
+                                    (i.promotion.type === PromotionType.BUY_GET_FREE || i.promotion.type === 'ASSORTMENT_PROMOTION')
+                                ).map(item => (
                                     <div key={item.promotion.id} style={{ marginTop: '1rem' }}>
                                         <button
                                             className="btn-select-assortment"
@@ -271,9 +316,14 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                         </button>
                                     </div>
                                 ))}
-                                {(!currentOrder.items?.some(i => i.isPromotionItem && i.promotion?.requiresAssortmentSelection && !i.assortmentCompleted)) && (
-                                    <p><em>No se detectaron promociones pendientes específicas en los ítems, pero el estado es PENDIENTE_PROMOCION.</em></p>
-                                )}
+                                {(!currentOrder.items?.some(i =>
+                                    i.isPromotionItem &&
+                                    i.promotion?.requiresAssortmentSelection &&
+                                    !i.assortmentCompleted &&
+                                    (i.promotion.type === PromotionType.BUY_GET_FREE || i.promotion.type === 'ASSORTMENT_PROMOTION')
+                                )) && (
+                                        <p><em>No se detectaron promociones pendientes específicas en los ítems, pero el estado es PENDIENTE_PROMOCION.</em></p>
+                                    )}
                             </div>
                         )}
                     </div>
@@ -593,6 +643,15 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         }}
                     />
                 )}
+
+                {/* Order Annulation Modal */}
+                {showAnnulationModal && (
+                    <OrderAnnulationModal
+                        onClose={() => setShowAnnulationModal(false)}
+                        onConfirm={handleConfirmAnnulation}
+                        isLoading={annulationLoading}
+                    />
+                )}
             </div>
         </div>
     );
@@ -652,7 +711,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
     };
 
     return (
-        <div className="modal-overlay nested" onClick={onClose}>
+        <div className="modal-overlay nested">
             <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3><span className="material-icons-round">payments</span> Registrar Pago</h3>

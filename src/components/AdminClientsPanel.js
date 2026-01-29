@@ -11,8 +11,11 @@ function AdminClientsPanel() {
     const [vendedores, setVendedores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [editingClient, setEditingClient] = useState(null);
+    const [showEditModal, setShowEditModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedVendedor, setSelectedVendedor] = useState(''); // Filter by vendor
+    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
     const toast = useToast();
 
     const fetchData = useCallback(async () => {
@@ -53,6 +56,13 @@ function AdminClientsPanel() {
             );
         }
         return true;
+    }).sort((a, b) => {
+        // Alphabetical sort by name
+        const nameA = a.nombre || '';
+        const nameB = b.nombre || '';
+        return sortOrder === 'asc'
+            ? nameA.localeCompare(nameB)
+            : nameB.localeCompare(nameA);
     });
 
     if (loading) {
@@ -143,6 +153,27 @@ function AdminClientsPanel() {
                 }}>
                     {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}
                 </span>
+
+                {/* Sort Button */}
+                <button
+                    className="btn-sort"
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
+                    style={{
+                        background: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '0.5rem 0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        marginLeft: 'auto'
+                    }}
+                >
+                    <span className="material-icons-round">sort_by_alpha</span>
+                    {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                </button>
             </div>
 
 
@@ -222,17 +253,36 @@ function AdminClientsPanel() {
                                 borderTop: '1px solid #e5e7eb',
                                 display: 'flex',
                                 justifyContent: 'space-between',
-                                alignItems: 'center'
+                                alignItems: 'center',
+                                gap: '0.5rem'
                             }}>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#059669', fontWeight: 600 }}>
                                     <span className="material-icons-round" style={{ fontSize: '16px' }}>shopping_bag</span>
                                     Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}
                                 </span>
-                                {cliente.fechaCreacion && (
-                                    <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                                        Creado: {new Date(cliente.fechaCreacion).toLocaleDateString('es-ES')}
-                                    </span>
-                                )}
+                                <button
+                                    onClick={() => {
+                                        setEditingClient(cliente);
+                                        setShowEditModal(true);
+                                    }}
+                                    style={{
+                                        background: '#3b82f6',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        padding: '0.4rem 0.8rem',
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontWeight: '500'
+                                    }}
+                                    title="Editar cliente"
+                                >
+                                    <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
+                                    Editar
+                                </button>
                             </div>
                         </div>
                     ))
@@ -246,6 +296,23 @@ function AdminClientsPanel() {
                     onClose={() => setShowModal(false)}
                     onSuccess={() => {
                         setShowModal(false);
+                        fetchData();
+                    }}
+                />
+            )}
+
+            {/* Edit Client Modal */}
+            {showEditModal && editingClient && (
+                <AdminClientEditModal
+                    client={editingClient}
+                    vendedores={vendedores}
+                    onClose={() => {
+                        setShowEditModal(false);
+                        setEditingClient(null);
+                    }}
+                    onSuccess={() => {
+                        setShowEditModal(false);
+                        setEditingClient(null);
                         fetchData();
                     }}
                 />
@@ -325,11 +392,10 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
 
     const isFormValid = formData.nit.trim() && formData.nombre.trim() &&
         formData.administrador.trim() && formData.representanteLegal.trim() &&
-        formData.email.trim() && formData.telefono.trim() &&
-        formData.direccion.trim() && formData.vendedorId;
+        formData.vendedorId; // Optional: email, phone, direccion
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay">
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
                 <div className="modal-header">
                     <h3>
@@ -415,6 +481,182 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
                     <div className="form-group">
                         <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
                         <input
+                            value={formData.administrador}
+                            onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+                            placeholder="Nombre del administrador"
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <input
+                            type="text"
+                            value={formData.representanteLegal}
+                            onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+                            placeholder="Nombre del representante legal"
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Email</label>
+                        <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            placeholder="correo@ejemplo.com (Opcional)"
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Teléfono</label>
+                        <input
+                            type="tel"
+                            value={formData.telefono}
+                            onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                            placeholder="Número de teléfono (Opcional)"
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Dirección</label>
+                        <textarea
+                            value={formData.direccion}
+                            onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                            rows="2"
+                            placeholder="Dirección del cliente (Opcional)"
+                        />
+                    </div>
+
+                    <div className="form-actions">
+                        <button type="button" onClick={onClose} className="btn-cancel">
+                            Cancelar
+                        </button>
+                        <button type="submit" disabled={saving || !isFormValid} className="btn-save">
+                            {saving ? 'Guardando...' : 'Crear Cliente'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * AdminClientEditModal - Modal for editing an existing client
+ */
+function AdminClientEditModal({ client, vendedores, onClose, onSuccess }) {
+    const [formData, setFormData] = useState({
+        nit: client.nit || '',
+        nombre: client.nombre || '',
+        administrador: client.administrador || '',
+        representanteLegal: client.representanteLegal || '',
+        email: client.email || '',
+        telefono: client.telefono || '',
+        direccion: client.direccion || '',
+        vendedorId: client.vendedorAsignadoId || ''
+    });
+    const [saving, setSaving] = useState(false);
+    const toast = useToast();
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        if (!formData.vendedorId) {
+            toast.warning('Debe seleccionar un vendedor');
+            return;
+        }
+
+        setSaving(true);
+
+        try {
+            await client.patch(`/admin/clients/${client.id}`, formData);
+            toast.success('¡Cliente actualizado exitosamente!');
+            onSuccess();
+        } catch (error) {
+            console.error('Error al actualizar cliente:', error);
+            let errorMessage = 'Error al actualizar cliente';
+            const serverData = error.response?.data;
+
+            if (serverData) {
+                const messageStr = typeof serverData === 'string' ? serverData : serverData.message;
+                if (messageStr && messageStr.length < 200) {
+                    errorMessage = messageStr;
+                }
+            }
+
+            toast.error(errorMessage);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const isFormValid = formData.nit.trim() && formData.nombre.trim() &&
+        formData.administrador.trim() && formData.representanteLegal.trim() &&
+        formData.vendedorId;
+
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+                <div className="modal-header">
+                    <h3>
+                        <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>edit</span>
+                        Editar Cliente
+                    </h3>
+                    <button className="btn-close" onClick={onClose}>
+                        <span className="material-icons-round">close</span>
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="client-form">
+                    <div className="form-group">
+                        <label>
+                            Asignar a Vendedor <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
+                        </label>
+                        <select
+                            value={formData.vendedorId}
+                            onChange={(e) => setFormData({ ...formData, vendedorId: e.target.value })}
+                            required
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                border: '1px solid #e5e7eb',
+                                fontSize: '0.95rem',
+                                background: formData.vendedorId ? '#f0fdf4' : 'white'
+                            }}
+                        >
+                            <option value="">-- Seleccionar vendedor --</option>
+                            {vendedores.map(v => (
+                                <option key={v.id} value={v.id}>{v.username}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <input
+                            type="text"
+                            value={formData.nit}
+                            onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <input
+                            type="text"
+                            value={formData.nombre}
+                            onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <input
                             type="text"
                             value={formData.administrador}
                             onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
@@ -435,35 +677,31 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
                     </div>
 
                     <div className="form-group">
-                        <label>Email <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <label>Email</label>
                         <input
                             type="email"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="correo@ejemplo.com"
-                            required
+                            placeholder="Opcional"
                         />
                     </div>
 
                     <div className="form-group">
-                        <label>Teléfono <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <label>Teléfono</label>
                         <input
                             type="tel"
                             value={formData.telefono}
                             onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                            placeholder="Número de teléfono"
-                            required
+                            placeholder="Opcional"
                         />
                     </div>
 
                     <div className="form-group">
-                        <label>Dirección <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
+                        <label>Dirección</label>
                         <textarea
                             value={formData.direccion}
                             onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
                             rows="2"
-                            placeholder="Dirección del cliente"
-                            required
                         />
                     </div>
 
@@ -472,7 +710,7 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
                             Cancelar
                         </button>
                         <button type="submit" disabled={saving || !isFormValid} className="btn-save">
-                            {saving ? 'Guardando...' : 'Crear Cliente'}
+                            {saving ? 'Guardando...' : 'Actualizar Cliente'}
                         </button>
                     </div>
                 </form>

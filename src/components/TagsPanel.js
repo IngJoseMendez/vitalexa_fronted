@@ -147,7 +147,7 @@ export default function TagsPanel() {
             )}
 
             {showModal && (
-                <div className="modal-overlay" onClick={() => setShowModal(false)}>
+                <div className="modal-overlay">
                     <div className="modal-content animate-scale-in" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3>{editingTag ? 'Editar Etiqueta' : 'Nueva Etiqueta'}</h3>

@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
+
 import client from '../api/client';
-import { tagService } from '../api/tagService'; // Import Tag service
 import { useToast } from '../components/ToastContainer';
-import { useConfirm } from '../components/ConfirmDialog';
-import NotificationService from '../services/NotificationService'; // Import Service
-import TagsPanel from '../components/TagsPanel'; // Import TagsPanel
-import PromotionsPanel from '../components/PromotionsPanel'; // Import PromotionsPanel
-import AdminClientsPanel from '../components/AdminClientsPanel'; // Import AdminClientsPanel
-import { TagBadge, TagSelect, TagFilterBar } from '../components/TagComponents';
+import NotificationService from '../services/NotificationService';
+import TagsPanel from '../components/TagsPanel';
+import PromotionsPanel from '../components/PromotionsPanel';
+import AdminClientsPanel from '../components/AdminClientsPanel';
+import ProductsPanel from '../components/ProductsPanel';
+import AdminDiscountSection from '../components/AdminDiscountSection';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
 import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
@@ -39,6 +39,12 @@ function AdminDashboard() {
           onClick={() => setActiveTab('orders')}
         >
           <span className="material-icons-round">assignment</span> Órdenes
+        </button>
+        <button
+          className={activeTab === 'nueva-venta' ? 'active' : ''}
+          onClick={() => setActiveTab('nueva-venta')}
+        >
+          <span className="material-icons-round">add_shopping_cart</span> Nueva Venta
         </button>
         <button
           className={activeTab === 'products' ? 'active' : ''}
@@ -74,6 +80,7 @@ function AdminDashboard() {
 
       <div className="dashboard-content">
         {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'clients' && <AdminClientsPanel />}
         {activeTab === 'tags' && <TagsPanel />}
@@ -99,6 +106,10 @@ function OrdersPanel() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [vendedores, setVendedores] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [selectedVendedor, setSelectedVendedor] = useState('');
+  const [selectedCliente, setSelectedCliente] = useState('');
 
   // ✅ NEW STATE FOR ASSORTMENT
   const [showAssortmentModal, setShowAssortmentModal] = useState(false);
@@ -120,8 +131,39 @@ function OrdersPanel() {
     }
   }, [toast]);
 
+  const fetchVendedores = useCallback(async () => {
+    try {
+      const response = await client.get('/admin/clients/vendedores');
+      setVendedores(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar vendedores:', error);
+    }
+  }, []);
+
+  const fetchClientesPorVendedor = useCallback(async (vendedorUsername) => {
+    try {
+      // Find ID for the username to use the new endpoint
+      const vendorObj = vendedores.find(v => v.username === vendedorUsername);
+      const vendorId = vendorObj ? vendorObj.id : null;
+
+      if (!vendorId) {
+        console.warn('No se encontró ID para el vendedor:', vendedorUsername);
+        setClientes([]);
+        return;
+      }
+
+      // Use new endpoint logic
+      const response = await client.get(`/admin/clients/seller/${vendorId}`);
+      setClientes(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar clientes:', error);
+      setClientes([]);
+    }
+  }, [vendedores]);
+
   useEffect(() => {
     fetchOrders();
+    fetchVendedores();
 
     // ✅ LISTENER PARA AUTO-ACTUALIZACIÓN AL RECIBIR NOTIFICACIÓN
     const handleNewOrder = () => {
@@ -136,7 +178,7 @@ function OrdersPanel() {
       window.removeEventListener('new-order-notification', handleNewOrder);
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, fetchVendedores]);
 
   const changeStatus = async (orderId, newStatus) => {
     try {
@@ -227,6 +269,16 @@ function OrdersPanel() {
 
   const filteredOrders = orders
     .filter(order => {
+      // Vendor filter
+      if (selectedVendedor && order.vendedor !== selectedVendedor) {
+        return false;
+      }
+
+      // Client filter
+      if (selectedCliente && order.cliente !== selectedCliente) {
+        return false;
+      }
+
       // Invoice search filter (if provided)
       if (invoiceSearch.trim()) {
         const searchStr = invoiceSearch.toLowerCase().trim();
@@ -292,34 +344,120 @@ function OrdersPanel() {
           </button>
 
           {/* Invoice Search Input */}
-          <div className="invoice-search-box" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
-            <input
-              type="text"
-              placeholder="Buscar por factura..."
-              value={invoiceSearch}
-              onChange={(e) => setInvoiceSearch(e.target.value)}
-              style={{
-                padding: '0.5rem 1rem',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                fontSize: '0.9rem',
-                width: '180px'
-              }}
-            />
-            {invoiceSearch && (
-              <button
-                onClick={() => setInvoiceSearch('')}
+          <div className="invoice-search-box" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
+              <input
+                type="text"
+                placeholder="Buscar por factura..."
+                value={invoiceSearch}
+                onChange={(e) => setInvoiceSearch(e.target.value)}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  padding: '4px'
+                  padding: '0.5rem 1rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '0.9rem',
+                  width: '180px'
+                }}
+              />
+              {invoiceSearch && (
+                <button
+                  onClick={() => setInvoiceSearch('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: '4px'
+                  }}
+                >
+                  <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                </button>
+              )}
+            </div>
+
+            {/* Vendor Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>badge</span>
+              <select
+                value={selectedVendedor}
+                onChange={(e) => {
+                  setSelectedVendedor(e.target.value);
+                  setSelectedCliente('');
+                  if (e.target.value) {
+                    fetchClientesPorVendedor(e.target.value);
+                  } else {
+                    setClientes([]);
+                  }
+                }}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '0.9rem',
+                  background: selectedVendedor ? '#f0fdf4' : 'white'
                 }}
               >
-                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
-              </button>
+                <option value="">Todos los vendedores</option>
+                {vendedores.map(v => (
+                  <option key={v.id} value={v.username}>{v.username}</option>
+                ))}
+              </select>
+              {selectedVendedor && (
+                <button
+                  onClick={() => {
+                    setSelectedVendedor('');
+                    setClientes([]);
+                    setSelectedCliente('');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: '4px'
+                  }}
+                >
+                  <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                </button>
+              )}
+            </div>
+
+            {/* Client Filter */}
+            {selectedVendedor && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>person</span>
+                <select
+                  value={selectedCliente}
+                  onChange={(e) => setSelectedCliente(e.target.value)}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    background: selectedCliente ? '#f0fdf4' : 'white'
+                  }}
+                >
+                  <option value="">Todos los clientes</option>
+                  {clientes.map(c => (
+                    <option key={c.id} value={c.nombre}>{c.nombre}</option>
+                  ))}
+                </select>
+                {selectedCliente && (
+                  <button
+                    onClick={() => setSelectedCliente('')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-secondary)',
+                      padding: '4px'
+                    }}
+                  >
+                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -581,7 +719,7 @@ function OrdersPanel() {
                       <button
                         className="btn-complete"
                         onClick={() => changeStatus(order.id, 'COMPLETADO')}
-                        style={{ color: '#ffffff' }} // Keep white if background is dark, or adjust if needed. Assuming btn-complete has dark bg.
+                        style={{ backgroundColor: '#10b981', color: '#ffffff', border: 'none' }}
                       >
                         <span className="material-icons-round">done_all</span> Completar
                       </button>
@@ -640,6 +778,7 @@ function OrdersPanel() {
 function EditOrderWindow({ order, onClose, onSuccess }) {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
   const [formData, setFormData] = useState({
     clientId: null,
     items: [],
@@ -847,7 +986,7 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content-large" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3><span className="material-icons-round">edit_note</span> Editar Orden #{order.id.substring(0, 8)}</h3>
@@ -937,9 +1076,49 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
           {/* ✅ SECCIÓN MEJORADA: Solo productos con stock */}
           <div className="form-section">
             <h4>➕ Agregar más productos</h4>
+
+            {/* Barra de búsqueda */}
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem',
+              marginBottom: '1rem',
+              alignItems: 'center'
+            }}>
+              <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '20px' }}>search</span>
+              <input
+                type="text"
+                placeholder="Buscar producto..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '0.9rem'
+                }}
+              />
+              {productSearch && (
+                <button
+                  type="button"
+                  onClick={() => setProductSearch('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: '4px'
+                  }}
+                >
+                  <span className="material-icons-round">close</span>
+                </button>
+              )}
+            </div>
+
             <div className="product-add-grid">
               {products
-                .filter(p => p.active)
+                .filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase()))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre))
                 .map(product => {
                   const hasStock = product.stock > 0;
                   return (
@@ -962,25 +1141,11 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
                   );
                 })}
             </div>
-            {products.filter(p => p.active).length === 0 && (
+            {products.filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
               <p className="no-products-available">
-                <span className="material-icons-round">block</span> No hay productos activos
+                <span className="material-icons-round">block</span> {productSearch ? 'No se encontraron productos' : 'No hay productos activos'}
               </p>
             )}
-          </div>
-
-          <div className="form-section">
-            <h4>📝 Notas</h4>
-            <textarea
-              value={formData.notas}
-              onChange={(e) => {
-                setHasChanges(true);
-                setFormData(prev => ({ ...prev, notas: e.target.value }));
-              }}
-              rows="3"
-              placeholder="Notas adicionales sobre la orden..."
-              className="form-textarea"
-            />
           </div>
 
           <div className="form-actions">
@@ -1003,757 +1168,444 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
 
 
 // ============================================
-// PANEL DE PRODUCTOS MEJORADO
+// PANEL NUEVA VENTA PARA ADMIN
 // ============================================
-// ============================================
-// PANEL DE PRODUCTOS MEJORADO
-// ============================================
-function ProductsPanel({ refreshTrigger }) {
+function AdminNuevaVentaPanel() {
+  const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
-  const [tags, setTags] = useState([]);
+  const [selectedClient, setSelectedClient] = useState('');
+  const [selectedVendedor, setSelectedVendedor] = useState('');
+  const [vendedores, setVendedores] = useState([]);
+  const [cart, setCart] = useState([]);
+  // const [promotionsCart, setPromotionsCart] = useState([]); // Unused
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTagId, setActiveTagId] = useState(null);
-  const [sortOrder, setSortOrder] = useState('az'); // 'az', 'za', 'newest'
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
-  const [gridColumns, setGridColumns] = useState(() => {
-    const saved = localStorage.getItem('adminGridColumns');
-    return saved ? parseInt(saved) : 2;
-  });
+  const [allowNoClient, setAllowNoClient] = useState(false);
+  const [notas, setNotas] = useState('');
+  const [includeFreight, setIncludeFreight] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState('asc'); // Sort state for clients
+  const [clientsLoading, setClientsLoading] = useState(false); // Add specific loading state for clients
   const toast = useToast();
-  const confirm = useConfirm();
 
-  useEffect(() => {
-    localStorage.setItem('adminGridColumns', gridColumns.toString());
-  }, [gridColumns]);
-
-  const fetchTags = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await tagService.getAll();
-      setTags(res.data);
+      const [vendRes, prodRes] = await Promise.all([
+        client.get('/admin/clients/vendedores'),
+        client.get('/admin/products')
+      ]);
+      setVendedores(vendRes.data || []);
+      setProducts(prodRes.data.content || prodRes.data || []);
     } catch (error) {
-      console.error('Error al cargar etiquetas');
-    }
-  }, []);
-
-  const fetchProducts = useCallback(async (showLoading = true) => {
-    try {
-      // Only show loading on initial load, not on refreshes
-      if (showLoading && products.length === 0) {
-        setLoading(true);
-      }
-
-      // Save scroll position before fetch
-      const scrollY = window.scrollY;
-
-      let url = '/admin/products';
-      if (activeTagId) {
-        url = `/admin/products/tag/${activeTagId}`;
-      }
-      const response = await client.get(url);
-      setProducts(response.data.content || response.data || []);
-
-      // Restore scroll position after state update
-      requestAnimationFrame(() => {
-        window.scrollTo(0, scrollY);
-      });
-    } catch (error) {
-      console.error('Error al cargar productos:', error);
-      toast.error('Error al cargar productos');
+      console.error('Error al cargar datos:', error);
+      toast.error('Error al cargar datos');
     } finally {
       setLoading(false);
     }
-  }, [activeTagId, toast, products.length]);
+  }, [toast]);
 
   useEffect(() => {
-    // Initial load shows loading, refreshes don't
-    const isRefresh = refreshTrigger > 0;
-    fetchProducts(!isRefresh);
-    fetchTags();
-  }, [refreshTrigger, activeTagId, fetchProducts, fetchTags]);
+    fetchData();
+  }, [fetchData]);
 
-  const toggleStatus = async (productId, currentStatus) => {
+  const fetchClientesPorVendedor = async (vendorId) => {
     try {
-      await client.patch(`/admin/products/${productId}/estado?activo=${!currentStatus}`);
-      toast.success(currentStatus ? 'Producto desactivado' : 'Producto activado');
-      // Update local state directly to avoid scroll jump
-      setProducts(prev => prev.map(p =>
-        p.id === productId ? { ...p, active: !currentStatus } : p
+      setClientsLoading(true);
+      // New endpoint call
+      const response = await client.get(`/admin/clients/seller/${vendorId}`);
+      setClients(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar clientes:', error);
+      setClients([]);
+    } finally {
+      setClientsLoading(false);
+    }
+  };
+
+  const handleVendorChange = (vendorId) => {
+    setSelectedVendedor(vendorId);
+    setSelectedClient('');
+    if (vendorId) {
+      fetchClientesPorVendedor(vendorId);
+    } else {
+      setClients([]);
+    }
+  };
+
+  const addToCart = (product) => {
+    const existingItem = cart.find(item => item.productId === product.id);
+    if (existingItem) {
+      setCart(cart.map(item =>
+        item.productId === product.id
+          ? { ...item, cantidad: item.cantidad + 1 }
+          : item
       ));
-    } catch (error) {
-      console.error('Error al cambiar estado:', error);
-      toast.error('Error al cambiar el estado del producto');
+    } else {
+      setCart([...cart, {
+        productId: product.id,
+        nombre: product.nombre,
+        precio: product.precio,
+        cantidad: 1,
+        stockDisponible: product.stock,
+        allowOutOfStock: false
+      }]);
     }
   };
 
-
-
-  // Hard delete - permanently removes from database
-  const handleHardDelete = async (product) => {
-    const confirmed = await confirm({
-      title: '⚠️ ELIMINAR PERMANENTEMENTE',
-      message: `¿Estás SEGURO de eliminar "${product.nombre}" PERMANENTEMENTE?\n\nEsta acción eliminará el producto de la base de datos y NO SE PUEDE DESHACER.\n\nTodos los datos asociados se perderán.`,
-      confirmText: 'Sí, eliminar permanentemente',
-      cancelText: 'Cancelar',
-      isDangerous: true
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await client.delete(`/admin/products/${product.id}?hard=true`);
-      toast.success('Producto eliminado permanentemente');
-      fetchProducts();
-    } catch (error) {
-      console.error('Error al eliminar producto:', error);
-      toast.error('Error al eliminar producto: ' + (error.response?.data?.message || error.message));
-    }
+  const removeFromCart = (productId) => {
+    setCart(cart.filter(item => item.productId !== productId));
   };
 
-  // Filter by search term and status
-  const filteredProducts = products
-    .filter(p => {
-      // Search filter
-      const matchesSearch = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.descripcion?.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // Status filter
-      const matchesStatus = statusFilter === 'all' ||
-        (statusFilter === 'active' && p.active) ||
-        (statusFilter === 'inactive' && !p.active);
-
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      switch (sortOrder) {
-        case 'az':
-          return a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
-        case 'za':
-          return b.nombre.localeCompare(a.nombre, 'es', { sensitivity: 'base' });
-        case 'newest':
-          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-        default:
-          return 0;
-      }
-    });
-
-  if (loading) {
-    return <div className="loading">Cargando productos...</div>;
-  }
-
-  return (
-    <div className="products-panel">
-      <div className="panel-header">
-        <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>inventory</span> Gestión de Productos</h2>
-        <div className="header-actions">
-          <input
-            type="text"
-            placeholder="🔍 Buscar productos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          <div className="grid-columns-selector">
-            {[1, 2, 3].map(cols => (
-              <button
-                key={cols}
-                className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
-                onClick={() => setGridColumns(cols)}
-                title={`${cols} columnas`}
-              >
-                <span className="material-icons-round">dashboard</span>
-                {cols}
-              </button>
-            ))}
-          </div>
-          <button className="btn-add" onClick={() => setShowForm(true)}>
-            + Nuevo Producto
-          </button>
-        </div>
-      </div>
-
-      {/* Filters Row */}
-      <div className="products-filters" style={{
-        display: 'flex',
-        gap: '1rem',
-        marginBottom: '1rem',
-        flexWrap: 'wrap',
-        alignItems: 'center'
-      }}>
-        {/* Sort Order */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-muted)' }}>sort</span>
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'white',
-              fontFamily: 'inherit',
-              fontSize: '0.9rem',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="az">A → Z</option>
-            <option value="za">Z → A</option>
-            <option value="newest">Más recientes</option>
-          </select>
-        </div>
-
-        {/* Status Filter */}
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`filter-btn ${statusFilter === 'all' ? 'active' : ''}`}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: statusFilter === 'all' ? '2px solid var(--primary)' : '1px solid var(--border)',
-              background: statusFilter === 'all' ? 'rgba(99, 102, 241, 0.1)' : 'white',
-              color: statusFilter === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
-              fontWeight: statusFilter === 'all' ? '600' : '500',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              transition: 'all 0.2s'
-            }}
-          >
-            Todos ({products.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('active')}
-            className={`filter-btn ${statusFilter === 'active' ? 'active' : ''}`}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: statusFilter === 'active' ? '2px solid #10b981' : '1px solid var(--border)',
-              background: statusFilter === 'active' ? 'rgba(16, 185, 129, 0.1)' : 'white',
-              color: statusFilter === 'active' ? '#10b981' : 'var(--text-secondary)',
-              fontWeight: statusFilter === 'active' ? '600' : '500',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
-            Activos ({products.filter(p => p.active).length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('inactive')}
-            className={`filter-btn ${statusFilter === 'inactive' ? 'active' : ''}`}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: statusFilter === 'inactive' ? '2px solid #ef4444' : '1px solid var(--border)',
-              background: statusFilter === 'inactive' ? 'rgba(239, 68, 68, 0.1)' : 'white',
-              color: statusFilter === 'inactive' ? '#ef4444' : 'var(--text-secondary)',
-              fontWeight: statusFilter === 'inactive' ? '600' : '500',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }}></span>
-            Inactivos ({products.filter(p => !p.active).length})
-          </button>
-        </div>
-      </div>
-
-      <TagFilterBar
-        tags={tags}
-        activeTagId={activeTagId}
-        onSelectTag={setActiveTagId}
-        onClear={() => setActiveTagId(null)}
-      />
-
-      <div className="products-stats">
-        <span>Total: {products.length}</span>
-        <span>Activos: {products.filter(p => p.active).length}</span>
-        <span>Inactivos: {products.filter(p => !p.active).length}</span>
-      </div>
-
-      {filteredProducts.length === 0 ? (
-        <div className="empty-state">
-          <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>search_off</span><br />No se encontraron productos</p>
-        </div>
-      ) : (
-        <div className="products-grid" style={{
-          gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
-        }}>
-          {filteredProducts.map(product => (
-            <div key={product.id} className="product-card">
-              <div className={`product-status-blob ${product.active ? 'active' : 'inactive'}`} />
-
-              <div className="product-image">
-                <img
-                  src={product.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E'}
-                  alt={product.nombre}
-                  onError={(e) => {
-                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
-                  }}
-                />
-              </div>
-
-              <div className="product-info">
-                <h3>{product.nombre}</h3>
-
-                {product.tagName && (
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <TagBadge tagName={product.tagName} />
-                  </div>
-                )}
-
-                <div className="product-meta">
-                  <span className="product-price">${parseFloat(product.precio).toFixed(2)}</span>
-                  <span className={`product-stock-badge ${product.stock < 10 ? 'low' : ''}`}>
-                    <span className="material-icons-round" style={{ fontSize: '14px' }}>inventory_2</span> {product.stock}
-                  </span>
-                </div>
-              </div>
-
-              <div className="product-actions-overlay">
-                {/* Edit button - always visible regardless of product state */}
-                <button onClick={() => setEditingProduct(product)} className="btn-icon-action edit" title="Editar producto">
-                  <span className="material-icons-round">edit</span>
-                </button>
-
-                {/* Toggle active/inactive status */}
-                <button onClick={() => toggleStatus(product.id, product.active)} className="btn-icon-action toggle" title={product.active ? "Desactivar producto" : "Activar producto"}>
-                  <span className="material-icons-round">{product.active ? 'visibility_off' : 'visibility'}</span>
-                </button>
-
-                {/* Hard delete - permanent deletion */}
-                <button
-                  onClick={() => handleHardDelete(product)}
-                  className="btn-icon-action delete"
-                  title="Eliminar permanentemente (no se puede deshacer)"
-                >
-                  <span className="material-icons-round">delete_forever</span>
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {(showForm || editingProduct) && (
-        <ProductModal
-          product={editingProduct}
-          onClose={() => {
-            setShowForm(false);
-            setEditingProduct(null);
-          }}
-          onSuccess={() => {
-            fetchProducts();
-            setShowForm(false);
-            setEditingProduct(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ============================================
-// FORMULARIO DE PRODUCTO MEJORADO
-// ============================================
-function ProductModal({ product, onClose, onSuccess }) {
-  const [formData, setFormData] = useState({
-    nombre: product?.nombre || '',
-    descripcion: product?.descripcion || '',
-    precio: product?.precio || '',
-    stock: product?.stock || '',
-    reorderPoint: product?.reorderPoint || 10,
-    active: product?.active !== undefined ? product.active : true,
-    tagId: product?.tagId || null
-  });
-  const [tags, setTags] = useState([]);
-  const [imageFile, setImageFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const toast = useToast();
-
-  useEffect(() => {
-    fetchTags();
-  }, []);
-
-  const fetchTags = async () => {
-    try {
-      const res = await tagService.getAll();
-      setTags(res.data);
-    } catch (error) {
-      console.error('Error al cargar etiquetas');
+  const updateQuantity = (productId, newQuantity) => {
+    if (newQuantity <= 0) {
+      removeFromCart(productId);
+      return;
     }
+    setCart(cart.map(item =>
+      item.productId === productId
+        ? { ...item, cantidad: newQuantity }
+        : item
+    ));
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
+  const calculateTotal = () => {
+    const productsTotal = cart.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    return productsTotal.toFixed(2);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setUploading(true);
-
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('nombre', formData.nombre);
-      formDataToSend.append('descripcion', formData.descripcion || '');
-      formDataToSend.append('precio', formData.precio);
-      formDataToSend.append('stock', formData.stock);
-      formDataToSend.append('reorderPoint', formData.reorderPoint);
-
-      if (imageFile) {
-        formDataToSend.append('image', imageFile);
-      }
-
-      if (product) {
-        formDataToSend.append('active', formData.active);
-        const url = `/admin/products/${product.id}${formData.tagId ? `?tagId=${formData.tagId}` : ''}`;
-        await client.put(url, formDataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Producto actualizado exitosamente');
-      } else {
-        const url = `/admin/products${formData.tagId ? `?tagId=${formData.tagId}` : ''}`;
-        await client.post(url, formDataToSend, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success('Producto creado exitosamente');
-      }
-
-      onSuccess();
-    } catch (error) {
-      console.error('Error completo:', error);
-      const errorMsg = error.response?.data?.message || error.response?.data || error.message || 'Error desconocido';
-      toast.error('Error al guardar el producto: ' + errorMsg);
-    } finally {
-      setUploading(false);
+  const handleSubmitOrder = async () => {
+    if (cart.length === 0) {
+      toast.warning('Agrega productos al carrito');
+      return;
     }
-  };
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{product ? '✏️ Editar Producto' : '➕ Nuevo Producto'}</h3>
-          <button className="btn-close" onClick={onClose}>✕</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="product-form">
-          <div className="form-group">
-            <label>Nombre *</label>
-            <input
-              type="text"
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              required
-              placeholder="Nombre del producto"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Descripción</label>
-            <textarea
-              value={formData.descripcion}
-              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-              rows="3"
-              placeholder="Descripción del producto"
-            />
-          </div>
-
-          <TagSelect
-            tags={tags}
-            value={formData.tagId}
-            onChange={(val) => setFormData({ ...formData, tagId: val })}
-            disabled={uploading}
-          />
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Precio *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.precio}
-                onChange={(e) => setFormData({ ...formData, precio: e.target.value })}
-                required
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Stock *</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.stock}
-                onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                required
-                placeholder="0"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Punto de Reorden</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.reorderPoint}
-                onChange={(e) => setFormData({ ...formData, reorderPoint: e.target.value })}
-                placeholder="10"
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Imagen del producto</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-            />
-
-            {preview && (
-              <div className="image-preview">
-                <img src={preview} alt="Preview" />
-              </div>
-            )}
-
-            {product?.imageUrl && !preview && (
-              <div className="current-image">
-                <p>Imagen actual:</p>
-                <img
-                  src={product.imageUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E'}
-                  alt={product.nombre}
-                  onError={(e) => {
-                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f0f0f0" width="200" height="200"/%3E%3Ctext fill="%23999" font-family="sans-serif" font-size="14" dy="10.5" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {product && (
-            <div className="form-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={formData.active}
-                  onChange={(e) => setFormData({ ...formData, active: e.target.checked })}
-                />
-                Producto activo
-              </label>
-            </div>
-          )}
-
-          <div className="form-actions">
-            <button type="button" onClick={onClose} className="btn-cancel">
-              Cancelar
-            </button>
-            <button type="submit" disabled={uploading} className="btn-save">
-              {uploading ? '⏳ Guardando...' : (product ? '💾 Actualizar' : '➕ Crear')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// ADMIN DISCOUNT SECTION COMPONENT
-// ============================================
-function AdminDiscountSection({ orderId, onSuccess }) {
-  const [discounts, setDiscounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState(null);
-  const [showCustom, setShowCustom] = useState(false);
-  const [customPercentage, setCustomPercentage] = useState('');
-  const toast = useToast();
-
-  // Fetch discounts for this order
-  const fetchDiscounts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const discountService = (await import('../api/discountService')).default;
-      const response = await discountService.getOrderDiscounts(orderId);
-      setDiscounts(response.data || []);
-    } catch (error) {
-      if (error.response?.status !== 404) {
-        console.error('Error fetching discounts:', error);
-      }
-      setDiscounts([]);
-    } finally {
-      setLoading(false);
+    if (!selectedVendedor) {
+      toast.warning('Selecciona un vendedor');
+      return;
     }
-  }, [orderId]);
 
-  useEffect(() => {
-    fetchDiscounts();
-  }, [fetchDiscounts]);
-
-  // Apply preset discount
-  const applyPresetDiscount = async (percentage) => {
-    try {
-      setApplying(percentage);
-      const discountService = (await import('../api/discountService')).default;
-
-      if (percentage === 10) {
-        await discountService.applyDiscount10(orderId);
-      } else if (percentage === 12) {
-        await discountService.applyDiscount12(orderId);
-      } else if (percentage === 15) {
-        await discountService.applyDiscount15(orderId);
-      }
-
-      toast.success(`Descuento del ${percentage}% aplicado`);
-      fetchDiscounts();
-      if (onSuccess) onSuccess();
-    } catch (error) {
-      console.error('Error applying discount:', error);
-      toast.error('Error al aplicar descuento: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setApplying(null);
-    }
-  };
-
-  // Apply custom discount
-  const applyCustomDiscount = async () => {
-    if (!customPercentage || parseFloat(customPercentage) <= 0 || parseFloat(customPercentage) > 100) {
-      toast.warning('Ingrese un porcentaje válido (1-100)');
+    if (!selectedClient && !allowNoClient) {
+      toast.warning('Selecciona un cliente o marca la casilla');
       return;
     }
 
     try {
-      setApplying('custom');
-      const discountService = (await import('../api/discountService')).default;
-      await discountService.applyCustomDiscount({
-        orderId,
-        percentage: parseFloat(customPercentage)
-      });
+      const orderData = {
+        clientId: selectedClient || null,
+        items: cart.map(item => ({
+          productId: item.productId,
+          cantidad: item.cantidad,
+          allowOutOfStock: item.allowOutOfStock
+        })),
+        promotionIds: [],
+        notas: notas.trim() || null,
+        includeFreight: includeFreight,
+        sellerId: selectedVendedor
+      };
 
-      toast.success(`Descuento del ${customPercentage}% aplicado`);
-      setCustomPercentage('');
-      setShowCustom(false);
-      fetchDiscounts();
-      if (onSuccess) onSuccess();
+      await client.post('/admin/orders', orderData);
+      toast.success('¡Venta registrada exitosamente!');
+
+      setNotas('');
+      setCart([]);
+      // setPromotionsCart([]); // Unused
+      setIncludeFreight(false);
+      setSelectedClient('');
+      setAllowNoClient(false);
     } catch (error) {
-      console.error('Error applying custom discount:', error);
-      toast.error('Error al aplicar descuento: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setApplying(null);
+      console.error('Error al crear orden:', error);
+      toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
     }
   };
 
-  // Check if there's an active discount
-  const hasActiveDiscount = discounts.some(d => d.status === 'APPLIED');
+  if (loading) {
+    return <div className="loading">Cargando...</div>;
+  }
+
+  const filteredProducts = products.filter(p =>
+    p.nombre.toLowerCase().includes(productSearch.toLowerCase())
+  ).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const filteredClients = clients.filter(c =>
+    c.nombre.toLowerCase().includes(clientSearch.toLowerCase())
+  ).sort((a, b) => {
+    const nameA = a.nombre || '';
+    const nameB = b.nombre || '';
+    return sortOrder === 'asc'
+      ? nameA.localeCompare(nameB)
+      : nameB.localeCompare(nameA);
+  });
 
   return (
-    <div className="discount-section-admin">
-      <h4 className="discount-section-title">
-        <span className="material-icons-round">discount</span>
-        Descuentos
-      </h4>
+    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', padding: '1.5rem' }}>
+      {/* Productos */}
+      <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span className="material-icons-round">inventory_2</span>
+          Productos
+        </h3>
 
-      {/* Current Discounts */}
-      {loading ? (
-        <div className="discount-loading">Cargando...</div>
-      ) : discounts.length > 0 ? (
-        <div className="discount-badges">
-          {discounts.map(d => (
-            <span
-              key={d.id}
-              className={`discount-badge ${d.status?.toLowerCase()}`}
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+            <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>search</span>
+            <input
+              type="text"
+              placeholder="Buscar producto..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '0.6rem 1rem',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                fontSize: '0.9rem'
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', maxHeight: '500px', overflowY: 'auto' }}>
+            {filteredProducts.map(product => (
+              <div
+                key={product.id}
+                onClick={() => addToCart(product)}
+                style={{
+                  padding: '1rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  background: 'white'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
+                onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
+              >
+                <div style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem' }}>{product.nombre}</div>
+                <div style={{ color: 'var(--primary)', fontWeight: '700', marginBottom: '0.25rem' }}>${parseFloat(product.precio).toFixed(2)}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Stock: {product.stock}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Carrito y Vendedor */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {/* Vendedor */}
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="material-icons-round">badge</span>
+            Vendedor
+          </h3>
+
+          <select
+            value={selectedVendedor}
+            onChange={(e) => handleVendorChange(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              fontSize: '0.95rem'
+            }}
+          >
+            <option value="">Seleccionar vendedor</option>
+            {vendedores.map(v => (
+              <option key={v.id} value={v.id}>{v.username}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Cliente */}
+        {selectedVendedor && (
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-icons-round">person</span>
+              Cliente
+            </h3>
+
+            <input
+              type="text"
+              placeholder="Buscar cliente..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.6rem',
+                marginBottom: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                fontSize: '0.9rem'
+              }}
+            />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {clientsLoading ? 'Cargando...' : `${filteredClients.length} clientes`}
+              </div>
+              <button
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                style={{
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  padding: '2px 6px',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: 'var(--text-secondary)'
+                }}
+                title="Ordenar alfabéticamente"
+              >
+                <span className="material-icons-round" style={{ fontSize: '14px' }}>sort_by_alpha</span>
+                {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+              </button>
+            </div>
+
+            <select
+              value={selectedClient}
+              onChange={(e) => {
+                setSelectedClient(e.target.value);
+                setAllowNoClient(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                fontSize: '0.95rem',
+                marginBottom: '0.75rem'
+              }}
             >
-              {d.percentage}% - {d.status === 'APPLIED' ? 'Activo' : 'Revocado'}
-            </span>
-          ))}
-        </div>
-      ) : null}
+              <option value="">Seleccionar cliente</option>
+              {filteredClients.map(c => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
 
-      {/* Discount Buttons */}
-      {!hasActiveDiscount && (
-        <div className="discount-buttons-row">
-          <button
-            className="btn-discount"
-            onClick={() => applyPresetDiscount(10)}
-            disabled={applying !== null}
-          >
-            {applying === 10 ? '...' : '10%'}
-          </button>
-          <button
-            className="btn-discount"
-            onClick={() => applyPresetDiscount(12)}
-            disabled={applying !== null}
-          >
-            {applying === 12 ? '...' : '12%'}
-          </button>
-          <button
-            className="btn-discount"
-            onClick={() => applyPresetDiscount(15)}
-            disabled={applying !== null}
-          >
-            {applying === 15 ? '...' : '15%'}
-          </button>
-          <button
-            className="btn-discount custom"
-            onClick={() => setShowCustom(!showCustom)}
-            disabled={applying !== null}
-          >
-            <span className="material-icons-round">tune</span>
-          </button>
-        </div>
-      )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={allowNoClient}
+                onChange={(e) => {
+                  setAllowNoClient(e.target.checked);
+                  if (e.target.checked) setSelectedClient('');
+                }}
+              />
+              Venta sin cliente
+            </label>
+          </div>
+        )}
 
-      {/* Custom Discount Input */}
-      {showCustom && !hasActiveDiscount && (
-        <div className="custom-discount-row">
-          <input
-            type="number"
-            value={customPercentage}
-            onChange={(e) => setCustomPercentage(e.target.value)}
-            placeholder="Ej: 8"
-            min="0.1"
-            max="100"
-            step="0.1"
-          />
-          <span className="suffix">%</span>
-          <button
-            className="btn-apply-custom"
-            onClick={applyCustomDiscount}
-            disabled={applying === 'custom'}
-          >
-            {applying === 'custom' ? '...' : 'Aplicar'}
-          </button>
-        </div>
-      )}
+        {/* Carrito */}
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span className="material-icons-round">shopping_cart</span>
+            Carrito ({cart.length})
+          </h3>
 
-      {hasActiveDiscount && (
-        <div className="discount-active-note">
-          <span className="material-icons-round">check_circle</span>
-          Descuento ya aplicado
+          <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1rem' }}>
+            {cart.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>Carrito vacío</p>
+            ) : (
+              cart.map(item => (
+                <div key={item.productId} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.nombre}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>${parseFloat(item.precio).toFixed(2)}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      onClick={() => updateQuantity(item.productId, item.cantidad - 1)}
+                      style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      value={item.cantidad}
+                      onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                      style={{ width: '40px', padding: '0.25rem', textAlign: 'center', border: '1px solid #e5e7eb', borderRadius: '4px' }}
+                    />
+                    <button
+                      onClick={() => updateQuantity(item.productId, item.cantidad + 1)}
+                      style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => removeFromCart(item.productId)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div style={{ paddingTop: '1rem', borderTop: '2px solid #f3f4f6', marginBottom: '1rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', marginBottom: '0.75rem' }}>
+              <input
+                type="checkbox"
+                checked={includeFreight}
+                onChange={(e) => setIncludeFreight(e.target.checked)}
+              />
+              Incluir Flete
+            </label>
+
+            <div style={{ fontSize: '1.1rem', fontWeight: '700', textAlign: 'right', marginBottom: '1rem' }}>
+              Total: ${calculateTotal()}
+            </div>
+
+            <textarea
+              placeholder="Notas..."
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                marginBottom: '1rem',
+                fontSize: '0.9rem',
+                resize: 'vertical',
+                minHeight: '60px'
+              }}
+            />
+
+            <button
+              onClick={handleSubmitOrder}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              <span className="material-icons-round" style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}>check</span>
+              Finalizar Venta
+            </button>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
+// ============================================
+// COMPONENTES FALTANTES (Placeholders)
+// ============================================
+
+
+
+
 export default AdminDashboard;
+

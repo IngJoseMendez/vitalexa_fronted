@@ -1550,7 +1550,7 @@ function CreateGoalModal({ vendedor, existingGoal, onClose, onSuccess, toast }) 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>

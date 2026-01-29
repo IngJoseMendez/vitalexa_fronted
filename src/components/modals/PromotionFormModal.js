@@ -202,7 +202,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay">
             <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3>{promotion ? '✏️ Editar Promoción' : '➕ Nueva Promoción'}</h3>
@@ -395,7 +395,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                             style={{ background: 'white' }}
                                         >
                                             <option value="">Seleccione producto...</option>
-                                            {products.filter(p => p.active && p.id !== formData.mainProductId).map(product => (
+                                            {products.filter(p => p.active).map(product => (
                                                 <option key={product.id} value={product.id}>
                                                     {product.nombre}
                                                 </option>
