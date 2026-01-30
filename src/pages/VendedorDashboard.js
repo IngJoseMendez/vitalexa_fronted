@@ -271,13 +271,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const updateQuantity = (productId, newQuantity) => {
-
-
-    if (newQuantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-
     setCart(cart.map(item =>
       item.productId === productId
         ? { ...item, cantidad: newQuantity }
@@ -294,7 +287,10 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const calculateTotal = () => {
-    const productsTotal = cart.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    const productsTotal = cart.reduce((sum, item) => {
+      const q = parseFloat(item.cantidad) || 0;
+      return sum + (item.precio * q);
+    }, 0);
     const promotionsTotal = promotionsCart.reduce((sum, item) => sum + (item.packPrice || 0), 0);
     return productsTotal + promotionsTotal;
   };
@@ -689,14 +685,22 @@ function NuevaVentaPanel({ refreshTrigger }) {
                       </div>
                       <div className="cart-item-controls">
                         <div>
-                          <button onClick={() => updateQuantity(item.productId, item.cantidad - 1)} title="Reducir cantidad">−</button>
+                          <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1))} title="Reducir cantidad">−</button>
                           <input
                             type="number"
                             value={item.cantidad}
-                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateQuantity(item.productId, val === '' ? '' : parseInt(val) || 0);
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                updateQuantity(item.productId, 1);
+                              }
+                            }}
                             min="1"
                           />
-                          <button onClick={() => updateQuantity(item.productId, item.cantidad + 1)} title="Aumentar cantidad">+</button>
+                          <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)} title="Aumentar cantidad">+</button>
                         </div>
                         <button
                           className="btn-remove"
@@ -725,7 +729,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
           <button
             className="btn-finalizar-venta"
             onClick={handleSubmitOrder}
-            disabled={(cart.length === 0 && promotionsCart.length === 0) || (!selectedClient && !allowNoClient) || cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)}
+            disabled={
+              (cart.length === 0 && promotionsCart.length === 0) ||
+              (!selectedClient && !allowNoClient) ||
+              cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
+              cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
+            }
           >
             <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
             Finalizar Venta
