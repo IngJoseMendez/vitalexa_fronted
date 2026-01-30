@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import client from '../api/client';
+import apiClient from '../api/client';
 import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
@@ -142,7 +142,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const fetchVendedores = useCallback(async () => {
     if (!isAdminOrOwner) return;
     try {
-      const response = await client.get('/admin/clients/vendedores');
+      const response = await apiClient.get('/admin/clients/vendedores');
       setVendedores(response.data || []);
     } catch (error) {
       console.error('Error al cargar vendedores:', error);
@@ -151,7 +151,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
   const fetchClients = useCallback(async () => {
     try {
-      const response = await client.get('/vendedor/clients');
+      const response = await apiClient.get('/vendedor/clients');
       setClients(response.data);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
@@ -164,7 +164,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
       if (activeTagId) {
         url = `/vendedor/products/tag/${activeTagId}`;
       }
-      const response = await client.get(url);
+      const response = await apiClient.get(url);
       setProducts(response.data.content || response.data || []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
@@ -329,7 +329,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
       };
 
       const endpoint = isAdminOrOwner ? '/admin/orders' : '/vendedor/orders';
-      const res = await client.post(endpoint, orderData);
+      const res = await apiClient.post(endpoint, orderData);
 
       // Check if it was a split order (2 orders created)
       if (res.data && res.data.createdOrders && res.data.createdOrders.length > 1) {
@@ -785,7 +785,7 @@ function VentasCompletadasPanel() {
 
   const fetchCompletedOrders = async () => {
     try {
-      const response = await client.get('/vendedor/orders/my');
+      const response = await apiClient.get('/vendedor/orders/my');
       const completed = response.data.filter(order => order.estado === 'COMPLETADO');
       setOrders(completed);
     } catch (error) {
@@ -865,7 +865,7 @@ function ClientesPanel() {
 
   const fetchClients = async () => {
     try {
-      const response = await client.get('/vendedor/clients');
+      const response = await apiClient.get('/vendedor/clients');
       setClients(response.data);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
@@ -1009,7 +1009,7 @@ function ClientFormModal({ onClose, onSuccess }) {
     setSaving(true);
 
     try {
-      await client.post('/vendedor/clients', formData);
+      await apiClient.post('/vendedor/clients', formData);
       toast.success(`¡Cliente creado! Credenciales de acceso - Usuario: ${formData.nit} | Contraseña: ${formData.nit}`);
       onSuccess();
     } catch (error) {
@@ -1164,7 +1164,7 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
     setSaving(true);
 
     try {
-      await client.put(`/vendedor/clients/${clientData.id}`, formData);
+      await apiClient.patch(`/vendedor/clients/${clientData.id}`, formData);
       toast.success('¡Cliente actualizado exitosamente!');
       onSuccess();
     } catch (error) {
@@ -1288,7 +1288,7 @@ function MisVentasPanel() {
 
   const fetchMyOrders = async () => {
     try {
-      const response = await client.get('/vendedor/orders/my');
+      const response = await apiClient.get('/vendedor/orders/my');
       const pending = response.data.filter(order =>
         ['PENDIENTE', 'CONFIRMADO', 'PENDING_PROMOTION_COMPLETION'].includes(order.estado)
       );
@@ -1410,7 +1410,7 @@ function ProductosPanel() {
       if (activeTagId) {
         url = `/vendedor/products/tag/${activeTagId}`;
       }
-      const response = await client.get(url);
+      const response = await apiClient.get(url);
       setProducts(response.data.content || response.data || []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
@@ -1512,7 +1512,7 @@ function MisMetasPanel() {
     try {
       setLoading(true);
       setError(null);
-      const response = await client.get('/vendedor/sale-goals/my');
+      const response = await apiClient.get('/vendedor/sale-goals/my');
       setCurrentGoal(response.data);
     } catch (error) {
       console.error('Error al cargar meta actual:', error);
@@ -1528,7 +1528,7 @@ function MisMetasPanel() {
 
   const fetchGoalHistory = async () => {
     try {
-      const response = await client.get('/vendedor/sale-goals/history');
+      const response = await apiClient.get('/vendedor/sale-goals/history');
       setGoalHistory(response.data);
     } catch (error) {
       console.error('Error al cargar historial:', error);
