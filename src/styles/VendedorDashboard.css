@@ -2569,3 +2569,79 @@
     flex: 1;
   }
 }
+/* Botón Flotante de Carrito para Móvil */
+.mobile-cart-fab {
+  display: none;
+  position: fixed;
+  bottom: 2rem;
+  right: 1.5rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+  z-index: 1000;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.mobile-cart-fab .material-icons-round {
+  font-size: 28px;
+}
+
+.cart-count-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 800;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+@media (max-width: 1024px) {
+  .mobile-cart-fab {
+    display: flex;
+  }
+}
+
+.mobile-cart-fab:hover {
+  transform: scale(1.1) rotate(-5deg);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5);
+}
+
+.mobile-cart-fab:active {
+  transform: scale(0.95);
+}
+
+/* Estilos para buscador de productos más pequeño y responsive */
+.search-container-sm {
+  margin: 1rem auto;
+  max-width: 450px !important;
+  width: calc(100% - 2rem) !important;
+  flex: 0 0 auto !important;
+}
+
+.search-input-sm {
+  padding: 0.6rem 1rem 0.6rem 2.5rem !important;
+  font-size: 0.9rem !important;
+  border-radius: 10px !important;
+  height: auto !important;
+}

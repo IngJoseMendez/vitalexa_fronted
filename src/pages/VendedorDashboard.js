@@ -99,6 +99,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [cart, setCart] = useState([]);
   const [promotionsCart, setPromotionsCart] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -379,16 +380,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
           <div className="products-header">
             <h3>Productos Disponibles</h3>
             <div className="products-header-toolbar">
-              <div className="search-container">
-                <span className="material-icons-round search-icon">search</span>
-                <input
-                  type="text"
-                  placeholder="Buscar productos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="search-input"
-                />
-              </div>
               <div className="grid-columns-selector">
                 {[1, 2, 3].map(cols => (
                   <button
@@ -407,6 +398,18 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
           {/* CATALOGO DE PROMOCIONES */}
           <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} />
+
+          {/* Buscador de Productos movido abajo de promociones */}
+          <div className="search-container search-container-sm">
+            <span className="material-icons-round search-icon">search</span>
+            <input
+              type="text"
+              placeholder="Buscar productos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input search-input-sm"
+            />
+          </div>
 
           <TagFilterBar
             tags={tags}
@@ -495,6 +498,31 @@ function NuevaVentaPanel({ refreshTrigger }) {
               <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>person</span>
               Cliente
             </label>
+            <div className="client-search-wrapper" style={{ position: 'relative', marginBottom: '0.5rem' }}>
+              <span className="material-icons-round" style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#9ca3af',
+                fontSize: '18px'
+              }}>search</span>
+              <input
+                type="text"
+                placeholder="Buscar cliente..."
+                className="client-search-input"
+                value={clientSearchTerm}
+                onChange={(e) => setClientSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.6rem 0.6rem 2.2rem',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  fontSize: '0.9rem'
+                }}
+              />
+            </div>
+
             <select
               id="cliente-select"
               value={selectedClient}
@@ -505,11 +533,18 @@ function NuevaVentaPanel({ refreshTrigger }) {
               disabled={allowNoClient}
             >
               <option value="">Selecciona un cliente</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre} - {c.telefono}
-                </option>
-              ))}
+              {clients
+                .filter(c => {
+                  if (!clientSearchTerm) return true;
+                  const term = clientSearchTerm.toLowerCase();
+                  return c.nombre.toLowerCase().includes(term) ||
+                    (c.telefono && c.telefono.includes(term));
+                })
+                .map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} - {c.telefono}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -712,6 +747,18 @@ function NuevaVentaPanel({ refreshTrigger }) {
           onConfirm={handleAssortmentConfirmation}
         />
       )}
+
+      {/* Botón flotante para móvil para ir al carrito */}
+      <button
+        className="mobile-cart-fab"
+        onClick={() => {
+          document.querySelector('.carrito-section')?.scrollIntoView({ behavior: 'smooth' });
+        }}
+        title="Ver Carrito"
+      >
+        <span className="material-icons-round">shopping_cart</span>
+        <span className="cart-count-badge">{(cart.length || 0) + (promotionsCart.length || 0)}</span>
+      </button>
     </div>
   );
 }
@@ -849,7 +896,7 @@ function ClientesPanel() {
         </button>
       </div>
 
-      {/* Search Bar */}
+      {/* Modal de Detalle de Venta */}
       <div className="search-container" style={{ marginBottom: '1rem' }}>
         <span className="material-icons-round search-icon">search</span>
         <input
