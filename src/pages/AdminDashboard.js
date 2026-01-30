@@ -782,8 +782,19 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     clientId: null,
     items: [],
-    notas: order.notas || ''
+    notas: order.notas || '',
+    includeFreight: order.includeFreight || false,
+    isFreightBonified: order.isFreightBonified || false,
+    freightCustomText: order.freightCustomText || '',
+    freightQuantity: order.freightQuantity || 1
   });
+
+  // Separate list for visual management of freight items, merged back on submit
+  // Or kept in formData.items with isFreightItem flag? 
+  // Better to handle them unified in formData.items but filtered in UI sections.
+  // Actually, UI requested separate section. Let's filter them in the render.
+
+  const [freightProductSearch, setFreightProductSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const toast = useToast();
@@ -816,7 +827,9 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
           productId: item.productId || item.product?.id || item.id,  // ← MÚLTIPLES OPCIONES
           productName: item.productName || item.product?.nombre || 'Producto desconocido',
           cantidad: item.cantidad,
-          precioUnitario: parseFloat(item.precioUnitario || item.precio || 0)
+          precioUnitario: parseFloat(item.precioUnitario || item.precio || 0),
+          isBonified: item.isBonified || false,
+          isFreightItem: item.isFreightItem || false
         };
       });
 
@@ -836,7 +849,11 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
       setFormData({
         clientId: currentClientId,
         items: mappedItems,
-        notas: order.notas || ''
+        notas: order.notas || '',
+        includeFreight: order.includeFreight || false,
+        isFreightBonified: order.isFreightBonified || false,
+        freightCustomText: order.freightCustomText || '',
+        freightQuantity: order.freightQuantity || 1
       });
 
     } catch (error) {
@@ -881,8 +898,22 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
           cantidad: item.cantidad
         })),
         notas: formData.notas || null,
-        allowOutOfStock: true // ✅ Allow admins to override stock limits
+        allowOutOfStock: true,
+        includeFreight: formData.includeFreight,
+        isFreightBonified: formData.includeFreight ? formData.isFreightBonified : false,
+        freightCustomText: formData.includeFreight ? formData.freightCustomText : null,
+        freightQuantity: formData.includeFreight ? (parseInt(formData.freightQuantity) || 1) : 1
       };
+
+      // Inject helper properties for backend or keep transparent? 
+      // The backend expects flat items list with flags? 
+      // "items": [ ..., { "isFreightItem": true }, { "isBonified": true } ]
+      payload.items = validItems.map(item => ({
+        productId: item.productId,
+        cantidad: item.cantidad,
+        isBonified: item.isBonified,
+        isFreightItem: item.isFreightItem
+      }));
 
       console.log('📦 Payload a enviar:', payload);
       console.log('📊 Items en formData:', formData.items);
@@ -897,49 +928,35 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
     }
   };
 
-  const addItem = (product) => {
+  const addItem = (product, isFreight = false) => {
     setHasChanges(true);
 
-    // ✅ BUSCAR POR productId (no por id interno)
-    const existing = formData.items.find(i => i.productId === product.id);
+    const existing = formData.items.find(i => i.productId === product.id && i.isFreightItem === isFreight);
 
     if (existing) {
-      // ✅ Producto ya existe en la orden - INCREMENTAR cantidad
-      const currentQty = existing.cantidad;
-
-      // Validar stock disponible (Soft check for admin - allow proceed but warn)
-      if (currentQty >= product.stock) {
-        // Optional: Visual feedback but DON'T return/block
-        // toast.info(`Agregando producto sin stock (${product.stock} disponibles)`);
-      }
-
-      // Incrementar cantidad del item existente
       setFormData(prev => ({
         ...prev,
         items: prev.items.map(i =>
-          i.productId === product.id
+          (i.productId === product.id && i.isFreightItem === isFreight)
             ? { ...i, cantidad: i.cantidad + 1 }
             : i
         )
       }));
-
-      console.log(`✅ Incrementado ${product.nombre} a ${currentQty + 1} unidades`);
     } else {
-      // ✅ Producto NO existe - AGREGAR nuevo
       const newItem = {
         id: `item-${Date.now()}-${Math.random()}`,
         productId: product.id,
         productName: product.nombre,
         cantidad: 1,
-        precioUnitario: parseFloat(product.precio)
+        precioUnitario: parseFloat(product.precio),
+        isFreightItem: isFreight,
+        isBonified: false
       };
 
       setFormData(prev => ({
         ...prev,
         items: [...prev.items, newItem]
       }));
-
-      console.log(`✅ Agregado nuevo producto: ${product.nombre}`);
     }
   };
 
@@ -969,10 +986,20 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
     }));
   };
 
+
+  const toggleBonified = (itemId) => {
+    setHasChanges(true);
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(i => i.id === itemId ? { ...i, isBonified: !i.isBonified } : i)
+    }));
+  };
+
   const calculateTotal = () => {
-    return formData.items.reduce((sum, item) =>
-      sum + (item.precioUnitario * item.cantidad), 0
-    ).toFixed(2);
+    return formData.items.reduce((sum, item) => {
+      if (item.isBonified || item.isFreightItem) return sum;
+      return sum + (item.precioUnitario * item.cantidad);
+    }, 0).toFixed(2);
   };
 
   if (loading) {
@@ -1021,56 +1048,182 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
               </div>
             ) : (
               <div className="order-items-list">
-                {formData.items.map((item) => (
-                  <div key={item.id} className="edit-item">
-                    <span className="item-name">{item.productName}</span>
-                    <div className="item-controls">
-                      <button
-                        type="button"
-                        className="btn-qty"
-                        onClick={() => updateQuantity(item.id, item.cantidad - 1)}
-                      >
-                        −
-                      </button>
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={(e) => updateQuantity(item.id, e.target.value)}
-                        min="1"
-                        className="qty-input"
-                      />
-                      <button
-                        type="button"
-                        className="btn-qty"
-                        onClick={() => updateQuantity(item.id, item.cantidad + 1)}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-remove-item"
-                        onClick={() => removeItem(item.id)}
-                        title="Eliminar producto"
-                      >
-                        <span className="material-icons-round">delete_outline</span>
-                      </button>
-                    </div>
-                    <span className="item-price">
-                      ${(item.precioUnitario * item.cantidad).toFixed(2)}
-                      {/* Show current stock info if available from product lookup */}
-                      {(() => {
-                        const prod = products.find(p => p.id === item.productId);
-                        return prod ? <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>Stock: {prod.stock}</div> : null;
-                      })()}
-                    </span>
+                {formData.items.filter(i => !i.isFreightItem).length === 0 ? (
+                  <div className="alert-warning">
+                    <span className="material-icons-round">warning</span> La orden debe tener al menos un producto normal.
                   </div>
-                ))}
-                <div className="order-total-row">
-                  <strong>TOTAL:</strong>
-                  <strong className="total-amount">${calculateTotal()}</strong>
-                </div>
+                ) : (
+                  <div className="order-items-list">
+                    {formData.items.filter(i => !i.isFreightItem).map((item) => (
+                      <div key={item.id} className="edit-item">
+                        <span className="item-name">{item.productName}</span>
+                        <div className="item-controls">
+                          <button
+                            type="button"
+                            className="btn-qty"
+                            onClick={() => updateQuantity(item.id, item.cantidad - 1)}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => updateQuantity(item.id, e.target.value)}
+                            min="1"
+                            className="qty-input"
+                          />
+                          <button
+                            type="button"
+                            className="btn-qty"
+                            onClick={() => updateQuantity(item.id, item.cantidad + 1)}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-remove-item"
+                            onClick={() => removeItem(item.id)}
+                            title="Eliminar producto"
+                          >
+                            <span className="material-icons-round">delete_outline</span>
+                          </button>
+                        </div>
+                        <span className="item-price">
+                          ${(item.precioUnitario * item.cantidad).toFixed(2)}
+                          {/* Show current stock info if available from product lookup */}
+                          {(() => {
+                            const prod = products.find(p => p.id === item.productId);
+                            return prod ? <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>Stock: {prod.stock}</div> : null;
+                          })()}
+                        </span>
+
+
+                        <label style={{ marginLeft: '1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={item.isBonified || false}
+                            onChange={() => toggleBonified(item.id)}
+                          />
+                          Bonif.
+                        </label>
+                      </div>
+                    ))}
+                    <div className="order-total-row">
+                      <strong>TOTAL:</strong>
+                      <strong className="total-amount">${calculateTotal()}</strong>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
+          </div>
+
+
+
+
+          {/* FREIGHT SECTION */}
+          <div className="form-section">
+            <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', marginBottom: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.includeFreight}
+                  onChange={(e) => {
+                    setHasChanges(true);
+                    setFormData(p => ({ ...p, includeFreight: e.target.checked }));
+                  }}
+                />
+                Incluir Flete
+              </label>
+
+              {formData.includeFreight && (
+                <>
+                  <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.isFreightBonified}
+                        onChange={(e) => {
+                          setHasChanges(true);
+                          setFormData(p => ({ ...p, isFreightBonified: e.target.checked }))
+                        }}
+                      />
+                      Bonificar Flete (Costo $0)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Texto personalizado (ej: Envío Express)"
+                      value={formData.freightCustomText || ''}
+                      onChange={(e) => {
+                        setHasChanges(true);
+                        setFormData(p => ({ ...p, freightCustomText: e.target.value }))
+                      }}
+                      style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Cant."
+                      value={formData.freightQuantity || 1}
+                      onChange={(e) => {
+                        setHasChanges(true);
+                        setFormData(p => ({ ...p, freightQuantity: e.target.value }))
+                      }}
+                      style={{ width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
+                      title="Cantidad de fletes"
+                    />
+                  </div>
+
+                  {/* Freight Items */}
+                  <div className="freight-items-section">
+                    <h5 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: '#64748b' }}>📦 Productos por cuenta del Flete</h5>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Buscar producto para flete..."
+                        value={freightProductSearch}
+                        onChange={(e) => setFreightProductSearch(e.target.value)}
+                        style={{ flex: 1, padding: '0.3rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      />
+                      {freightProductSearch && (
+                        <div style={{ position: 'absolute', background: 'white', border: '1px solid #ddd', borderRadius: '4px', maxHeight: '150px', overflowY: 'auto', width: '250px', zIndex: 10, marginTop: '2rem' }}>
+                          {products
+                            .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
+                            .slice(0, 5)
+                            .map(p => (
+                              <div
+                                key={p.id}
+                                onClick={() => { addItem(p, true); setFreightProductSearch(''); }}
+                                style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #eee', fontSize: '0.8rem' }}
+                              >
+                                {p.nombre}
+                              </div>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </div>
+
+                    {formData.items.filter(i => i.isFreightItem).map((item) => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.8rem' }}>{item.productName}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <input
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                            style={{ width: '40px', padding: '2px', textAlign: 'center', fontSize: '0.8rem' }}
+                          />
+                          <button onClick={() => removeItem(item.id)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                      </div>
+                    ))}
+                    {formData.items.filter(i => i.isFreightItem).length === 0 && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Sin productos de flete</span>}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* ✅ SECCIÓN MEJORADA: Solo productos con stock */}
@@ -1160,9 +1313,9 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
               <span className="material-icons-round">save</span> Guardar Cambios
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </form >
+      </div >
+    </div >
   );
 }
 
@@ -1181,7 +1334,16 @@ function AdminNuevaVentaPanel() {
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
+
+
+  // Freight & Bonification State
   const [includeFreight, setIncludeFreight] = useState(false);
+  const [isFreightBonified, setIsFreightBonified] = useState(false);
+  const [freightCustomText, setFreightCustomText] = useState('');
+  const [freightQuantity, setFreightQuantity] = useState(1);
+  const [freightItems, setFreightItems] = useState([]); // Items specific to freight
+  const [freightProductSearch, setFreightProductSearch] = useState('');
+
   const [clientSearch, setClientSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [sortOrder, setSortOrder] = useState('asc'); // Sort state for clients
@@ -1247,9 +1409,37 @@ function AdminNuevaVentaPanel() {
         precio: product.precio,
         cantidad: 1,
         stockDisponible: product.stock,
-        allowOutOfStock: false
+        allowOutOfStock: false,
+        isBonified: false // Default not bonified
       }]);
     }
+  };
+
+  // Freight Item Logic
+  const addFreightItem = (product) => {
+    const existing = freightItems.find(i => i.productId === product.id);
+    if (existing) {
+      setFreightItems(freightItems.map(i => i.productId === product.id ? { ...i, cantidad: i.cantidad + 1 } : i));
+    } else {
+      setFreightItems([...freightItems, {
+        productId: product.id,
+        nombre: product.nombre,
+        cantidad: 1,
+        isFreightItem: true
+      }]);
+    }
+  };
+
+  const removeFreightItem = (productId) => {
+    setFreightItems(freightItems.filter(i => i.productId !== productId));
+  };
+
+  const updateFreightItemQty = (productId, qty) => {
+    if (qty <= 0) {
+      removeFreightItem(productId);
+      return;
+    }
+    setFreightItems(freightItems.map(i => i.productId === productId ? { ...i, cantidad: qty } : i));
   };
 
   const removeFromCart = (productId) => {
@@ -1268,8 +1458,15 @@ function AdminNuevaVentaPanel() {
     ));
   };
 
+  const toggleBonified = (productId) => {
+    setCart(cart.map(item => item.productId === productId ? { ...item, isBonified: !item.isBonified } : item));
+  };
+
   const calculateTotal = () => {
-    const productsTotal = cart.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+    const productsTotal = cart.reduce((sum, item) => {
+      if (item.isBonified) return sum; // $0 for bonified
+      return sum + (item.precio * item.cantidad);
+    }, 0);
     return productsTotal.toFixed(2);
   };
 
@@ -1292,14 +1489,25 @@ function AdminNuevaVentaPanel() {
     try {
       const orderData = {
         clientId: selectedClient || null,
-        items: cart.map(item => ({
-          productId: item.productId,
-          cantidad: item.cantidad,
-          allowOutOfStock: item.allowOutOfStock
-        })),
+        items: [
+          ...cart.map(item => ({
+            productId: item.productId,
+            cantidad: item.cantidad,
+            allowOutOfStock: item.allowOutOfStock,
+            isBonified: item.isBonified
+          })),
+          ...freightItems.map(item => ({
+            productId: item.productId,
+            cantidad: item.cantidad,
+            isFreightItem: true
+          }))
+        ],
         promotionIds: [],
         notas: notas.trim() || null,
         includeFreight: includeFreight,
+        isFreightBonified: includeFreight ? isFreightBonified : false,
+        freightCustomText: includeFreight ? freightCustomText : null,
+        freightQuantity: includeFreight ? (parseInt(freightQuantity) || 1) : 1,
         sellerId: selectedVendedor
       };
 
@@ -1308,8 +1516,11 @@ function AdminNuevaVentaPanel() {
 
       setNotas('');
       setCart([]);
-      // setPromotionsCart([]); // Unused
+      setFreightItems([]);
       setIncludeFreight(false);
+      setIsFreightBonified(false);
+      setFreightCustomText('');
+      setFreightQuantity(1);
       setSelectedClient('');
       setAllowNoClient(false);
     } catch (error) {
@@ -1513,9 +1724,21 @@ function AdminNuevaVentaPanel() {
                 <div key={item.productId} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.nombre}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>${parseFloat(item.precio).toFixed(2)}</div>
+                    <div style={{ fontSize: '0.8rem', color: item.isBonified ? '#10b981' : 'var(--text-secondary)' }}>
+                      {item.isBonified ? 'BONIFICADO ($0.00)' : `$${parseFloat(item.precio).toFixed(2)}`}
+                    </div>
                   </div>
+
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', marginRight: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={item.isBonified || false}
+                        onChange={() => toggleBonified(item.productId)}
+                      />
+                      Bonif.
+                    </label>
+
                     <button
                       onClick={() => updateQuantity(item.productId, item.cantidad - 1)}
                       style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
@@ -1547,56 +1770,136 @@ function AdminNuevaVentaPanel() {
           </div>
 
           <div style={{ paddingTop: '1rem', borderTop: '2px solid #f3f4f6', marginBottom: '1rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', marginBottom: '0.75rem' }}>
-              <input
-                type="checkbox"
-                checked={includeFreight}
-                onChange={(e) => setIncludeFreight(e.target.checked)}
-              />
-              Incluir Flete
-            </label>
-
-            <div style={{ fontSize: '1.1rem', fontWeight: '700', textAlign: 'right', marginBottom: '1rem' }}>
-              Total: ${calculateTotal()}
-            </div>
-
-            <textarea
-              placeholder="Notas..."
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                marginBottom: '1rem',
-                fontSize: '0.9rem',
-                resize: 'vertical',
-                minHeight: '60px'
-              }}
+            <input
+              type="checkbox"
+              checked={includeFreight}
+              onChange={(e) => setIncludeFreight(e.target.checked)}
             />
-
-            <button
-              onClick={handleSubmitOrder}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                background: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '1rem',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}
-            >
-              <span className="material-icons-round" style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}>check</span>
-              Finalizar Venta
-            </button>
+            Incluir Flete
           </div>
+
+          {includeFreight && (
+            <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isFreightBonified}
+                    onChange={(e) => setIsFreightBonified(e.target.checked)}
+                  />
+                  Bonificar Flete (Costo $0)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Texto personalizado (ej: Envío Express)"
+                  value={freightCustomText}
+                  onChange={(e) => setFreightCustomText(e.target.value)}
+                  style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Cant."
+                  value={freightQuantity}
+                  onChange={(e) => setFreightQuantity(e.target.value)}
+                  style={{ width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
+                  title="Cantidad de fletes"
+                />
+              </div>
+
+              <div className="freight-items-section">
+                <h5 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: '#64748b' }}>📦 Productos por cuenta del Flete</h5>
+
+                {/* Freight Product Search */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Buscar producto para flete..."
+                    value={freightProductSearch}
+                    onChange={(e) => setFreightProductSearch(e.target.value)}
+                    style={{ flex: 1, padding: '0.3rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                  />
+                  {freightProductSearch && (
+                    <div style={{ position: 'absolute', background: 'white', border: '1px solid #ddd', borderRadius: '4px', maxHeight: '150px', overflowY: 'auto', width: '250px', zIndex: 10, marginTop: '2rem' }}>
+                      {products
+                        .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
+                        .slice(0, 5)
+                        .map(p => (
+                          <div
+                            key={p.id}
+                            onClick={() => { addFreightItem(p); setFreightProductSearch(''); }}
+                            style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #eee', fontSize: '0.8rem' }}
+                          >
+                            {p.nombre}
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Freight Items List */}
+                {freightItems.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.8rem' }}>{item.nombre}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <input
+                        type="number"
+                        value={item.cantidad}
+                        onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
+                        style={{ width: '40px', padding: '2px', textAlign: 'center', fontSize: '0.8rem' }}
+                      />
+                      <button onClick={() => removeFreightItem(item.productId)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
+                    </div>
+                  </div>
+                ))}
+                {freightItems.length === 0 && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Sin productos de flete</span>}
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontSize: '1.1rem', fontWeight: '700', textAlign: 'right', marginBottom: '1rem' }}>
+            Total: ${calculateTotal()}
+          </div>
+
+          <textarea
+            placeholder="Notas..."
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              marginBottom: '1rem',
+              fontSize: '0.9rem',
+              resize: 'vertical',
+              minHeight: '60px'
+            }}
+          />
+
+          <button
+            onClick={handleSubmitOrder}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            <span className="material-icons-round" style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}>check</span>
+            Finalizar Venta
+          </button>
         </div>
       </div>
     </div>
+
+
   );
 }
 
