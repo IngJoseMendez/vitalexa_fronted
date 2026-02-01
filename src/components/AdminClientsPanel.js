@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import client from '../api/client';
+import apiClient from '../api/client';
 import { useToast } from './ToastContainer';
 
 /**
@@ -21,8 +21,8 @@ function AdminClientsPanel() {
     const fetchData = useCallback(async () => {
         try {
             const [clientsRes, vendedoresRes] = await Promise.all([
-                client.get('/admin/clients'),
-                client.get('/admin/clients/vendedores')
+                apiClient.get('/admin/clients'),
+                apiClient.get('/admin/clients/vendedores')
             ]);
             setClients(clientsRes.data);
             setVendedores(vendedoresRes.data);
@@ -349,7 +349,7 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
         setSaving(true);
 
         try {
-            await client.post('/admin/clients', formData);
+            await apiClient.post('/admin/clients', formData);
             toast.success(`¡Cliente creado y asignado exitosamente! Credenciales: Usuario y contraseña = ${formData.nit}`);
             onSuccess();
         } catch (error) {
@@ -571,7 +571,11 @@ function AdminClientEditModal({ clientToEdit, vendedores, onClose, onSuccess }) 
         setSaving(true);
 
         try {
+<<<<<<< HEAD
             await client.patch(`/admin/clients/${clientToEdit.id}`, formData);
+=======
+            await apiClient.patch(`/admin/clients/${client.id}`, formData);
+>>>>>>> ce30977447643936e8aac9a03396186388ca632e
             toast.success('¡Cliente actualizado exitosamente!');
             onSuccess();
         } catch (error) {
