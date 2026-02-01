@@ -22,12 +22,20 @@ function BalancesPage() {
     const fetchBalances = useCallback(async () => {
         try {
             setLoading(true);
-            const [paramsRes, vendRes] = await Promise.all([
-                balanceService.getAllBalances(),
-                clientApi.get('/admin/clients/vendedores')
-            ]);
-            setBalances(paramsRes.data || []);
-            setVendedores(vendRes.data || []);
+            const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
+
+            const requests = [balanceService.getAllBalances()];
+            if (isAdminOrOwner) {
+                requests.push(clientApi.get('/admin/clients/vendedores'));
+            }
+
+            const results = await Promise.all(requests);
+
+            setBalances(results[0].data || []);
+
+            if (isAdminOrOwner && results[1]) {
+                setVendedores(results[1].data || []);
+            }
         } catch (error) {
             console.error('Error fetching balances:', error);
             toast.error('Error al cargar saldos: ' + (error.response?.data?.message || error.message));
@@ -35,7 +43,7 @@ function BalancesPage() {
         } finally {
             setLoading(false);
         }
-    }, [toast]);
+    }, [toast, userRole]);
 
     useEffect(() => {
         fetchBalances();

@@ -101,6 +101,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [selectedClient, setSelectedClient] = useState('');
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [cart, setCart] = useState([]);
+  const [bonifiedCart, setBonifiedCart] = useState([]); // ✅ Bonified Cart
+  const [isBonifiedMode, setIsBonifiedMode] = useState(false); // ✅ Mode Toggle
   const [promotionsCart, setPromotionsCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
@@ -111,6 +113,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
     return saved ? parseInt(saved) : 2;
   });
   const [includeFreight, setIncludeFreight] = useState(false);
+  // ✅ Custom Freight State
+  const [isFreightBonified, setIsFreightBonified] = useState(false);
+  const [freightCustomText, setFreightCustomText] = useState('');
+  const [freightQuantity, setFreightQuantity] = useState(1);
+  const [freightItems, setFreightItems] = useState([]);
+  const [freightProductSearch, setFreightProductSearch] = useState('');
   const [vendedores, setVendedores] = useState([]);
   const [assignedVendor, setAssignedVendor] = useState('');
   const [userRole] = useState(localStorage.getItem('role'));
@@ -181,6 +189,25 @@ function NuevaVentaPanel({ refreshTrigger }) {
   }, [refreshTrigger, activeTagId, fetchClients, fetchProducts, fetchTags, fetchVendedores]);
 
   const addToCart = (product) => {
+    if (isBonifiedMode) { // ✅ Logic for Bonified Items
+      const existing = bonifiedCart.find(item => item.productId === product.id);
+      if (existing) {
+        setBonifiedCart(bonifiedCart.map(item => item.productId === product.id ? { ...item, cantidad: item.cantidad + 1 } : item));
+      } else {
+        setBonifiedCart([...bonifiedCart, {
+          productId: product.id,
+          nombre: product.nombre,
+          precio: 0, // Price 0
+          cantidad: 1,
+          stockDisponible: product.stock,
+          allowOutOfStock: true // Usually gifts can be OOS if authorized? Or assume stock check needed? Let's assume standard stock check but price 0.
+        }]);
+      }
+      toast.success('Agregado como Bonificado 🎁');
+      return;
+    }
+
+    // Regular Items Logic
     const existingItem = cart.find(item => item.productId === product.id);
 
     if (existingItem) {
@@ -209,11 +236,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const addPromotionToCart = (promotion) => {
-    if (promotionsCart.some(p => p.id === promotion.id)) {
-      toast.warning('Esta promoción ya está en el carrito');
-      return;
-    }
-
     // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
     if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
       setSelectedPromotion(promotion);
@@ -221,14 +243,17 @@ function NuevaVentaPanel({ refreshTrigger }) {
       return;
     }
 
-    setPromotionsCart([...promotionsCart, promotion]);
+    // Add unique ID for cart processing to allow duplicates
+    const promoInstance = {
+      ...promotion,
+      cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+
+    setPromotionsCart([...promotionsCart, promoInstance]);
     toast.success('Promoción agregada');
   };
 
   const handleAssortmentConfirmation = (items) => {
-    // Add selected assortment items to main cart (Main Products for the promo)
-    // We mix them with existing cart items or add new ones
-
     // Process items to match cart structure
     const newCartItems = [...cart];
 
@@ -254,7 +279,11 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
     // Add the promotion itself to track it (for the ID)
     if (selectedPromotion) {
-      setPromotionsCart([...promotionsCart, selectedPromotion]);
+      const promoInstance = {
+        ...selectedPromotion,
+        cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      };
+      setPromotionsCart([...promotionsCart, promoInstance]);
     }
 
     setShowAssortmentModal(false);
@@ -262,20 +291,30 @@ function NuevaVentaPanel({ refreshTrigger }) {
     toast.success('Productos de la promoción agregados al carrito');
   };
 
-  const removePromotionFromCart = (promotionId) => {
-    setPromotionsCart(promotionsCart.filter(p => p.id !== promotionId));
+  const removePromotionFromCart = (cartId) => {
+    setPromotionsCart(promotionsCart.filter(p => p.cartId !== cartId));
   };
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.productId !== productId));
+  const removeFromCart = (productId, isBonified = false) => {
+    if (isBonified) {
+      setBonifiedCart(bonifiedCart.filter(item => item.productId !== productId));
+    } else {
+      setCart(cart.filter(item => item.productId !== productId));
+    }
   };
 
-  const updateQuantity = (productId, newQuantity) => {
-    setCart(cart.map(item =>
-      item.productId === productId
-        ? { ...item, cantidad: newQuantity }
-        : item
-    ));
+  const updateQuantity = (productId, newQuantity, isBonified = false) => {
+    if (isBonified) {
+      setBonifiedCart(bonifiedCart.map(item =>
+        item.productId === productId ? { ...item, cantidad: newQuantity } : item
+      ));
+    } else {
+      setCart(cart.map(item =>
+        item.productId === productId
+          ? { ...item, cantidad: newQuantity }
+          : item
+      ));
+    }
   };
 
   const toggleAllowOutOfStock = (productId) => {
@@ -284,6 +323,33 @@ function NuevaVentaPanel({ refreshTrigger }) {
         ? { ...item, allowOutOfStock: !item.allowOutOfStock }
         : item
     ));
+  };
+
+  // ✅ Freight Logic
+  const addFreightItem = (product) => {
+    const existing = freightItems.find(i => i.productId === product.id);
+    if (existing) {
+      setFreightItems(freightItems.map(i => i.productId === product.id ? { ...i, cantidad: i.cantidad + 1 } : i));
+    } else {
+      setFreightItems([...freightItems, {
+        productId: product.id,
+        nombre: product.nombre,
+        cantidad: 1,
+        isFreightItem: true
+      }]);
+    }
+  };
+
+  const removeFreightItem = (productId) => {
+    setFreightItems(freightItems.filter(i => i.productId !== productId));
+  };
+
+  const updateFreightItemQty = (productId, qty) => {
+    if (qty <= 0) {
+      removeFreightItem(productId);
+      return;
+    }
+    setFreightItems(freightItems.map(i => i.productId === productId ? { ...i, cantidad: qty } : i));
   };
 
   const calculateTotal = () => {
@@ -316,17 +382,34 @@ function NuevaVentaPanel({ refreshTrigger }) {
     try {
       const orderData = {
         clientId: selectedClient || null,
-        items: cart.map(item => ({
+        items: [
+          ...cart.map(item => ({
+            productId: item.productId,
+            cantidad: item.cantidad,
+            allowOutOfStock: item.allowOutOfStock,
+            relatedPromotionId: item.promotionId || null
+          })),
+          // ✅ Add Freight Items
+          ...freightItems.map(item => ({
+            productId: item.productId,
+            cantidad: item.cantidad,
+            isFreightItem: true
+          }))
+        ],
+        bonifiedItems: bonifiedCart.map(item => ({
           productId: item.productId,
-          cantidad: item.cantidad,
-          allowOutOfStock: item.allowOutOfStock,
-          relatedPromotionId: item.promotionId || null // Send promotion ID for assortment items
+          cantidad: item.cantidad
         })),
         promotionIds: promotionsCart.map(p => p.id),
         notas: notas.trim() || null,
         includeFreight: includeFreight || false,
+        // ✅ Add Custom Freight Fields
+        isFreightBonified: includeFreight ? isFreightBonified : false,
+        freightCustomText: includeFreight ? freightCustomText : null,
+        freightQuantity: includeFreight ? (parseInt(freightQuantity) || 1) : 1,
         sellerId: isAdminOrOwner ? assignedVendor : null
       };
+
 
       const endpoint = isAdminOrOwner ? '/admin/orders' : '/vendedor/orders';
       const res = await client.post(endpoint, orderData);
@@ -341,8 +424,14 @@ function NuevaVentaPanel({ refreshTrigger }) {
       // Limpiar formulario
       setNotas('');
       setCart([]);
+      setBonifiedCart([]); // ✅ Clear bonified
       setPromotionsCart([]);
       setIncludeFreight(false);
+      // ✅ Clear Freight State
+      setIsFreightBonified(false);
+      setFreightCustomText('');
+      setFreightQuantity(1);
+      setFreightItems([]);
       setAssignedVendor('');
       fetchProducts();
     } catch (error) {
@@ -376,6 +465,31 @@ function NuevaVentaPanel({ refreshTrigger }) {
           <div className="products-header">
             <h3>Productos Disponibles</h3>
             <div className="products-header-toolbar">
+
+              {/* ✅ Mode Toggle aligned */}
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                background: isBonifiedMode ? '#ecfdf5' : 'white',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '20px',
+                border: isBonifiedMode ? '1px solid #10b981' : '1px solid #e5e7eb',
+                transition: 'all 0.2s',
+                marginRight: 'auto' // Push other controls to right if needed, or keep unified
+              }}>
+                <input
+                  type="checkbox"
+                  checked={isBonifiedMode}
+                  onChange={(e) => setIsBonifiedMode(e.target.checked)}
+                  style={{ accentColor: '#10b981' }}
+                />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isBonifiedMode ? '#047857' : '#4b5563' }}>
+                  {isBonifiedMode ? '🎁 Regalo' : '📦 Normal'}
+                </span>
+              </label>
+
               <div className="grid-columns-selector">
                 {[1, 2, 3].map(cols => (
                   <button
@@ -608,17 +722,93 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
           {/* ADMIN/OWNER ONLY: Incluir Flete */}
           {isAdminOrOwner && (
-            <div className="checkbox-group">
-              <input
-                id="incluir-flete"
-                type="checkbox"
-                checked={includeFreight}
-                onChange={(e) => setIncludeFreight(e.target.checked)}
-              />
-              <label htmlFor="incluir-flete">
-                <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>local_shipping</span>
-                Incluir Flete en Orden
-              </label>
+            <div className="form-group" style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div className="checkbox-group" style={{ marginBottom: '0.5rem' }}>
+                <input
+                  id="incluir-flete"
+                  type="checkbox"
+                  checked={includeFreight}
+                  onChange={(e) => setIncludeFreight(e.target.checked)}
+                />
+                <label htmlFor="incluir-flete">
+                  <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>local_shipping</span>
+                  Incluir Flete en Orden
+                </label>
+              </div>
+
+              {includeFreight && (
+                <div className="freight-custom-section" style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isFreightBonified}
+                        onChange={(e) => setIsFreightBonified(e.target.checked)}
+                      />
+                      Bonificar ($0)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Texto personalizado (ej: Envío Express)"
+                      value={freightCustomText}
+                      onChange={(e) => setFreightCustomText(e.target.value)}
+                      style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Cant."
+                      value={freightQuantity}
+                      onChange={(e) => setFreightQuantity(e.target.value)}
+                      style={{ width: '60px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
+                    />
+                  </div>
+
+                  {/* Freight Search */}
+                  <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar producto flete..."
+                      value={freightProductSearch}
+                      onChange={(e) => setFreightProductSearch(e.target.value)}
+                      style={{ width: '100%', padding: '0.3rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                    />
+                    {freightProductSearch && (
+                      <div style={{ position: 'absolute', background: 'white', border: '1px solid #ddd', borderRadius: '4px', maxHeight: '150px', overflowY: 'auto', width: '100%', zIndex: 10, marginTop: '2px' }}>
+                        {products
+                          .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
+                          .slice(0, 5)
+                          .map(p => (
+                            <div
+                              key={p.id}
+                              onClick={() => { addFreightItem(p); setFreightProductSearch(''); }}
+                              style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #eee', fontSize: '0.8rem' }}
+                            >
+                              {p.nombre}
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+
+                  {/* List Freight Items */}
+                  {freightItems.map(item => (
+                    <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '4px 8px', marginBottom: '4px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '0.8rem' }}>{item.nombre}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input
+                          type="number"
+                          value={item.cantidad}
+                          onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
+                          style={{ width: '40px', textAlign: 'center', padding: '2px', fontSize: '0.8rem' }}
+                        />
+                        <button onClick={() => removeFreightItem(item.productId)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -632,7 +822,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
               <>
                 {/* PROMOTIONS IN CART */}
                 {promotionsCart.map(promo => (
-                  <div key={promo.id} className="cart-item promotion-item" style={{ background: '#fff1f2', border: '1px solid #fecdd3' }}>
+                  <div key={promo.cartId} className="cart-item promotion-item" style={{ background: '#fff1f2', border: '1px solid #fecdd3' }}>
                     <div className="cart-item-info">
                       <h4 style={{ color: '#be123c' }}>
                         <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>local_offer</span>
@@ -646,7 +836,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                       )}
                       <button
                         className="btn-remove"
-                        onClick={() => removePromotionFromCart(promo.id)}
+                        onClick={() => removePromotionFromCart(promo.cartId)}
                         title="Eliminar promoción"
                       >
                         <span className="material-icons-round">delete_outline</span>
@@ -718,6 +908,38 @@ function NuevaVentaPanel({ refreshTrigger }) {
                 })}
               </>
             )}
+            {/* Bonified Items Section */}
+            {bonifiedCart.length > 0 && (
+              <div className="bonified-section" style={{ marginTop: '1rem', padding: '0.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
+                <h4 style={{ color: '#15803d', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
+                  Bonificados
+                </h4>
+                {bonifiedCart.map(item => (
+                  <div key={item.productId} className="cart-item" style={{ background: 'white' }}>
+                    <div className="cart-item-info">
+                      <h5>{item.nombre}</h5>
+                      <p style={{ color: '#15803d', fontWeight: 'bold' }}>$0.00</p>
+                    </div>
+                    <div className="cart-item-controls">
+                      <div>
+                        <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1), true)}>−</button>
+                        <input
+                          type="number"
+                          value={item.cantidad}
+                          onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
+                          min="1"
+                        />
+                        <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)}>+</button>
+                      </div>
+                      <button className="btn-remove" onClick={() => removeFromCart(item.productId, true)}>
+                        <span className="material-icons-round">delete_outline</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
 
@@ -730,7 +952,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
             className="btn-finalizar-venta"
             onClick={handleSubmitOrder}
             disabled={
-              (cart.length === 0 && promotionsCart.length === 0) ||
+              (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
+              (!selectedClient && !allowNoClient) ||
               (!selectedClient && !allowNoClient) ||
               cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
               cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)

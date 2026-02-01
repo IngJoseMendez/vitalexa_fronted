@@ -304,7 +304,7 @@ function AdminClientsPanel() {
             {/* Edit Client Modal */}
             {showEditModal && editingClient && (
                 <AdminClientEditModal
-                    client={editingClient}
+                    clientToEdit={editingClient}
                     vendedores={vendedores}
                     onClose={() => {
                         setShowEditModal(false);
@@ -546,16 +546,16 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
 /**
  * AdminClientEditModal - Modal for editing an existing client
  */
-function AdminClientEditModal({ client, vendedores, onClose, onSuccess }) {
+function AdminClientEditModal({ clientToEdit, vendedores, onClose, onSuccess }) {
     const [formData, setFormData] = useState({
-        nit: client.nit || '',
-        nombre: client.nombre || '',
-        administrador: client.administrador || '',
-        representanteLegal: client.representanteLegal || '',
-        email: client.email || '',
-        telefono: client.telefono || '',
-        direccion: client.direccion || '',
-        vendedorId: client.vendedorAsignadoId || ''
+        nit: clientToEdit.nit || '',
+        nombre: clientToEdit.nombre || '',
+        administrador: clientToEdit.administrador || '',
+        representanteLegal: clientToEdit.representanteLegal || '',
+        email: clientToEdit.email || '',
+        telefono: clientToEdit.telefono || '',
+        direccion: clientToEdit.direccion || '',
+        vendedorId: clientToEdit.vendedorAsignadoId || ''
     });
     const [saving, setSaving] = useState(false);
     const toast = useToast();
@@ -571,7 +571,7 @@ function AdminClientEditModal({ client, vendedores, onClose, onSuccess }) {
         setSaving(true);
 
         try {
-            await client.patch(`/admin/clients/${client.id}`, formData);
+            await client.patch(`/admin/clients/${clientToEdit.id}`, formData);
             toast.success('¡Cliente actualizado exitosamente!');
             onSuccess();
         } catch (error) {

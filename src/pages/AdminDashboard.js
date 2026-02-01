@@ -779,9 +779,15 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState('');
+  const [isBonifiedMode, setIsBonifiedMode] = useState(false); // ✅ NEW STATE
+
+  // ✅ Detect Promo Order
+  const isPromoOrder = order.notas && order.notas.includes('[Promoción]');
+
   const [formData, setFormData] = useState({
     clientId: null,
-    items: [],
+    items: [], // Regular items
+    bonifiedItems: [], // ✅ Separate bonified items
     notas: order.notas || '',
     includeFreight: order.includeFreight || false,
     isFreightBonified: order.isFreightBonified || false,
@@ -818,22 +824,30 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
       console.log('🔍 Orden completa:', order);
       console.log('🔍 Items de la orden:', order.items);
 
-      // ✅ MAPEO CORRECTO: Verificar qué campo tiene el ID del producto
-      const mappedItems = order.items.map((item, index) => {
-        console.log('🔍 Item original:', item);
+      // ✅ MAPEO CORRECTO: Separar items regulares de bonificados
+      const regularItems = [];
+      const bonified = [];
 
-        return {
+      order.items.forEach((item, index) => {
+        const mappedItem = {
           id: `item-${Date.now()}-${index}`,
-          productId: item.productId || item.product?.id || item.id,  // ← MÚLTIPLES OPCIONES
+          productId: item.productId || item.product?.id || item.id,
           productName: item.productName || item.product?.nombre || 'Producto desconocido',
           cantidad: item.cantidad,
           precioUnitario: parseFloat(item.precioUnitario || item.precio || 0),
-          isBonified: item.isBonified || false,
           isFreightItem: item.isFreightItem || false
+          // removed isBonified property
         };
-      });
 
-      console.log('✅ Items mapeados:', mappedItems);
+        if (item.isBonified) {
+          bonified.push({
+            ...mappedItem,
+            precioUnitario: 0 // Ensure 0 for display
+          });
+        } else {
+          regularItems.push(mappedItem);
+        }
+      });
 
       // Encontrar cliente actual
       let currentClientId = null;
@@ -848,7 +862,8 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
 
       setFormData({
         clientId: currentClientId,
-        items: mappedItems,
+        items: regularItems,
+        bonifiedItems: bonified,
         notas: order.notas || '',
         includeFreight: order.includeFreight || false,
         isFreightBonified: order.isFreightBonified || false,
@@ -868,8 +883,12 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // ✅ VALIDAR QUE HAYA PRODUCTOS
-    if (formData.items.length === 0) {
+    // ✅ VALIDAR QUE HAYA PRODUCTOS (ignore if promo order, it might validly have 0 items if only freight? No, promos usually have items)
+    // Actually, for promo order edits, we might not change items, but backend needs to know not to wipe them if we send empty?
+    // The plan says: If Promo Order: Send items: [], bonifiedItems: [] (let backend restore), preserve promotionIds.
+    // But if we are editing freight, we need to send that.
+
+    if (formData.items.length === 0 && formData.bonifiedItems.length === 0 && !isPromoOrder) {
       toast.warning('Debe haber al menos un producto en la orden');
       return;
     }
@@ -881,22 +900,20 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
     }
 
     const validItems = formData.items.filter(item => item.productId && item.cantidad > 0);
+    const validBonified = formData.bonifiedItems.filter(item => item.productId && item.cantidad > 0);
 
-    if (validItems.length === 0) {
+    // If not promo order, must have valid items
+    if (!isPromoOrder && validItems.length === 0 && validBonified.length === 0) {
       toast.warning('No hay productos válidos en la orden');
       return;
     }
 
-
-
-
     try {
       const payload = {
         clientId: formData.clientId || null,
-        items: validItems.map(item => ({
-          productId: item.productId,
-          cantidad: item.cantidad
-        })),
+        items: [],
+        bonifiedItems: [],
+        promotionIds: order.promotionIds || [], // Preserve existing promos
         notas: formData.notas || null,
         allowOutOfStock: true,
         includeFreight: formData.includeFreight,
@@ -905,19 +922,57 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
         freightQuantity: formData.includeFreight ? (parseInt(formData.freightQuantity) || 1) : 1
       };
 
-      // Inject helper properties for backend or keep transparent? 
-      // The backend expects flat items list with flags? 
-      // "items": [ ..., { "isFreightItem": true }, { "isBonified": true } ]
-      payload.items = validItems.map(item => ({
-        productId: item.productId,
-        cantidad: item.cantidad,
-        isBonified: item.isBonified,
-        isFreightItem: item.isFreightItem
-      }));
+      if (isPromoOrder) {
+        // If promo order, we DON'T send items/bonifiedItems to avoid overwriting the complex promo structure structure
+        // We only allow editing Freight and Notes.
+        // IMPORTANT: Backend must handle "if items is empty but promotionIds has values, don't clear items" or similar logic.
+        // Or we rely on the fact that we send the same promotionIds.
+        // Actually, if we send empty items list, backend might clear them.
+        // Let's assume the backend refactor (which we did separately) handles this or we just send what we see.
+        // If the UI shows them, we should probably send them back if we want to support editing quantities?
+        // Plan said: "Send items: [], bonifiedItems: [] (let backend restore)".
+        // So we leave arrays empty.
+        payload.items = []; // Only freight
+        payload.bonifiedItems = [];
+      } else {
+        // Standard Order
+        payload.items = [
+          ...validItems.filter(i => !i.isFreightItem).map(item => ({
+            productId: item.productId,
+            cantidad: item.cantidad
+          })),
+          ...formData.items.filter(i => i.isFreightItem).map(item => ({
+            productId: item.productId,
+            cantidad: item.cantidad,
+            isFreightItem: true
+          }))
+        ];
+
+        payload.bonifiedItems = validBonified.map(item => ({
+          productId: item.productId,
+          cantidad: item.cantidad
+        }));
+      }
+
+      // Add Freight Items to payload.items if we are allowed to add freight in promo order
+      // Freight items are in formData.items list usually?
+      // Wait, in my initialization I put all items in regular/bonified lists. I need to make sure Freight items are handled.
+      // My init logic: isFreightItem -> regularItems.
+      // So they are in `validItems` or `formData.items`.
+      // If isPromoOrder, we effectively cleared validItems from payload.
+      // We must explicitly add freight items if they exist.
+
+      if (isPromoOrder && formData.includeFreight) {
+        const freightItems = formData.items.filter(i => i.isFreightItem);
+        payload.items.push(...freightItems.map(item => ({
+          productId: item.productId,
+          cantidad: item.cantidad,
+          isFreightItem: true
+        })));
+      }
+
 
       console.log('📦 Payload a enviar:', payload);
-      console.log('📊 Items en formData:', formData.items);
-      console.log('✅ Items válidos:', validItems);
 
       await client.put(`/admin/orders/${order.id}`, payload);
       toast.success('Orden actualizada correctamente');
@@ -928,76 +983,100 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
     }
   };
 
-  const addItem = (product, isFreight = false) => {
+  const addItem = (product, isFreight = false, isBonified = false) => {
     setHasChanges(true);
 
-    const existing = formData.items.find(i => i.productId === product.id && i.isFreightItem === isFreight);
+    if (isBonified) {
+      const existing = formData.bonifiedItems.find(i => i.productId === product.id);
+      if (existing) {
+        setFormData(prev => ({
+          ...prev,
+          bonifiedItems: prev.bonifiedItems.map(i => i.productId === product.id ? { ...i, cantidad: i.cantidad + 1 } : i)
+        }));
+      } else {
+        const newItem = {
+          id: `item-bon-${Date.now()}-${Math.random()}`,
+          productId: product.id,
+          productName: product.nombre,
+          cantidad: 1,
+          precioUnitario: 0,
+          isFreightItem: false
+        };
+        setFormData(prev => ({ ...prev, bonifiedItems: [...prev.bonifiedItems, newItem] }));
+      }
+    } else {
+      const existing = formData.items.find(i => i.productId === product.id && i.isFreightItem === isFreight);
 
-    if (existing) {
+      if (existing) {
+        setFormData(prev => ({
+          ...prev,
+          items: prev.items.map(i =>
+            (i.productId === product.id && i.isFreightItem === isFreight)
+              ? { ...i, cantidad: i.cantidad + 1 }
+              : i
+          )
+        }));
+      } else {
+        const newItem = {
+          id: `item-${Date.now()}-${Math.random()}`,
+          productId: product.id,
+          productName: product.nombre,
+          cantidad: 1,
+          precioUnitario: parseFloat(product.precio),
+          isFreightItem: isFreight
+        };
+
+        setFormData(prev => ({
+          ...prev,
+          items: [...prev.items, newItem]
+        }));
+      }
+    }
+  };
+
+  const removeItem = (itemId, isBonifiedList = false) => {
+    setHasChanges(true);
+    if (isBonifiedList) {
       setFormData(prev => ({
         ...prev,
-        items: prev.items.map(i =>
-          (i.productId === product.id && i.isFreightItem === isFreight)
-            ? { ...i, cantidad: i.cantidad + 1 }
-            : i
-        )
+        bonifiedItems: prev.bonifiedItems.filter(i => i.id !== itemId)
       }));
     } else {
-      const newItem = {
-        id: `item-${Date.now()}-${Math.random()}`,
-        productId: product.id,
-        productName: product.nombre,
-        cantidad: 1,
-        precioUnitario: parseFloat(product.precio),
-        isFreightItem: isFreight,
-        isBonified: false
-      };
-
       setFormData(prev => ({
         ...prev,
-        items: [...prev.items, newItem]
+        items: prev.items.filter(i => i.id !== itemId)
       }));
     }
   };
 
-
-  const removeItem = (itemId) => {
-    setHasChanges(true);
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter(i => i.id !== itemId)
-    }));
-  };
-
-  const updateQuantity = (itemId, nuevaCantidad) => {
+  const updateQuantity = (itemId, nuevaCantidad, isBonifiedList = false) => {
     setHasChanges(true);
     const cantidad = parseInt(nuevaCantidad);
 
     if (cantidad <= 0 || isNaN(cantidad)) {
-      removeItem(itemId);
+      removeItem(itemId, isBonifiedList);
       return;
     }
 
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(i =>
-        i.id === itemId ? { ...i, cantidad: cantidad } : i
-      )
-    }));
+    if (isBonifiedList) {
+      setFormData(prev => ({
+        ...prev,
+        bonifiedItems: prev.bonifiedItems.map(i => i.id === itemId ? { ...i, cantidad: cantidad } : i)
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(i =>
+          i.id === itemId ? { ...i, cantidad: cantidad } : i
+        )
+      }));
+    }
   };
 
-
-  const toggleBonified = (itemId) => {
-    setHasChanges(true);
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(i => i.id === itemId ? { ...i, isBonified: !i.isBonified } : i)
-    }));
-  };
 
   const calculateTotal = () => {
     return formData.items.reduce((sum, item) => {
-      if (item.isBonified || item.isFreightItem) return sum;
+      if (item.isFreightItem) return sum;
       return sum + (item.precioUnitario * item.cantidad);
     }, 0).toFixed(2);
   };
@@ -1042,78 +1121,139 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
 
           <div className="form-section">
             <h4>🛒 Productos en la orden</h4>
-            {formData.items.length === 0 ? (
+
+            {/* Promo Alert */}
+            {isPromoOrder && (
+              <div style={{ background: '#ecfdf5', border: '1px solid #10b981', color: '#047857', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span className="material-icons-round">campaign</span>
+                <div>
+                  <strong>Orden de Promoción</strong>
+                  <div style={{ fontSize: '0.9rem' }}>Los productos de esta orden son parte de una promoción y no se pueden editar individualmente. Solo se pueden agregar fletes.</div>
+                </div>
+              </div>
+            )}
+
+            {formData.items.length === 0 && formData.bonifiedItems.length === 0 ? (
               <div className="alert-warning">
                 <span className="material-icons-round">warning</span> La orden debe tener al menos un producto.
               </div>
             ) : (
               <div className="order-items-list">
-                {formData.items.filter(i => !i.isFreightItem).length === 0 ? (
-                  <div className="alert-warning">
-                    <span className="material-icons-round">warning</span> La orden debe tener al menos un producto normal.
-                  </div>
-                ) : (
-                  <div className="order-items-list">
+                {/* Items Regulares */}
+                {formData.items.filter(i => !i.isFreightItem).length > 0 && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4b5563', paddingBottom: '4px', borderBottom: '1px solid #e5e7eb', marginBottom: '8px' }}>📦 Productos</h5>
                     {formData.items.filter(i => !i.isFreightItem).map((item) => (
                       <div key={item.id} className="edit-item">
                         <span className="item-name">{item.productName}</span>
-                        <div className="item-controls">
-                          <button
-                            type="button"
-                            className="btn-qty"
-                            onClick={() => updateQuantity(item.id, item.cantidad - 1)}
-                          >
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            value={item.cantidad}
-                            onChange={(e) => updateQuantity(item.id, e.target.value)}
-                            min="1"
-                            className="qty-input"
-                          />
-                          <button
-                            type="button"
-                            className="btn-qty"
-                            onClick={() => updateQuantity(item.id, item.cantidad + 1)}
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-remove-item"
-                            onClick={() => removeItem(item.id)}
-                            title="Eliminar producto"
-                          >
-                            <span className="material-icons-round">delete_outline</span>
-                          </button>
-                        </div>
+                        {!isPromoOrder ? (
+                          <div className="item-controls">
+                            <button
+                              type="button"
+                              className="btn-qty"
+                              onClick={() => updateQuantity(item.id, item.cantidad - 1)}
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              value={item.cantidad}
+                              onChange={(e) => updateQuantity(item.id, e.target.value)}
+                              min="1"
+                              className="qty-input"
+                            />
+                            <button
+                              type="button"
+                              className="btn-qty"
+                              onClick={() => updateQuantity(item.id, item.cantidad + 1)}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-remove-item"
+                              onClick={() => removeItem(item.id)}
+                              title="Eliminar producto"
+                            >
+                              <span className="material-icons-round">delete_outline</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>x {item.cantidad}</span>
+                        )}
                         <span className="item-price">
                           ${(item.precioUnitario * item.cantidad).toFixed(2)}
-                          {/* Show current stock info if available from product lookup */}
                           {(() => {
                             const prod = products.find(p => p.id === item.productId);
                             return prod ? <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '4px' }}>Stock: {prod.stock}</div> : null;
                           })()}
                         </span>
-
-
-                        <label style={{ marginLeft: '1rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={item.isBonified || false}
-                            onChange={() => toggleBonified(item.id)}
-                          />
-                          Bonif.
-                        </label>
                       </div>
                     ))}
-                    <div className="order-total-row">
-                      <strong>TOTAL:</strong>
-                      <strong className="total-amount">${calculateTotal()}</strong>
-                    </div>
                   </div>
                 )}
+
+                {/* Items Bonificados */}
+                {formData.bonifiedItems.length > 0 && (
+                  <div style={{ marginBottom: '1rem', background: '#f0fdf4', borderRadius: '8px', padding: '8px', border: '1px solid #bbf7d0' }}>
+                    <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#15803d', paddingBottom: '4px', borderBottom: '1px solid #bbf7d0', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
+                      Regalos (Bonificados)
+                    </h5>
+                    {formData.bonifiedItems.map((item) => (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid #dcfce7' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#166534' }}>{item.productName}</span>
+                        {!isPromoOrder ? (
+                          <div className="item-controls">
+                            <button
+                              type="button"
+                              className="btn-qty"
+                              onClick={() => updateQuantity(item.id, item.cantidad - 1, true)}
+                              style={{ background: 'white', border: '1px solid #bbf7d0' }}
+                            >
+                              −
+                            </button>
+                            <input
+                              type="number"
+                              value={item.cantidad}
+                              onChange={(e) => updateQuantity(item.id, e.target.value, true)}
+                              min="1"
+                              className="qty-input"
+                              style={{ border: '1px solid #bbf7d0' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn-qty"
+                              onClick={() => updateQuantity(item.id, item.cantidad + 1, true)}
+                              style={{ background: 'white', border: '1px solid #bbf7d0' }}
+                            >
+                              +
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-remove-item"
+                              onClick={() => removeItem(item.id, true)}
+                              title="Eliminar producto"
+                            >
+                              <span className="material-icons-round">delete_outline</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#15803d' }}>x {item.cantidad}</span>
+                        )}
+                        <span style={{ fontWeight: 'bold', color: '#15803d', fontSize: '0.9rem', minWidth: '60px', textAlign: 'right' }}>
+                          $0.00
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+
+                <div className="order-total-row">
+                  <strong>TOTAL:</strong>
+                  <strong className="total-amount">${calculateTotal()}</strong>
+                </div>
               </div>
             )}
           </div>
@@ -1227,79 +1367,107 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
           </div>
 
           {/* ✅ SECCIÓN MEJORADA: Solo productos con stock */}
-          <div className="form-section">
-            <h4>➕ Agregar más productos</h4>
+          {/* ✅ SECCIÓN MEJORADA: Solo productos con stock */}
+          {!isPromoOrder && (
+            <div className="form-section">
+              <h4>➕ Agregar más productos</h4>
 
-            {/* Barra de búsqueda */}
-            <div style={{
-              display: 'flex',
-              gap: '0.75rem',
-              marginBottom: '1rem',
-              alignItems: 'center'
-            }}>
-              <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '20px' }}>search</span>
-              <input
-                type="text"
-                placeholder="Buscar producto..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '0.6rem 1rem',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem'
-                }}
-              />
-              {productSearch && (
-                <button
-                  type="button"
-                  onClick={() => setProductSearch('')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-secondary)',
-                    padding: '4px'
-                  }}
-                >
-                  <span className="material-icons-round">close</span>
-                </button>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>search</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar producto..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '0.6rem 1rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                  {productSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setProductSearch('')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-secondary)',
+                        padding: '4px'
+                      }}
+                    >
+                      <span className="material-icons-round">close</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* ✅ Toggle Mode */}
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  background: isBonifiedMode ? '#ecfdf5' : '#f3f4f6',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '20px',
+                  border: isBonifiedMode ? '1px solid #10b981' : '1px solid transparent',
+                  transition: 'all 0.2s'
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={isBonifiedMode}
+                    onChange={(e) => setIsBonifiedMode(e.target.checked)}
+                    style={{ accentColor: '#10b981' }}
+                  />
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: isBonifiedMode ? '#047857' : '#4b5563' }}>
+                    {isBonifiedMode ? '🎁 Modo Regalo' : '📦 Modo Normal'}
+                  </span>
+                </label>
+              </div>
+
+              <div className="product-add-grid" style={{
+                border: isBonifiedMode ? '2px solid #10b981' : 'none',
+                borderRadius: '8px',
+                padding: isBonifiedMode ? '1rem' : '0'
+              }}>
+                {products
+                  .filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase()))
+                  .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                  .map(product => {
+                    const hasStock = product.stock > 0;
+                    return (
+                      <div
+                        key={product.id}
+                        className={`product-add-card ${!hasStock ? 'out-of-stock' : ''}`}
+                        onClick={() => addItem(product, false, isBonifiedMode)}
+                        title={hasStock ? `Stock: ${product.stock}` : 'Sin Stock (Admin puede agregar)'}
+                        style={{ background: isBonifiedMode ? '#f0fdf4' : 'white' }}
+                      >
+                        <div className="card-top">
+                          <span className="card-name">{product.nombre}</span>
+                          <span className={`card-badge ${hasStock ? 'instock' : 'nostock'}`}>
+                            {hasStock ? product.stock : '0'}
+                          </span>
+                        </div>
+                        <div className="card-price" style={{ color: isBonifiedMode ? '#10b981' : undefined }}>
+                          {isBonifiedMode ? '$0.00' : `$${parseFloat(product.precio).toFixed(2)}`}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {products.filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                <p className="no-products-available">
+                  <span className="material-icons-round">block</span> {productSearch ? 'No se encontraron productos' : 'No hay productos activos'}
+                </p>
               )}
             </div>
-
-            <div className="product-add-grid">
-              {products
-                .filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase()))
-                .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                .map(product => {
-                  const hasStock = product.stock > 0;
-                  return (
-                    <div
-                      key={product.id}
-                      className={`product-add-card ${!hasStock ? 'out-of-stock' : ''}`}
-                      onClick={() => addItem(product)}
-                      title={hasStock ? `Stock: ${product.stock}` : 'Sin Stock (Admin puede agregar)'}
-                    >
-                      <div className="card-top">
-                        <span className="card-name">{product.nombre}</span>
-                        <span className={`card-badge ${hasStock ? 'instock' : 'nostock'}`}>
-                          {hasStock ? product.stock : '0'}
-                        </span>
-                      </div>
-                      <div className="card-price">
-                        ${parseFloat(product.precio).toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-            {products.filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
-              <p className="no-products-available">
-                <span className="material-icons-round">block</span> {productSearch ? 'No se encontraron productos' : 'No hay productos activos'}
-              </p>
-            )}
-          </div>
+          )}
 
           <div className="form-actions">
             <button type="button" onClick={onClose} className="btn-cancel">
@@ -1330,6 +1498,8 @@ function AdminNuevaVentaPanel() {
   const [selectedVendedor, setSelectedVendedor] = useState('');
   const [vendedores, setVendedores] = useState([]);
   const [cart, setCart] = useState([]);
+  const [bonifiedCart, setBonifiedCart] = useState([]); // ✅ NEW: Separate list for bonified items
+  const [isBonifiedMode, setIsBonifiedMode] = useState(false); // ✅ NEW: Toggle for adding as bonified
   // const [promotionsCart, setPromotionsCart] = useState([]); // Unused
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
@@ -1395,23 +1565,45 @@ function AdminNuevaVentaPanel() {
   };
 
   const addToCart = (product) => {
-    const existingItem = cart.find(item => item.productId === product.id);
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.productId === product.id
-          ? { ...item, cantidad: item.cantidad + 1 }
-          : item
-      ));
+    // ✅ Logic depends on current mode
+    if (isBonifiedMode) {
+      // Add to BONIFIED cart
+      const existingItem = bonifiedCart.find(item => item.productId === product.id);
+      if (existingItem) {
+        setBonifiedCart(bonifiedCart.map(item =>
+          item.productId === product.id
+            ? { ...item, cantidad: item.cantidad + 1 }
+            : item
+        ));
+      } else {
+        setBonifiedCart([...bonifiedCart, {
+          productId: product.id,
+          nombre: product.nombre,
+          precio: 0, // Always 0 for bonified
+          cantidad: 1,
+          isBonified: true
+        }]);
+      }
     } else {
-      setCart([...cart, {
-        productId: product.id,
-        nombre: product.nombre,
-        precio: product.precio,
-        cantidad: 1,
-        stockDisponible: product.stock,
-        allowOutOfStock: false,
-        isBonified: false // Default not bonified
-      }]);
+      // Add to REGULAR cart
+      const existingItem = cart.find(item => item.productId === product.id);
+      if (existingItem) {
+        setCart(cart.map(item =>
+          item.productId === product.id
+            ? { ...item, cantidad: item.cantidad + 1 }
+            : item
+        ));
+      } else {
+        setCart([...cart, {
+          productId: product.id,
+          nombre: product.nombre,
+          precio: product.precio,
+          cantidad: 1,
+          stockDisponible: product.stock,
+          allowOutOfStock: false,
+          isBonified: false
+        }]);
+      }
     }
   };
 
@@ -1442,36 +1634,42 @@ function AdminNuevaVentaPanel() {
     setFreightItems(freightItems.map(i => i.productId === productId ? { ...i, cantidad: qty } : i));
   };
 
-  const removeFromCart = (productId) => {
-    setCart(cart.filter(item => item.productId !== productId));
+  const removeFromCart = (productId, isBonifiedList = false) => {
+    if (isBonifiedList) {
+      setBonifiedCart(bonifiedCart.filter(item => item.productId !== productId));
+    } else {
+      setCart(cart.filter(item => item.productId !== productId));
+    }
   };
 
-  const updateQuantity = (productId, newQuantity) => {
+  const updateQuantity = (productId, newQuantity, isBonifiedList = false) => {
     if (newQuantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, isBonifiedList);
       return;
     }
-    setCart(cart.map(item =>
-      item.productId === productId
-        ? { ...item, cantidad: newQuantity }
-        : item
-    ));
-  };
 
-  const toggleBonified = (productId) => {
-    setCart(cart.map(item => item.productId === productId ? { ...item, isBonified: !item.isBonified } : item));
+    if (isBonifiedList) {
+      setBonifiedCart(bonifiedCart.map(item =>
+        item.productId === productId ? { ...item, cantidad: newQuantity } : item
+      ));
+    } else {
+      setCart(cart.map(item =>
+        item.productId === productId ? { ...item, cantidad: newQuantity } : item
+      ));
+    }
   };
 
   const calculateTotal = () => {
     const productsTotal = cart.reduce((sum, item) => {
-      if (item.isBonified) return sum; // $0 for bonified
+      // Bonified items in regular cart shouldn't exist anymore, but safety check
+      if (item.isBonified) return sum;
       return sum + (item.precio * item.cantidad);
     }, 0);
     return productsTotal.toFixed(2);
   };
 
   const handleSubmitOrder = async () => {
-    if (cart.length === 0) {
+    if (cart.length === 0 && bonifiedCart.length === 0) {
       toast.warning('Agrega productos al carrito');
       return;
     }
@@ -1494,7 +1692,7 @@ function AdminNuevaVentaPanel() {
             productId: item.productId,
             cantidad: item.cantidad,
             allowOutOfStock: item.allowOutOfStock,
-            isBonified: item.isBonified
+            // isBonified removed
           })),
           ...freightItems.map(item => ({
             productId: item.productId,
@@ -1502,6 +1700,10 @@ function AdminNuevaVentaPanel() {
             isFreightItem: true
           }))
         ],
+        bonifiedItems: bonifiedCart.map(item => ({
+          productId: item.productId,
+          cantidad: item.cantidad
+        })),
         promotionIds: [],
         notas: notas.trim() || null,
         includeFreight: includeFreight,
@@ -1516,6 +1718,7 @@ function AdminNuevaVentaPanel() {
 
       setNotas('');
       setCart([]);
+      setBonifiedCart([]);
       setFreightItems([]);
       setIncludeFreight(false);
       setIsFreightBonified(false);
@@ -1523,6 +1726,7 @@ function AdminNuevaVentaPanel() {
       setFreightQuantity(1);
       setSelectedClient('');
       setAllowNoClient(false);
+      setIsBonifiedMode(false);
     } catch (error) {
       console.error('Error al crear orden:', error);
       toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
@@ -1557,24 +1761,59 @@ function AdminNuevaVentaPanel() {
         </h3>
 
         <div style={{ marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-            <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>search</span>
-            <input
-              type="text"
-              placeholder="Buscar producto..."
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '0.6rem 1rem',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                fontSize: '0.9rem'
-              }}
-            />
+          {/* Search and Bonified Toggle */}
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>search</span>
+              <input
+                type="text"
+                placeholder="Buscar producto..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 1rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  fontSize: '0.9rem'
+                }}
+              />
+            </div>
+
+            {/* ✅ Toggle Mode */}
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer',
+              background: isBonifiedMode ? '#ecfdf5' : '#f3f4f6',
+              padding: '0.5rem 1rem',
+              borderRadius: '20px',
+              border: isBonifiedMode ? '1px solid #10b981' : '1px solid transparent',
+              transition: 'all 0.2s'
+            }}>
+              <input
+                type="checkbox"
+                checked={isBonifiedMode}
+                onChange={(e) => setIsBonifiedMode(e.target.checked)}
+                style={{ accentColor: '#10b981' }}
+              />
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: isBonifiedMode ? '#047857' : '#4b5563' }}>
+                {isBonifiedMode ? '🎁 Modo Regalo (Bonificado)' : '📦 Modo Normal'}
+              </span>
+            </label>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', maxHeight: '500px', overflowY: 'auto' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            gap: '1rem',
+            maxHeight: '500px',
+            overflowY: 'auto',
+            border: isBonifiedMode ? '2px solid #10b981' : 'none',
+            borderRadius: '8px',
+            padding: isBonifiedMode ? '1rem' : '0'
+          }}>
             {filteredProducts.map(product => (
               <div
                 key={product.id}
@@ -1585,13 +1824,15 @@ function AdminNuevaVentaPanel() {
                   borderRadius: '8px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  background: 'white'
+                  background: isBonifiedMode ? '#f0fdf4' : 'white'
                 }}
                 onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
                 onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
               >
                 <div style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem' }}>{product.nombre}</div>
-                <div style={{ color: 'var(--primary)', fontWeight: '700', marginBottom: '0.25rem' }}>${parseFloat(product.precio).toFixed(2)}</div>
+                <div style={{ color: isBonifiedMode ? '#10b981' : 'var(--primary)', fontWeight: '700', marginBottom: '0.25rem' }}>
+                  {isBonifiedMode ? '$0.00 (Regalo)' : `$${parseFloat(product.precio).toFixed(2)}`}
+                </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Stock: {product.stock}</div>
               </div>
             ))}
@@ -1713,59 +1954,106 @@ function AdminNuevaVentaPanel() {
         <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span className="material-icons-round">shopping_cart</span>
-            Carrito ({cart.length})
+            Carrito ({cart.length + bonifiedCart.length})
           </h3>
 
-          <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1rem' }}>
-            {cart.length === 0 ? (
+          <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '1rem' }}>
+            {cart.length === 0 && bonifiedCart.length === 0 ? (
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>Carrito vacío</p>
             ) : (
-              cart.map(item => (
-                <div key={item.productId} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.nombre}</div>
-                    <div style={{ fontSize: '0.8rem', color: item.isBonified ? '#10b981' : 'var(--text-secondary)' }}>
-                      {item.isBonified ? 'BONIFICADO ($0.00)' : `$${parseFloat(item.precio).toFixed(2)}`}
-                    </div>
-                  </div>
+              <>
+                {/* ✅ REGULAR ITEMS SECTION */}
+                {cart.length > 0 && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4b5563', paddingBottom: '4px', borderBottom: '1px solid #e5e7eb', marginBottom: '8px' }}>📦 Productos</h5>
+                    {cart.map(item => (
+                      <div key={item.productId} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.nombre}</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            {`$${parseFloat(item.precio).toFixed(2)}`}
+                          </div>
+                        </div>
 
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', marginRight: '8px' }}>
-                      <input
-                        type="checkbox"
-                        checked={item.isBonified || false}
-                        onChange={() => toggleBonified(item.productId)}
-                      />
-                      Bonif.
-                    </label>
-
-                    <button
-                      onClick={() => updateQuantity(item.productId, item.cantidad - 1)}
-                      style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      value={item.cantidad}
-                      onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
-                      style={{ width: '40px', padding: '0.25rem', textAlign: 'center', border: '1px solid #e5e7eb', borderRadius: '4px' }}
-                    />
-                    <button
-                      onClick={() => updateQuantity(item.productId, item.cantidad + 1)}
-                      style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      +
-                    </button>
-                    <button
-                      onClick={() => removeFromCart(item.productId)}
-                      style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}
-                    >
-                      ✕
-                    </button>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          {/* removed isBonified checkbox */}
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.cantidad - 1, false)}
+                            style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, false)}
+                            style={{ width: '40px', padding: '0.25rem', textAlign: 'center', border: '1px solid #e5e7eb', borderRadius: '4px' }}
+                          />
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.cantidad + 1, false)}
+                            style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => removeFromCart(item.productId, false)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))
+                )}
+
+                {/* ✅ BONIFIED ITEMS SECTION */}
+                {bonifiedCart.length > 0 && (
+                  <div style={{ marginBottom: '1rem', background: '#f0fdf4', borderRadius: '8px', padding: '8px', border: '1px solid #bbf7d0' }}>
+                    <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#15803d', paddingBottom: '4px', borderBottom: '1px solid #bbf7d0', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
+                      Regalos (Bonificados)
+                    </h5>
+                    {bonifiedCart.map(item => (
+                      <div key={item.productId} style={{ padding: '0.5rem 0', borderBottom: '1px solid #dcfce7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#166534' }}>{item.nombre}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#15803d' }}>
+                            $0.00
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.cantidad - 1, true)}
+                            style={{ background: 'white', border: '1px solid #bbf7d0', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
+                            style={{ width: '40px', padding: '0.2rem', textAlign: 'center', border: '1px solid #bbf7d0', borderRadius: '4px', background: 'white' }}
+                          />
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.cantidad + 1, true)}
+                            style={{ background: 'white', border: '1px solid #bbf7d0', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => removeFromCart(item.productId, true)}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
