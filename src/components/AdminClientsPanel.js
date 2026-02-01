@@ -571,11 +571,7 @@ function AdminClientEditModal({ clientToEdit, vendedores, onClose, onSuccess }) 
         setSaving(true);
 
         try {
-<<<<<<< HEAD
-            await client.patch(`/admin/clients/${clientToEdit.id}`, formData);
-=======
-            await apiClient.patch(`/admin/clients/${client.id}`, formData);
->>>>>>> ce30977447643936e8aac9a03396186388ca632e
+            await apiClient.patch(`/admin/clients/${clientToEdit.id}`, formData);
             toast.success('¡Cliente actualizado exitosamente!');
             onSuccess();
         } catch (error) {
