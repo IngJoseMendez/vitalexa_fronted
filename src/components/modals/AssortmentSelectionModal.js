@@ -275,6 +275,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                                                     onChange={(e) => handleUpdateQuantity(product.id, e.target.value)}
                                                     min="1"
                                                     max={Math.min(product.stock, promotion.freeQuantity)}
+                                                    onWheel={(e) => e.target.blur()}
                                                 />
                                             </td>
                                             <td style={{ textAlign: 'center' }}>

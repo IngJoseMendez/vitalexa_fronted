@@ -757,6 +757,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                                 value={formData.discountApplied}
                                 onChange={(e) => setFormData({ ...formData, discountApplied: e.target.value })}
                                 placeholder="Ej: 5 (5%)"
+                                onWheel={(e) => e.target.blur()}
                             />
                             <span className="suffix">%</span>
                         </div>
@@ -780,6 +781,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                                 placeholder={`Máximo sugerido: ${(pendingBalance - discountAmount).toFixed(2)}`}
                                 required
+                                onWheel={(e) => e.target.blur()}
                             />
                         </div>
                     </div>

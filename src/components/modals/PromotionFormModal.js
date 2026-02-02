@@ -315,6 +315,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                     onChange={(e) => handleChange('buyQuantity', e.target.value)}
                                     min="1"
                                     required
+                                    onWheel={(e) => e.target.blur()}
                                 />
                             </div>
                         </div>
@@ -328,6 +329,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                     value={formData.packPrice}
                                     onChange={(e) => handleChange('packPrice', e.target.value)}
                                     placeholder="Dejar vacío para usar precio regular"
+                                    onWheel={(e) => e.target.blur()}
                                 />
                             </div>
                         )}
@@ -410,6 +412,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                             onChange={(e) => setNewGift(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
                                             min="1"
                                             style={{ background: 'white' }}
+                                            onWheel={(e) => e.target.blur()}
                                         />
                                     </div>
                                     <button
@@ -454,6 +457,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                             }}
                                             placeholder="0"
                                             required
+                                            onWheel={(e) => e.target.blur()}
                                         />
                                         <span style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Unidades a elección del vendedor</span>
                                     </div>

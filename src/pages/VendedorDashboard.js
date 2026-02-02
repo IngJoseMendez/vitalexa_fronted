@@ -761,6 +761,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                       value={freightQuantity}
                       onChange={(e) => setFreightQuantity(e.target.value)}
                       style={{ width: '60px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
+                      onWheel={(e) => e.target.blur()}
                     />
                   </div>
 
@@ -802,6 +803,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                           value={item.cantidad}
                           onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
                           style={{ width: '40px', textAlign: 'center', padding: '2px', fontSize: '0.8rem' }}
+                          onWheel={(e) => e.target.blur()}
                         />
                         <button onClick={() => removeFreightItem(item.productId)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
                       </div>
@@ -889,6 +891,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                               }
                             }}
                             min="1"
+                            onWheel={(e) => e.target.blur()}
                           />
                           <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)} title="Aumentar cantidad">+</button>
                         </div>
@@ -929,6 +932,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                           value={item.cantidad}
                           onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
                           min="1"
+                          onWheel={(e) => e.target.blur()}
                         />
                         <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)}>+</button>
                       </div>

@@ -125,6 +125,7 @@ const AdminDiscountSection = ({ orderId, onDiscountChange }) => {
                         disabled={loading}
                         min="0"
                         max="100"
+                        onWheel={(e) => e.target.blur()}
                     />
                     <input
                         type="text"

@@ -1161,6 +1161,7 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
                               onChange={(e) => updateQuantity(item.id, e.target.value)}
                               min="1"
                               className="qty-input"
+                              onWheel={(e) => e.target.blur()}
                             />
                             <button
                               type="button"
@@ -1220,6 +1221,7 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
                               min="1"
                               className="qty-input"
                               style={{ border: '1px solid #bbf7d0' }}
+                              onWheel={(e) => e.target.blur()}
                             />
                             <button
                               type="button"
@@ -1311,6 +1313,7 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
                       }}
                       style={{ width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
                       title="Cantidad de fletes"
+                      onWheel={(e) => e.target.blur()}
                     />
                   </div>
 
@@ -1354,6 +1357,7 @@ function EditOrderWindow({ order, onClose, onSuccess }) {
                             value={item.cantidad}
                             onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
                             style={{ width: '40px', padding: '2px', textAlign: 'center', fontSize: '0.8rem' }}
+                            onWheel={(e) => e.target.blur()}
                           />
                           <button onClick={() => removeItem(item.id)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
                         </div>
@@ -1988,6 +1992,7 @@ function AdminNuevaVentaPanel() {
                             value={item.cantidad}
                             onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, false)}
                             style={{ width: '40px', padding: '0.25rem', textAlign: 'center', border: '1px solid #e5e7eb', borderRadius: '4px' }}
+                            onWheel={(e) => e.target.blur()}
                           />
                           <button
                             onClick={() => updateQuantity(item.productId, item.cantidad + 1, false)}
@@ -2035,6 +2040,7 @@ function AdminNuevaVentaPanel() {
                             value={item.cantidad}
                             onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
                             style={{ width: '40px', padding: '0.2rem', textAlign: 'center', border: '1px solid #bbf7d0', borderRadius: '4px', background: 'white' }}
+                            onWheel={(e) => e.target.blur()}
                           />
                           <button
                             onClick={() => updateQuantity(item.productId, item.cantidad + 1, true)}
@@ -2092,6 +2098,7 @@ function AdminNuevaVentaPanel() {
                   onChange={(e) => setFreightQuantity(e.target.value)}
                   style={{ width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
                   title="Cantidad de fletes"
+                  onWheel={(e) => e.target.blur()}
                 />
               </div>
 
@@ -2136,6 +2143,7 @@ function AdminNuevaVentaPanel() {
                         value={item.cantidad}
                         onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
                         style={{ width: '40px', padding: '2px', textAlign: 'center', fontSize: '0.8rem' }}
+                        onWheel={(e) => e.target.blur()}
                       />
                       <button onClick={() => removeFreightItem(item.productId)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
                     </div>
