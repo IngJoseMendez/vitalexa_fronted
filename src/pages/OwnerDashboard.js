@@ -15,6 +15,8 @@ import '../styles/ChartStyles.css';
 
 
 // ✅ PLACEHOLDER SVG
+import HistoricalInvoiceModal from '../components/modals/HistoricalInvoiceModal'; // Added import
+
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 function OwnerDashboard() {
@@ -27,6 +29,7 @@ function OwnerDashboard() {
   const [vendedores, setVendedores] = useState([]);
   const [tags, setTags] = useState([]); // Added Tags State
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showHistoricalModal, setShowHistoricalModal] = useState(false); // Added State
   const toast = useToast();
 
   const fetchData = useCallback(async () => {
@@ -171,6 +174,7 @@ function OwnerDashboard() {
           <OrdersTab
             orders={orders}
             onSelectOrder={setSelectedOrder}
+            onOpenHistoricalModal={() => setShowHistoricalModal(true)}
           />
         )}
         {activeTab === 'products' && (
@@ -197,6 +201,15 @@ function OwnerDashboard() {
           userRole="ROLE_OWNER"
           onClose={() => setSelectedOrder(null)}
           onRefresh={fetchData}
+        />
+      )}
+
+      {showHistoricalModal && (
+        <HistoricalInvoiceModal
+          onClose={() => setShowHistoricalModal(false)}
+          onSuccess={() => {
+            fetchData();
+          }}
         />
       )}
     </div>
@@ -258,7 +271,7 @@ function OverviewTab({ stats }) {
 }
 
 // ===== ORDERS TAB =====
-function OrdersTab({ orders, onSelectOrder }) {
+function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
   const [filter, setFilter] = useState('pending');
   const [clientSearch, setClientSearch] = useState('');
 
@@ -285,7 +298,28 @@ function OrdersTab({ orders, onSelectOrder }) {
   return (
     <div className="orders-section">
       <div className="orders-header">
-        <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment</span> Gestión de Órdenes</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment</span> Gestión de Órdenes</h2>
+          <button
+            onClick={onOpenHistoricalModal}
+            style={{
+              background: '#fbbf24',
+              color: '#78350f',
+              border: 'none',
+              padding: '0.4rem 0.8rem',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '0.85rem',
+              fontWeight: 600
+            }}
+          >
+            <span className="material-icons-round" style={{ fontSize: '16px' }}>history</span>
+            Factura Histórica
+          </button>
+        </div>
         <div className="filter-tabs">
           <div className="search-orders" style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
             <span className="material-icons-round" style={{
@@ -759,7 +793,36 @@ function ReportsTab({ orders, products, vendedores }) {
       toast.success(`Reporte de ${type} descargado exitosamente`);
     } catch (error) {
       console.error(`Error al exportar ${type}:`, error);
-      toast.error(`Error al exportar reporte de ${type}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // =========================
+  // Export: Vendedor Individual
+  // =========================
+  const handleExportVendorReport = async (vendorId, format) => {
+    if (exporting) return;
+
+    try {
+      setExporting(true);
+      const response = await client.get(`/reports/export/vendor/${vendorId}/${format}`, {
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+        },
+        responseType: 'blob',
+      });
+
+      const ext = getExtensionByFormat(format);
+      const timestamp = new Date().toISOString().split('T')[0];
+      const fallbackName = `reporte_vendedor_${vendorId}_${timestamp}.${ext}`;
+
+      downloadAxiosBlob(response, fallbackName);
+      toast.success(`Reporte de vendedor descargado exitosamente`);
+    } catch (error) {
+      console.error('Error al exportar reporte de vendedor:', error);
+      toast.error('Error al exportar reporte de vendedor');
     } finally {
       setExporting(false);
     }
@@ -906,7 +969,12 @@ function ReportsTab({ orders, products, vendedores }) {
         )}
 
         {activeReportTab === 'vendors' && (
-          <VendorsReport data={reportData.vendorReport} vendedores={vendedores} />
+          <VendorsReport
+            data={reportData.vendorReport}
+            vendedores={vendedores}
+            onExport={handleExportVendorReport}
+            exporting={exporting}
+          />
         )}
 
         {activeReportTab === 'clients' && (
@@ -1203,7 +1271,7 @@ function ProductsReport({ data }) {
 }
 
 // ===== VENDORS REPORT =====
-function VendorsReport({ data, vendedores }) {
+function VendorsReport({ data, vendedores, onExport, exporting }) {
   return (
     <div className="vendors-report">
       <div className="report-header-stat">
@@ -1237,6 +1305,32 @@ function VendorsReport({ data, vendedores }) {
                     }}
                   />
                 </div>
+              </div>
+
+              <div className="vendor-actions" style={{
+                marginTop: '10px',
+                borderTop: '1px solid #f3f4f6',
+                paddingTop: '8px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '8px'
+              }}>
+                <button
+                  onClick={() => onExport(vendor.vendorId, 'excel')}
+                  disabled={exporting}
+                  title="Descargar Reporte Excel"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                >
+                  <span className="material-icons-round" style={{ color: '#10b981' }}>table_view</span>
+                </button>
+                <button
+                  onClick={() => onExport(vendor.vendorId, 'pdf')}
+                  disabled={exporting}
+                  title="Descargar Reporte PDF"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                >
+                  <span className="material-icons-round" style={{ color: '#ef4444' }}>picture_as_pdf</span>
+                </button>
               </div>
             </div>
           ))}
