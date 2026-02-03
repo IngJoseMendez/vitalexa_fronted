@@ -1,0 +1,591 @@
+/* =========================================
+   PREMIUM EDIT ORDER MODAL
+   Design System & Variables
+   ========================================= */
+:root {
+    --eo-primary: #6366f1;
+    --eo-primary-hover: #4f46e5;
+    --eo-success: #10b981;
+    --eo-success-bg: #ecfdf5;
+    --eo-danger: #ef4444;
+    --eo-danger-bg: #fef2f2;
+    --eo-text-main: #1e293b;
+    --eo-text-sec: #64748b;
+    --eo-bg-main: #ffffff;
+    --eo-bg-sec: #f8fafc;
+    --eo-border: #e2e8f0;
+    --eo-radius-lg: 16px;
+    --eo-radius-md: 12px;
+    --eo-radius-sm: 8px;
+    --eo-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --eo-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* Glassmorphism Overlay */
+.eo-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: eoFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 1rem;
+}
+
+/* Modal Window */
+.eo-modal {
+    background: var(--eo-bg-main);
+    width: 100%;
+    max-width: 1200px;
+    height: 90vh;
+    max-height: 900px;
+    border-radius: var(--eo-radius-lg);
+    box-shadow: var(--eo-shadow-xl);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    animation: eoSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Header */
+.eo-header {
+    padding: 1.25rem 2rem;
+    background: white;
+    border-bottom: 1px solid var(--eo-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.eo-header-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.eo-header-info h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    color: var(--eo-text-main);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: var(--eo-bg-sec);
+    color: var(--eo-text-sec);
+}
+
+/* Specific status colors could be added if .status-badge classes are propagated from props */
+
+.eo-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--eo-text-sec);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.eo-close-btn:hover {
+    background: var(--eo-bg-sec);
+    color: var(--eo-danger);
+}
+
+/* Body Layout */
+.eo-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Left Column: Config & Search */
+.eo-left-col {
+    width: 400px;
+    flex-shrink: 0;
+    background: #f8fafc;
+    border-right: 1px solid var(--eo-border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 2rem;
+    gap: 2rem;
+}
+
+/* Right Column: Items */
+.eo-right-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    min-width: 0;
+    /* Fix flex overflow */
+}
+
+/* Sections */
+.eo-section h3 {
+    font-size: 0.85rem;
+    color: var(--eo-text-sec);
+    margin: 0 0 1rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Inputs & Form Elements */
+.eo-field {
+    margin-bottom: 1rem;
+}
+
+.eo-input,
+.eo-textarea,
+.eo-select,
+select.eo-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: white;
+    border: 1px solid var(--eo-border);
+    border-radius: var(--eo-radius-sm);
+    font-size: 0.95rem;
+    color: var(--eo-text-main);
+    transition: all 0.2s ease;
+    box-shadow: var(--eo-shadow-sm);
+}
+
+.eo-input:focus,
+.eo-textarea:focus,
+.eo-select:focus,
+select.eo-input:focus {
+    outline: none;
+    border-color: var(--eo-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Search Box */
+.eo-search-wrapper {
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.eo-search-input {
+    width: 100%;
+    padding: 0.85rem 1rem 0.85rem 2.75rem;
+    border-radius: var(--eo-radius-md);
+    border: 1px solid var(--eo-border);
+    background: white;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    box-shadow: var(--eo-shadow-sm);
+}
+
+.eo-search-input:focus {
+    outline: none;
+    border-color: var(--eo-primary);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--eo-text-sec);
+    pointer-events: none;
+}
+
+.eo-search-clear {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--eo-text-sec);
+    cursor: pointer;
+    padding: 4px;
+}
+
+/* Mode Toggle */
+.eo-mode-toggle {
+    margin-bottom: 1rem;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    border-radius: var(--eo-radius-md);
+    background: white;
+    border: 1px solid var(--eo-border);
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.toggle-label:hover {
+    border-color: #cbd5e1;
+}
+
+.toggle-label.active {
+    background: var(--eo-success-bg);
+    border-color: var(--eo-success);
+}
+
+.toggle-switch {
+    width: 44px;
+    height: 24px;
+    background: #cbd5e1;
+    border-radius: 20px;
+    position: relative;
+    transition: background 0.3s ease;
+}
+
+.toggle-label.active .toggle-switch {
+    background: var(--eo-success);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-label.active .toggle-switch::after {
+    transform: translateX(20px);
+}
+
+.toggle-text {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--eo-text-main);
+}
+
+.toggle-label.active .toggle-text {
+    color: #065f46;
+}
+
+
+/* Search Results (Live) */
+.eo-search-results {
+    background: white;
+    border: 1px solid var(--eo-border);
+    border-radius: var(--eo-radius-md);
+    box-shadow: var(--eo-shadow-xl);
+    max-height: 300px;
+    overflow-y: auto;
+    animation: eoFadeIn 0.2s;
+}
+
+.eo-search-item {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--eo-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.eo-search-item:last-child {
+    border-bottom: none;
+}
+
+.eo-search-item:hover {
+    background: #f1f5f9;
+}
+
+.eo-search-item.out-of-stock {
+    opacity: 0.6;
+    background: #f9fafb;
+}
+
+.item-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.item-name {
+    font-weight: 600;
+    color: var(--eo-text-main);
+    font-size: 0.95rem;
+}
+
+.item-stock {
+    font-size: 0.75rem;
+    color: var(--eo-text-sec);
+    margin-top: 2px;
+}
+
+.item-stock.nostock {
+    color: var(--eo-danger);
+    font-weight: 600;
+}
+
+.item-price {
+    font-weight: 700;
+    color: var(--eo-primary);
+}
+
+
+/* Items Layout (Right Col) */
+.eo-items-container {
+    padding: 2rem;
+    flex: 1;
+    overflow-y: auto;
+    gap: 2rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Card-like Table/List Style */
+.eo-table-section h4 {
+    font-size: 0.9rem;
+    color: var(--eo-text-main);
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--eo-border);
+    display: inline-block;
+}
+
+.eo-items-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0 0.5rem;
+    /* Space between rows */
+}
+
+.eo-items-table thead th {
+    text-align: left;
+    padding: 0 1rem 0.5rem 1rem;
+    font-size: 0.8rem;
+    color: var(--eo-text-sec);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.eo-items-table tbody tr {
+    background: white;
+    box-shadow: var(--eo-shadow-sm);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 8px;
+    /* Requires logical implementation or pseudo-elem hack on table rows, or use display block */
+    /* Actually table-row border-radius is tricky. Let's stick to standard clean table */
+    background: transparent;
+    box-shadow: none;
+}
+
+/* Better Table Row Style */
+.eo-items-table td {
+    padding: 1rem;
+    background: white;
+    border-top: 1px solid var(--eo-border);
+    border-bottom: 1px solid var(--eo-border);
+}
+
+.eo-items-table tr td:first-child {
+    border-left: 1px solid var(--eo-border);
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+.eo-items-table tr td:last-child {
+    border-right: 1px solid var(--eo-border);
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.eo-item-name {
+    font-weight: 600;
+    color: var(--eo-text-main);
+}
+
+/* Bonified Row styles */
+.tr.is-bonified td {
+    background: var(--eo-success-bg) !important;
+    border-color: #bbf7d0 !important;
+}
+
+.eo-qty-input {
+    width: 70px;
+    padding: 0.5rem;
+    text-align: center;
+    border: 1px solid var(--eo-border);
+    border-radius: 6px;
+    font-weight: 600;
+    color: var(--eo-text-main);
+}
+
+.eo-qty-input:focus {
+    outline: none;
+    border-color: var(--eo-primary);
+}
+
+/* Freight Section */
+.eo-freight-section {
+    background: #f8fafc;
+    border: 1px solid var(--eo-border);
+    border-radius: var(--eo-radius-md);
+    padding: 1.5rem;
+    margin-top: auto;
+    /* Push to bottom if space permits */
+}
+
+.freight-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 600;
+    color: var(--eo-text-main);
+    cursor: pointer;
+    margin-bottom: 1rem;
+}
+
+.freight-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    animation: eoFadeIn 0.3s;
+}
+
+.freight-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.freight-item-row {
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: 1px solid var(--eo-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+/* Footer & Totals */
+.eo-footer-summary {
+    background: white;
+    padding: 1.5rem 2rem;
+    border-top: 1px solid var(--eo-border);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.summary-row.total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+.summary-row.total span:first-child {
+    font-size: 1.1rem;
+    color: var(--eo-text-sec);
+    font-weight: 500;
+}
+
+.summary-row.total span:last-child {
+    font-weight: 800;
+    color: var(--eo-text-main);
+}
+
+.eo-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.eo-btn {
+    padding: 0.85rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    border: none;
+}
+
+.eo-btn.secondary {
+    background: white;
+    border: 1px solid var(--eo-border);
+    color: var(--eo-text-sec);
+}
+
+.eo-btn.secondary:hover {
+    background: #f1f5f9;
+    color: var(--eo-text-main);
+    border-color: #cbd5e1;
+}
+
+.eo-btn.primary {
+    background: var(--eo-primary);
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.3);
+}
+
+.eo-btn.primary:hover {
+    background: var(--eo-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+}
+
+.eo-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Animations */
+@keyframes eoFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes eoSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}

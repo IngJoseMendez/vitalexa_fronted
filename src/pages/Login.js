@@ -20,7 +20,7 @@ export default function Login() {
 
     try {
       const response = await client.post('/auth/login', { username, password });
-      const token = response.data.token;
+      const token = response.data.token; 
 
       // Extraer el rol del token
       const role = getRoleFromToken(token);

@@ -15,6 +15,7 @@ function BalancesPage() {
     const [vendedores, setVendedores] = useState([]);
     const [selectedVendedor, setSelectedVendedor] = useState('');
     const [filteredClientIds, setFilteredClientIds] = useState(null); // ✅ IDs permitidos para el filtro
+    const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'owing', 'up_to_date'
     const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
     const toast = useToast();
     const userRole = localStorage.getItem('role');
@@ -80,6 +81,14 @@ function BalancesPage() {
             }
         }
 
+        // Status Filter
+        if (filterStatus === 'owing') {
+            return (b.pendingBalance || 0) > 0;
+        }
+        if (filterStatus === 'up_to_date') {
+            return (b.pendingBalance || 0) <= 0;
+        }
+
         return matchesSearch;
     }).sort((a, b) => {
         const nameA = a.clientName || '';
@@ -141,6 +150,34 @@ function BalancesPage() {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="status-filter" style={{ marginLeft: '0.5rem' }}>
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            style={{
+                                padding: '0.6rem 2.5rem 0.6rem 1rem',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                background: 'white',
+                                color: 'var(--text-primary)',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                appearance: 'none',
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' viewBox='0 0 24 24' width='24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundPosition: 'right 8px center',
+                                minWidth: '140px',
+                                cursor: 'pointer',
+                                height: '42px'
+                            }}
+                        >
+                            <option value="all">Todos los estados</option>
+                            <option value="owing">Que deben</option>
+                            <option value="up_to_date">Al día</option>
+                        </select>
                     </div>
 
                     {/* Filter by Vendor (Only if Admin/Owner) */}

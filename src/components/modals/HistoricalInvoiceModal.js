@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
+import './HistoricalInvoiceModal.css'; // Importing the new premium styles
 
 export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
     const [clients, setClients] = useState([]);
@@ -9,10 +10,14 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
     const [isRegisteredClient, setIsRegisteredClient] = useState(true);
     const toast = useToast();
 
+    // Search State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+
     // Form State
     const [formData, setFormData] = useState({
         invoiceNumber: '',
-        fecha: new Date().toISOString().slice(0, 16), // Default to current time for input type="datetime-local"
+        fecha: new Date().toISOString().slice(0, 16),
         totalValue: '',
         amountPaid: '',
         clientId: '',
@@ -28,6 +33,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
         try {
             const res = await client.get('/owner/invoices/clients');
             setClients(res.data || []);
+            // If editing logic existed, we would pre-fill here, but this is "Create" only.
         } catch (error) {
             console.error('Error fetching clients for historical invoices:', error);
             toast.error('Error al cargar lista de clientes');
@@ -40,20 +46,62 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
         fetchClients();
     }, [fetchClients]);
 
+    // Handle Click Outside for Dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (!event.target.closest('.client-search-container')) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
+
+    // Client Selection Logic
+    const handleClientSelect = (client) => {
+        setFormData(prev => ({
+            ...prev,
+            clientId: client.id,
+            clientName: client.nombre // Optional: keeping consistency
+        }));
+        setSearchTerm(client.nombre); // Set search term to selected name
+        setShowDropdown(false);
+    };
+
+    const clearClientSelection = () => {
+        setFormData(prev => ({ ...prev, clientId: '' }));
+        setSearchTerm('');
+    };
+
+    // Filtered Clients for Search
+    const filteredClients = useMemo(() => {
+        if (!searchTerm) return clients;
+        const lowerTerm = searchTerm.toLowerCase();
+        return clients.filter(c =>
+            c.nombre.toLowerCase().includes(lowerTerm) ||
+            (c.nit && c.nit.toLowerCase().includes(lowerTerm))
+        );
+    }, [clients, searchTerm]);
+
+    // Calculate Balance Logic
+    const total = parseFloat(formData.totalValue) || 0;
+    const paid = parseFloat(formData.amountPaid) || 0;
+    const balance = total - paid;
+    const isPaidOff = balance <= 0.01; // tolerance
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            // Prepare payload
             const payload = {
                 invoiceNumber: parseInt(formData.invoiceNumber),
-                fecha: new Date(formData.fecha).toISOString(), // Ensure ISO format
+                fecha: new Date(formData.fecha).toISOString(),
                 totalValue: parseFloat(formData.totalValue),
                 amountPaid: parseFloat(formData.amountPaid),
                 invoiceType: formData.invoiceType,
@@ -88,11 +136,11 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
             console.error('Error creating historical invoice:', error);
             if (error.response) {
                 if (error.response.status === 409) {
-                    toast.error('Ya existe una factura con ese número. Usa uno diferente.');
+                    toast.error('Ya existe una factura con ese número.');
                 } else if (error.response.status === 400) {
-                    toast.error('Datos inválidos. Verifica que el número de factura y montos sean positivos.');
+                    toast.error('Datos inválidos. Verifica los montos.');
                 } else if (error.response.status === 403) {
-                    toast.error('No tienes permisos para realizar esta acción.');
+                    toast.error('No tienes permisos.');
                 } else {
                     toast.error(error.response.data?.message || 'Error al registrar factura');
                 }
@@ -105,253 +153,269 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
     };
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '600px', width: '95%' }} onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
+        <div className="historical-modal-overlay">
+            <div className="historical-modal-content" onClick={e => e.stopPropagation()}>
+                {/* HEADER */}
+                <div className="hm-header">
                     <h3>
-                        <span className="material-icons-round" style={{ fontSize: '24px', verticalAlign: 'middle', marginRight: '8px', color: '#fbbf24' }}>
-                            history
-                        </span>
+                        <div className="header-icon">
+                            <span className="material-icons-round">history</span>
+                        </div>
                         Registrar Factura Histórica
                     </h3>
-                    <button className="btn-close" onClick={onClose}>
+                    <button className="btn-close-modal" onClick={onClose}>
                         <span className="material-icons-round">close</span>
                     </button>
                 </div>
 
-                <div className="modal-body" style={{ padding: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
-                    <div className="info-box" style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', fontSize: '0.9rem', color: '#92400e' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {/* BODY */}
+                <div className="hm-body">
+                    {/* INFO BANNER */}
+                    <div className="hm-section" style={{ background: '#fffbeb', borderColor: '#fcd34d', padding: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: '#92400e' }}>
                             <span className="material-icons-round" style={{ fontSize: '20px' }}>info</span>
-                            <div>
-                                <strong>Nota Importante:</strong>
-                                <p style={{ margin: '0.2rem 0' }}>
-                                    Las facturas históricas se registran automáticamente como <strong>COMPLETADAS</strong> y afectan el balance del cliente. No contienen productos individuales.
-                                </p>
-                            </div>
+                            <p style={{ margin: 0 }}>
+                                <strong>Nota:</strong> Estas facturas no contienen productos, solo montos para afectar el balance.
+                            </p>
                         </div>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="historical-invoice-form">
-                        {/* TIPO DE CLIENTE TOOGLE */}
-                        <div className="form-group" style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Tipo de Cliente</label>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="radio"
-                                        checked={isRegisteredClient}
-                                        onChange={() => setIsRegisteredClient(true)}
-                                    />
+                    <form onSubmit={handleSubmit} id="historical-form">
+
+                        {/* SECTION 1: CLIENT */}
+                        <div className="hm-section">
+                            <div className="hm-section-title">
+                                <span className="material-icons-round" style={{ fontSize: '18px' }}>person</span>
+                                Información del Cliente
+                            </div>
+
+                            <div className="client-type-selector">
+                                <label className={`type-option ${isRegisteredClient ? 'active' : ''}`}>
+                                    <input type="radio" checked={isRegisteredClient} onChange={() => setIsRegisteredClient(true)} />
                                     Cliente Registrado
                                 </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="radio"
-                                        checked={!isRegisteredClient}
-                                        onChange={() => setIsRegisteredClient(false)}
-                                    />
-                                    Cliente Ocasional / No Registrado
+                                <label className={`type-option ${!isRegisteredClient ? 'active' : ''}`}>
+                                    <input type="radio" checked={!isRegisteredClient} onChange={() => setIsRegisteredClient(false)} />
+                                    Nuevo / Ocasional
                                 </label>
                             </div>
-                        </div>
 
-                        {/* SELECCIÓN DE CLIENTE */}
-                        {isRegisteredClient ? (
-                            <div className="form-group">
-                                <label>Cliente <span className="required">*</span></label>
-                                {fetchingClients ? (
-                                    <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Cargando clientes...</div>
-                                ) : (
-                                    <select
-                                        name="clientId"
-                                        value={formData.clientId}
-                                        onChange={handleChange}
-                                        className="form-input"
-                                        required={isRegisteredClient}
-                                    >
-                                        <option value="">-- Seleccionar Cliente --</option>
-                                        {clients.map(c => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.nombre} {c.nit ? `(NIT: ${c.nit})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-                            </div>
-                        ) : (
-                            // CAMPOS PARA CLIENTE NO REGISTRADO
-                            <div style={{ background: '#f9fafb', padding: '1rem', borderRadius: '8px', border: '1px solid #e5e7eb', marginBottom: '1rem' }}>
-                                <div className="form-group">
-                                    <label>Nombre del Cliente <span className="required">*</span></label>
-                                    <input
-                                        type="text"
-                                        name="clientName"
-                                        value={formData.clientName}
-                                        onChange={handleChange}
-                                        className="form-input"
-                                        placeholder="Ej: Juan Pérez"
-                                        required={!isRegisteredClient}
-                                    />
-                                </div>
-                                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    <div className="form-group">
-                                        <label>Teléfono</label>
+                            {isRegisteredClient ? (
+                                <div className="client-search-container">
+                                    <label className="hm-label">Buscar Cliente <span className="required">*</span></label>
+                                    <div className="search-input-wrapper">
+                                        <span className="material-icons-round search-icon">search</span>
                                         <input
                                             type="text"
-                                            name="clientPhone"
-                                            value={formData.clientPhone}
-                                            onChange={handleChange}
-                                            className="form-input"
-                                            placeholder="Opcional"
+                                            className="hm-input search-mode"
+                                            placeholder="Escribe nombre o NIT..."
+                                            value={searchTerm}
+                                            onChange={(e) => {
+                                                setSearchTerm(e.target.value);
+                                                setShowDropdown(true);
+                                                if (formData.clientId) setFormData(prev => ({ ...prev, clientId: '' })); // Reset if typing
+                                            }}
+                                            onFocus={() => setShowDropdown(true)}
+                                            required={isRegisteredClient && !formData.clientId} // Valid if ID is set
+                                        />
+                                        {searchTerm && (
+                                            <button
+                                                type="button"
+                                                onClick={clearClientSelection}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: formData.clientId ? '36px' : '10px',
+                                                    top: '50%',
+                                                    transform: 'translateY(-50%)',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: '#9ca3af',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    padding: '4px',
+                                                    zIndex: 10
+                                                }}
+                                                title="Limpiar búsqueda"
+                                            >
+                                                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                                            </button>
+                                        )}
+                                        {formData.clientId && (
+                                            <span className="material-icons-round" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#10b981' }}>
+                                                check_circle
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {showDropdown && (
+                                        <div className="client-dropdown">
+                                            {fetchingClients && <div className="no-results">Cargando...</div>}
+                                            {!fetchingClients && filteredClients.length === 0 && (
+                                                <div className="no-results">No se encontraron clientes</div>
+                                            )}
+                                            {filteredClients.map(c => (
+                                                <div key={c.id} className="client-option" onClick={() => handleClientSelect(c)}>
+                                                    <div className="client-option-info">
+                                                        <span className="client-name">{c.nombre}</span>
+                                                        {c.nit && <span className="client-nit">NIT: {c.nit}</span>}
+                                                    </div>
+                                                    <span className="material-icons-round" style={{ fontSize: '16px', color: '#9ca3af' }}>chevron_right</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                // NON-REGISTERED INPUTS
+                                <div className="hm-grid-2">
+                                    <div className="hm-form-group">
+                                        <label className="hm-label">Nombre Completo <span className="required">*</span></label>
+                                        <input
+                                            type="text" name="clientName" className="hm-input"
+                                            value={formData.clientName} onChange={handleChange} required={!isRegisteredClient}
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label>Email</label>
+                                    <div className="hm-form-group">
+                                        <label className="hm-label">Teléfono</label>
                                         <input
-                                            type="email"
-                                            name="clientEmail"
-                                            value={formData.clientEmail}
-                                            onChange={handleChange}
-                                            className="form-input"
-                                            placeholder="Opcional"
+                                            type="text" name="clientPhone" className="hm-input"
+                                            value={formData.clientPhone} onChange={handleChange}
+                                        />
+                                    </div>
+                                    <div className="hm-form-group">
+                                        <label className="hm-label">Email</label>
+                                        <input
+                                            type="email" name="clientEmail" className="hm-input"
+                                            value={formData.clientEmail} onChange={handleChange}
+                                        />
+                                    </div>
+                                    <div className="hm-form-group">
+                                        <label className="hm-label">Dirección</label>
+                                        <input
+                                            type="text" name="clientAddress" className="hm-input"
+                                            value={formData.clientAddress} onChange={handleChange}
                                         />
                                     </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>Dirección</label>
+                            )}
+                        </div>
+
+                        {/* SECTION 2: INVOICE DATA */}
+                        <div className="hm-section">
+                            <div className="hm-section-title">
+                                <span className="material-icons-round" style={{ fontSize: '18px' }}>receipt_long</span>
+                                Detalles de la Factura
+                            </div>
+
+                            <div className="hm-grid-3">
+                                <div className="hm-form-group">
+                                    <label className="hm-label">No. Factura <span className="required">*</span></label>
                                     <input
-                                        type="text"
-                                        name="clientAddress"
-                                        value={formData.clientAddress}
-                                        onChange={handleChange}
-                                        className="form-input"
-                                        placeholder="Opcional"
+                                        type="number" name="invoiceNumber" className="hm-input"
+                                        value={formData.invoiceNumber} onChange={handleChange} required min="1"
+                                        placeholder="Ej: 1001"
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                                <div className="hm-form-group">
+                                    <label className="hm-label">Tipo <span className="required">*</span></label>
+                                    <select
+                                        name="invoiceType" className="hm-select"
+                                        value={formData.invoiceType} onChange={handleChange} required
+                                    >
+                                        <option value="NORMAL">Normal</option>
+                                        <option value="SR">Remisión (S/R)</option>
+                                        <option value="PROMO">Promoción</option>
+                                    </select>
+                                </div>
+                                <div className="hm-form-group">
+                                    <label className="hm-label">Fecha Emisión <span className="required">*</span></label>
+                                    <input
+                                        type="datetime-local" name="fecha" className="hm-input"
+                                        value={formData.fecha} onChange={handleChange} required
                                     />
                                 </div>
                             </div>
-                        )}
 
-                        <hr style={{ margin: '1.5rem 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
-
-                        {/* DATOS DE LA FACTURA */}
-                        <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                            <div className="form-group">
-                                <label>Número de Factura <span className="required">*</span></label>
-                                <input
-                                    type="number"
-                                    name="invoiceNumber"
-                                    value={formData.invoiceNumber}
-                                    onChange={handleChange}
-                                    className="form-input"
-                                    placeholder="Ej: 1001"
-                                    min="1"
-                                    required
-                                    onWheel={(e) => e.target.blur()}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Tipo de Factura <span className="required">*</span></label>
-                                <select
-                                    name="invoiceType"
-                                    value={formData.invoiceType}
-                                    onChange={handleChange}
-                                    className="form-input"
-                                    required
-                                >
-                                    <option value="NORMAL">Normal (Standard)</option>
-                                    <option value="SR">Remisión (S/R)</option>
-                                    <option value="PROMO">Promoción</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Fecha de Emisión <span className="required">*</span></label>
-                                <input
-                                    type="datetime-local"
-                                    name="fecha"
-                                    value={formData.fecha}
-                                    onChange={handleChange}
-                                    className="form-input"
-                                    required
+                            <div className="hm-form-group" style={{ marginTop: '1rem' }}>
+                                <label className="hm-label">Notas</label>
+                                <textarea
+                                    name="notes" className="hm-textarea"
+                                    value={formData.notes} onChange={handleChange}
+                                    placeholder="Detalles adicionales..."
                                 />
                             </div>
                         </div>
 
-                        <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div className="form-group">
-                                <label>Valor Total ($) <span className="required">*</span></label>
-                                <input
-                                    type="number"
-                                    name="totalValue"
-                                    value={formData.totalValue}
-                                    onChange={handleChange}
-                                    className="form-input"
-                                    placeholder="0.00"
-                                    min="0"
-                                    step="0.01"
-                                    required
-                                    onWheel={(e) => e.target.blur()}
-                                />
+                        {/* SECTION 3: FINANCIALS */}
+                        <div className="hm-section">
+                            <div className="hm-section-title">
+                                <span className="material-icons-round" style={{ fontSize: '18px' }}>payments</span>
+                                Montos
                             </div>
-                            <div className="form-group">
-                                <label>Monto Pagado ($) <span className="required">*</span></label>
-                                <input
-                                    type="number"
-                                    name="amountPaid"
-                                    value={formData.amountPaid}
-                                    onChange={handleChange}
-                                    className="form-input"
-                                    placeholder="Lo que pagó el cliente"
-                                    min="0"
-                                    step="0.01"
-                                    required
-                                    onWheel={(e) => e.target.blur()}
-                                />
-                                <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>
-                                    La deuda se calculará automáticamente (Total - Pagado)
-                                </small>
+
+                            <div className="hm-grid-2">
+                                <div className="hm-form-group">
+                                    <label className="hm-label">Valor Total ($) <span className="required">*</span></label>
+                                    <input
+                                        type="number" name="totalValue" className="hm-input"
+                                        value={formData.totalValue} onChange={handleChange} required min="0" step="0.01"
+                                        placeholder="0.00"
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                                <div className="hm-form-group">
+                                    <label className="hm-label">Monto Pagado ($) <span className="required">*</span></label>
+                                    <input
+                                        type="number" name="amountPaid" className="hm-input"
+                                        value={formData.amountPaid} onChange={handleChange} required min="0" step="0.01"
+                                        placeholder="0.00"
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Summary Cards */}
+                            <div className="financial-summary">
+                                <div className="fin-card">
+                                    <span className="fin-label">Total Factura</span>
+                                    <span className="fin-value">${total.toFixed(2)}</span>
+                                </div>
+                                <div className="fin-card">
+                                    <span className="fin-label">Abonado</span>
+                                    <span className="fin-value" style={{ color: '#10b981' }}>${paid.toFixed(2)}</span>
+                                </div>
+                                <div className={`fin-card highlight`}>
+                                    <span className="fin-label">{isPaidOff ? 'Estado' : 'Saldo Pendiente'}</span>
+                                    <span className="fin-value" style={{ color: isPaidOff ? '#10b981' : '#dc2626' }}>
+                                        {isPaidOff ? 'PAGADO' : `$${balance.toFixed(2)}`}
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="form-group">
-                            <label>Notas Adicionales</label>
-                            <textarea
-                                name="notes"
-                                value={formData.notes}
-                                onChange={handleChange}
-                                className="form-input"
-                                rows="3"
-                                placeholder="Detalles extra sobre esta factura histórica..."
-                            />
-                        </div>
-
-                        <div className="modal-footer" style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                onClick={onClose}
-                                disabled={loading}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="submit"
-                                className="btn-primary"
-                                disabled={loading}
-                                style={{
-                                    background: '#fbbf24',
-                                    color: '#78350f',
-                                    fontWeight: 700,
-                                    border: 'none',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: '0.5rem',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {loading ? 'Registrando...' : 'Registrar Factura'}
-                            </button>
-                        </div>
                     </form>
+                </div>
+
+                {/* FOOTER */}
+                <div className="hm-footer">
+                    <button
+                        type="button"
+                        className="hm-btn hm-btn-secondary"
+                        onClick={onClose}
+                        disabled={loading}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        form="historical-form"
+                        className="hm-btn hm-btn-primary"
+                        disabled={loading}
+                    >
+                        {loading ? 'Guardando...' : 'Registrar Factura'}
+                    </button>
                 </div>
             </div>
         </div>
