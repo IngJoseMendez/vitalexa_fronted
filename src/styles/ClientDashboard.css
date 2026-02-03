@@ -123,6 +123,42 @@
 }
 
 /* === HEADER ACTIONS === */
+.btn-refresh-dashboard {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-refresh-dashboard:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-bg);
+}
+
+.btn-refresh-dashboard:active {
+    transform: translateY(0);
+}
+
+.btn-refresh-dashboard .material-icons-round {
+    font-size: 1.25rem;
+    transition: transform 0.5s ease;
+}
+
+.btn-refresh-dashboard:hover .material-icons-round {
+    transform: rotate(180deg);
+}
+
 .header-actions {
     display: flex;
     gap: 1rem;

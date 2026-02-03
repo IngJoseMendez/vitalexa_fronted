@@ -166,6 +166,9 @@ function OwnerDashboard() {
         >
           <span className="material-icons-round">account_balance_wallet</span> Saldos
         </button>
+        <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+          <span className="material-icons-round">sync</span>
+        </button>
       </nav>
 
       <div className="dashboard-content">
@@ -175,6 +178,7 @@ function OwnerDashboard() {
             orders={orders}
             onSelectOrder={setSelectedOrder}
             onOpenHistoricalModal={() => setShowHistoricalModal(true)}
+            refreshTrigger={refreshTrigger}
           />
         )}
         {activeTab === 'products' && (
@@ -182,9 +186,10 @@ function OwnerDashboard() {
             products={products}
             tags={tags}
             onRefresh={fetchData}
+            refreshTrigger={refreshTrigger}
           />
         )}
-        {activeTab === 'clients' && <AdminClientsPanel />}
+        {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'metas' && (
           <SaleGoalsTab
             vendedores={vendedores}
@@ -1272,6 +1277,49 @@ function ProductsReport({ data }) {
 
 // ===== VENDORS REPORT =====
 function VendorsReport({ data, vendedores, onExport, exporting }) {
+  // Combinar todos los vendedores con sus estadísticas
+  // Si un vendedor no tiene órdenes, sus stats serán 0
+  const allVendorsWithStats = React.useMemo(() => {
+    if (!vendedores || vendedores.length === 0) {
+      return data.topVendors || [];
+    }
+
+    // Crear un mapa de vendedores con sus estadísticas
+    const vendorStatsMap = new Map();
+
+    // Agregar stats de vendedores con órdenes
+    (data.topVendors || []).forEach(vendor => {
+      vendorStatsMap.set(vendor.vendorId, vendor);
+    });
+
+    // Crear lista completa combinando todos los vendedores
+    const completeList = vendedores.map(vendedor => {
+      const stats = vendorStatsMap.get(vendedor.id);
+
+      if (stats) {
+        // Vendedor con órdenes - usar sus stats reales
+        return stats;
+      } else {
+        // Vendedor sin órdenes - crear objeto con stats en 0
+        return {
+          vendorId: vendedor.id,
+          vendorName: vendedor.username || vendedor.name || `Vendedor ${vendedor.id}`,
+          totalOrders: 0,
+          totalRevenue: 0,
+          averageOrderValue: 0
+        };
+      }
+    });
+
+    // Ordenar por totalRevenue descendente
+    return completeList.sort((a, b) => b.totalRevenue - a.totalRevenue);
+  }, [vendedores, data.topVendors]);
+
+  // Obtener el máximo de órdenes para la barra de progreso
+  const maxOrders = allVendorsWithStats.length > 0
+    ? Math.max(...allVendorsWithStats.map(v => v.totalOrders))
+    : 1;
+
   return (
     <div className="vendors-report">
       <div className="report-header-stat">
@@ -1280,10 +1328,10 @@ function VendorsReport({ data, vendedores, onExport, exporting }) {
       </div>
 
       <div className="top-vendors-section">
-        <h3>🏆 Top 10 Vendedores</h3>
+        <h3>👥 Todos los Vendedores</h3>
         <div className="vendors-list">
-          {data.topVendors.map((vendor, idx) => (
-            <div key={idx} className="vendor-card">
+          {allVendorsWithStats.map((vendor, idx) => (
+            <div key={vendor.vendorId} className="vendor-card">
               <div className="vendor-rank">#{idx + 1}</div>
               <div className="vendor-info">
                 <h4>{vendor.vendorName}</h4>
@@ -1298,10 +1346,9 @@ function VendorsReport({ data, vendedores, onExport, exporting }) {
                   <div
                     className="bar-fill"
                     style={{
-                      width: `${Math.min(
-                        (vendor.totalOrders / data.topVendors[0].totalOrders) * 100,
-                        100
-                      )}%`
+                      width: maxOrders > 0
+                        ? `${Math.min((vendor.totalOrders / maxOrders) * 100, 100)}%`
+                        : '0%'
                     }}
                   />
                 </div>

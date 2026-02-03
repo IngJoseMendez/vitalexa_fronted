@@ -79,13 +79,17 @@ function AdminDashboard() {
         </button>
       </nav>
 
+      <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+        <span className="material-icons-round">sync</span>
+      </button>
+
       <div className="dashboard-content">
         {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'clients' && <AdminClientsPanel />}
-        {activeTab === 'tags' && <TagsPanel />}
-        {activeTab === 'promotions' && <PromotionsPanel />}
+        {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
+        {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
       </div>
     </div>
   );
@@ -97,7 +101,7 @@ function AdminDashboard() {
 // ============================================
 // PANEL DE ÓRDENES CON PDF DE FACTURA
 // ============================================
-function OrdersPanel() {
+function OrdersPanel({ refreshTrigger }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -179,7 +183,7 @@ function OrdersPanel() {
       window.removeEventListener('new-order-notification', handleNewOrder);
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
-  }, [fetchOrders, fetchVendedores]);
+  }, [fetchOrders, fetchVendedores, refreshTrigger]);
 
   const changeStatus = async (orderId, newStatus) => {
     try {

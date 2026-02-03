@@ -6,7 +6,7 @@ import { useToast } from './ToastContainer';
  * AdminClientsPanel - Panel for Admin/Owner to manage clients
  * Allows creating clients assigned to specific vendors
  */
-function AdminClientsPanel() {
+function AdminClientsPanel({ refreshTrigger }) {
     const [clients, setClients] = useState([]);
     const [vendedores, setVendedores] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -20,6 +20,7 @@ function AdminClientsPanel() {
 
     const fetchData = useCallback(async () => {
         try {
+            setLoading(true); // Show loading state on refresh
             const [clientsRes, vendedoresRes] = await Promise.all([
                 apiClient.get('/admin/clients'),
                 apiClient.get('/admin/clients/vendedores')
@@ -36,7 +37,7 @@ function AdminClientsPanel() {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [fetchData, refreshTrigger]);
 
     // Filter clients by search term AND vendor
     const filteredClients = clients.filter(c => {
@@ -45,11 +46,16 @@ function AdminClientsPanel() {
             return false;
         }
 
-        // Text search filter
+        // Multi-field text search filter
+        // Searches across ALL client fields: name, NIT, email, phone, address, municipality, administrator, legal rep, and vendor
         const term = searchTerm.toLowerCase();
         if (term) {
             return (
                 (c.nombre || '').toLowerCase().includes(term) ||
+                (c.nit || '').toLowerCase().includes(term) ||
+                (c.email || '').toLowerCase().includes(term) ||
+                (c.telefono || '').toLowerCase().includes(term) ||
+                (c.direccion || '').toLowerCase().includes(term) ||
                 (c.administrador || '').toLowerCase().includes(term) ||
                 (c.representanteLegal || '').toLowerCase().includes(term) ||
                 (c.vendedorAsignadoNombre || '').toLowerCase().includes(term)
@@ -95,7 +101,7 @@ function AdminClientsPanel() {
                     <span className="material-icons-round search-icon">search</span>
                     <input
                         type="text"
-                        placeholder="Buscar por nombre, administrador, representante..."
+                        placeholder="Buscar por nombre, NIT, email, teléfono, dirección, municipio..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="search-input"
