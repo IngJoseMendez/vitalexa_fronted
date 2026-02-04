@@ -94,16 +94,10 @@ function AdminDashboard() {
         {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
-<<<<<<< HEAD
-        {activeTab === 'clients' && <AdminClientsPanel />}
-        {activeTab === 'tags' && <TagsPanel />}
-        {activeTab === 'promotions' && <PromotionsPanel />}
-        {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
-=======
         {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
         {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
->>>>>>> 26fe54a28a6068dbe086efa694dd181ca0dc19ec
+        {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
       </div>
     </div>
   );
