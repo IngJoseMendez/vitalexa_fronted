@@ -16,6 +16,9 @@ function AdminClientsPanel() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedVendedor, setSelectedVendedor] = useState(''); // Filter by vendor
     const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+    const [exporting, setExporting] = useState(false);
+    const [exportKeyword, setExportKeyword] = useState('');
+    const [selectedExportVendor, setSelectedExportVendor] = useState('');
     const toast = useToast();
 
     const fetchData = useCallback(async () => {
@@ -37,6 +40,97 @@ function AdminClientsPanel() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Helper to extract filename from Content-Disposition header
+    const getFilenameFromContentDisposition = (contentDisposition) => {
+        if (!contentDisposition) return null;
+        const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+        if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1].replace(/"/g, ''));
+        const simpleMatch = contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+        if (simpleMatch?.[1]) return simpleMatch[1];
+        return null;
+    };
+
+    // Export clients by seller
+    const handleExportBySeller = async () => {
+        if (!selectedExportVendor) {
+            toast.warning('Seleccione un vendedor para exportar');
+            return;
+        }
+        if (exporting) return;
+
+        try {
+            setExporting(true);
+            const response = await apiClient.get(`/admin/clients/export/excel/seller/${selectedExportVendor}`, {
+                responseType: 'blob'
+            });
+
+            const contentDisposition = response.headers?.['content-disposition'];
+            const serverFilename = getFilenameFromContentDisposition(contentDisposition);
+            const filename = serverFilename || `clientes_vendedora_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+            const blob = new Blob([response.data], {
+                type: response.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+
+            toast.success('Excel descargado exitosamente');
+            setSelectedExportVendor('');
+        } catch (error) {
+            console.error('Error al exportar por vendedor:', error);
+            toast.error('Error al exportar clientes: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    // Export clients by route (keyword in address)
+    const handleExportByRoute = async () => {
+        if (!exportKeyword.trim()) {
+            toast.warning('Ingrese una palabra clave para buscar en la dirección');
+            return;
+        }
+        if (exporting) return;
+
+        try {
+            setExporting(true);
+            const response = await apiClient.get('/admin/clients/export/excel/route', {
+                params: { keyword: exportKeyword.trim() },
+                responseType: 'blob'
+            });
+
+            const contentDisposition = response.headers?.['content-disposition'];
+            const serverFilename = getFilenameFromContentDisposition(contentDisposition);
+            const filename = serverFilename || `clientes_ruta_${exportKeyword.trim()}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+            const blob = new Blob([response.data], {
+                type: response.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+
+            toast.success('Excel descargado exitosamente');
+            setExportKeyword('');
+        } catch (error) {
+            console.error('Error al exportar por ruta:', error);
+            toast.error('Error al exportar clientes: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setExporting(false);
+        }
+    };
 
     // Filter clients by search term AND vendor
     const filteredClients = clients.filter(c => {
@@ -80,6 +174,180 @@ function AdminClientsPanel() {
                     <span className="material-icons-round" style={{ fontSize: '18px', verticalAlign: 'middle' }}>add</span>
                     {' '}Nuevo Cliente
                 </button>
+            </div>
+
+            {/* Excel Export Section */}
+            <div style={{
+                background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
+                border: '1px solid #a7f3d0',
+                borderRadius: '12px',
+                padding: '1rem 1.25rem',
+                marginBottom: '1.5rem',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                alignItems: 'flex-end'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', width: '100%' }}>
+                    <span className="material-icons-round" style={{ color: '#059669', fontSize: '20px' }}>download</span>
+                    <span style={{ fontWeight: 600, color: '#065f46', fontSize: '0.95rem' }}>Exportar Clientes a Excel</span>
+                </div>
+
+                {/* Export by Seller */}
+                <div style={{ flex: '1', minWidth: '250px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#374151', marginBottom: '0.4rem', fontWeight: 500 }}>
+                        Por Vendedora
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <select
+                            value={selectedExportVendor}
+                            onChange={(e) => setSelectedExportVendor(e.target.value)}
+                            disabled={exporting}
+                            style={{
+                                flex: 1,
+                                padding: '0.6rem 0.8rem',
+                                borderRadius: '8px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '0.9rem',
+                                background: 'white',
+                                cursor: exporting ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            <option value="">-- Seleccionar --</option>
+                            {vendedores.map(v => (
+                                <option key={v.id} value={v.id}>{v.username}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={handleExportBySeller}
+                            disabled={!selectedExportVendor || exporting}
+                            style={{
+                                background: selectedExportVendor && !exporting ? '#10b981' : '#d1d5db',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '0.6rem 1rem',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: selectedExportVendor && !exporting ? 'pointer' : 'not-allowed',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <span className="material-icons-round" style={{ fontSize: '16px' }}>table_chart</span>
+                            {exporting ? 'Exportando...' : 'Exportar'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Export by Route */}
+                <div style={{ flex: '1', minWidth: '250px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#374151', marginBottom: '0.4rem', fontWeight: 500 }}>
+                        Por Ruta/Dirección
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                            type="text"
+                            placeholder="Ej: Zona 1, Centro..."
+                            value={exportKeyword}
+                            onChange={(e) => setExportKeyword(e.target.value)}
+                            disabled={exporting}
+                            onKeyPress={(e) => {
+                                if (e.key === 'Enter' && exportKeyword.trim() && !exporting) {
+                                    handleExportByRoute();
+                                }
+                            }}
+                            style={{
+                                flex: 1,
+                                padding: '0.6rem 0.8rem',
+                                borderRadius: '8px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '0.9rem',
+                                background: 'white'
+                            }}
+                        />
+                        <button
+                            onClick={handleExportByRoute}
+                            disabled={!exportKeyword.trim() || exporting}
+                            style={{
+                                background: exportKeyword.trim() && !exporting ? '#10b981' : '#d1d5db',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '0.6rem 1rem',
+                                fontSize: '0.85rem',
+                                fontWeight: 600,
+                                cursor: exportKeyword.trim() && !exporting ? 'pointer' : 'not-allowed',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <span className="material-icons-round" style={{ fontSize: '16px' }}>table_chart</span>
+                            {exporting ? 'Exportando...' : 'Exportar'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Export All Clients */}
+                <div style={{ width: '100%', marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid #d1fae5' }}>
+                    <button
+                        onClick={async () => {
+                            if (exporting) return;
+                            try {
+                                setExporting(true);
+                                const response = await apiClient.get('/admin/clients/export/excel/all', {
+                                    responseType: 'blob'
+                                });
+
+                                const contentDisposition = response.headers?.['content-disposition'];
+                                const serverFilename = getFilenameFromContentDisposition(contentDisposition);
+                                const filename = serverFilename || `todos_los_clientes_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+                                const blob = new Blob([response.data], {
+                                    type: response.headers?.['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                                });
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', filename);
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                window.URL.revokeObjectURL(url);
+
+                                toast.success('Excel con todos los clientes descargado exitosamente');
+                            } catch (error) {
+                                console.error('Error al exportar todos los clientes:', error);
+                                toast.error('Error al exportar clientes: ' + (error.response?.data?.message || error.message));
+                            } finally {
+                                setExporting(false);
+                            }
+                        }}
+                        disabled={exporting}
+                        style={{
+                            width: '100%',
+                            background: exporting ? '#d1d5db' : 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.75rem 1rem',
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            cursor: exporting ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        <span className="material-icons-round" style={{ fontSize: '18px' }}>download</span>
+                        {exporting ? 'Exportando...' : 'Exportar TODOS los Clientes'}
+                    </button>
+                </div>
             </div>
 
             {/* Filters Row */}
@@ -391,8 +659,7 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
     };
 
     const isFormValid = formData.nit.trim() && formData.nombre.trim() &&
-        formData.administrador.trim() && formData.representanteLegal.trim() &&
-        formData.vendedorId; // Optional: email, phone, direccion
+        formData.direccion.trim() && formData.vendedorId;
 
     return (
         <div className="modal-overlay">

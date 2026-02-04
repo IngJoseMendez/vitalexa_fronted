@@ -1159,6 +1159,14 @@ function SalesReport({ data }) {
 
       <div className="monthly-sales-section">
         <h3>Ventas Mensuales</h3>
+        {/**
+         * @typedef {Object} MonthlySalesDTO
+         * @property {string} month - Month name in Spanish (e.g., "FEBRERO")
+         * @property {number} monthNumber - Month number for sorting (1-12)
+         * @property {number} year - Year
+         * @property {number} revenue - Total revenue for the month
+         * @property {number} orders - Number of orders
+         */}
         <table className="sales-table">
           <thead>
             <tr>

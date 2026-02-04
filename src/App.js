@@ -140,7 +140,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
           <Route
             path="/owner/*"
             element={
-              <ProtectedRoute allowedRoles={['ROLE_OWNER']}>
+              <ProtectedRoute allowedRoles={['ROLE_OWNER', 'ROLE_ADMIN']}>
                 <OwnerDashboard />
               </ProtectedRoute>
             }

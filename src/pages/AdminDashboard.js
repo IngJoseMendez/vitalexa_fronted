@@ -17,6 +17,7 @@ import '../styles/AdminDashboard.css';
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
   const [refreshTrigger, setRefreshTrigger] = useState(0); // State for refresh
+  const toast = useToast();
 
   useEffect(() => {
     // Connect with role 'admin'
@@ -72,6 +73,12 @@ function AdminDashboard() {
           <span className="material-icons-round">card_giftcard</span> Promociones
         </button>
         <button
+          className={activeTab === 'reports' ? 'active' : ''}
+          onClick={() => setActiveTab('reports')}
+        >
+          <span className="material-icons-round">analytics</span> Reportes
+        </button>
+        <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
         >
@@ -86,6 +93,7 @@ function AdminDashboard() {
         {activeTab === 'clients' && <AdminClientsPanel />}
         {activeTab === 'tags' && <TagsPanel />}
         {activeTab === 'promotions' && <PromotionsPanel />}
+        {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
       </div>
     </div>
   );
@@ -915,7 +923,7 @@ function AdminNuevaVentaPanel() {
           precio: product.precio,
           cantidad: 1,
           stockDisponible: product.stock,
-          allowOutOfStock: false,
+          allowOutOfStock: true, // Admin can sell without stock
           isBonified: false
         }]);
       }
@@ -1511,11 +1519,378 @@ function AdminNuevaVentaPanel() {
 }
 
 // ============================================
-// COMPONENTES FALTANTES (Placeholders)
+// ADMIN REPORTS PANEL
 // ============================================
+function AdminReportsPanel({ toast }) {
+  const [exporting, setExporting] = useState(false);
+  const [vendedores, setVendedores] = useState([]);
+  const [selectedVendor, setSelectedVendor] = useState('');
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().setMonth(new Date().getMonth() - 1))
+      .toISOString()
+      .split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+  });
 
+  useEffect(() => {
+    const fetchVendedores = async () => {
+      try {
+        const response = await client.get('/admin/clients/vendedores');
+        setVendedores(response.data || []);
+      } catch (error) {
+        console.error('Error al cargar vendedores:', error);
+      }
+    };
+    fetchVendedores();
+  }, []);
 
+  const handleDateChange = (field, value) => {
+    setDateRange((prev) => ({ ...prev, [field]: value }));
+  };
 
+  const getExtensionByFormat = (format) => {
+    switch (format) {
+      case 'excel':
+        return 'xlsx';
+      case 'pdf':
+        return 'pdf';
+      case 'csv':
+        return 'csv';
+      default:
+        return format;
+    }
+  };
+
+  const getFilenameFromContentDisposition = (contentDisposition) => {
+    if (!contentDisposition) return null;
+    const utf8Match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1].replace(/"/g, ''));
+    const simpleMatch = contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+    if (simpleMatch?.[1]) return simpleMatch[1];
+    return null;
+  };
+
+  const downloadAxiosBlob = (axiosResponse, fallbackFilename) => {
+    const contentType = axiosResponse.headers?.['content-type'] || 'application/octet-stream';
+    const contentDisposition = axiosResponse.headers?.['content-disposition'];
+
+    const serverFilename = getFilenameFromContentDisposition(contentDisposition);
+    const filename = serverFilename || fallbackFilename;
+
+    const blob = new Blob([axiosResponse.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportReport = async (format) => {
+    if (exporting) return;
+
+    try {
+      setExporting(true);
+
+      const response = await client.get(`/reports/export/complete/${format}`, {
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+        },
+        responseType: 'blob',
+      });
+
+      const ext = getExtensionByFormat(format);
+      const fallbackName = `reporte_completo_${dateRange.startDate}_${dateRange.endDate}.${ext}`;
+
+      downloadAxiosBlob(response, fallbackName);
+      toast.success(`Reporte ${format.toUpperCase()} descargado exitosamente`);
+    } catch (error) {
+      console.error(`Error al exportar a ${format}:`, error);
+      toast.error(`Error al exportar reporte a ${format.toUpperCase()}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportVendorReport = async (format) => {
+    if (!selectedVendor) {
+      toast.warning('Selecciona un vendedor');
+      return;
+    }
+    if (exporting) return;
+
+    try {
+      setExporting(true);
+
+      const response = await client.get(`/reports/export/vendor/${selectedVendor}/${format}`, {
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+        },
+        responseType: 'blob',
+      });
+
+      const ext = getExtensionByFormat(format);
+      const vendorName = vendedores.find(v => v.id === selectedVendor)?.username || selectedVendor;
+      const fallbackName = `reporte_vendedor_${vendorName}_${dateRange.startDate}_${dateRange.endDate}.${ext}`;
+
+      downloadAxiosBlob(response, fallbackName);
+      toast.success(`Reporte de ${vendorName} descargado exitosamente`);
+    } catch (error) {
+      console.error(`Error al exportar reporte de vendedor:`, error);
+      toast.error(`Error al exportar reporte de vendedor`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="reports-panel" style={{ padding: '2rem' }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <h2 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)' }}>analytics</span>
+          Reportes Administrativos
+        </h2>
+
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '2rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          border: '1px solid #e5e7eb'
+        }}>
+          <h3 style={{ marginBottom: '1.5rem' }}>Seleccionar Rango de Fechas</h3>
+
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#374151' }}>
+                Desde:
+              </label>
+              <input
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => handleDateChange('startDate', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '0.95rem'
+                }}
+              />
+            </div>
+
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#374151' }}>
+                Hasta:
+              </label>
+              <input
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => handleDateChange('endDate', e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '0.95rem'
+                }}
+              />
+            </div>
+          </div>
+
+          <h3 style={{ marginBottom: '1rem' }}>Exportar Reporte Completo</h3>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => handleExportReport('excel')}
+              disabled={exporting}
+              style={{
+                flex: 1,
+                minWidth: '150px',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '1rem',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                opacity: exporting ? 0.7 : 1
+              }}
+            >
+              <span className="material-icons-round">table_chart</span>
+              {exporting ? 'Exportando...' : 'Excel'}
+            </button>
+
+            <button
+              onClick={() => handleExportReport('pdf')}
+              disabled={exporting}
+              style={{
+                flex: 1,
+                minWidth: '150px',
+                background: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '1rem',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                opacity: exporting ? 0.7 : 1
+              }}
+            >
+              <span className="material-icons-round">picture_as_pdf</span>
+              {exporting ? 'Exportando...' : 'PDF'}
+            </button>
+
+            <button
+              onClick={() => handleExportReport('csv')}
+              disabled={exporting}
+              style={{
+                flex: 1,
+                minWidth: '150px',
+                background: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '1rem',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                opacity: exporting ? 0.7 : 1
+              }}
+            >
+              <span className="material-icons-round">description</span>
+              {exporting ? 'Exportando...' : 'CSV'}
+            </button>
+          </div>
+
+          <div style={{
+            marginTop: '1.5rem',
+            padding: '1rem',
+            background: '#f3f4f6',
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            color: '#6b7280'
+          }}>
+            <span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '0.5rem' }}>info</span>
+            Los reportes incluyen datos de ventas, productos, vendedores y clientes para el rango de fechas seleccionado.
+          </div>
+
+          {/* Vendor-Specific Reports Section */}
+          <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb' }}>
+            <h3 style={{ marginBottom: '1.5rem' }}>Reportes por Vendedor</h3>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#374151' }}>
+                Seleccionar Vendedor:
+              </label>
+              <select
+                value={selectedVendor}
+                onChange={(e) => setSelectedVendor(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '0.95rem',
+                  background: selectedVendor ? '#f0fdf4' : 'white'
+                }}
+              >
+                <option value="">-- Seleccionar Vendedor --</option>
+                {vendedores.map(v => (
+                  <option key={v.id} value={v.id}>{v.username}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => handleExportVendorReport('excel')}
+                disabled={!selectedVendor || exporting}
+                style={{
+                  flex: 1,
+                  minWidth: '200px',
+                  background: selectedVendor && !exporting ? '#10b981' : '#d1d5db',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: selectedVendor && !exporting ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  opacity: selectedVendor && !exporting ? 1 : 0.6
+                }}
+              >
+                <span className="material-icons-round">table_chart</span>
+                {exporting ? 'Exportando...' : 'Excel Completo'}
+              </button>
+
+              <button
+                onClick={() => handleExportVendorReport('pdf')}
+                disabled={!selectedVendor || exporting}
+                style={{
+                  flex: 1,
+                  minWidth: '200px',
+                  background: selectedVendor && !exporting ? '#ef4444' : '#d1d5db',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: selectedVendor && !exporting ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  opacity: selectedVendor && !exporting ? 1 : 0.6
+                }}
+              >
+                <span className="material-icons-round">picture_as_pdf</span>
+                {exporting ? 'Exportando...' : 'PDF Ventas Diarias'}
+              </button>
+            </div>
+
+            <div style={{
+              marginTop: '1rem',
+              padding: '0.75rem',
+              background: '#fef3c7',
+              borderRadius: '8px',
+              fontSize: '0.8rem',
+              color: '#92400e',
+              border: '1px solid #fde68a'
+            }}>
+              <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '0.4rem' }}>info</span>
+              <strong>Nota:</strong> NinaTorres y YicelaSandoval tienen datos unificados. El reporte de cualquiera mostrará datos combinados.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default AdminDashboard;
-

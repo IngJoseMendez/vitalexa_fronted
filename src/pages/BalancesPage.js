@@ -14,18 +14,17 @@ function BalancesPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [vendedores, setVendedores] = useState([]);
     const [selectedVendedor, setSelectedVendedor] = useState('');
-    const [filteredClientIds, setFilteredClientIds] = useState(null); // ✅ IDs permitidos para el filtro
     const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'owing', 'up_to_date'
     const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
     const toast = useToast();
     const userRole = localStorage.getItem('role');
 
-    const fetchBalances = useCallback(async () => {
+    const fetchBalances = useCallback(async (vendedorId = null) => {
         try {
             setLoading(true);
             const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
 
-            const requests = [balanceService.getAllBalances()];
+            const requests = [balanceService.getAllBalances(vendedorId)];
             if (isAdminOrOwner) {
                 requests.push(clientApi.get('/admin/clients/vendedores'));
             }
@@ -55,38 +54,12 @@ function BalancesPage() {
         const matchesSearch = b.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             b.clientPhone?.includes(searchTerm);
 
-        // Vendor Filter
-        // Note: balances endpoint might not return vendor info directly. 
-        // If 'vendedorAsignadoId' or similar exists in balance object, use it.
-        // Assuming balance object has client info or we can match by name if necessary, 
-        // but ideally the backend should provide vendor info.
-        // Checking view_file output... balance object has 'clientId', 'clientName'.
-        // We might not have vendor info here.
-        // However, I can't filter by vendor if I don't have the data.
-        // Let's assume for now we filter locally if the data is there, or we might need to fetch it.
-        // Wait, the Requirement 6 says: "Add a filter to select a seller and display only their clients".
-        // If `getAllBalances` doesn't return vendor, I might need to map it from the `vendedores` list if possible? 
-        // No, `vendedores` list is just users.
-        // I'll assume the balance object DOES NOT have vendor info based on `view_file`.
-        // I might need to join with client details? That's expensive.
-        // Let's check if `balances` has `vendorName` or similar property. It wasn't shown in the initial `view_file` details (just reduced lines).
-        // I will optimistically check for `vendorName` or `sellerName`.
-        // If not present, this filter won't work without backend changes or fetching all clients.
-        // STRATEGY: Fetch all clients to map ID -> Vendor? No, too heavy.
-        // Alternative: Filter based on `b.vendorName` if exists.
-
-        if (filteredClientIds !== null) {
-            if (!filteredClientIds.includes(b.clientId)) {
-                return false;
-            }
-        }
-
         // Status Filter
         if (filterStatus === 'owing') {
-            return (b.pendingBalance || 0) > 0;
+            return matchesSearch && (b.pendingBalance || 0) > 0;
         }
         if (filterStatus === 'up_to_date') {
-            return (b.pendingBalance || 0) <= 0;
+            return matchesSearch && (b.pendingBalance || 0) <= 0;
         }
 
         return matchesSearch;
@@ -190,25 +163,16 @@ function BalancesPage() {
                                     setSelectedVendedor(username);
 
                                     if (!username) {
-                                        setFilteredClientIds(null);
+                                        // Reset to all vendors
+                                        fetchBalances(null);
                                         return;
                                     }
 
-                                    // Buscar ID
+                                    // Find vendor ID  by username
                                     const vendorObj = vendedores.find(v => v.username === username);
                                     if (vendorObj) {
-                                        try {
-                                            setLoading(true);
-                                            const res = await clientApi.get(`/admin/clients/seller/${vendorObj.id}`);
-                                            const allowedIds = res.data.map(c => c.id);
-                                            setFilteredClientIds(allowedIds);
-                                        } catch (err) {
-                                            console.error(err);
-                                            toast.error('Error al filtrar por vendedor');
-                                            setFilteredClientIds([]);
-                                        } finally {
-                                            setLoading(false);
-                                        }
+                                        // Call fetchBalances with vendorId - backend will filter
+                                        fetchBalances(vendorObj.id);
                                     }
                                 }}
                                 style={{
