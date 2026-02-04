@@ -30,6 +30,8 @@ const ClientDashboardContent = () => {
         const saved = localStorage.getItem('clientGridColumns');
         return saved ? parseInt(saved) : 2;
     });
+    // ✅ Refresh Trigger
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Search state
     const [search, setSearch] = useState('');
@@ -68,7 +70,14 @@ const ClientDashboardContent = () => {
         } finally {
             setLoading(false);
         }
-    }, [page, search, inStockOnly, activeTagId]);
+    }, [page, search, inStockOnly, activeTagId]); // Removed refreshTrigger from dependency
+
+    // Trigger fetch on refreshTrigger
+    useEffect(() => {
+        if (activeTab === 'catalog') {
+            fetchProducts();
+        }
+    }, [refreshTrigger, fetchProducts, activeTab]);
 
     useEffect(() => {
         if (activeTab === 'catalog') {
@@ -128,6 +137,15 @@ const ClientDashboardContent = () => {
                 </nav>
 
                 <div className="header-actions">
+                    {/* ✅ Refresh Button */}
+                    <button
+                        className="btn-refresh-dashboard"
+                        onClick={() => setRefreshTrigger(Date.now())}
+                        title="Actualizar datos"
+                    >
+                        <span className="material-icons-round">sync</span>
+                    </button>
+
                     <button
                         className="cart-btn-header"
                         onClick={() => setActiveTab('cart')}
@@ -237,14 +255,14 @@ const ClientDashboardContent = () => {
                 {activeTab === 'cart' && (
                     <div className="animate-fade-in">
                         <h2 style={{ marginBottom: '1.5rem' }}>Mi Carrito</h2>
-                        <CartView onOrderPlaced={() => setActiveTab('orders')} />
+                        <CartView onOrderPlaced={() => setActiveTab('orders')} key={refreshTrigger} />
                     </div>
                 )}
 
                 {activeTab === 'orders' && (
                     <div className="animate-fade-in">
                         <h2 style={{ marginBottom: '1.5rem' }}>Mis Pedidos</h2>
-                        <OrdersView />
+                        <OrdersView key={refreshTrigger} />
                     </div>
                 )}
 
@@ -255,13 +273,14 @@ const ClientDashboardContent = () => {
                             onConvertToOrder={() => setActiveTab('orders')}
                             productToAdd={productToAdd}
                             onProductAdded={() => setProductToAdd(null)}
+                            key={refreshTrigger}
                         />
                     </div>
                 )}
 
                 {activeTab === 'profile' && (
                     <div className="animate-fade-in">
-                        <ClientProfile />
+                        <ClientProfile key={refreshTrigger} />
                     </div>
                 )}
 

@@ -186,6 +186,13 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     };
 
     const calculateTotal = () => {
+        // ✅ Para órdenes promocionales o cuando tenemos el total de la orden,
+        // usar el total real en vez de calcular la suma de productos
+        if (order.total !== undefined && order.total !== null) {
+            return parseFloat(order.total).toFixed(2);
+        }
+
+        // Fallback: calcular suma de items (para órdenes nuevas/sin total)
         return formData.items.reduce((sum, item) => {
             if (item.isFreightItem) return sum;
             const qty = parseFloat(item.cantidad) || 0;
@@ -234,17 +241,38 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             };
 
             if (isPromoOrder) {
-                payload.items = [];
-                payload.bonifiedItems = [];
+                // 🎯 ORDEN DE PROMOCIÓN: Solo enviar flete y bonificados
+                // Los items normales de la promoción son preservados automáticamente por el backend
+
+                // Items de flete (si están habilitados)
                 if (formData.includeFreight) {
                     const freightItems = formData.items.filter(i => i.isFreightItem);
-                    payload.items.push(...freightItems.map(item => ({
+                    payload.items = freightItems.map(item => ({
                         productId: item.productId,
                         cantidad: item.cantidad,
                         isFreightItem: true
-                    })));
+                    }));
+                } else {
+                    payload.items = [];
                 }
+
+                // Items bonificados (si se agregaron manualmente)
+                if (validBonified.length > 0) {
+                    payload.bonifiedItems = validBonified.map(item => ({
+                        productId: item.productId,
+                        cantidad: item.cantidad
+                    }));
+                } else {
+                    payload.bonifiedItems = [];
+                }
+
+                console.log('🔍 [ORDEN PROMOCIÓN] Items a enviar:');
+                console.log('  - Items de flete:', payload.items.length);
+                console.log('  - Items bonificados:', payload.bonifiedItems.length);
+                console.log('  - Items normales de promo: 0 (preservados por backend)');
+
             } else {
+                // 📦 ORDEN NORMAL: Enviar todos los items
                 payload.items = [
                     ...validItems.filter(i => !i.isFreightItem).map(item => ({
                         productId: item.productId,
@@ -261,6 +289,11 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     productId: item.productId,
                     cantidad: item.cantidad
                 }));
+
+                console.log('🔍 [ORDEN NORMAL] Items a enviar:');
+                console.log('  - Items normales:', validItems.filter(i => !i.isFreightItem).length);
+                console.log('  - Items de flete:', formData.items.filter(i => i.isFreightItem).length);
+                console.log('  - Items bonificados:', validBonified.length);
             }
 
             console.log('📦 Payload a enviar:', payload);

@@ -134,15 +134,22 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
 
         } catch (error) {
             console.error('Error creating historical invoice:', error);
+
+            // Extract backend error message if available
+            const errorMessage = error.response?.data?.message;
+
             if (error.response) {
-                if (error.response.status === 409) {
+                // Prioritize backend message, fallback to status-specific messages
+                if (errorMessage) {
+                    toast.error(errorMessage);
+                } else if (error.response.status === 409) {
                     toast.error('Ya existe una factura con ese número.');
                 } else if (error.response.status === 400) {
                     toast.error('Datos inválidos. Verifica los montos.');
                 } else if (error.response.status === 403) {
                     toast.error('No tienes permisos.');
                 } else {
-                    toast.error(error.response.data?.message || 'Error al registrar factura');
+                    toast.error('Error al registrar factura');
                 }
             } else {
                 toast.error('Error de conexión al servidor');

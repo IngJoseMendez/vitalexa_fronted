@@ -78,14 +78,17 @@ function VendedorDashboard() {
         >
           <span className="material-icons-round">account_balance_wallet</span> Saldos
         </button>
+        <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+          <span className="material-icons-round">sync</span>
+        </button>
       </nav>
 
       <div className="dashboard-content">
         {activeTab === 'nueva-venta' && <NuevaVentaPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'mis-ventas' && <MisVentasPanel />}
-        {activeTab === 'ventas-completadas' && <VentasCompletadasPanel />}
-        {activeTab === 'mis-metas' && <MisMetasPanel />}
-        {activeTab === 'clientes' && <ClientesPanel />}
+        {activeTab === 'mis-ventas' && <MisVentasPanel key={refreshTrigger} />}
+        {activeTab === 'ventas-completadas' && <VentasCompletadasPanel key={refreshTrigger} />}
+        {activeTab === 'mis-metas' && <MisMetasPanel key={refreshTrigger} />}
+        {activeTab === 'clientes' && <ClientesPanel key={refreshTrigger} />}
         {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
       </div>
     </div>
@@ -379,6 +382,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
       return;
     }
 
+    // Constraint: No freight with promotions
+    const hasPromotions = promotionsCart.length > 0;
+
     try {
       const orderData = {
         clientId: selectedClient || null,
@@ -389,12 +395,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
             allowOutOfStock: item.allowOutOfStock,
             relatedPromotionId: item.promotionId || null
           })),
-          // ✅ Add Freight Items
-          ...freightItems.map(item => ({
+          // ✅ Add Freight Items (Only if no promotions)
+          ...(hasPromotions ? [] : freightItems.map(item => ({
             productId: item.productId,
             cantidad: item.cantidad,
             isFreightItem: true
-          }))
+          })))
         ],
         bonifiedItems: bonifiedCart.map(item => ({
           productId: item.productId,
@@ -402,11 +408,11 @@ function NuevaVentaPanel({ refreshTrigger }) {
         })),
         promotionIds: promotionsCart.map(p => p.id),
         notas: notas.trim() || null,
-        includeFreight: includeFreight || false,
-        // ✅ Add Custom Freight Fields
-        isFreightBonified: includeFreight ? isFreightBonified : false,
-        freightCustomText: includeFreight ? freightCustomText : null,
-        freightQuantity: includeFreight ? (parseInt(freightQuantity) || 1) : 1,
+        includeFreight: hasPromotions ? false : (includeFreight || false),
+        // ✅ Add Custom Freight Fields (Only if no promotions)
+        isFreightBonified: (hasPromotions ? false : includeFreight) ? isFreightBonified : false,
+        freightCustomText: (hasPromotions ? false : includeFreight) ? freightCustomText : null,
+        freightQuantity: (hasPromotions ? false : includeFreight) ? (parseInt(freightQuantity) || 1) : 1,
         sellerId: isAdminOrOwner ? assignedVendor : null
       };
 
@@ -728,15 +734,22 @@ function NuevaVentaPanel({ refreshTrigger }) {
                   id="incluir-flete"
                   type="checkbox"
                   checked={includeFreight}
+                  disabled={promotionsCart.length > 0}
                   onChange={(e) => setIncludeFreight(e.target.checked)}
                 />
-                <label htmlFor="incluir-flete">
+                <label htmlFor="incluir-flete" style={{ color: promotionsCart.length > 0 ? '#9ca3af' : 'inherit' }}>
                   <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>local_shipping</span>
                   Incluir Flete en Orden
                 </label>
               </div>
+              {promotionsCart.length > 0 && (
+                <div style={{ fontSize: '0.8rem', color: '#ef4444', marginLeft: '1.5rem', marginBottom: '0.5rem' }}>
+                  <span className="material-icons-round" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '4px' }}>block</span>
+                  El flete no está disponible en órdenes con promociones.
+                </div>
+              )}
 
-              {includeFreight && (
+              {includeFreight && !promotionsCart.length > 0 && (
                 <div className="freight-custom-section" style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>

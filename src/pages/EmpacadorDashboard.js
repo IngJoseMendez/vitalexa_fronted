@@ -45,6 +45,9 @@ function EmpacadorDashboard() {
                 >
                     <span className="material-icons-round">history</span> Historial
                 </button>
+                <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+                    <span className="material-icons-round">sync</span>
+                </button>
             </nav>
 
             <div className="dashboard-content">
@@ -55,7 +58,7 @@ function EmpacadorDashboard() {
                         refreshTrigger={refreshTrigger}
                     />
                 )}
-                {activeTab === 'historial' && <HistorialReembolsosPanel />}
+                {activeTab === 'historial' && <HistorialReembolsosPanel key={refreshTrigger} />}
             </div>
         </div>
     );
