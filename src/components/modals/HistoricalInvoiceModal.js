@@ -84,7 +84,8 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
         const lowerTerm = searchTerm.toLowerCase();
         return clients.filter(c =>
             c.nombre.toLowerCase().includes(lowerTerm) ||
-            (c.nit && c.nit.toLowerCase().includes(lowerTerm))
+            (c.nit && c.nit.toLowerCase().includes(lowerTerm)) ||
+            (c.representanteLegal && c.representanteLegal.toLowerCase().includes(lowerTerm))
         );
     }, [clients, searchTerm]);
 
@@ -215,7 +216,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
                                         <input
                                             type="text"
                                             className="hm-input search-mode"
-                                            placeholder="Escribe nombre o NIT..."
+                                            placeholder="Buscar por establecimiento, representante o NIT..."
                                             value={searchTerm}
                                             onChange={(e) => {
                                                 setSearchTerm(e.target.value);
@@ -264,7 +265,12 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess }) {
                                             {filteredClients.map(c => (
                                                 <div key={c.id} className="client-option" onClick={() => handleClientSelect(c)}>
                                                     <div className="client-option-info">
-                                                        <span className="client-name">{c.nombre}</span>
+                                                        <span className="client-name">
+                                                            {c.nombre}
+                                                            {c.representanteLegal && (
+                                                                <span style={{ fontSize: '0.85em', color: '#6b7280', fontWeight: '400' }}> / {c.representanteLegal}</span>
+                                                            )}
+                                                        </span>
                                                         {c.nit && <span className="client-nit">NIT: {c.nit}</span>}
                                                     </div>
                                                     <span className="material-icons-round" style={{ fontSize: '16px', color: '#9ca3af' }}>chevron_right</span>

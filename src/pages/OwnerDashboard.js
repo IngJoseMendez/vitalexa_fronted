@@ -293,9 +293,40 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
       statusMatch = order.estado === filter;
     }
 
-    // Client search filter
-    const searchMatch = !clientSearch ||
-      (order.cliente && order.cliente.toLowerCase().includes(clientSearch.toLowerCase()));
+    // Comprehensive search filter
+    let searchMatch = true;
+    if (clientSearch.trim()) {
+      const searchStr = clientSearch.toLowerCase().trim();
+
+      // Search fields
+      const clientName = String(order.cliente || '').toLowerCase();
+      const invoiceNum = String(order.invoiceNumber || '').toLowerCase();
+      const orderId = String(order.id || '').toLowerCase();
+      const vendorName = String(order.vendedor || '').toLowerCase(); // If available in owner view
+
+      // Additional client fields if available in order object (often flattened or joined)
+      // Check if order object has these fields, or fallback to safe empty strings
+      const clientPhone = String(order.clientePhone || order.telefono || '').toLowerCase();
+      const clientAddress = String(order.clienteAddress || order.direccion || '').toLowerCase();
+      const clientNit = String(order.clienteNit || order.nit || '').toLowerCase();
+      const representative = String(order.representanteLegal || '').toLowerCase();
+
+      // Search in items
+      const productNames = (order.items || [])
+        .map(item => String(item.productName || item.nombre || '').toLowerCase())
+        .join(' ');
+
+      searchMatch =
+        clientName.includes(searchStr) ||
+        invoiceNum.includes(searchStr) ||
+        orderId.includes(searchStr) ||
+        vendorName.includes(searchStr) ||
+        clientPhone.includes(searchStr) ||
+        clientAddress.includes(searchStr) ||
+        clientNit.includes(searchStr) ||
+        representative.includes(searchStr) ||
+        productNames.includes(searchStr);
+    }
 
     return statusMatch && searchMatch;
   });
@@ -337,7 +368,7 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
             }}>search</span>
             <input
               type="text"
-              placeholder="Buscar por cliente..."
+              placeholder="Buscar por cliente, representante, factura, NIT..."
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               style={{

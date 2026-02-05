@@ -292,12 +292,46 @@ function OrdersPanel({ refreshTrigger }) {
         return false;
       }
 
-      // Invoice search filter (if provided)
+      // Comprehensive search filter - searches ALL order and client fields
       if (invoiceSearch.trim()) {
         const searchStr = invoiceSearch.toLowerCase().trim();
+
+        // Search in order basic fields
         const invoiceNum = String(order.invoiceNumber || '').toLowerCase();
         const orderId = String(order.id || '').toLowerCase();
-        if (!invoiceNum.includes(searchStr) && !orderId.includes(searchStr)) {
+        const vendorName = String(order.vendedor || '').toLowerCase();
+        const clientName = String(order.cliente || '').toLowerCase();
+        const orderDate = String(order.fecha || '').toLowerCase();
+        const orderTotal = String(order.total || '').toLowerCase();
+        const orderStatus = String(order.estado || '').toLowerCase();
+
+        // Search in client data (if available)
+        const clientPhone = String(order.clientePhone || order.telefono || '').toLowerCase();
+        const clientAddress = String(order.clienteAddress || order.direccion || '').toLowerCase();
+        const clientNit = String(order.clienteNit || order.nit || '').toLowerCase();
+        const clientEmail = String(order.clienteEmail || order.email || '').toLowerCase();
+
+        // Search in order items (product names)
+        const productNames = (order.items || [])
+          .map(item => String(item.nombre || item.productName || '').toLowerCase())
+          .join(' ');
+
+        // Check if search term is found in any field
+        const matchesSearch =
+          invoiceNum.includes(searchStr) ||
+          orderId.includes(searchStr) ||
+          vendorName.includes(searchStr) ||
+          clientName.includes(searchStr) ||
+          clientPhone.includes(searchStr) ||
+          clientAddress.includes(searchStr) ||
+          clientNit.includes(searchStr) ||
+          clientEmail.includes(searchStr) ||
+          orderDate.includes(searchStr) ||
+          orderTotal.includes(searchStr) ||
+          orderStatus.includes(searchStr) ||
+          productNames.includes(searchStr);
+
+        if (!matchesSearch) {
           return false;
         }
       }
