@@ -123,6 +123,8 @@ function OrdersPanel({ refreshTrigger }) {
   const [clientes, setClientes] = useState([]);
   const [selectedVendedor, setSelectedVendedor] = useState('');
   const [selectedCliente, setSelectedCliente] = useState('');
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
 
   // ✅ NEW STATE FOR ASSORTMENT
   const [showAssortmentModal, setShowAssortmentModal] = useState(false);
@@ -192,6 +194,18 @@ function OrdersPanel({ refreshTrigger }) {
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
   }, [fetchOrders, fetchVendedores, refreshTrigger]);
+
+  // Close client dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showClientDropdown && !event.target.closest('.client-search-container')) {
+        setShowClientDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showClientDropdown]);
 
   const changeStatus = async (orderId, newStatus) => {
     try {
@@ -282,14 +296,23 @@ function OrdersPanel({ refreshTrigger }) {
 
   const filteredOrders = orders
     .filter(order => {
-      // Vendor filter
-      if (selectedVendedor && order.vendedor !== selectedVendedor) {
-        return false;
+      // Vendor filter - case-insensitive comparison
+      if (selectedVendedor) {
+        const orderVendor = (order.vendedor || '').trim().toLowerCase();
+        const selectedVendor = selectedVendedor.trim().toLowerCase();
+        if (orderVendor !== selectedVendor) {
+          return false;
+        }
       }
 
-      // Client filter
-      if (selectedCliente && order.cliente !== selectedCliente) {
-        return false;
+
+      // Client filter - case-insensitive comparison
+      if (selectedCliente) {
+        const orderClient = (order.cliente || '').trim().toLowerCase();
+        const selectedClient = selectedCliente.trim().toLowerCase();
+        if (orderClient !== selectedClient) {
+          return false;
+        }
       }
 
       // Comprehensive search filter - searches ALL order and client fields
@@ -499,29 +522,126 @@ function OrdersPanel({ refreshTrigger }) {
               )}
             </div>
 
-            {/* Client Filter */}
+            {/* Client Filter - Searchable */}
             {selectedVendedor && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>person</span>
-                <select
-                  value={selectedCliente}
-                  onChange={(e) => setSelectedCliente(e.target.value)}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    background: selectedCliente ? '#f0fdf4' : 'white'
-                  }}
-                >
-                  <option value="">Todos los clientes</option>
-                  {clientes.map(c => (
-                    <option key={c.id} value={c.nombre}>{c.nombre}</option>
-                  ))}
-                </select>
+                <div className="client-search-container" style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={clientSearchTerm}
+                    onChange={(e) => {
+                      setClientSearchTerm(e.target.value);
+                      setShowClientDropdown(true);
+                      if (!e.target.value) {
+                        setSelectedCliente('');
+                      }
+                    }}
+                    onFocus={() => setShowClientDropdown(true)}
+                    style={{
+                      padding: '0.5rem 0.75rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      background: selectedCliente ? '#f0fdf4' : 'white',
+                      minWidth: '200px'
+                    }}
+                  />
+
+                  {/* Dropdown with filtered clients */}
+                  {showClientDropdown && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '4px',
+                        background: 'white',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        maxHeight: '300px',
+                        overflowY: 'auto',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        zIndex: 1000
+                      }}
+                    >
+                      {/* "All clients" option */}
+                      <div
+                        onClick={() => {
+                          setSelectedCliente('');
+                          setClientSearchTerm('');
+                          setShowClientDropdown(false);
+                        }}
+                        style={{
+                          padding: '0.75rem',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          background: !selectedCliente ? '#f0fdf4' : 'transparent',
+                          fontWeight: !selectedCliente ? 600 : 400
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                        onMouseLeave={(e) => e.target.style.background = !selectedCliente ? '#f0fdf4' : 'transparent'}
+                      >
+                        Todos los clientes
+                      </div>
+
+                      {/* Filtered client list */}
+                      {clientes
+                        .filter(c => {
+                          const searchLower = clientSearchTerm.toLowerCase();
+                          const nameMatch = (c.nombre || '').toLowerCase().includes(searchLower);
+                          const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
+                          return nameMatch || repMatch;
+                        })
+                        .map(c => (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedCliente(c.nombre);
+                              setClientSearchTerm(c.nombre);
+                              setShowClientDropdown(false);
+                            }}
+                            style={{
+                              padding: '0.75rem',
+                              cursor: 'pointer',
+                              background: selectedCliente === c.nombre ? '#f0fdf4' : 'transparent',
+                              fontWeight: selectedCliente === c.nombre ? 600 : 400
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                            onMouseLeave={(e) => e.target.style.background = selectedCliente === c.nombre ? '#f0fdf4' : 'transparent'}
+                          >
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.nombre}</div>
+                            {c.representanteLegal && (
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                <span className="material-icons-round" style={{ fontSize: '0.7rem', verticalAlign: 'middle' }}>badge</span> {c.representanteLegal}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+
+                      {/* No results message */}
+                      {clientes.filter(c => {
+                        const searchLower = clientSearchTerm.toLowerCase();
+                        const nameMatch = (c.nombre || '').toLowerCase().includes(searchLower);
+                        const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
+                        return nameMatch || repMatch;
+                      }).length === 0 && (
+                          <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                            No se encontraron clientes
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </div>
+
                 {selectedCliente && (
                   <button
-                    onClick={() => setSelectedCliente('')}
+                    onClick={() => {
+                      setSelectedCliente('');
+                      setClientSearchTerm('');
+                    }}
                     style={{
                       background: 'none',
                       border: 'none',

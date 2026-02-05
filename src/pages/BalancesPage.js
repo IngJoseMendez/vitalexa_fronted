@@ -19,23 +19,45 @@ function BalancesPage() {
     const toast = useToast();
     const userRole = localStorage.getItem('role');
 
-    const fetchBalances = useCallback(async (vendedorId = null) => {
+    // Fetch vendors once on mount if admin/owner
+    useEffect(() => {
+        const fetchVendors = async () => {
+            const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
+            if (isAdminOrOwner) {
+                try {
+                    const response = await clientApi.get('/admin/clients/vendedores');
+                    setVendedores(response.data || []);
+                } catch (error) {
+                    console.error('Error fetching vendors:', error);
+                    toast.error('Error al cargar vendedores');
+                }
+            }
+        };
+        fetchVendors();
+    }, [userRole, toast]);
+
+    const fetchBalances = useCallback(async (vendedorIdArg) => {
         try {
             setLoading(true);
-            const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
 
-            const requests = [balanceService.getAllBalances(vendedorId)];
-            if (isAdminOrOwner) {
-                requests.push(clientApi.get('/admin/clients/vendedores'));
+            // Determine actual ID to use:
+            // 1. If explicit ID passed (string/number), use it.
+            // 2. If it's explicitly null/empty string, we want ALL balances.
+            // 3. If it's an event object or undefined, check current selectedVendedor state to persist filter.
+            let idToUse = null;
+
+            if (vendedorIdArg !== undefined && typeof vendedorIdArg !== 'object') {
+                // If it's a primitive value (string id, empty string, number), use it directly
+                idToUse = vendedorIdArg;
+            } else if (selectedVendedor && vendedores.length > 0) {
+                // Try to find the ID for the currently selected vendor username
+                const vendorObj = vendedores.find(v => v.username === selectedVendedor);
+                if (vendorObj) idToUse = vendorObj.id;
             }
 
-            const results = await Promise.all(requests);
+            const response = await balanceService.getAllBalances(idToUse);
+            setBalances(response.data || []);
 
-            setBalances(results[0].data || []);
-
-            if (isAdminOrOwner && results[1]) {
-                setVendedores(results[1].data || []);
-            }
         } catch (error) {
             console.error('Error fetching balances:', error);
             toast.error('Error al cargar saldos: ' + (error.response?.data?.message || error.message));
@@ -43,16 +65,21 @@ function BalancesPage() {
         } finally {
             setLoading(false);
         }
-    }, [toast, userRole]);
+    }, [toast, selectedVendedor, vendedores]);
 
+    // Initial fetch of balances
     useEffect(() => {
+        // Only fetch initial balances if we are not waiting for vendors (or if we already have them/don't need them)
+        // Actually, just fetching on mount is fine, subsequent refetches happen via user interaction or vendor change
         fetchBalances();
-    }, [fetchBalances]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run once on mount
 
     const filteredBalances = balances.filter(b => {
         // Text Search
         const matchesSearch = b.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            b.clientPhone?.includes(searchTerm);
+            b.clientPhone?.includes(searchTerm) ||
+            b.clientRepresentative?.toLowerCase().includes(searchTerm.toLowerCase());
 
         // Status Filter
         if (filterStatus === 'owing') {
@@ -291,6 +318,12 @@ function BalancesPage() {
                                         </span>
                                         <div className="client-info">
                                             <span className="client-name">{client.clientName}</span>
+                                            {client.clientRepresentative && (
+                                                <span className="client-rep" style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 500 }}>
+                                                    <span className="material-icons-round" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>badge</span>
+                                                    {client.clientRepresentative}
+                                                </span>
+                                            )}
                                             <span className="client-phone">{client.clientPhone || 'Sin teléfono'}</span>
                                         </div>
                                     </div>
