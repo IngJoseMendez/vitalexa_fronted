@@ -284,9 +284,14 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
     // Basic status filter
     let statusMatch = false;
     if (filter === 'pending') {
-      statusMatch = order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO';
+      statusMatch = order.estado === 'PENDIENTE' || order.estado === 'CONFIRMADO' || order.estado === 'PENDING_PROMOTION_COMPLETION';
     } else if (filter === 'completed') {
       statusMatch = order.estado === 'COMPLETADO';
+    } else if (filter === 'cancelled') {
+      statusMatch = order.estado === 'ANULADA' || order.estado === 'CANCELADO';
+    } else if (filter === 'historical') {
+      // Logic for historical invoices: orders with NO items but have a total
+      statusMatch = (!order.items || order.items.length === 0) && parseFloat(order.total) > 0;
     } else if (filter === 'all') {
       statusMatch = true;
     } else {
@@ -398,6 +403,24 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
             onClick={() => setFilter('all')}
           >
             <span className="material-icons-round">analytics</span> Todas ({orders.length})
+          </button>
+
+          <div className="filter-divider" style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 0.5rem' }}></div>
+
+          <button
+            className={filter === 'cancelled' ? 'active' : ''}
+            onClick={() => setFilter('cancelled')}
+            style={{ color: filter === 'cancelled' ? '#ef4444' : 'var(--text-secondary)' }}
+          >
+            <span className="material-icons-round">block</span> Anuladas ({orders.filter(o => o.estado === 'ANULADA' || o.estado === 'CANCELADO').length})
+          </button>
+
+          <button
+            className={filter === 'historical' ? 'active' : ''}
+            onClick={() => setFilter('historical')}
+            style={{ color: filter === 'historical' ? '#d97706' : 'var(--text-secondary)' }}
+          >
+            <span className="material-icons-round">history</span> Historia ({orders.filter(o => !o.items || o.items.length === 0).length})
           </button>
         </div>
       </div>
@@ -1328,16 +1351,39 @@ function VendorsReport({ data, vendedores, onExport, exporting }) {
 
     // Agregar stats de vendedores con órdenes
     (data.topVendors || []).forEach(vendor => {
-      vendorStatsMap.set(vendor.vendorId, vendor);
+      // Index by vendorId (which can be UUID or Username)
+      vendorStatsMap.set(String(vendor.vendorId), vendor);
+
+      // Also index by vendorName roughly to help matching if IDs fail
+      if (vendor.vendorName) {
+        vendorStatsMap.set(vendor.vendorName, vendor);
+      }
     });
 
     // Crear lista completa combinando todos los vendedores
     const completeList = vendedores.map(vendedor => {
-      const stats = vendorStatsMap.get(vendedor.id);
+      // 1. Try exact ID match
+      let stats = vendorStatsMap.get(String(vendedor.id));
+
+      // 2. If not found, try username match (for shared users like NinaTorres/YicelaSandoval)
+      if (!stats && vendedor.username) {
+        stats = vendorStatsMap.get(vendedor.username);
+      }
+
+      // 3. Fallback: try matching by name
+      if (!stats && vendedor.username) {
+        // Maybe the key in map is "NinaTorres" and username is "NinaTorres"
+        // This is already covered by #2 but explicit verification doesn't hurt
+      }
 
       if (stats) {
         // Vendedor con órdenes - usar sus stats reales
-        return stats;
+        return {
+          ...stats,
+          // Keep the original vendor ID/Name from the list to be consistent in UI
+          vendorId: vendedor.id,
+          vendorName: vendedor.username || stats.vendorName
+        };
       } else {
         // Vendedor sin órdenes - crear objeto con stats en 0
         return {
