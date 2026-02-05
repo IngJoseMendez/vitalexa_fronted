@@ -7,6 +7,7 @@ import OrderAnnulationModal from './OrderAnnulationModal';
 import orderService from '../../api/orderService';
 import client from '../../api/client';
 import { OrdenStatus, PromotionType } from '../../utils/types';
+import HistoricalInvoiceModal from './HistoricalInvoiceModal'; // Import for editing
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -19,6 +20,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
     const [showDiscountForm, setShowDiscountForm] = useState(false);
     const [showAssortmentModal, setShowAssortmentModal] = useState(false);
+    const [showEditHistoryModal, setShowEditHistoryModal] = useState(false); // State for editing modal
     const [selectedPromotionForAssortment, setSelectedPromotionForAssortment] = useState(null);
     const [editingItemEta, setEditingItemEta] = useState(null);
     const [etaForm, setEtaForm] = useState({ date: '', note: '' });
@@ -231,6 +233,29 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         Detalle de Orden #{order.invoiceNumber || (order.id || order.orderId)?.substring(0, 8)}
                     </h3>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        {(isAdmin || isOwner) && (
+                            <button
+                                className="btn-edit-invoice"
+                                onClick={() => setShowEditHistoryModal(true)}
+                                style={{
+                                    background: '#f59e0b',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '0.4rem 0.8rem',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.85rem'
+                                }}
+                                title="Editar Factura Histórica (Sobreescribir)"
+                            >
+                                <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
+                                Editar Factura
+                            </button>
+                        )}
                         {isAdmin && currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
                             <button
                                 className="btn-cancel"
@@ -652,6 +677,19 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         isLoading={annulationLoading}
                     />
                 )}
+
+                {/* Edit Historical Invoice Modal */}
+                {showEditHistoryModal && (
+                    <HistoricalInvoiceModal
+                        onClose={() => setShowEditHistoryModal(false)}
+                        onSuccess={() => {
+                            setShowEditHistoryModal(false);
+                            if (onRefresh) onRefresh();
+                            fetchOrderDetails(); // Refresh details if modal stays open
+                        }}
+                        initialOrder={currentOrder}
+                    />
+                )}
             </div>
         </div>
     );
@@ -662,7 +700,6 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
     const [formData, setFormData] = useState({
         amount: '',
         withinDeadline: true,
-        discountApplied: '',
         notes: ''
     });
     const [saving, setSaving] = useState(false);
@@ -672,16 +709,11 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
     const pendingBalance = orderTotal - totalPaid;
 
     // Dynamic calculation of context values
-    const discountPercent = parseFloat(formData.discountApplied || 0);
-    const discountAmount = (pendingBalance * discountPercent) / 100;
     const finalPaymentAmount = parseFloat(formData.amount || 0);
 
-    // We start with the CURRENT pending balance
-    // If a discount is applied during this payment, it effectively reduces the debt
     // The "Remaining Balance" after this transaction would be: 
-    // Current Pending - Discount Amount (from this transaction) - Payment Amount
-
-    const effectivePendingAfter = Math.max(0, pendingBalance - discountAmount - finalPaymentAmount);
+    // Current Pending - Payment Amount
+    const effectivePendingAfter = Math.max(0, pendingBalance - finalPaymentAmount);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -697,7 +729,6 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                 orderId,
                 amount: parseFloat(formData.amount),
                 withinDeadline: formData.withinDeadline,
-                discountApplied: formData.discountApplied ? parseFloat(formData.discountApplied) : null,
                 notes: formData.notes || null
             });
             toast.success('Pago registrado correctamente');
@@ -722,52 +753,38 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
 
                 <div className="payment-context">
                     <div className="context-item">
-                        <span>Total Orden:</span>
+                        <span>Total Orden</span>
                         <strong>${orderTotal.toFixed(2)}</strong>
                     </div>
                     <div className="context-item">
-                        <span>Ya Pagado:</span>
+                        <span>Ya Pagado</span>
                         <strong>${totalPaid.toFixed(2)}</strong>
                     </div>
                     <div className="context-item highlight">
-                        <span>Saldo Pendiente Actual:</span>
+                        <span>Saldo Pendiente</span>
                         <strong className="warning">${pendingBalance.toFixed(2)}</strong>
                     </div>
-                    {/* Dynamic Preview Line */}
-                    {(discountPercent > 0 || finalPaymentAmount > 0) && (
-                        <div className="context-item preview" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #e2e8f0' }}>
+                </div>
+
+                {/* Dynamic Preview Line - Moved outside flex container */}
+                {finalPaymentAmount > 0 && (
+                    <div className="payment-preview-box">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>Saldo Restante (Estimado):</span>
                             <strong className={effectivePendingAfter <= 0.01 ? 'success' : ''}>
                                 ${effectivePendingAfter.toFixed(2)}
                             </strong>
                         </div>
-                    )}
-                </div>
-
-                <form onSubmit={handleSubmit} className="payment-form">
-                    {/* Discount Field Moved Up for workflow logic */}
-                    <div className="form-group">
-                        <label>Descuento a Aplicar (%) <small>- Opcional</small></label>
-                        <div className="input-group-text">
-                            <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                max="100"
-                                value={formData.discountApplied}
-                                onChange={(e) => setFormData({ ...formData, discountApplied: e.target.value })}
-                                placeholder="Ej: 5 (5%)"
-                                onWheel={(e) => e.target.blur()}
-                            />
-                            <span className="suffix">%</span>
-                        </div>
-                        {discountPercent > 0 && (
-                            <div className="input-help success">
-                                <span className="material-icons-round" style={{ fontSize: '14px' }}>trending_down</span>
-                                Reduce la deuda en: -${discountAmount.toFixed(2)}
+                        {effectivePendingAfter <= 0.01 && (
+                            <div className="paid-badge">
+                                <span className="material-icons-round">check_circle</span>
+                                ¡La orden quedará PAGADA!
                             </div>
                         )}
                     </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="payment-form">
 
                     <div className="form-group">
                         <label>Monto del Pago *</label>
@@ -779,7 +796,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                                 min="0.01"
                                 value={formData.amount}
                                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                placeholder={`Máximo sugerido: ${(pendingBalance - discountAmount).toFixed(2)}`}
+                                placeholder={`Máximo sugerido: ${pendingBalance.toFixed(2)}`}
                                 required
                                 onWheel={(e) => e.target.blur()}
                             />

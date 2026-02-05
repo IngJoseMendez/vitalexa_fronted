@@ -310,6 +310,7 @@ function OrdersPanel({ refreshTrigger }) {
         const clientAddress = String(order.clienteAddress || order.direccion || '').toLowerCase();
         const clientNit = String(order.clienteNit || order.nit || '').toLowerCase();
         const clientEmail = String(order.clienteEmail || order.email || '').toLowerCase();
+        const clientRep = String(order.clienteRepresentative || order.representanteLegal || '').toLowerCase();
 
         // Search in order items (product names)
         const productNames = (order.items || [])
@@ -326,6 +327,7 @@ function OrdersPanel({ refreshTrigger }) {
           clientAddress.includes(searchStr) ||
           clientNit.includes(searchStr) ||
           clientEmail.includes(searchStr) ||
+          clientRep.includes(searchStr) ||
           orderDate.includes(searchStr) ||
           orderTotal.includes(searchStr) ||
           orderStatus.includes(searchStr) ||
@@ -423,7 +425,7 @@ function OrdersPanel({ refreshTrigger }) {
               <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
               <input
                 type="text"
-                placeholder="Buscar por factura..."
+                placeholder="Buscar orden, cliente, rep..."
                 value={invoiceSearch}
                 onChange={(e) => setInvoiceSearch(e.target.value)}
                 style={{
