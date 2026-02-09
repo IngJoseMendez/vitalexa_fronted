@@ -24,7 +24,11 @@ const balanceService = {
 
     // Set initial balance for a client (can only be set once)
     setInitialBalance: (clientId, amount) =>
-        apiClient.put(`/balances/client/${clientId}/initial-balance`, null, { params: { amount } })
+        apiClient.put(`/balances/client/${clientId}/initial-balance`, null, { params: { amount } }),
+
+    // Add balance favor (credit balance) to a client
+    addBalanceFavor: (clientId, amount) =>
+        apiClient.put(`/balances/client/${clientId}/balance-favor`, null, { params: { amount } })
 };
 
 export default balanceService;

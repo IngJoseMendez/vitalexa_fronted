@@ -378,6 +378,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
     const [loading, setLoading] = useState(true);
     const [creditLimit, setCreditLimit] = useState('');
     const [initialBalance, setInitialBalance] = useState('');
+    const [balanceFavorAmount, setBalanceFavorAmount] = useState('');
     const [saving, setSaving] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
@@ -522,6 +523,35 @@ function ClientDetailView({ client, onRefresh, userRole }) {
         }
     };
 
+    // Add balance favor
+    const handleAddBalanceFavor = async () => {
+        if (!balanceFavorAmount || parseFloat(balanceFavorAmount) <= 0) {
+            toast.warning('Ingrese un monto válido mayor a 0');
+            return;
+        }
+
+        const confirmed = await confirm({
+            title: '¿Agregar Saldo a Favor?',
+            message: `Se agregarán $${parseFloat(balanceFavorAmount).toFixed(2)} al saldo a favor del cliente.`
+        });
+
+        if (!confirmed) return;
+
+        try {
+            setSaving('balanceFavor');
+            await balanceService.addBalanceFavor(client.clientId, parseFloat(balanceFavorAmount));
+            toast.success('Saldo a favor agregado correctamente');
+            setBalanceFavorAmount('');
+            fetchClientDetail();
+            onRefresh();
+        } catch (error) {
+            console.error('Error adding balance favor:', error);
+            toast.error('Error al agregar saldo a favor');
+        } finally {
+            setSaving(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="detail-loading">
@@ -610,6 +640,43 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         {clientDetail?.creditLimit && (
                             <p className="control-info">
                                 Límite actual: <strong>${clientDetail.creditLimit.toFixed(2)}</strong>
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Balance Favor Control */}
+                    <div className="control-section">
+                        <h3>
+                            <span className="material-icons-round">savings</span>
+                            Saldo a Favor
+                        </h3>
+                        <p className="control-description">
+                            Agrega saldo a favor para que se descuente automáticamente en futuras compras.
+                        </p>
+                        <div className="control-row">
+                            <div className="input-group">
+                                <span className="prefix">$</span>
+                                <input
+                                    type="number"
+                                    value={balanceFavorAmount}
+                                    onChange={(e) => setBalanceFavorAmount(e.target.value)}
+                                    placeholder="Ej: 150000"
+                                    min="0"
+                                    step="0.01"
+                                />
+                            </div>
+                            <button
+                                className="btn-save"
+                                style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                                onClick={handleAddBalanceFavor}
+                                disabled={saving === 'balanceFavor'}
+                            >
+                                {saving === 'balanceFavor' ? '...' : 'Agregar'}
+                            </button>
+                        </div>
+                        {(clientDetail?.balanceFavor > 0) && (
+                            <p className="control-info" style={{ color: '#059669', backgroundColor: '#ecfdf5', borderColor: '#d1fae5' }}>
+                                Saldo a favor disponible: <strong>${(clientDetail.balanceFavor || 0).toFixed(2)}</strong>
                             </p>
                         )}
                     </div>

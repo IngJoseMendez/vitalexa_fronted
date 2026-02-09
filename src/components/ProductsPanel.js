@@ -3,6 +3,8 @@ import client from '../api/client';
 import { useToast } from './ToastContainer';
 import { tagService } from '../api/tagService';
 import { TagBadge, TagFilterBar } from './TagComponents';
+import productService from '../api/productService';
+import ProductFormModal from './modals/ProductFormModal';
 
 // Placeholder for missing images
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
@@ -22,6 +24,13 @@ export default function ProductsPanel({ refreshTrigger }) {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+
+    // Bulk Mode State
+    // 'none', 'create', 'update'
+    const [bulkMode, setBulkMode] = useState('none');
+
+    // For Bulk Update
+    // const [bulkUpdateProducts, setBulkUpdateProducts] = useState([]);
 
     const toast = useToast();
 
@@ -100,10 +109,20 @@ export default function ProductsPanel({ refreshTrigger }) {
     const handleDelete = async (id) => {
         if (!window.confirm('¿Confirmar eliminación? Esta acción ' + (true ? 'inhabilitará' : 'borrará') + ' el producto.')) return;
         try {
-            await client.delete(`/admin/products/${id}`); // Soft delete by default
-            toast.success('Producto eliminado correctamente');
+            const response = await productService.deleteProduct(id);
+            // Handle Blob Download
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `huella_eliminacion_${id}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+
+            toast.success('Producto eliminado correctamente. Huella descargada.');
             fetchProducts();
         } catch (error) {
+            console.error('Delete error:', error);
             toast.error('Error al eliminar producto');
         }
     };
@@ -164,113 +183,194 @@ export default function ProductsPanel({ refreshTrigger }) {
                             }}
                         />
                     </div>
-                    <button
-                        onClick={openCreateModal}
-                        style={{
-                            background: 'var(--primary)',
-                            color: 'white',
-                            border: 'none',
-                            padding: '0.6rem 1.2rem',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontWeight: 600,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }}
-                    >
-                        <span className="material-icons-round">add</span>
-                        Nuevo Producto
-                    </button>
-                </div>
-            </div>
 
-            {/* FILTER BAR */}
-            <div style={{ marginBottom: '1.5rem' }}>
-                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Filtrar por Categoría:</h4>
-                <TagFilterBar
-                    tags={tags}
-                    activeTagId={activeTagId}
-                    onSelectTag={setActiveTagId}
-                    onClear={() => { setActiveTagId(null); setSearchTerm(''); }}
-                />
-            </div>
-
-
-
-            {/* CONTROLS: Status Filter & Sorting */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {[
-                        { id: 'all', label: 'Todos' },
-                        { id: 'active', label: 'Activos' },
-                        { id: 'inactive', label: 'Inactivos' }
-                    ].map(opt => (
+                    {bulkMode !== 'none' ? (
                         <button
-                            key={opt.id}
-                            onClick={() => setStatusFilter(opt.id)}
+                            onClick={() => setBulkMode('none')}
                             style={{
-                                padding: '0.4rem 1rem',
-                                borderRadius: '20px',
-                                border: statusFilter === opt.id ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                background: statusFilter === opt.id ? '#f0fdf4' : 'white',
-                                color: statusFilter === opt.id ? 'var(--primary)' : 'var(--text-secondary)',
-                                fontWeight: statusFilter === opt.id ? 600 : 400,
+                                background: 'white',
+                                color: 'var(--text-secondary)',
+                                border: '1px solid var(--border)',
+                                padding: '0.6rem 1.2rem',
+                                borderRadius: '8px',
                                 cursor: 'pointer',
-                                fontSize: '0.85rem'
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                fontWeight: 600
                             }}
                         >
-                            {opt.label}
+                            <span className="material-icons-round">arrow_back</span>
+                            Volver a Lista
                         </button>
-                    ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <select
-                        value={sortOption}
-                        onChange={e => setSortOption(e.target.value)}
-                        style={{
-                            padding: '0.4rem 0.8rem',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.9rem'
-                        }}
-                    >
-                        <option value="name_asc">Nombre (A-Z)</option>
-                        <option value="name_desc">Nombre (Z-A)</option>
-                        <option value="date_desc">Más Nuevos</option>
-                        <option value="date_asc">Más Antiguos</option>
-                    </select>
-
-                    {/* Column Toggle */}
-                    <div style={{ display: 'flex' }}>
-                        {[1, 2, 3, 4].map(c => (
+                    ) : (
+                        <>
                             <button
-                                key={c}
-                                onClick={() => { setGridColumns(c); localStorage.setItem('adminGridCols', c); }}
+                                onClick={() => setBulkMode('update')}
                                 style={{
-                                    padding: '0.4rem',
-                                    background: gridColumns === c ? '#e5e7eb' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '4px',
+                                    background: 'white',
+                                    color: 'var(--primary)',
+                                    border: '1px solid var(--primary)',
+                                    padding: '0.6rem 1.2rem',
+                                    borderRadius: '8px',
                                     cursor: 'pointer',
                                     display: 'flex',
-                                    marginLeft: '0.25rem'
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    fontWeight: 600
                                 }}
-                                title={`${c} Columna(s)`}
                             >
-                                <span className="material-icons-round" style={{ fontSize: '18px', color: gridColumns === c ? 'black' : '#9ca3af' }}>grid_view</span>
+                                <span className="material-icons-round">edit_note</span>
+                                Edición Masiva
+                            </button>
+                            <button
+                                onClick={() => setBulkMode('create')}
+                                style={{
+                                    background: 'white',
+                                    color: 'var(--text-primary)',
+                                    border: '1px solid var(--border)',
+                                    padding: '0.6rem 1.2rem',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    fontWeight: 600
+                                }}
+                            >
+                                <span className="material-icons-round">playlist_add</span>
+                                Carga Masiva
+                            </button>
+                            <button
+                                onClick={openCreateModal}
+                                style={{
+                                    background: 'var(--primary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.6rem 1.2rem',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    fontWeight: 600,
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                <span className="material-icons-round">add</span>
+                                Nuevo Producto
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* FILTER BAR - Hide in Bulk Mode */}
+            {bulkMode === 'none' && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Filtrar por Categoría:</h4>
+                    <TagFilterBar
+                        tags={tags}
+                        activeTagId={activeTagId}
+                        onSelectTag={setActiveTagId}
+                        onClear={() => { setActiveTagId(null); setSearchTerm(''); }}
+                    />
+                </div>
+            )}
+
+            {/* CONTROLS: Status Filter & Sorting - Hide in Bulk Mode */}
+            {bulkMode === 'none' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {[
+                            { id: 'all', label: 'Todos' },
+                            { id: 'active', label: 'Activos' },
+                            { id: 'inactive', label: 'Inactivos' }
+                        ].map(opt => (
+                            <button
+                                key={opt.id}
+                                onClick={() => setStatusFilter(opt.id)}
+                                style={{
+                                    padding: '0.4rem 1rem',
+                                    borderRadius: '20px',
+                                    border: statusFilter === opt.id ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                    background: statusFilter === opt.id ? '#f0fdf4' : 'white',
+                                    color: statusFilter === opt.id ? 'var(--primary)' : 'var(--text-secondary)',
+                                    fontWeight: statusFilter === opt.id ? 600 : 400,
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem'
+                                }}
+                            >
+                                {opt.label}
                             </button>
                         ))}
                     </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <select
+                            value={sortOption}
+                            onChange={e => setSortOption(e.target.value)}
+                            style={{
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                                color: 'var(--text-secondary)',
+                                fontSize: '0.9rem'
+                            }}
+                        >
+                            <option value="name_asc">Nombre (A-Z)</option>
+                            <option value="name_desc">Nombre (Z-A)</option>
+                            <option value="date_desc">Más Nuevos</option>
+                            <option value="date_asc">Más Antiguos</option>
+                        </select>
+
+                        {/* Column Toggle */}
+                        <div style={{ display: 'flex' }}>
+                            {[1, 2, 3, 4].map(c => (
+                                <button
+                                    key={c}
+                                    onClick={() => { setGridColumns(c); localStorage.setItem('adminGridCols', c); }}
+                                    style={{
+                                        padding: '0.4rem',
+                                        background: gridColumns === c ? '#e5e7eb' : 'transparent',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        marginLeft: '0.25rem'
+                                    }}
+                                    title={`${c} Columna(s)`}
+                                >
+                                    <span className="material-icons-round" style={{ fontSize: '18px', color: gridColumns === c ? 'black' : '#9ca3af' }}>grid_view</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
 
-            {/* PRODUCTS GRID */}
-            {
+            {/* PRODUCTS GRID OR BULK FORM */}
+            {bulkMode === 'create' ? (
+                <BulkProductForm
+                    tags={tags}
+                    onSuccess={() => {
+                        setBulkMode('none');
+                        fetchProducts();
+                    }}
+                    onCancel={() => setBulkMode('none')}
+                />
+            ) : bulkMode === 'update' ? (
+                <BulkUpdateForm
+                    products={products}
+                    tags={tags}
+                    onSuccess={() => {
+                        setBulkMode('none');
+                        fetchProducts();
+                    }}
+                    onCancel={() => setBulkMode('none')}
+                />
+            ) :
                 (() => {
                     // Apply Filters & Sort
                     let displayProducts = [...products];
@@ -435,294 +535,490 @@ export default function ProductsPanel({ refreshTrigger }) {
 }
 
 
-// --- FORM MODAL COMPONENT ---
+// --- FORM MODAL COMPONENT MOVED TO ./modals/ProductFormModal.js ---
 
-function ProductFormModal({ product, tags, onClose, onSuccess }) {
-    const isEditing = !!product;
+// ============================================
+// BULK PRODUCT FORM
+// ============================================
+// ============================================
+// BULK UPDATE FORM
+// ============================================
+function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
     const toast = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
+    // Initialize editable rows with products. We only track changes.
+    // However, to make it editable effectively, we map products to rows.
+    // We'll filter products locally here for display.
+    const [editedRows, setEditedRows] = useState({}); // Map of id -> { field: value }
     const [loading, setLoading] = useState(false);
-    const [preview, setPreview] = useState(null);
 
-    const [formData, setFormData] = useState({
-        nombre: '',
-        descripcion: '',
-        precio: '',
-        stock: '',
-        reorderPoint: 10,
-        tagId: '',
-        active: true,
-        image: null
-    });
+    // Filter products for display
+    const displayedProducts = products.filter(p =>
+        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.id && p.id.toString().includes(searchTerm))
+    );
 
-    useEffect(() => {
-        if (product) {
-            setFormData({
-                nombre: product.nombre,
-                descripcion: product.descripcion || '',
-                precio: product.precio,
-                stock: product.stock,
-                reorderPoint: product.reorderPoint !== undefined ? product.reorderPoint : 10,
-                tagId: product.tagId || '', // Check if backend returns 'tagId' or object
-                active: product.active,
-                image: null
-            });
-            if (product.imageUrl) {
-                setPreview(product.imageUrl); // URL preview
+    const handleCellChange = (id, field, value) => {
+        setEditedRows(prev => ({
+            ...prev,
+            [id]: {
+                ...(prev[id] || {}),
+                [field]: value
             }
-        }
-    }, [product]);
+        }));
+    };
 
-    const handleImageChange = (e) => {
+    // Helper to get Base64 from file
+    const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]); // remove prefix
+            reader.onerror = error => reject(error);
+        });
+    };
+
+    const handleImageChange = async (id, e) => {
         const file = e.target.files[0];
         if (file) {
-            setFormData(prev => ({ ...prev, image: file }));
-            // Create local preview
-            const objectUrl = URL.createObjectURL(file);
-            setPreview(objectUrl);
+            try {
+                const base64 = await fileToBase64(file);
+                setEditedRows(prev => ({
+                    ...prev,
+                    [id]: {
+                        ...(prev[id] || {}),
+                        imageBase64: base64,
+                        imageFileName: file.name
+                    }
+                }));
+            } catch (err) {
+                console.error(err);
+                toast.error("Error al procesar imagen");
+            }
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
+        const productIds = Object.keys(editedRows);
+        if (productIds.length === 0) {
+            toast.info("No hay cambios para guardar.");
+            return;
+        }
 
-        // Validations
-        if (parseFloat(formData.precio) < 0) return toast.warning('El precio debe ser positivo');
-        if (parseInt(formData.stock) < 0) return toast.warning('El stock debe ser positivo');
+        const payload = productIds.map(id => {
+            const changes = editedRows[id];
+            return {
+                id: id,
+                ...changes
+            };
+        });
+
+        if (!window.confirm(`¿Guardar cambios para ${productIds.length} productos?`)) return;
 
         setLoading(true);
-
         try {
-            const data = new FormData();
-            const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+            const response = await productService.updateProductsBulk(payload);
 
-            if (isEditing) {
-                // UPDATE: Send only changed fields (Delta Update)
-                let hasChanges = false;
+            // Handle Blob
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'huella_actualizacion_masiva.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
 
-                if (formData.nombre !== product.nombre) {
-                    data.append('nombre', formData.nombre);
-                    hasChanges = true;
-                }
-                const originalDesc = product.descripcion || '';
-                if (formData.descripcion !== originalDesc) {
-                    data.append('descripcion', formData.descripcion);
-                    hasChanges = true;
-                }
-                // Compare values
-                if (parseFloat(formData.precio) !== parseFloat(product.precio)) {
-                    data.append('precio', formData.precio);
-                    hasChanges = true;
-                }
-                if (parseInt(formData.stock) !== parseInt(product.stock)) {
-                    data.append('stock', formData.stock);
-                    hasChanges = true;
-                }
-                const originalRp = product.reorderPoint !== undefined ? product.reorderPoint : 10;
-                const newRp = formData.reorderPoint === '' ? 10 : parseInt(formData.reorderPoint);
-                if (newRp !== originalRp) {
-                    data.append('reorderPoint', newRp);
-                    hasChanges = true;
-                }
-
-                // Tag
-                const originalTag = product.tagId || '';
-                if (formData.tagId !== originalTag) {
-                    data.append('tagId', formData.tagId);
-                    hasChanges = true;
-                }
-
-                // Active status
-                if (formData.active !== product.active) {
-                    data.append('active', formData.active);
-                    hasChanges = true;
-                }
-
-                // Image
-                if (formData.image) {
-                    data.append('image', formData.image);
-                    hasChanges = true;
-                }
-
-                if (!hasChanges) {
-                    toast.info('No hay cambios para guardar');
-                    setLoading(false);
-                    return;
-                }
-
-                console.log('Enviando Update (Delta):', Array.from(data.entries()));
-                await client.post(`/admin/products/${product.id}/update`, data, config);
-                toast.success('Producto actualizado exitosamente');
-
-            } else {
-                // CREATE: Send all required
-                data.append('nombre', formData.nombre);
-                data.append('descripcion', formData.descripcion);
-                data.append('precio', formData.precio);
-                data.append('stock', formData.stock);
-                data.append('reorderPoint', formData.reorderPoint === '' ? 10 : formData.reorderPoint);
-
-                if (formData.tagId) data.append('tagId', formData.tagId);
-                if (formData.image) data.append('image', formData.image);
-
-                // Active usually default true
-                // data.append('active', true);
-
-                console.log('Enviando Create:', Array.from(data.entries()));
-                await client.post('/admin/products', data, config);
-                toast.success('Producto creado exitosamente');
-            }
+            toast.success("Actualización masiva completada.");
             onSuccess();
         } catch (error) {
-            console.error(error);
-            toast.error('Error al guardar: ' + (error.response?.data?.message || error.message));
+            console.error("Bulk update error", error);
+            toast.error("Error al actualizar productos: " + (error.response ? "Verifique los datos" : error.message));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '600px', width: '95%', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>{isEditing ? 'Editar Producto' : 'Crear Nuevo Producto'}</h3>
-                    <button onClick={onClose} className="close-btn">&times;</button>
-                </div>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>edit_note</span>
+                    Edición Masiva
+                </h3>
 
-                <form onSubmit={handleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-                    {/* Basic Info */}
-                    <div className="form-group">
-                        <label>Nombre del Producto *</label>
-                        <input
-                            type="text"
-                            required
-                            className="form-input"
-                            value={formData.nombre}
-                            onChange={e => setFormData({ ...formData, nombre: e.target.value })}
-                            placeholder="Ej: Camiseta básica"
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Descripción *</label>
-                        <textarea
-                            required
-                            className="form-input"
-                            rows="3"
-                            value={formData.descripcion}
-                            onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
-                            placeholder="Detalles del producto..."
-                        />
-                    </div>
-
-                    {/* Numeric Row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                        <div className="form-group">
-                            <label>Precio ($) *</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                required
-                                className="form-input"
-                                value={formData.precio}
-                                onWheel={(e) => e.target.blur()}
-                                onChange={e => setFormData({ ...formData, precio: e.target.value })}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Stock *</label>
-                            <input
-                                type="number"
-                                min="0"
-                                required
-                                className="form-input"
-                                value={formData.stock}
-                                onWheel={(e) => e.target.blur()}
-                                onChange={e => setFormData({ ...formData, stock: e.target.value })}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label title="Nivel de alerta para stock bajo">Reorder Point</label>
-                            <input
-                                type="number"
-                                min="0"
-                                className="form-input"
-                                value={formData.reorderPoint}
-                                onWheel={(e) => e.target.blur()}
-                                onChange={e => setFormData({ ...formData, reorderPoint: e.target.value })}
-                                placeholder="Def: 10"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Categorization */}
-                    <div className="form-group">
-                        <label>Categoría / Etiqueta</label>
-                        <select
-                            className="form-input"
-                            value={formData.tagId}
-                            onChange={e => setFormData({ ...formData, tagId: e.target.value })}
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <input
+                        type="text"
+                        placeholder="Filtrar productos..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                    />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={onCancel} className="btn-secondary" disabled={loading}>
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            className="btn-primary"
+                            disabled={loading}
                         >
-                            <option value="">-- Sin etiqueta --</option>
-                            {tags.map(tag => (
-                                <option key={tag.id} value={tag.id}>{tag.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Image Upload */}
-                    <div className="form-group">
-                        <label>Imagen del Producto</label>
-                        <div style={{ border: '2px dashed #e5e7eb', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
-                            {preview ? (
-                                <div style={{ marginBottom: '1rem' }}>
-                                    <img src={preview} alt="Preview" style={{ maxHeight: '150px', borderRadius: '4px' }} />
-                                    <br />
-                                    <button
-                                        type="button"
-                                        onClick={() => { setPreview(null); setFormData({ ...formData, image: null }) }}
-                                        style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
-                                    >
-                                        Quitar imagen
-                                    </button>
-                                </div>
-                            ) : (
-                                <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '1rem' }}>No se ha seleccionado imagen</p>
-                            )}
-
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                                style={{ display: 'block', margin: '0 auto' }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Active Checkbox (Edit only maybe? Or Create too) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <input
-                            type="checkbox"
-                            id="field-active"
-                            checked={formData.active}
-                            onChange={e => setFormData({ ...formData, active: e.target.checked })}
-                            style={{ width: '18px', height: '18px' }}
-                        />
-                        <label htmlFor="field-active" style={{ cursor: 'pointer', fontWeight: 600 }}>Producto Activo</label>
-                    </div>
-
-
-                    {/* Actions */}
-                    <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                        <button type="button" onClick={onClose} className="btn-secondary" disabled={loading}>Cancelar</button>
-                        <button type="submit" className="btn-primary" disabled={loading}>
-                            {loading ? 'Guardando...' : (isEditing ? 'Actualizar Producto' : 'Crear Producto')}
+                            {loading ? 'Guardando...' : `Guardar Cambios (${Object.keys(editedRows).length})`}
                         </button>
                     </div>
+                </div>
+            </div>
 
-                </form>
+            <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                        <tr>
+                            <th style={{ padding: '0.8rem', textAlign: 'left' }}>Producto</th>
+                            <th style={{ padding: '0.8rem', width: '120px' }}>Precio</th>
+                            <th style={{ padding: '0.8rem', width: '100px' }}>Stock</th>
+                            <th style={{ padding: '0.8rem', width: '100px' }}>Reorder</th>
+                            <th style={{ padding: '0.8rem', width: '150px' }}>Estado</th>
+                            <th style={{ padding: '0.8rem', width: '200px' }}>Etiqueta</th>
+                            <th style={{ padding: '0.8rem', width: '200px' }}>Imagen (Actualizar)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {displayedProducts.map(p => {
+                            const changes = editedRows[p.id] || {};
+                            // Use changed value or original
+                            const finalPrice = changes.precio !== undefined ? changes.precio : p.precio;
+                            const finalStock = changes.stock !== undefined ? changes.stock : p.stock;
+
+                            return (
+                                <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6', background: editedRows[p.id] ? '#fefffa' : 'white' }}>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <div style={{ fontWeight: 500 }}>{p.nombre}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>ID: {p.id.substring(0, 8)}...</div>
+                                    </td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            className="form-input"
+                                            value={finalPrice}
+                                            onChange={e => handleCellChange(p.id, 'precio', e.target.value)}
+                                            style={{ borderColor: changes.precio ? '#f59e0b' : '' }}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            className="form-input"
+                                            value={finalStock}
+                                            onChange={e => handleCellChange(p.id, 'stock', e.target.value)}
+                                            style={{ borderColor: changes.stock ? '#f59e0b' : '' }}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            className="form-input"
+                                            value={changes.reorderPoint !== undefined ? changes.reorderPoint : (p.reorderPoint || 10)}
+                                            onChange={e => handleCellChange(p.id, 'reorderPoint', e.target.value)}
+                                            style={{ borderColor: changes.reorderPoint ? '#f59e0b' : '' }}
+                                        />
+                                    </td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <select
+                                            className="form-input"
+                                            value={changes.active !== undefined ? changes.active : p.active}
+                                            onChange={e => handleCellChange(p.id, 'active', e.target.value === 'true')}
+                                            style={{ borderColor: changes.active !== undefined ? '#f59e0b' : '' }}
+                                        >
+                                            <option value="true">Activo</option>
+                                            <option value="false">Inactivo</option>
+                                        </select>
+                                    </td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <select
+                                            className="form-input"
+                                            value={changes.tagId !== undefined ? changes.tagId : (p.tagId || '')}
+                                            onChange={e => handleCellChange(p.id, 'tagId', e.target.value)}
+                                            style={{ borderColor: changes.tagId !== undefined ? '#f59e0b' : '' }}
+                                        >
+                                            <option value="">--</option>
+                                            {tags.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
+                                        </select>
+                                    </td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={e => handleImageChange(p.id, e)}
+                                            style={{ fontSize: '0.8rem', maxWidth: '180px' }}
+                                        />
+                                        {changes.imageBase64 && <span style={{ fontSize: '0.7rem', color: 'green', display: 'block' }}>Imagen lista</span>}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
 }
+
+// ============================================
+// BULK PRODUCT FORM (CREATE)
+// ============================================
+function BulkProductForm({ tags, onSuccess, onCancel }) {
+    const toast = useToast();
+    const [rows, setRows] = useState([
+        { id: 1, nombre: '', descripcion: '', precio: '', stock: '', reorderPoint: 10, tagId: '', imageUrl: '', imageFile: null }
+    ]);
+    const [loading, setLoading] = useState(false);
+
+    // ... (rest of logic similar, just need to update submit to handle base64)
+
+    const handleRowChange = (id, field, value) => {
+        setRows(prev => prev.map(row => row.id === id ? { ...row, [field]: value } : row));
+    };
+
+    const handleImageFileChange = async (id, e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setRows(prev => prev.map(row => row.id === id ? { ...row, imageFile: file } : row));
+        }
+    };
+
+    const addRow = () => {
+        const newId = rows.length > 0 ? Math.max(...rows.map(r => r.id)) + 1 : 1;
+        setRows([...rows, { id: newId, nombre: '', descripcion: '', precio: '', stock: '', reorderPoint: 10, tagId: '', imageUrl: '', imageFile: null }]);
+    };
+
+    const removeRow = (id) => {
+        if (rows.length <= 1) return;
+        setRows(prev => prev.filter(r => r.id !== id));
+    };
+
+    const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+    };
+
+    const handleSubmit = async () => {
+        const validRows = rows.filter(r => r.nombre.trim() !== '');
+        if (validRows.length === 0) {
+            toast.warning('Ingrese al menos un producto con nombre.');
+            return;
+        }
+
+        for (const row of validRows) {
+            if (!row.precio || parseFloat(row.precio) < 0) return toast.warning(`Precio inválido para ${row.nombre}`);
+            if (!row.stock || parseInt(row.stock) < 0) return toast.warning(`Stock inválido para ${row.nombre}`);
+        }
+
+        setLoading(true);
+        try {
+            // Prepare payload with Base64 images if present
+            const payload = await Promise.all(validRows.map(async r => {
+                let base64 = null;
+                let fileName = null;
+                if (r.imageFile) {
+                    base64 = await fileToBase64(r.imageFile);
+                    fileName = r.imageFile.name;
+                }
+
+                return {
+                    nombre: r.nombre,
+                    descripcion: r.descripcion,
+                    precio: parseFloat(r.precio),
+                    stock: parseInt(r.stock),
+                    reorderPoint: parseInt(r.reorderPoint || 10),
+                    // imageUrl: r.imageUrl || null, // API likely prefers base64 over URL now, or both? 
+                    // Prompt says: "NEW: To upload images in bulk, convert the file to a Base64 String and send it in the imageBase64 field."
+                    // It doesn't strictly say it removed imageUrl support, but let's stick to base64 if file provided.
+                    // If no file but URL string, maybe still send? Let's check DTO from prompt.
+                    // "CreateProductRequest"
+                    tagId: r.tagId || null,
+                    imageBase64: base64,
+                    imageFileName: fileName
+                };
+            }));
+
+            const response = await productService.createProductsBulk(payload);
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'huella_creacion_masiva.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+
+            toast.success(`Se agregaron ${validRows.length} productos correctamente. Huella contable descargada.`);
+            onSuccess();
+        } catch (error) {
+            console.error('Bulk create error:', error);
+            toast.error('Error al cargar productos masivamente.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>playlist_add</span>
+                    Carga Masiva de Productos
+                </h3>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={onCancel} className="btn-secondary" disabled={loading}>
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        className="btn-primary"
+                        disabled={loading}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        {loading ? 'Procesando...' : 'Cargar Productos'}
+                        <span className="material-icons-round" style={{ fontSize: '18px' }}>save_alt</span>
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ overflowX: 'auto', flex: 1 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
+                    <thead>
+                        <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                            <th style={{ padding: '0.8rem', width: '20%' }}>Nombre *</th>
+                            <th style={{ padding: '0.8rem', width: '20%' }}>Descripción</th>
+                            <th style={{ padding: '0.8rem', width: '10%' }}>Precio *</th>
+                            <th style={{ padding: '0.8rem', width: '8%' }}>Stock *</th>
+                            <th style={{ padding: '0.8rem', width: '8%' }}>Reorder</th>
+                            <th style={{ padding: '0.8rem', width: '15%' }}>Etiqueta</th>
+                            <th style={{ padding: '0.8rem', width: '15%' }}>Imagen</th>
+                            <th style={{ padding: '0.8rem', width: '50px' }}></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, index) => (
+                            <tr key={row.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="Nombre..."
+                                        value={row.nombre}
+                                        onChange={e => handleRowChange(row.id, 'nombre', e.target.value)}
+                                    />
+                                </td>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="Descripción"
+                                        value={row.descripcion}
+                                        onChange={e => handleRowChange(row.id, 'descripcion', e.target.value)}
+                                    />
+                                </td>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        placeholder="0.00"
+                                        min="0"
+                                        value={row.precio}
+                                        onChange={e => handleRowChange(row.id, 'precio', e.target.value)}
+                                    />
+                                </td>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        placeholder="0"
+                                        min="0"
+                                        value={row.stock}
+                                        onChange={e => handleRowChange(row.id, 'stock', e.target.value)}
+                                    />
+                                </td>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        placeholder="10"
+                                        value={row.reorderPoint}
+                                        onChange={e => handleRowChange(row.id, 'reorderPoint', e.target.value)}
+                                    />
+                                </td>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <select
+                                        className="form-input"
+                                        value={row.tagId}
+                                        onChange={e => handleRowChange(row.id, 'tagId', e.target.value)}
+                                    >
+                                        <option value="">--</option>
+                                        {tags.map(t => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                </td>
+                                <td style={{ padding: '0.5rem' }}>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={e => handleImageFileChange(row.id, e)}
+                                        style={{ fontSize: '0.8rem', maxWidth: '150px' }}
+                                    />
+                                </td>
+                                <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                    {rows.length > 1 && (
+                                        <button
+                                            onClick={() => removeRow(row.id)}
+                                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                                            title="Eliminar fila"
+                                        >
+                                            <span className="material-icons-round">delete</span>
+                                        </button>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div style={{ padding: '1rem', textAlign: 'center' }}>
+                    <button
+                        onClick={addRow}
+                        style={{
+                            background: '#f3f4f6',
+                            border: '1px dashed #d1d5db',
+                            padding: '0.5rem 2rem',
+                            borderRadius: '6px',
+                            color: 'var(--text-secondary)',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        <span className="material-icons-round">add</span>
+                        Agregar Fila
+                    </button>
+                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+                        Llene los datos. Las filas sin nombre serán ignoradas.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ============================================
