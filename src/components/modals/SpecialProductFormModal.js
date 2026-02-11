@@ -57,11 +57,19 @@ export default function SpecialProductFormModal({ product, tags, onClose, onSucc
     const searchParentProducts = useCallback(async (q) => {
         if (!q || q.length < 2) { setParentResults([]); return; }
         try {
-            const res = await client.get('/admin/products', { params: { q } });
+            // Backend endpoint doesn't support 'q' filtering yet, so we fetch a large batch and filter locally.
+            const res = await client.get('/admin/products', { params: { size: 1000 } });
             let data = res.data;
             if (data && !Array.isArray(data) && Array.isArray(data.content)) data = data.content;
             if (!Array.isArray(data)) data = [];
-            setParentResults(data.slice(0, 8));
+
+            const lowerQ = q.toLowerCase();
+            const filtered = data.filter(p =>
+                p.nombre.toLowerCase().includes(lowerQ) ||
+                (p.descripcion && p.descripcion.toLowerCase().includes(lowerQ))
+            );
+
+            setParentResults(filtered.slice(0, 8));
         } catch (err) {
             console.error('Error searching parents:', err);
         }
