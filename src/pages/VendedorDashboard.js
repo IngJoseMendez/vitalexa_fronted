@@ -555,14 +555,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
               </div>
             ) : (
               filteredProducts.map(product => (
-                filteredProducts.map(product => (
-                  <VendorProductCard
-                    key={product.id}
-                    product={product}
-                    cartItem={cart.find(item => item.productId === product.id)}
-                    onAddToCart={addToCart}
-                  />
-                ))
+                <VendorProductCard
+                  key={product.id}
+                  product={product}
+                  cartItem={cart.find(item => item.productId === product.id)}
+                  onAddToCart={addToCart}
+                />
               ))
             )}
           </div>
