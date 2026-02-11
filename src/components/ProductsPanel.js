@@ -440,6 +440,18 @@ export default function ProductsPanel({ refreshTrigger }) {
                                             </div>
                                         )}
 
+                                        {product.linkedSpecialCount > 0 && (
+                                            <div style={{
+                                                position: 'absolute', top: '10px', right: '10px',
+                                                background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: 'white',
+                                                fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '12px',
+                                                fontWeight: 700, zIndex: 2, display: 'flex', alignItems: 'center', gap: '4px'
+                                            }}>
+                                                <span className="material-icons-round" style={{ fontSize: '12px' }}>star</span>
+                                                {product.linkedSpecialCount} especial{product.linkedSpecialCount > 1 ? 'es' : ''}
+                                            </div>
+                                        )}
+
                                         <div style={{ height: '180px', overflow: 'hidden', background: '#f9fafb', position: 'relative' }}>
                                             <img
                                                 src={product.imageUrl || PLACEHOLDER_IMAGE}

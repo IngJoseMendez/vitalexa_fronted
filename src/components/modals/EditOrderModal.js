@@ -9,8 +9,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [productSearch, setProductSearch] = useState('');
     const [isBonifiedMode, setIsBonifiedMode] = useState(false);
 
-    // ✅ Detect Promo Order
-    const isPromoOrder = order.notas && order.notas.includes('[Promoción]');
+    // ✅ Detect Promo Order (using backend field)
+    const isPromoOrder = order.isPromotionOrder === true;
+    const isHistorical = order.isHistorical === true;
 
     const [formData, setFormData] = useState({
         clientId: null,
@@ -543,95 +544,97 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                 </div>
                             )}
 
-                            {/* FREIGHT SECTION */}
-                            <div className="eo-freight-section">
-                                <label className="freight-toggle">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.includeFreight}
-                                        onChange={(e) => {
-                                            setHasChanges(true);
-                                            setFormData(p => ({ ...p, includeFreight: e.target.checked }));
-                                        }}
-                                    />
-                                    <span>Incluir Flete</span>
-                                </label>
 
-                                {formData.includeFreight && (
-                                    <div className="freight-details">
-                                        <div className="freight-row">
-                                            <input
-                                                type="text"
-                                                className="eo-input"
-                                                placeholder="Texto (ej: Envío Express)"
-                                                value={formData.freightCustomText || ''}
-                                                onChange={(e) => {
-                                                    setHasChanges(true);
-                                                    setFormData(p => ({ ...p, freightCustomText: e.target.value }))
-                                                }}
-                                            />
-                                            <input
-                                                type="number"
-                                                className="eo-input"
-                                                style={{ width: '80px' }}
-                                                value={formData.freightQuantity || 1}
-                                                onChange={(e) => {
-                                                    setHasChanges(true);
-                                                    setFormData(p => ({ ...p, freightQuantity: e.target.value }))
-                                                }}
-                                            />
-                                        </div>
-                                        <label className="checkbox-label">
-                                            <input
-                                                type="checkbox"
-                                                checked={formData.isFreightBonified}
-                                                onChange={(e) => {
-                                                    setHasChanges(true);
-                                                    setFormData(p => ({ ...p, isFreightBonified: e.target.checked }))
-                                                }}
-                                            />
-                                            Bonificar Flete ($0)
-                                        </label>
+                            {/* FREIGHT SECTION - Disabled for Promo Orders & Historical */}
+                            {!isPromoOrder && !isHistorical && (
+                                <div className="eo-freight-section">
+                                    <label className="freight-toggle">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.includeFreight}
+                                            onChange={(e) => {
+                                                setHasChanges(true);
+                                                setFormData(p => ({ ...p, includeFreight: e.target.checked }));
+                                            }}
+                                        />
+                                    </label>
 
-                                        <div className="freight-products">
-                                            <h5>Productos por cuenta del flete</h5>
-                                            <div className="eo-search-wrapper short">
+                                    {formData.includeFreight && (
+                                        <div className="freight-details">
+                                            <div className="freight-row">
                                                 <input
                                                     type="text"
-                                                    className="eo-search-input small"
-                                                    placeholder="Buscar..."
-                                                    value={freightProductSearch}
-                                                    onChange={(e) => setFreightProductSearch(e.target.value)}
+                                                    className="eo-input"
+                                                    placeholder="Texto (ej: Envío Express)"
+                                                    value={formData.freightCustomText || ''}
+                                                    onChange={(e) => {
+                                                        setHasChanges(true);
+                                                        setFormData(p => ({ ...p, freightCustomText: e.target.value }))
+                                                    }}
                                                 />
-                                                {filteredFreightProducts.length > 0 && (
-                                                    <div className="eo-search-results small">
-                                                        {filteredFreightProducts.map(p => (
-                                                            <div key={p.id} className="eo-search-item" onClick={() => { addItem(p, true); setFreightProductSearch(''); }}>
-                                                                {p.nombre}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <input
+                                                    type="number"
+                                                    className="eo-input"
+                                                    style={{ width: '80px' }}
+                                                    value={formData.freightQuantity || 1}
+                                                    onChange={(e) => {
+                                                        setHasChanges(true);
+                                                        setFormData(p => ({ ...p, freightQuantity: e.target.value }))
+                                                    }}
+                                                />
                                             </div>
+                                            <label className="checkbox-label">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.isFreightBonified}
+                                                    onChange={(e) => {
+                                                        setHasChanges(true);
+                                                        setFormData(p => ({ ...p, isFreightBonified: e.target.checked }))
+                                                    }}
+                                                />
+                                                Bonificar Flete ($0)
+                                            </label>
 
-                                            {formData.items.filter(i => i.isFreightItem).map(item => (
-                                                <div key={item.id} className="freight-item-row">
-                                                    <span>{item.productName}</span>
-                                                    <div className="controls">
-                                                        <input
-                                                            type="number"
-                                                            value={item.cantidad}
-                                                            onChange={(e) => updateQuantity(item.id, e.target.value)}
-                                                            className="eo-qty-input small"
-                                                        />
-                                                        <button onClick={() => removeItem(item.id)} className="eo-remove-btn">&times;</button>
-                                                    </div>
+                                            <div className="freight-products">
+                                                <h5>Productos por cuenta del flete</h5>
+                                                <div className="eo-search-wrapper short">
+                                                    <input
+                                                        type="text"
+                                                        className="eo-search-input small"
+                                                        placeholder="Buscar..."
+                                                        value={freightProductSearch}
+                                                        onChange={(e) => setFreightProductSearch(e.target.value)}
+                                                    />
+                                                    {filteredFreightProducts.length > 0 && (
+                                                        <div className="eo-search-results small">
+                                                            {filteredFreightProducts.map(p => (
+                                                                <div key={p.id} className="eo-search-item" onClick={() => { addItem(p, true); setFreightProductSearch(''); }}>
+                                                                    {p.nombre}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            ))}
+
+                                                {formData.items.filter(i => i.isFreightItem).map(item => (
+                                                    <div key={item.id} className="freight-item-row">
+                                                        <span>{item.productName}</span>
+                                                        <div className="controls">
+                                                            <input
+                                                                type="number"
+                                                                value={item.cantidad}
+                                                                onChange={(e) => updateQuantity(item.id, e.target.value)}
+                                                                className="eo-qty-input small"
+                                                            />
+                                                            <button onClick={() => removeItem(item.id)} className="eo-remove-btn">&times;</button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="eo-footer-summary">

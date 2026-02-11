@@ -7,6 +7,8 @@ import NotificationService from '../services/NotificationService';
 import VendedorPromotionsCatalog from '../components/VendedorPromotionsCatalog';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
 import { PromotionType } from '../utils/types';
+import VendorSpecialProductsPanel from '../components/VendorSpecialProductsPanel';
+import VendorProductCard from '../components/VendorProductCard';
 import '../styles/VendedorDashboard.css';
 
 
@@ -73,6 +75,12 @@ function VendedorDashboard() {
           <span className="material-icons-round">inventory_2</span> Productos
         </button>
         <button
+          className={activeTab === 'special-products' ? 'active' : ''}
+          onClick={() => setActiveTab('special-products')}
+        >
+          <span className="material-icons-round">star</span> Especiales
+        </button>
+        <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
         >
@@ -90,6 +98,7 @@ function VendedorDashboard() {
         {activeTab === 'mis-metas' && <MisMetasPanel key={refreshTrigger} />}
         {activeTab === 'clientes' && <ClientesPanel key={refreshTrigger} />}
         {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'special-products' && <VendorSpecialProductsPanel refreshTrigger={refreshTrigger} />}
       </div>
     </div>
   );
@@ -191,22 +200,22 @@ function NuevaVentaPanel({ refreshTrigger }) {
     fetchVendedores();
   }, [refreshTrigger, activeTagId, fetchClients, fetchProducts, fetchTags, fetchVendedores]);
 
-  const addToCart = (product) => {
+  const addToCart = (product, quantity = 1) => {
     if (isBonifiedMode) { // ✅ Logic for Bonified Items
       const existing = bonifiedCart.find(item => item.productId === product.id);
       if (existing) {
-        setBonifiedCart(bonifiedCart.map(item => item.productId === product.id ? { ...item, cantidad: item.cantidad + 1 } : item));
+        setBonifiedCart(bonifiedCart.map(item => item.productId === product.id ? { ...item, cantidad: item.cantidad + quantity } : item));
       } else {
         setBonifiedCart([...bonifiedCart, {
           productId: product.id,
           nombre: product.nombre,
           precio: 0, // Price 0
-          cantidad: 1,
+          cantidad: quantity,
           stockDisponible: product.stock,
           allowOutOfStock: true // Usually gifts can be OOS if authorized? Or assume stock check needed? Let's assume standard stock check but price 0.
         }]);
       }
-      toast.success('Agregado como Bonificado 🎁');
+      toast.success(`Agregado (+${quantity}) como Bonificado 🎁`);
       return;
     }
 
@@ -223,7 +232,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
       }
       setCart(cart.map(item =>
         item.productId === product.id
-          ? { ...item, cantidad: item.cantidad + 1 }
+          ? { ...item, cantidad: item.cantidad + quantity }
           : item
       ));
     } else {
@@ -231,9 +240,10 @@ function NuevaVentaPanel({ refreshTrigger }) {
         productId: product.id,
         nombre: product.nombre,
         precio: product.precio,
-        cantidad: 1,
+        cantidad: quantity,
         stockDisponible: product.stock,
-        allowOutOfStock: false // Default false
+        allowOutOfStock: false, // Default false
+        isSpecialProduct: product.isSpecialProduct
       }]);
     }
   };
@@ -390,7 +400,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
         clientId: selectedClient || null,
         items: [
           ...cart.map(item => ({
-            productId: item.productId,
+            productId: item.isSpecialProduct ? null : item.productId,
+            specialProductId: item.isSpecialProduct ? item.productId : null,
             cantidad: item.cantidad,
             allowOutOfStock: item.allowOutOfStock,
             relatedPromotionId: item.promotionId || null
@@ -544,59 +555,14 @@ function NuevaVentaPanel({ refreshTrigger }) {
               </div>
             ) : (
               filteredProducts.map(product => (
-                <div key={product.id} className="product-card">
-                  {/* ✅ IMAGEN CORREGIDA */}
-                  <img
-                    src={product.imageUrl || PLACEHOLDER_IMAGE}
-                    alt={product.nombre}
-                    onError={(e) => {
-                      console.warn(`⚠️ Error cargando imagen: ${product.imageUrl}`);
-                      e.target.src = PLACEHOLDER_IMAGE;
-                    }}
-                    loading="lazy"
+                filteredProducts.map(product => (
+                  <VendorProductCard
+                    key={product.id}
+                    product={product}
+                    cartItem={cart.find(item => item.productId === product.id)}
+                    onAddToCart={addToCart}
                   />
-                  {/* Stock indicator badge showing items in cart */}
-                  {cart.some(item => item.productId === product.id) && (
-                    <span className="product-cart-badge" title="Cantidad en carrito">
-                      <span className="material-icons-round">shopping_cart</span>
-                      {cart.find(item => item.productId === product.id)?.cantidad || 0}
-                    </span>
-                  )}
-                  <div className="product-info">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem', gap: '0.5rem' }}>
-                      <h4 style={{ margin: 0, flex: 1 }}>{product.nombre}</h4>
-                      {product.tagName && <TagBadge tagName={product.tagName} />}
-                    </div>
-                    <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
-
-                    {/* Visual Stock Display */}
-                    <div className="stock-visual-indicator">
-                      <div className="stock-bar-small">
-                        <div
-                          className="stock-fill-small"
-                          style={{
-                            width: `${Math.max(0, ((product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0)) / product.stock) * 100)}%`
-                          }}
-                        />
-                      </div>
-                      <span className="stock-text">
-                        {Math.max(0, product.stock - (cart.find(item => item.productId === product.id)?.cantidad || 0))}/{product.stock} disponibles
-                      </span>
-                    </div>
-
-                    <button
-                      onClick={() => addToCart(product)}
-                      disabled={false} // Always allow adding, logic handles OOS flag in cart
-                      className="btn-add-cart"
-                      style={product.stock === 0 ? { background: '#f59e0b', border: '1px solid #d97706' } : {}}
-                    >
-                      <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>
-                        {product.stock === 0 ? 'warning' : 'add'}
-                      </span>
-                      {product.stock === 0 ? 'Vender S/Stock' : 'Agregar'}
-                    </button>
-                  </div>
-                </div>
+                ))
               ))
             )}
           </div>

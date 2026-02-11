@@ -7,6 +7,7 @@ import TagsPanel from '../components/TagsPanel';
 import PromotionsPanel from '../components/PromotionsPanel';
 import AdminClientsPanel from '../components/AdminClientsPanel';
 import ProductsPanel from '../components/ProductsPanel';
+import SpecialProductsPanel from '../components/SpecialProductsPanel';
 import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
 import AdminDiscountSection from '../components/AdminDiscountSection';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
@@ -56,6 +57,12 @@ function AdminDashboard() {
           <span className="material-icons-round">inventory_2</span> Productos
         </button>
         <button
+          className={activeTab === 'special-products' ? 'active' : ''}
+          onClick={() => setActiveTab('special-products')}
+        >
+          <span className="material-icons-round">star</span> Especiales
+        </button>
+        <button
           className={activeTab === 'inventory-history' ? 'active' : ''}
           onClick={() => setActiveTab('inventory-history')}
         >
@@ -101,6 +108,7 @@ function AdminDashboard() {
         {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
         {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
@@ -697,8 +705,8 @@ function OrdersPanel({ refreshTrigger }) {
               ? `payment-${order.paymentStatus.toLowerCase()}`
               : '';
 
-            // Check if order has promotions
-            const hasPromotions = order.items?.some(item => item.isPromotionItem || item.isFreeItem) || false;
+            // Check if order is a promotion order
+            const hasPromotions = order.isPromotionOrder === true;
 
             return (
               <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
@@ -1092,7 +1100,8 @@ function AdminNuevaVentaPanel() {
           cantidad: 1,
           stockDisponible: product.stock,
           allowOutOfStock: true, // Admin can sell without stock
-          isBonified: false
+          isBonified: false,
+          isSpecialProduct: product.isSpecialProduct
         }]);
       }
     }
@@ -1180,7 +1189,9 @@ function AdminNuevaVentaPanel() {
         clientId: selectedClient || null,
         items: [
           ...cart.map(item => ({
-            productId: item.productId,
+            isValid: true,
+            productId: item.isSpecialProduct ? null : item.productId,
+            specialProductId: item.isSpecialProduct ? item.productId : null,
             cantidad: item.cantidad,
             allowOutOfStock: item.allowOutOfStock,
             // isBonified removed
@@ -1320,7 +1331,21 @@ function AdminNuevaVentaPanel() {
                 onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
                 onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
               >
-                <div style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem' }}>{product.nombre}</div>
+                <div style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <span>{product.nombre}</span>
+                  {product.isSpecialProduct && (
+                    <span style={{
+                      fontSize: '0.65rem',
+                      background: 'linear-gradient(135deg, #8b5cf6, #d946ef)',
+                      color: 'white',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontWeight: 'bold'
+                    }}>
+                      ESPECIAL
+                    </span>
+                  )}
+                </div>
                 <div style={{ color: isBonifiedMode ? '#10b981' : 'var(--primary)', fontWeight: '700', marginBottom: '0.25rem' }}>
                   {isBonifiedMode ? '$0.00 (Regalo)' : `$${parseFloat(product.precio).toFixed(2)}`}
                 </div>

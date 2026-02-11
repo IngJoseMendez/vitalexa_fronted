@@ -23,7 +23,8 @@ export const ProductShape = PropTypes.shape({
     precio: PropTypes.number.isRequired,
     stock: PropTypes.number.isRequired,
     imageUrl: PropTypes.string,
-    active: PropTypes.bool
+    active: PropTypes.bool,
+    isSpecialProduct: PropTypes.bool
 });
 
 export const PromotionShape = PropTypes.shape({

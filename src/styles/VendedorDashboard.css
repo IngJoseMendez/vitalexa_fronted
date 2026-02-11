@@ -2678,3 +2678,19 @@
 .btn-refresh-dashboard:hover .material-icons-round {
   transform: rotate(180deg);
 }
+
+
+/* Responsive Fixes */
+@media (max-width: 768px) {
+  .productos-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .product-card {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .product-card img {
+    width: 100%;
+    height: auto;
+  }
+}
