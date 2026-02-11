@@ -134,6 +134,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [vendedores, setVendedores] = useState([]);
   const [assignedVendor, setAssignedVendor] = useState('');
   const [userRole] = useState(localStorage.getItem('role'));
+  const [showMobileCart, setShowMobileCart] = useState(false); // Mobile cart modal
   const toast = useToast();
 
   const [tags, setTags] = useState([]);
@@ -961,17 +962,253 @@ function NuevaVentaPanel({ refreshTrigger }) {
         />
       )}
 
-      {/* Botón flotante para móvil para ir al carrito */}
-      <button
-        className="mobile-cart-fab"
-        onClick={() => {
-          document.querySelector('.carrito-section')?.scrollIntoView({ behavior: 'smooth' });
-        }}
-        title="Ver Carrito"
-      >
-        <span className="material-icons-round">shopping_cart</span>
-        <span className="cart-count-badge">{(cart.length || 0) + (promotionsCart.length || 0)}</span>
-      </button>
+      {/* Sticky Cart Footer - Mobile Only */}
+      <div className="sticky-cart-footer">
+        <div className="cart-summary">
+          <div className="label">{(cart.length || 0) + (promotionsCart.length || 0)} Productos</div>
+          <div className="total">${calculateTotal().toFixed(2)}</div>
+        </div>
+        <button className="btn-show-cart" onClick={() => setShowMobileCart(true)}>
+          <span className="material-icons-round">shopping_cart</span>
+          Ver Carrito
+        </button>
+      </div>
+
+      {/* Mobile Cart Modal */}
+      <div className={`mobile-cart-modal-overlay ${!showMobileCart ? 'hidden' : ''}`} onClick={() => setShowMobileCart(false)}>
+        <div className="mobile-cart-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3>
+              <span className="material-icons-round">shopping_cart</span>
+              Carrito
+            </h3>
+            <button className="modal-close" onClick={() => setShowMobileCart(false)}>
+              <span className="material-icons-round">close</span>
+            </button>
+          </div>
+          <div className="modal-body">
+            {/* Render the same cart content */}
+            <div className="carrito-section" style={{ display: 'block', width: '100%', padding: 0 }}>
+              <div className="form-group">
+                <label htmlFor="cliente-select-mobile">
+                  <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>person</span>
+                  Cliente
+                </label>
+                <div className="client-search-wrapper" style={{ position: 'relative', marginBottom: '0.5rem' }}>
+                  <span className="material-icons-round" style={{
+                    position: 'absolute',
+                    left: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#9ca3af',
+                    fontSize: '18px'
+                  }}>search</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    className="client-search-input"
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.6rem 0.6rem 2.2rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                </div>
+
+                <select
+                  id="cliente-select-mobile"
+                  value={selectedClient}
+                  onChange={(e) => {
+                    setSelectedClient(e.target.value);
+                    setAllowNoClient(false);
+                  }}
+                  disabled={allowNoClient}
+                >
+                  <option value="">Selecciona un cliente</option>
+                  {clients
+                    .filter(c => {
+                      if (!clientSearchTerm) return true;
+                      const term = clientSearchTerm.toLowerCase();
+                      return c.nombre.toLowerCase().includes(term) ||
+                        (c.telefono && c.telefono.includes(term));
+                    })
+                    .map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre} - {c.telefono}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="checkbox-group">
+                <input
+                  id="sin-cliente-mobile"
+                  type="checkbox"
+                  checked={allowNoClient}
+                  onChange={(e) => {
+                    setAllowNoClient(e.target.checked);
+                    if (e.target.checked) {
+                      setSelectedClient('');
+                    }
+                  }}
+                />
+                <label htmlFor="sin-cliente-mobile">
+                  Venta sin cliente (confirmo que estoy seguro)
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="notas-mobile">
+                  <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>notes</span>
+                  Notas / Productos sin stock
+                </label>
+                <textarea
+                  id="notas-mobile"
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  rows="3"
+                  placeholder="Ej: Cliente solicita producto X sin stock, contactar proveedor..."
+                />
+              </div>
+
+              {/* ADMIN/OWNER ONLY: Asignar Vendedor */}
+              {isAdminOrOwner && (
+                <div className="form-group">
+                  <label htmlFor="vendedor-select-mobile">
+                    <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>badge</span>
+                    Asignar Vendedor <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select
+                    id="vendedor-select-mobile"
+                    value={assignedVendor}
+                    onChange={(e) => setAssignedVendor(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '0.95rem',
+                      background: assignedVendor ? '#f0fdf4' : 'white'
+                    }}
+                  >
+                    <option value="">-- Seleccionar vendedor --</option>
+                    {vendedores.map(v => (
+                      <option key={v.id} value={v.id}>{v.username}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Cart Items Display */}
+              <div className="cart-items">
+                {cart.length === 0 && promotionsCart.length === 0 ? (
+                  <div className="empty-cart">
+                    <span className="material-icons-round" style={{ fontSize: '2.5rem', opacity: 0.5 }}>shopping_bag</span>
+                    <span>El carrito está vacío</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Regular Items */}
+                    {cart.map(item => (
+                      <div key={item.productId} className="cart-item">
+                        <div className="cart-item-info">
+                          <h5>{item.nombre}</h5>
+                          <p>${(parseFloat(item.precio) * (parseFloat(item.cantidad) || 0)).toFixed(2)}</p>
+                        </div>
+                        <div className="cart-item-controls">
+                          <div>
+                            <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1))}>−</button>
+                            <input
+                              type="number"
+                              value={item.cantidad}
+                              onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                              min="1"
+                              onWheel={(e) => e.target.blur()}
+                            />
+                            <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)}>+</button>
+                          </div>
+                          <button className="btn-remove" onClick={() => removeFromCart(item.productId)}>
+                            <span className="material-icons-round">delete_outline</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Promotions */}
+                    {promotionsCart.map(promo => (
+                      <div key={promo.cartId} className="cart-item promotion-item">
+                        <div className="cart-item-info">
+                          <h5>🎁 {promo.nombre}</h5>
+                          <p>${parseFloat(promo.packPrice || 0).toFixed(2)}</p>
+                        </div>
+                        <button className="btn-remove" onClick={() => removePromotionFromCart(promo.cartId)}>
+                          <span className="material-icons-round">delete_outline</span>
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Bonified Items */}
+                    {bonifiedCart.length > 0 && (
+                      <div style={{ marginTop: '1rem', borderTop: '2px solid #10b981', paddingTop: '1rem' }}>
+                        <h4 style={{ color: '#047857', marginBottom: '0.5rem', fontSize: '0.9rem' }}>🎁 Bonificaciones</h4>
+                        {bonifiedCart.map(item => (
+                          <div key={item.productId} className="cart-item" style={{ background: 'white' }}>
+                            <div className="cart-item-info">
+                              <h5>{item.nombre}</h5>
+                              <p style={{ color: '#15803d', fontWeight: 'bold' }}>$0.00</p>
+                            </div>
+                            <div className="cart-item-controls">
+                              <div>
+                                <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1), true)}>−</button>
+                                <input
+                                  type="number"
+                                  value={item.cantidad}
+                                  onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
+                                  min="1"
+                                  onWheel={(e) => e.target.blur()}
+                                />
+                                <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)}>+</button>
+                              </div>
+                              <button className="btn-remove" onClick={() => removeFromCart(item.productId, true)}>
+                                <span className="material-icons-round">delete_outline</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="cart-total">
+                Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${calculateTotal().toFixed(2)}</span>
+              </div>
+
+              <button
+                className="btn-finalizar-venta"
+                onClick={() => {
+                  handleSubmitOrder();
+                  setShowMobileCart(false);
+                }}
+                disabled={
+                  (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
+                  (!selectedClient && !allowNoClient) ||
+                  cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
+                  cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
+                }
+              >
+                <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
+                Finalizar Venta
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

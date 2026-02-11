@@ -99,6 +99,29 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         }
     };
 
+    // Helper function to get product stock info
+    const getProductStock = (productId) => {
+        const product = products.find(p => p.id === productId);
+        return product ? product.stock : 0;
+    };
+
+    // Calculate how much stock is being used by a product across all items
+    const getStockUsage = (productId) => {
+        const regularQty = formData.items
+            .filter(i => i.productId === productId && !i.isFreightItem)
+            .reduce((sum, i) => sum + (parseInt(i.cantidad) || 0), 0);
+
+        const bonifiedQty = formData.bonifiedItems
+            .filter(i => i.productId === productId)
+            .reduce((sum, i) => sum + (parseInt(i.cantidad) || 0), 0);
+
+        const freightQty = formData.items
+            .filter(i => i.productId === productId && i.isFreightItem)
+            .reduce((sum, i) => sum + (parseInt(i.cantidad) || 0), 0);
+
+        return regularQty + bonifiedQty + freightQty;
+    };
+
     const addItem = (product, isFreight = false, isBonified = false) => {
         setHasChanges(true);
 
@@ -116,7 +139,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     productName: product.nombre,
                     cantidad: 1,
                     precioUnitario: 0,
-                    isFreightItem: false
+                    isFreightItem: false,
+                    stock: product.stock  // ✅ Store stock info
                 };
                 setFormData(prev => ({ ...prev, bonifiedItems: [...prev.bonifiedItems, newItem] }));
             }
@@ -139,7 +163,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     productName: product.nombre,
                     cantidad: 1,
                     precioUnitario: parseFloat(product.precio),
-                    isFreightItem: isFreight
+                    isFreightItem: isFreight,
+                    stock: product.stock  // ✅ Store stock info
                 };
 
                 setFormData(prev => ({
@@ -468,36 +493,52 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {formData.items.filter(i => !i.isFreightItem).map((item) => (
-                                                <tr key={item.id}>
-                                                    <td>
-                                                        <div className="eo-item-name">{item.productName}</div>
-                                                    </td>
-                                                    <td>
-                                                        {!isPromoOrder ? (
-                                                            <input
-                                                                type="number"
-                                                                className="eo-qty-input"
-                                                                value={item.cantidad}
-                                                                min="1"
-                                                                onChange={(e) => updateQuantity(item.id, e.target.value)}
-                                                            />
-                                                        ) : (
-                                                            <span>x{item.cantidad}</span>
-                                                        )}
-                                                    </td>
-                                                    <td style={{ textAlign: 'right' }}>
-                                                        ${(item.precioUnitario * item.cantidad).toFixed(2)}
-                                                    </td>
-                                                    <td>
-                                                        {!isPromoOrder && (
-                                                            <button className="eo-remove-btn" onClick={() => removeItem(item.id)}>
-                                                                <span className="material-icons-round">delete</span>
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {formData.items.filter(i => !i.isFreightItem).map((item) => {
+                                                const currentStock = getProductStock(item.productId);
+                                                const totalUsage = getStockUsage(item.productId);
+                                                const stockExcess = totalUsage - currentStock;
+                                                const hasExcess = stockExcess > 0;
+
+                                                return (
+                                                    <tr key={item.id} className={hasExcess ? 'stock-warning' : ''}>
+                                                        <td>
+                                                            <div className="eo-item-name">{item.productName}</div>
+                                                            <div className="eo-stock-info">
+                                                                <span className="stock-available">Stock: {currentStock}</span>
+                                                                {hasExcess && (
+                                                                    <span className="stock-excess">
+                                                                        <span className="material-icons-round" style={{ fontSize: '14px' }}>warning</span>
+                                                                        Excede por {stockExcess}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            {!isPromoOrder ? (
+                                                                <input
+                                                                    type="number"
+                                                                    className="eo-qty-input"
+                                                                    value={item.cantidad}
+                                                                    min="1"
+                                                                    onChange={(e) => updateQuantity(item.id, e.target.value)}
+                                                                />
+                                                            ) : (
+                                                                <span>x{item.cantidad}</span>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            ${(item.precioUnitario * item.cantidad).toFixed(2)}
+                                                        </td>
+                                                        <td>
+                                                            {!isPromoOrder && (
+                                                                <button className="eo-remove-btn" onClick={() => removeItem(item.id)}>
+                                                                    <span className="material-icons-round">delete</span>
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -509,36 +550,52 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                     <h4 className="bonified-header"><span className="material-icons-round">card_giftcard</span> Bonificados (Regalo)</h4>
                                     <table className="eo-items-table">
                                         <tbody>
-                                            {formData.bonifiedItems.map((item) => (
-                                                <tr key={item.id} className="is-bonified">
-                                                    <td>
-                                                        <div className="eo-item-name">{item.productName}</div>
-                                                    </td>
-                                                    <td style={{ width: '80px' }}>
-                                                        {!isPromoOrder ? (
-                                                            <input
-                                                                type="number"
-                                                                className="eo-qty-input"
-                                                                value={item.cantidad}
-                                                                min="1"
-                                                                onChange={(e) => updateQuantity(item.id, e.target.value, true)}
-                                                            />
-                                                        ) : (
-                                                            <span>x{item.cantidad}</span>
-                                                        )}
-                                                    </td>
-                                                    <td style={{ textAlign: 'right' }}>
-                                                        <span className="free-text">Gratis</span>
-                                                    </td>
-                                                    <td style={{ width: '40px' }}>
-                                                        {!isPromoOrder && (
-                                                            <button className="eo-remove-btn" onClick={() => removeItem(item.id, true)}>
-                                                                <span className="material-icons-round">delete</span>
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {formData.bonifiedItems.map((item) => {
+                                                const currentStock = getProductStock(item.productId);
+                                                const totalUsage = getStockUsage(item.productId);
+                                                const stockExcess = totalUsage - currentStock;
+                                                const hasExcess = stockExcess > 0;
+
+                                                return (
+                                                    <tr key={item.id} className={`is-bonified ${hasExcess ? 'stock-warning' : ''}`}>
+                                                        <td>
+                                                            <div className="eo-item-name">{item.productName}</div>
+                                                            <div className="eo-stock-info">
+                                                                <span className="stock-available">Stock: {currentStock}</span>
+                                                                {hasExcess && (
+                                                                    <span className="stock-excess">
+                                                                        <span className="material-icons-round" style={{ fontSize: '14px' }}>warning</span>
+                                                                        Excede por {stockExcess}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ width: '80px' }}>
+                                                            {!isPromoOrder ? (
+                                                                <input
+                                                                    type="number"
+                                                                    className="eo-qty-input"
+                                                                    value={item.cantidad}
+                                                                    min="1"
+                                                                    onChange={(e) => updateQuantity(item.id, e.target.value, true)}
+                                                                />
+                                                            ) : (
+                                                                <span>x{item.cantidad}</span>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            <span className="free-text">Gratis</span>
+                                                        </td>
+                                                        <td style={{ width: '40px' }}>
+                                                            {!isPromoOrder && (
+                                                                <button className="eo-remove-btn" onClick={() => removeItem(item.id, true)}>
+                                                                    <span className="material-icons-round">delete</span>
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
