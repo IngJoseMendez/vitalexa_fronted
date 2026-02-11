@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import apiClient from '../api/client';
 import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
@@ -834,7 +835,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                     <div key={item.productId} className={`cart-item ${isOutOfStock ? 'has-warning' : ''}`}>
                       <div className="cart-item-info">
                         <h4>{item.nombre}</h4>
-                        <p>${parseFloat(item.precio).toFixed(2)} c/u</p>
+                        <p>${formatCurrency(item.precio)} c/u</p>
                         {isOutOfStock && (
                           <div className="out-of-stock-controls" style={{ marginTop: '0.5rem' }}>
                             <label className="checkbox-small" style={{ color: '#d97706', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
@@ -882,7 +883,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                         </button>
                       </div>
                       <div className="cart-item-subtotal">
-                        ${(item.precio * item.cantidad).toFixed(2)}
+                        ${formatCurrency(item.precio * item.cantidad)}
                       </div>
                     </div>
                   );
@@ -927,7 +928,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
 
           <div className="cart-total">
-            Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${calculateTotal().toFixed(2)}</span>
+            Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${formatCurrency(calculateTotal())}</span>
           </div>
 
           <button
@@ -966,7 +967,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
       <div className="sticky-cart-footer">
         <div className="cart-summary">
           <div className="label">{(cart.length || 0) + (promotionsCart.length || 0)} Productos</div>
-          <div className="total">${calculateTotal().toFixed(2)}</div>
+          <div className="total">${formatCurrency(calculateTotal())}</div>
         </div>
         <button className="btn-show-cart" onClick={() => setShowMobileCart(true)}>
           <span className="material-icons-round">shopping_cart</span>
@@ -1117,7 +1118,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                       <div key={item.productId} className="cart-item">
                         <div className="cart-item-info">
                           <h5>{item.nombre}</h5>
-                          <p>${(parseFloat(item.precio) * (parseFloat(item.cantidad) || 0)).toFixed(2)}</p>
+                          <p>${formatCurrency((parseFloat(item.precio) * (parseFloat(item.cantidad) || 0)))}</p>
                         </div>
                         <div className="cart-item-controls">
                           <div>
@@ -1143,7 +1144,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                       <div key={promo.cartId} className="cart-item promotion-item">
                         <div className="cart-item-info">
                           <h5>🎁 {promo.nombre}</h5>
-                          <p>${parseFloat(promo.packPrice || 0).toFixed(2)}</p>
+                          <p>${formatCurrency(parseFloat(promo.packPrice || 0))}</p>
                         </div>
                         <button className="btn-remove" onClick={() => removePromotionFromCart(promo.cartId)}>
                           <span className="material-icons-round">delete_outline</span>
@@ -1186,7 +1187,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
               </div>
 
               <div className="cart-total">
-                Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${calculateTotal().toFixed(2)}</span>
+                Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${formatCurrency(calculateTotal())}</span>
               </div>
 
               <button
@@ -1262,7 +1263,7 @@ function VentasCompletadasPanel() {
               <div className="venta-info">
                 <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
                 <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
-                <p><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
+                <p><strong>Total:</strong> ${formatCurrency(parseFloat(order.total))}</p>
 
                 {order.notas && (
                   <div className="venta-notes">
@@ -1277,7 +1278,7 @@ function VentasCompletadasPanel() {
                 <ul>
                   {order.items.map((item, idx) => (
                     <li key={idx}>
-                      {item.productName} - {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
+                      {item.productName} - {item.cantidad} x ${formatCurrency(parseFloat(item.precioUnitario))}
                     </li>
                   ))}
                 </ul>
@@ -1374,7 +1375,7 @@ function ClientesPanel() {
               <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>place</span> {cliente.direccion || 'Sin dirección'}</p>
               <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>home_work</span> {cliente.nit}</p>
               <div className="cliente-stats">
-                <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}</span>
+                <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Compras: ${formatCurrency(parseFloat(cliente.totalCompras || 0))}</span>
               </div>
               <button
                 className="btn-edit-client"
@@ -1779,7 +1780,7 @@ function MisVentasPanel() {
               <div className="venta-info">
                 <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
                 <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
-                <p><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
+                <p><strong>Total:</strong> ${formatCurrency(parseFloat(order.total))}</p>
 
                 {order.notas && (
                   <div className="venta-notes">
@@ -1796,7 +1797,7 @@ function MisVentasPanel() {
                     <li key={idx}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div>
-                          {item.productName} - {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
+                          {item.productName} - {item.cantidad} x ${formatCurrency(parseFloat(item.precioUnitario))}
                         </div>
                         <div className="order-item-badges" style={{ marginTop: '2px', gap: '0.25rem', display: 'flex', flexWrap: 'wrap' }}>
                           {item.outOfStock && (
@@ -1921,7 +1922,7 @@ function ProductosPanel() {
               </div>
               <p className="producto-descripcion">{product.descripcion}</p>
               <div className="producto-details">
-                <span className="producto-precio">${parseFloat(product.precio).toFixed(2)}</span>
+                <span className="producto-precio">${formatCurrency(product.precio)}</span>
                 <span className={`producto-stock ${product.stock <= 5 ? 'low' : ''}`}>
                   Stock: {product.stock}
                 </span>
@@ -2151,11 +2152,11 @@ function MisMetasPanel() {
                   <div className="history-stats">
                     <div className="history-stat">
                       <span className="label">Meta:</span>
-                      <span className="value">${parseFloat(goal.targetAmount).toFixed(2)}</span>
+                      <span className="value">${formatCurrency(parseFloat(goal.targetAmount))}</span>
                     </div>
                     <div className="history-stat">
                       <span className="label">Logrado:</span>
-                      <span className="value">${parseFloat(goal.currentAmount).toFixed(2)}</span>
+                      <span className="value">${formatCurrency(parseFloat(goal.currentAmount))}</span>
                     </div>
                   </div>
 

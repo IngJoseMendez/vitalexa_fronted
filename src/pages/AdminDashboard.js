@@ -14,6 +14,7 @@ import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import EditOrderModal from '../components/modals/EditOrderModal';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
 import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
+import { formatCurrency } from '../utils/formatters';
 import '../styles/AdminDashboard.css';
 
 function AdminDashboard() {
@@ -754,12 +755,12 @@ function OrdersPanel({ refreshTrigger }) {
                   <p><strong>Vendedor:</strong> {order.vendedor}</p>
                   <p><strong>Cliente:</strong> {order.cliente}</p>
                   <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
-                  <p className="order-total"><strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}</p>
+                  <p className="order-total"><strong>Total:</strong> ${formatCurrency(order.total)}</p>
                   {order.discountedTotal && order.discountedTotal !== order.total && (
                     <p className="order-discounted-total">
                       <span className="material-icons-round" style={{ fontSize: '14px', color: '#10b981' }}>discount</span>
                       <strong>Con descuento:</strong>
-                      <span className="discounted-value">${parseFloat(order.discountedTotal).toFixed(2)}</span>
+                      <span className="discounted-value">${formatCurrency(order.discountedTotal)}</span>
                     </p>
                   )}
 
@@ -824,10 +825,10 @@ function OrdersPanel({ refreshTrigger }) {
                             )}
                           </div>
                           <span className="item-qty">
-                            {item.cantidad} x ${item.isFreeItem ? '0.00' : parseFloat(item.precioUnitario || 0).toFixed(2)}
+                            {item.cantidad} x ${item.isFreeItem ? '0.00' : formatCurrency(item.precioUnitario || 0)}
                           </span>
                           <span className="item-subtotal" style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
-                            ${parseFloat(item.subtotal || 0).toFixed(2)}
+                            ${formatCurrency(item.subtotal || 0)}
                           </span>
                         </li>
                       ))}
@@ -1165,7 +1166,7 @@ function AdminNuevaVentaPanel() {
       if (item.isBonified) return sum;
       return sum + (item.precio * item.cantidad);
     }, 0);
-    return productsTotal.toFixed(2);
+    return formatCurrency(productsTotal);
   };
 
   const handleSubmitOrder = async () => {
@@ -1347,7 +1348,7 @@ function AdminNuevaVentaPanel() {
                   )}
                 </div>
                 <div style={{ color: isBonifiedMode ? '#10b981' : 'var(--primary)', fontWeight: '700', marginBottom: '0.25rem' }}>
-                  {isBonifiedMode ? '$0.00 (Regalo)' : `$${parseFloat(product.precio).toFixed(2)}`}
+                  {isBonifiedMode ? '$0.00 (Regalo)' : `$${formatCurrency(product.precio)}`}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Stock: {product.stock}</div>
               </div>
@@ -1487,7 +1488,7 @@ function AdminNuevaVentaPanel() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.nombre}</div>
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {`$${parseFloat(item.precio).toFixed(2)}`}
+                            {`$${formatCurrency(item.precio)}`}
                           </div>
                         </div>
 

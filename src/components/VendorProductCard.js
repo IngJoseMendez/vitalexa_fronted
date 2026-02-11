@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TagBadge } from './TagComponents';
+import { formatCurrency } from '../utils/formatters';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
@@ -55,7 +56,7 @@ function VendorProductCard({ product, cartItem, onAddToCart }) {
                     {product.tagName && <TagBadge tagName={product.tagName} />}
                 </div>
 
-                <p className="product-price">${parseFloat(product.precio).toFixed(2)}</p>
+                <p className="product-price">${formatCurrency(parseFloat(product.precio))}</p>
 
                 {/* Visual Stock Display */}
                 <div className="stock-visual-indicator" style={{ marginBottom: '0.5rem' }}>

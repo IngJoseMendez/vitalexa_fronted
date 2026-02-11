@@ -5,6 +5,7 @@ import { tagService } from '../api/tagService';
 import { TagBadge, TagFilterBar } from './TagComponents';
 import productService from '../api/productService';
 import ProductFormModal from './modals/ProductFormModal';
+import { formatCurrency } from '../utils/formatters';
 
 // Placeholder for missing images
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
@@ -493,7 +494,7 @@ export default function ProductsPanel({ refreshTrigger }) {
                                             <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f3f4f6', paddingTop: '0.75rem' }}>
                                                 <div>
                                                     <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Precio Unitario</span>
-                                                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>${parseFloat(product.precio).toFixed(2)}</span>
+                                                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>${formatCurrency(product.precio)}</span>
                                                 </div>
                                                 <div style={{ textAlign: 'right' }}>
                                                     <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Stock Actual</span>

@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import balanceService from '../api/balanceService';
 import clientApi from '../api/client';
 import { useToast } from '../components/ToastContainer';
@@ -251,7 +252,7 @@ function BalancesPage() {
                     </span>
                     <div className="stat-content">
                         <span className="stat-value">
-                            ${balances.reduce((sum, b) => sum + (b.pendingBalance || 0), 0).toFixed(2)}
+                            ${formatCurrency(balances.reduce((sum, b) => sum + (b.pendingBalance || 0), 0))}
                         </span>
                         <span className="stat-label">Total Pendiente</span>
                     </div>
@@ -262,7 +263,7 @@ function BalancesPage() {
                     </span>
                     <div className="stat-content">
                         <span className="stat-value">
-                            ${balances.reduce((sum, b) => sum + (b.totalPaid || 0), 0).toFixed(2)}
+                            ${formatCurrency(balances.reduce((sum, b) => sum + (b.totalPaid || 0), 0))}
                         </span>
                         <span className="stat-label">Total Pagado</span>
                     </div>
@@ -331,7 +332,7 @@ function BalancesPage() {
                                         {client.pendingBalance > 0 ? (
                                             <>
                                                 <span className="balance-amount warning">
-                                                    ${(client.pendingBalance || 0).toFixed(2)}
+                                                    ${formatCurrency(client.pendingBalance || 0)}
                                                 </span>
                                                 <span className="balance-label">Pendiente</span>
                                             </>
@@ -532,7 +533,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
 
         const confirmed = await confirm({
             title: '¿Agregar Saldo a Favor?',
-            message: `Se agregarán $${parseFloat(balanceFavorAmount).toFixed(2)} al saldo a favor del cliente.`
+            message: `Se agregarán $${formatCurrency(parseFloat(balanceFavorAmount))} al saldo a favor del cliente.`
         });
 
         if (!confirmed) return;
@@ -579,21 +580,21 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                 <div className="summary-card">
                     <span className="material-icons-round">account_balance</span>
                     <div>
-                        <span className="value">${(clientDetail?.totalOwed || 0).toFixed(2)}</span>
+                        <span className="value">${formatCurrency(clientDetail?.totalOwed || 0)}</span>
                         <span className="label">Total Adeudado</span>
                     </div>
                 </div>
                 <div className="summary-card success">
                     <span className="material-icons-round">payments</span>
                     <div>
-                        <span className="value">${(clientDetail?.totalPaid || 0).toFixed(2)}</span>
+                        <span className="value">${formatCurrency(clientDetail?.totalPaid || 0)}</span>
                         <span className="label">Total Pagado</span>
                     </div>
                 </div>
                 <div className="summary-card warning">
                     <span className="material-icons-round">pending</span>
                     <div>
-                        <span className="value">${(clientDetail?.pendingBalance || 0).toFixed(2)}</span>
+                        <span className="value">${formatCurrency(clientDetail?.pendingBalance || 0)}</span>
                         <span className="label">Saldo Pendiente</span>
                     </div>
                 </div>
@@ -639,7 +640,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         </div>
                         {clientDetail?.creditLimit && (
                             <p className="control-info">
-                                Límite actual: <strong>${clientDetail.creditLimit.toFixed(2)}</strong>
+                                Límite actual: <strong>${formatCurrency(clientDetail.creditLimit)}</strong>
                             </p>
                         )}
                     </div>
@@ -676,7 +677,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         </div>
                         {(clientDetail?.balanceFavor > 0) && (
                             <p className="control-info" style={{ color: '#059669', backgroundColor: '#ecfdf5', borderColor: '#d1fae5' }}>
-                                Saldo a favor disponible: <strong>${(clientDetail.balanceFavor || 0).toFixed(2)}</strong>
+                                Saldo a favor disponible: <strong>${formatCurrency(clientDetail.balanceFavor || 0)}</strong>
                             </p>
                         )}
                     </div>
@@ -721,7 +722,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                 Saldo Inicial
                             </h3>
                             <p className="control-info">
-                                Saldo inicial establecido: <strong>${(clientDetail.initialBalance || 0).toFixed(2)}</strong>
+                                Saldo inicial establecido: <strong>${formatCurrency(clientDetail.initialBalance || 0)}</strong>
                             </p>
                         </div>
                     )}
@@ -780,15 +781,15 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                     <div className="order-amounts">
                                         <div className="amount-row">
                                             <span>Total:</span>
-                                            <strong>${(order.total || 0).toFixed(2)}</strong>
+                                            <strong>${formatCurrency(order.total || 0)}</strong>
                                         </div>
                                         <div className="amount-row">
                                             <span>Pagado:</span>
-                                            <span className="paid">${(order.paidAmount || 0).toFixed(2)}</span>
+                                            <span className="paid">${formatCurrency(order.paidAmount || 0)}</span>
                                         </div>
                                         <div className="amount-row pending">
                                             <span>Pendiente:</span>
-                                            <strong>${(order.pendingAmount || 0).toFixed(2)}</strong>
+                                            <strong>${formatCurrency(order.pendingAmount || 0)}</strong>
                                         </div>
                                     </div>
                                     {/* Manage Button - Only for Owner */}

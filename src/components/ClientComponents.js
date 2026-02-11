@@ -4,6 +4,7 @@ import { clientService } from '../api/client';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastContainer';
 import { TagBadge } from './TagComponents';
+import { formatCurrency } from '../utils/formatters';
 
 // === PRODUCT CARD ===
 export const ClientProductCard = ({ product, onAddToList, cart }) => {
@@ -14,7 +15,7 @@ export const ClientProductCard = ({ product, onAddToList, cart }) => {
     const cartItem = cart?.find(item => item.product?.id === product.id);
     const quantityInCart = cartItem?.quantity || 0;
     const availableStock = product.stock - quantityInCart;
-    
+
     const handleAdd = () => {
         addToCart(product, qty);
         setQty(1);
@@ -43,12 +44,12 @@ export const ClientProductCard = ({ product, onAddToList, cart }) => {
                     {product.tagName && <TagBadge tagName={product.tagName} />}
                 </div>
                 <p className="card-desc">{product.descripcion}</p>
-                
+
                 {/* Visual Stock Indicator */}
                 <div className="stock-indicator">
                     <div className="stock-bar">
-                        <div 
-                            className="stock-fill" 
+                        <div
+                            className="stock-fill"
                             style={{
                                 width: `${Math.max(0, stockPercentage)}%`,
                                 background: stockPercentage > 30 ? '#10b981' : stockPercentage > 10 ? '#f59e0b' : '#ef4444'
@@ -62,7 +63,7 @@ export const ClientProductCard = ({ product, onAddToList, cart }) => {
 
                 <div className="card-footer">
                     <div className="price-row">
-                        <span className="price">${product.precio.toFixed(2)}</span>
+                        <span className="price">${formatCurrency(product.precio)}</span>
                         {onAddToList && (
                             <button
                                 className="btn-action"
@@ -107,7 +108,7 @@ export const CartView = ({ onOrderPlaced }) => {
     const handleCheckout = async () => {
         if (cart.length === 0) return;
 
-        if (await confirm({ title: 'Confirmar Pedido', message: `Total: $${cartTotal.toFixed(2)}. ¿Proceder ? ` })) {
+        if (await confirm({ title: 'Confirmar Pedido', message: `Total: $${formatCurrency(cartTotal)}. ¿Proceder ? ` })) {
             setLoading(true);
             try {
                 const orderData = {
@@ -164,7 +165,7 @@ export const CartView = ({ onOrderPlaced }) => {
                                             <span className="material-icons-round">delete_outline</span>
                                         </button>
                                     </div>
-                                    <p className="item-price-unit">${item.product.precio.toFixed(2)} c/u</p>
+                                    <p className="item-price-unit">${formatCurrency(item.product.precio)} c/u</p>
 
                                     <div className="item-controls-row">
                                         <div className="modern-qty-selector">
@@ -174,7 +175,7 @@ export const CartView = ({ onOrderPlaced }) => {
                                         </div>
                                         <div className="item-subtotal">
                                             <span className="subtotal-label">Subtotal:</span>
-                                            <span className="subtotal-value">${(item.product.precio * item.quantity).toFixed(2)}</span>
+                                            <span className="subtotal-value">${formatCurrency(item.product.precio * item.quantity)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -191,7 +192,7 @@ export const CartView = ({ onOrderPlaced }) => {
                         <div className="summary-details">
                             <div className="summary-line">
                                 <span>Subtotal</span>
-                                <span>${cartTotal.toFixed(2)}</span>
+                                <span>${formatCurrency(cartTotal)}</span>
                             </div>
                             <div className="summary-line">
                                 <span>Envío</span>
@@ -205,7 +206,7 @@ export const CartView = ({ onOrderPlaced }) => {
 
                         <div className="summary-total-v2">
                             <span>Total a pagar</span>
-                            <span className="total-amount">${cartTotal.toFixed(2)}</span>
+                            <span className="total-amount">${formatCurrency(cartTotal)}</span>
                         </div>
 
                         <div className="order-notes-container">
@@ -310,7 +311,7 @@ export const OrdersView = () => {
                         <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pending'}`}>{order.estado || 'PENDIENTE'}</span>
                     </div>
                     <div className="order-items-summary">
-                        {order.items.length} productos | Total: <strong>${order.total.toFixed(2)}</strong>
+                        {order.items.length} productos | Total: <strong>${formatCurrency(order.total)}</strong>
                     </div>
                     {order.notas && <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>"{order.notas}"</p>}
 

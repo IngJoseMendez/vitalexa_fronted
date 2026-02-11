@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import { useToast } from './ToastContainer';
 import specialProductService from '../api/specialProductService';
 import '../styles/SpecialProducts.css';
@@ -84,7 +85,7 @@ export default function VendorSpecialProductsPanel({ refreshTrigger }) {
                                         {product.descripcion}
                                     </p>
                                 )}
-                                <div className="price">${parseFloat(product.precio).toFixed(2)}</div>
+                                <div className="price">${formatCurrency(parseFloat(product.precio))}</div>
                                 <div className="stock-info">
                                     <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>inventory</span>
                                     {' '}Stock: {product.stock}

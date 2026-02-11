@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
@@ -183,7 +184,7 @@ function PromotionsPanel() {
                                     {promotion.packPrice && (
                                         <div className="promotion-info-row">
                                             <span className="promotion-info-label">Precio del Pack:</span>
-                                            <span className="promotion-price">${parseFloat(promotion.packPrice).toFixed(2)}</span>
+                                            <span className="promotion-price">${formatCurrency(promotion.packPrice)}</span>
                                         </div>
                                     )}
 

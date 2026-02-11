@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import apiClient from '../api/client';
 import { useToast } from './ToastContainer';
 
@@ -532,7 +533,7 @@ function AdminClientsPanel({ refreshTrigger }) {
                             }}>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#059669', fontWeight: 600 }}>
                                     <span className="material-icons-round" style={{ fontSize: '16px' }}>shopping_bag</span>
-                                    Compras: ${parseFloat(cliente.totalCompras || 0).toFixed(2)}
+                                    Compras: ${formatCurrency(cliente.totalCompras || 0)}
                                 </span>
                                 <button
                                     onClick={() => {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatCurrency } from '../../utils/formatters';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
 import './EditOrderModal.css';
@@ -215,15 +216,15 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         // ✅ Para órdenes promocionales o cuando tenemos el total de la orden,
         // usar el total real en vez de calcular la suma de productos
         if (order.total !== undefined && order.total !== null) {
-            return parseFloat(order.total).toFixed(2);
+            return formatCurrency(order.total);
         }
 
         // Fallback: calcular suma de items (para órdenes nuevas/sin total)
-        return formData.items.reduce((sum, item) => {
+        return formatCurrency(formData.items.reduce((sum, item) => {
             if (item.isFreightItem) return sum;
             const qty = parseFloat(item.cantidad) || 0;
             return sum + (item.precioUnitario * qty);
-        }, 0).toFixed(2);
+        }, 0));
     };
 
     const handleSubmit = async (e) => {
@@ -455,7 +456,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                         </span>
                                                     </div>
                                                     <span className="item-price">
-                                                        {isBonifiedMode ? '$0.00' : `$${p.precio}`}
+                                                        {isBonifiedMode ? '$0.00' : `$${formatCurrency(p.precio)}`}
                                                     </span>
                                                 </div>
                                             );
@@ -527,7 +528,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                             )}
                                                         </td>
                                                         <td style={{ textAlign: 'right' }}>
-                                                            ${(item.precioUnitario * item.cantidad).toFixed(2)}
+                                                            ${formatCurrency(item.precioUnitario * item.cantidad)}
                                                         </td>
                                                         <td>
                                                             {!isPromoOrder && (

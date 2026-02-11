@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import '../styles/Dashboard.css';
+import { formatCurrency } from '../utils/formatters';
 
 export default function Dashboard() {
   const [username, setUsername] = useState('');
@@ -261,7 +262,7 @@ export default function Dashboard() {
                     <div className="producto-info">
                       <h3>{prod.nombre}</h3>
                       <p className="descripcion">{prod.descripcion}</p>
-                      <p className="precio">${prod.precio}</p>
+                      <p className="precio">${formatCurrency(prod.precio)}</p>
                       <p className="stock">Stock: {prod.stock}</p>
                       <p className={`estado ${prod.active ? 'activo' : 'inactivo'}`}>
                         {prod.active ? '✅ Activo' : '❌ Inactivo'}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
@@ -230,7 +231,7 @@ function OverviewTab({ stats }) {
           <div className="stat-icon"><span className="material-icons-round">payments</span></div>
           <div className="stat-info">
             <h3>Ingresos Totales</h3>
-            <p className="stat-value">${stats?.totalRevenue?.toFixed(2) || '0.00'}</p>
+            <p className="stat-value">${formatCurrency(stats?.totalRevenue)}</p>
           </div>
         </div>
 
@@ -467,13 +468,13 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
                   <p><strong>Cliente:</strong> {order.cliente}</p>
                   <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
                   <p className="order-total">
-                    <strong>Total:</strong> ${parseFloat(order.total).toFixed(2)}
+                    <strong>Total:</strong> ${formatCurrency(order.total)}
                   </p>
                   {order.discountedTotal && order.discountedTotal !== order.total && (
                     <p className="order-discounted-total">
                       <span className="material-icons-round" style={{ fontSize: '14px', color: '#10b981' }}>discount</span>
                       <strong>Con descuento:</strong>
-                      <span className="discounted-value">${parseFloat(order.discountedTotal).toFixed(2)}</span>
+                      <span className="discounted-value">${formatCurrency(order.discountedTotal)}</span>
                     </p>
                   )}
 
@@ -492,10 +493,10 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
                       <li key={idx}>
                         <span className="item-name">{item.productName}</span>
                         <span className="item-qty">
-                          {item.cantidad} x ${parseFloat(item.precioUnitario).toFixed(2)}
+                          {item.cantidad} x ${formatCurrency(item.precioUnitario)}
                         </span>
                         <span className="item-subtotal">
-                          ${parseFloat(item.subtotal).toFixed(2)}
+                          ${formatCurrency(item.subtotal)}
                         </span>
                       </li>
                     ))}
@@ -652,7 +653,7 @@ function ProductsTab({ products, tags, onRefresh }) {
                 <div className="product-stats">
                   <div className="stat">
                     <span className="label">Precio:</span>
-                    <span className="value">${parseFloat(product.precio).toFixed(2)}</span>
+                    <span className="value">${formatCurrency(product.precio)}</span>
                   </div>
                   <div className="stat">
                     <span className="label">Stock:</span>
@@ -1077,9 +1078,9 @@ function OverviewReport({ data }) {
           <div className="card-icon">💰</div>
           <div className="card-content">
             <h3>Ingresos Totales</h3>
-            <p className="big-number">${parseFloat(salesReport.totalRevenue).toFixed(2)}</p>
+            <p className="big-number">${formatCurrency(salesReport.totalRevenue)}</p>
             <span className="card-subtitle">
-              Promedio por orden: ${parseFloat(salesReport.averageOrderValue).toFixed(2)}
+              Promedio por orden: ${formatCurrency(salesReport.averageOrderValue)}
             </span>
           </div>
         </div>
@@ -1103,7 +1104,7 @@ function OverviewReport({ data }) {
             <h3>Inventario</h3>
             <p className="big-number">{productReport.activeProducts}</p>
             <div className="card-breakdown">
-              <span>Valor total: ${parseFloat(productReport.totalInventoryValue).toFixed(2)}</span>
+              <span>Valor total: ${formatCurrency(productReport.totalInventoryValue)}</span>
               {productReport.lowStockProducts > 0 && (
                 <span className="warning">⚠️ {productReport.lowStockProducts} con stock bajo</span>
               )}
@@ -1143,11 +1144,11 @@ function SalesReport({ data }) {
       <div className="metrics-grid">
         <div className="metric-box">
           <h4>Ingresos Totales</h4>
-          <p className="metric-value">${parseFloat(data.totalRevenue).toFixed(2)}</p>
+          <p className="metric-value">${formatCurrency(data.totalRevenue)}</p>
         </div>
         <div className="metric-box">
           <h4>Promedio por Orden</h4>
-          <p className="metric-value">${parseFloat(data.averageOrderValue).toFixed(2)}</p>
+          <p className="metric-value">${formatCurrency(data.averageOrderValue)}</p>
         </div>
         <div className="metric-box">
           <h4>Total Órdenes</h4>
@@ -1241,7 +1242,7 @@ function SalesReport({ data }) {
                 <td>{month.month}</td>
                 <td>{month.year}</td>
                 <td>{month.orders}</td>
-                <td>${parseFloat(month.revenue).toFixed(2)}</td>
+                <td>${formatCurrency(month.revenue)}</td>
               </tr>
             ))}
           </tbody>
@@ -1266,7 +1267,7 @@ function ProductsReport({ data }) {
         </div>
         <div className="metric-box">
           <h4>Valor Inventario</h4>
-          <p className="metric-value">${parseFloat(data.totalInventoryValue).toFixed(2)}</p>
+          <p className="metric-value">${formatCurrency(data.totalInventoryValue)}</p>
         </div>
         <div className="metric-box warning">
           <h4>Stock Bajo</h4>
@@ -1297,7 +1298,7 @@ function ProductsReport({ data }) {
                 <p>{product.quantitySold} unidades vendidas</p>
               </div>
               <div className="product-revenue">
-                ${parseFloat(product.revenue).toFixed(2)}
+                ${formatCurrency(product.revenue)}
               </div>
             </div>
           ))}
@@ -1422,8 +1423,8 @@ function VendorsReport({ data, vendedores, onExport, exporting }) {
                 <h4>{vendor.vendorName}</h4>
                 <div className="vendor-stats">
                   <span>📦 {vendor.totalOrders} órdenes</span>
-                  <span>💰 ${parseFloat(vendor.totalRevenue).toFixed(2)}</span>
-                  <span>📊 Promedio: ${parseFloat(vendor.averageOrderValue).toFixed(2)}</span>
+                  <span>💰 ${formatCurrency(vendor.totalRevenue)}</span>
+                  <span>📊 Promedio: ${formatCurrency(vendor.averageOrderValue)}</span>
                 </div>
               </div>
               <div className="vendor-performance">
@@ -1506,7 +1507,7 @@ function ClientsReport({ data }) {
                 <td>{client.clientName}</td>
                 <td>{client.clientPhone}</td>
                 <td>{client.totalOrders}</td>
-                <td className="amount">${parseFloat(client.totalSpent).toFixed(2)}</td>
+                <td className="amount">${formatCurrency(client.totalSpent)}</td>
               </tr>
             ))}
           </tbody>
@@ -1536,9 +1537,9 @@ function SalesChart({ data }) {
                 height: `${Math.max((parseFloat(day.revenue) / maxRevenue) * 100, 2)}%`,
                 minHeight: '20px' // Ensure visible minimal height for styling
               }}
-              title={`$${parseFloat(day.revenue).toFixed(2)}`}
+              title={`$${formatCurrency(day.revenue)}`}
             >
-              <span className="bar-value">${parseFloat(day.revenue).toFixed(0)}</span>
+              <span className="bar-value">${formatCurrency(day.revenue)}</span>
             </div>
             <div className="bar-label">
               {new Date(day.date).toLocaleDateString('es-ES', {
@@ -1576,7 +1577,7 @@ function TopProductsChart({ data }) {
               <span className="bar-text">{product.quantitySold} unidades</span>
             </div>
           </div>
-          <div className="product-amount">${parseFloat(product.revenue).toFixed(2)}</div>
+          <div className="product-amount">${formatCurrency(product.revenue)}</div>
         </div>
       ))}
     </div>
@@ -1648,11 +1649,11 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
                   <div className="goal-stats">
                     <div className="stat">
                       <span className="label">Meta:</span>
-                      <span className="value">${parseFloat(vendedor.currentGoal.targetAmount).toFixed(2)}</span>
+                      <span className="value">${formatCurrency(vendedor.currentGoal.targetAmount)}</span>
                     </div>
                     <div className="stat">
                       <span className="label">Actual:</span>
-                      <span className="value">${parseFloat(vendedor.currentGoal.currentAmount).toFixed(2)}</span>
+                      <span className="value">${formatCurrency(vendedor.currentGoal.currentAmount)}</span>
                     </div>
                   </div>
 

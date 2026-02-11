@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatCurrency } from '../utils/formatters';
 import { getPromotionTypeLabel, PromotionType } from '../utils/types';
 import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
@@ -89,7 +90,7 @@ function VendedorPromotionsCatalog({ onAddToCart }) {
 
                         <div className="promotion-footer-compact">
                             {promotion.packPrice && (
-                                <span className="promotion-price-tag">${parseFloat(promotion.packPrice).toFixed(2)}</span>
+                                <span className="promotion-price-tag">${formatCurrency(promotion.packPrice)}</span>
                             )}
                             <button
                                 className="btn-add-promo"

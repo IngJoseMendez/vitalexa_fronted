@@ -8,6 +8,7 @@ import orderService from '../../api/orderService';
 import client from '../../api/client';
 import { OrdenStatus, PromotionType } from '../../utils/types';
 import HistoricalInvoiceModal from './HistoricalInvoiceModal'; // Import for editing
+import { formatCurrency } from '../../utils/formatters';
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -300,12 +301,12 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                             </div>
                             <div className="info-item highlight">
                                 <span className="label">Total Original:</span>
-                                <span className="value">${parseFloat(currentOrder.total).toFixed(2)}</span>
+                                <span className="value">${formatCurrency(currentOrder.total)}</span>
                             </div>
                             {currentOrder.discountedTotal && currentOrder.discountedTotal !== currentOrder.total && (
                                 <div className="info-item highlight success">
                                     <span className="label">Total con Descuento:</span>
-                                    <span className="value">${parseFloat(currentOrder.discountedTotal).toFixed(2)}</span>
+                                    <span className="value">${formatCurrency(currentOrder.discountedTotal)}</span>
                                 </div>
                             )}
                         </div>
@@ -484,10 +485,10 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                 {/* Status column content if needed, basically covered by badges */}
                                             </td>
                                             <td style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
-                                                ${item.isFreeItem ? '0.00' : parseFloat(item.precioUnitario || 0).toFixed(2)}
+                                                ${item.isFreeItem ? '0.00' : formatCurrency(item.precioUnitario || 0)}
                                             </td>
                                             <td style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
-                                                ${parseFloat(item.subtotal || 0).toFixed(2)}
+                                                ${formatCurrency(item.subtotal || 0)}
                                             </td>
                                         </tr>
                                     ))}
@@ -564,21 +565,21 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         <div className="payment-summary">
                             <div className="summary-item">
                                 <span>Total {hasDiscounts ? 'Original' : 'Orden'}:</span>
-                                <strong className={hasDiscounts ? 'strike-through' : ''}>${originalTotal.toFixed(2)}</strong>
+                                <strong className={hasDiscounts ? 'strike-through' : ''}>${formatCurrency(originalTotal)}</strong>
                             </div>
                             {hasDiscounts && (
                                 <div className="summary-item highlight">
                                     <span>Total con Descuento:</span>
-                                    <strong className="success">${effectiveTotal.toFixed(2)}</strong>
+                                    <strong className="success">${formatCurrency(effectiveTotal)}</strong>
                                 </div>
                             )}
                             <div className="summary-item paid">
                                 <span>Total Pagado:</span>
-                                <strong>${totalPaid.toFixed(2)}</strong>
+                                <strong>${formatCurrency(totalPaid)}</strong>
                             </div>
                             <div className={`summary-item ${pendingBalance <= 0.01 ? 'success' : 'warning'}`}>
                                 <span>Saldo Pendiente:</span>
-                                <strong style={{ fontSize: '1.2rem' }}>${Math.max(0, pendingBalance).toFixed(2)}</strong>
+                                <strong style={{ fontSize: '1.2rem' }}>${formatCurrency(Math.max(0, pendingBalance))}</strong>
                             </div>
                         </div>
 
@@ -594,7 +595,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 {payments.map(payment => (
                                     <div key={payment.id} className="payment-item">
                                         <div className="payment-main">
-                                            <span className="payment-amount">${parseFloat(payment.amount).toFixed(2)}</span>
+                                            <span className="payment-amount">${formatCurrency(payment.amount)}</span>
                                             <span className="payment-date">
                                                 {new Date(payment.paymentDate).toLocaleDateString()}
                                             </span>
@@ -754,15 +755,15 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                 <div className="payment-context">
                     <div className="context-item">
                         <span>Total Orden</span>
-                        <strong>${orderTotal.toFixed(2)}</strong>
+                        <strong>${formatCurrency(orderTotal)}</strong>
                     </div>
                     <div className="context-item">
                         <span>Ya Pagado</span>
-                        <strong>${totalPaid.toFixed(2)}</strong>
+                        <strong>${formatCurrency(totalPaid)}</strong>
                     </div>
                     <div className="context-item highlight">
                         <span>Saldo Pendiente</span>
-                        <strong className="warning">${pendingBalance.toFixed(2)}</strong>
+                        <strong className="warning">${formatCurrency(pendingBalance)}</strong>
                     </div>
                 </div>
 
@@ -772,7 +773,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span>Saldo Restante (Estimado):</span>
                             <strong className={effectivePendingAfter <= 0.01 ? 'success' : ''}>
-                                ${effectivePendingAfter.toFixed(2)}
+                                ${formatCurrency(effectivePendingAfter)}
                             </strong>
                         </div>
                         {effectivePendingAfter <= 0.01 && (
@@ -796,7 +797,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                                 min="0.01"
                                 value={formData.amount}
                                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                placeholder={`Máximo sugerido: ${pendingBalance.toFixed(2)}`}
+                                placeholder={`Máximo sugerido: ${formatCurrency(pendingBalance)}`}
                                 required
                                 onWheel={(e) => e.target.blur()}
                             />
