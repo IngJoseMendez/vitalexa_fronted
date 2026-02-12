@@ -64,12 +64,13 @@ function VendorProductCard({ product, cartItem, onAddToCart }) {
                         <div
                             className="stock-fill-small"
                             style={{
-                                width: `${Math.max(0, ((product.stock - cartQty) / product.stock) * 100)}%`
+                                width: `${Math.max(0, ((product.stock - cartQty) / (product.stock > 0 ? product.stock : 1)) * 100)}%`, // Prevent div by zero or negative width
+                                backgroundColor: (product.stock - cartQty) <= 0 ? '#ef4444' : 'var(--primary)'
                             }}
                         />
                     </div>
-                    <span className="stock-text">
-                        {Math.max(0, product.stock - cartQty)}/{product.stock} disponibles
+                    <span className="stock-text" style={{ color: (product.stock - cartQty) < 0 ? '#ef4444' : 'inherit', fontWeight: (product.stock - cartQty) < 0 ? 'bold' : 'normal' }}>
+                        {product.stock - cartQty} unidades
                     </span>
                 </div>
 
@@ -110,12 +111,12 @@ function VendorProductCard({ product, cartItem, onAddToCart }) {
                 <button
                     onClick={handleAddToCart}
                     className="btn-add-cart"
-                    style={product.stock === 0 ? { background: '#f59e0b', border: '1px solid #d97706' } : {}}
+                    style={(product.stock - cartQty) <= 0 ? { background: '#fef3c7', color: '#d97706', border: '1px solid #d97706' } : {}}
                 >
                     <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>
-                        {product.stock === 0 ? 'warning' : 'add'}
+                        {(product.stock - cartQty) <= 0 ? 'warning' : 'add'}
                     </span>
-                    {product.stock === 0 ? 'Vender S/Stock' : 'Agregar'}
+                    {(product.stock - cartQty) <= 0 ? 'Vender S/Stock' : 'Agregar'}
                 </button>
             </div>
         </div>

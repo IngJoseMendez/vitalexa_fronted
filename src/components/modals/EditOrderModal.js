@@ -123,6 +123,18 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         return regularQty + bonifiedQty + freightQty;
     };
 
+    // Calculate original usage from the order (before edits) to credit it back to stock
+    const getOriginalUsage = (productId) => {
+        if (!order.items) return 0;
+        return order.items.reduce((sum, item) => {
+            const id = item.productId || item.product?.id || item.id;
+            if (id === productId) {
+                return sum + (parseFloat(item.cantidad) || 0);
+            }
+            return sum;
+        }, 0);
+    };
+
     const addItem = (product, isFreight = false, isBonified = false) => {
         setHasChanges(true);
 
@@ -496,8 +508,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                         <tbody>
                                             {formData.items.filter(i => !i.isFreightItem).map((item) => {
                                                 const currentStock = getProductStock(item.productId);
+                                                const originalUsage = getOriginalUsage(item.productId);
                                                 const totalUsage = getStockUsage(item.productId);
-                                                const stockExcess = totalUsage - currentStock;
+                                                const stockExcess = totalUsage - (currentStock + originalUsage);
                                                 const hasExcess = stockExcess > 0;
 
                                                 return (
@@ -553,8 +566,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                         <tbody>
                                             {formData.bonifiedItems.map((item) => {
                                                 const currentStock = getProductStock(item.productId);
+                                                const originalUsage = getOriginalUsage(item.productId);
                                                 const totalUsage = getStockUsage(item.productId);
-                                                const stockExcess = totalUsage - currentStock;
+                                                const stockExcess = totalUsage - (currentStock + originalUsage);
                                                 const hasExcess = stockExcess > 0;
 
                                                 return (

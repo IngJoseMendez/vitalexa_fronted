@@ -115,7 +115,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [cart, setCart] = useState([]);
   const [bonifiedCart, setBonifiedCart] = useState([]); // ✅ Bonified Cart
-  const [isBonifiedMode, setIsBonifiedMode] = useState(false); // ✅ Mode Toggle
+  const [isBonifiedMode] = useState(false); // ✅ Mode Toggle
   const [promotionsCart, setPromotionsCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
@@ -244,7 +244,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
         precio: product.precio,
         cantidad: quantity,
         stockDisponible: product.stock,
-        allowOutOfStock: false, // Default false
+        allowOutOfStock: true, // AUTO-ALLOW for negative stock support
         isSpecialProduct: product.isSpecialProduct
       }]);
     }
@@ -486,28 +486,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
             <div className="products-header-toolbar">
 
               {/* ✅ Mode Toggle aligned */}
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                cursor: 'pointer',
-                background: isBonifiedMode ? '#ecfdf5' : 'white',
-                padding: '0.3rem 0.6rem',
-                borderRadius: '20px',
-                border: isBonifiedMode ? '1px solid #10b981' : '1px solid #e5e7eb',
-                transition: 'all 0.2s',
-                marginRight: 'auto' // Push other controls to right if needed, or keep unified
-              }}>
-                <input
-                  type="checkbox"
-                  checked={isBonifiedMode}
-                  onChange={(e) => setIsBonifiedMode(e.target.checked)}
-                  style={{ accentColor: '#10b981' }}
-                />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isBonifiedMode ? '#047857' : '#4b5563' }}>
-                  {isBonifiedMode ? '🎁 Regalo' : '📦 Normal'}
-                </span>
-              </label>
+
 
               <div className="grid-columns-selector">
                 {[1, 2, 3].map(cols => (

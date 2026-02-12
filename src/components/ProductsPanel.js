@@ -6,6 +6,8 @@ import { TagBadge, TagFilterBar } from './TagComponents';
 import productService from '../api/productService';
 import ProductFormModal from './modals/ProductFormModal';
 import { formatCurrency } from '../utils/formatters';
+import StockArrivalModal from './modals/StockArrivalModal';
+import BulkStockArrivalForm from './BulkStockArrivalForm';
 
 // Placeholder for missing images
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
@@ -25,6 +27,8 @@ export default function ProductsPanel({ refreshTrigger }) {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+    const [stockModalOpen, setStockModalOpen] = useState(false);
+    const [selectedProductForStock, setSelectedProductForStock] = useState(null);
 
     // Bulk Mode State
     // 'none', 'create', 'update'
@@ -48,7 +52,8 @@ export default function ProductsPanel({ refreshTrigger }) {
         try {
             setLoading(true);
             let url = '/admin/products';
-            let params = {};
+            // Request a large size to ensure we get all products for bulk operations and client-side search
+            let params = { size: 2000 };
 
             if (activeTagId) {
                 if (searchTerm) {
@@ -153,6 +158,11 @@ export default function ProductsPanel({ refreshTrigger }) {
         setIsModalOpen(true);
     };
 
+    const openStockModal = (product) => {
+        setSelectedProductForStock(product);
+        setStockModalOpen(true);
+    };
+
     return (
         <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
 
@@ -163,8 +173,10 @@ export default function ProductsPanel({ refreshTrigger }) {
                         <span className="material-icons-round" style={{ color: 'var(--primary)' }}>inventory_2</span>
                         Gestión de Productos
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                        Administración de inventario y catálogo
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem', display: 'flex', gap: '1rem' }}>
+                        <span>Total: <b>{products.length}</b></span>
+                        <span style={{ color: '#16a34a' }}>Activos: <b>{products.filter(p => p.active).length}</b></span>
+                        <span style={{ color: '#dc2626' }}>Inactivos: <b>{products.filter(p => !p.active).length}</b></span>
                     </p>
                 </div>
 
@@ -207,7 +219,11 @@ export default function ProductsPanel({ refreshTrigger }) {
                     ) : (
                         <>
                             <button
-                                onClick={() => setBulkMode('update')}
+                                onClick={() => {
+                                    setActiveTagId(null);
+                                    setSearchTerm('');
+                                    setBulkMode('update');
+                                }}
                                 style={{
                                     background: 'white',
                                     color: 'var(--primary)',
@@ -262,6 +278,31 @@ export default function ProductsPanel({ refreshTrigger }) {
                                 Nuevo Producto
                             </button>
                         </>
+                    )}
+                    {bulkMode === 'none' && (
+                        <button
+                            onClick={() => {
+                                setActiveTagId(null);
+                                setSearchTerm('');
+                                setBulkMode('stock');
+                            }}
+                            style={{
+                                background: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                padding: '0.6rem 1.2rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                fontWeight: 600,
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                        >
+                            <span className="material-icons-round">inventory</span>
+                            Carga Masiva Stock
+                        </button>
                     )}
                 </div>
             </div>
@@ -351,7 +392,7 @@ export default function ProductsPanel({ refreshTrigger }) {
             )}
 
 
-            {/* PRODUCTS GRID OR BULK FORM */}
+            {/* PRODUCTS GRID OR BULK FORMS */}
             {bulkMode === 'create' ? (
                 <BulkProductForm
                     tags={tags}
@@ -370,6 +411,15 @@ export default function ProductsPanel({ refreshTrigger }) {
                         fetchProducts();
                     }}
                     onCancel={() => setBulkMode('none')}
+                />
+            ) : bulkMode === 'stock' ? (
+                <BulkStockArrivalForm
+                    products={products}
+                    onSuccess={() => {
+                        setBulkMode('none');
+                        fetchProducts();
+                    }}
+                    onClose={() => setBulkMode('none')}
                 />
             ) :
                 (() => {
@@ -498,16 +548,36 @@ export default function ProductsPanel({ refreshTrigger }) {
                                                 </div>
                                                 <div style={{ textAlign: 'right' }}>
                                                     <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Stock Actual</span>
-                                                    <span style={{ fontSize: '1rem', fontWeight: 600, color: isLowStock ? '#ef4444' : 'var(--text-primary)' }}>{product.stock}</span>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 600, color: product.stock < 0 ? '#ef4444' : (isLowStock ? '#f59e0b' : 'var(--text-primary)') }}>
+                                                        {product.stock}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div style={{ padding: '0.75rem', background: '#f8fafc', display: 'flex', gap: '0.5rem' }}>
-                                            <button onClick={() => openEditModal(product)} style={{ flex: 1, padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', background: 'white', display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center' }}>
+                                        <div style={{ padding: '0.75rem', background: '#f8fafc', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            <button onClick={() => openStockModal(product)} style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                border: '1px solid #d1d5db',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                background: 'white',
+                                                display: 'flex',
+                                                justifyContent: 'center',
+                                                gap: '0.3rem',
+                                                alignItems: 'center',
+                                                fontSize: '0.8rem',
+                                                color: '#059669',
+                                                borderColor: '#a7f3d0',
+                                                backgroundColor: '#ecfdf5'
+                                            }} title="Sumar Stock (Llegada)">
+                                                <span className="material-icons-round" style={{ fontSize: '16px' }}>add_box</span> Llegada
+                                            </button>
+                                            <button onClick={() => openEditModal(product)} style={{ flex: 1, padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', background: 'white', display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem' }}>
                                                 <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span> Editar
                                             </button>
-                                            <button onClick={() => handleDelete(product.id)} style={{ width: '40px', padding: '0.5rem', border: '1px solid #fee2e2', borderRadius: '6px', cursor: 'pointer', background: '#fef2f2', color: '#ef4444', display: 'flex', justifyContent: 'center' }} title="Eliminar">
+                                            <button onClick={() => handleDelete(product.id)} style={{ width: '36px', padding: '0.5rem', border: '1px solid #fee2e2', borderRadius: '6px', cursor: 'pointer', background: '#fef2f2', color: '#ef4444', display: 'flex', justifyContent: 'center' }} title="Eliminar">
                                                 <span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span>
                                             </button>
                                         </div>
@@ -530,6 +600,19 @@ export default function ProductsPanel({ refreshTrigger }) {
                     />
                 )
             }
+
+            {/* STOCK MODAL */}
+            {
+                stockModalOpen && (
+                    <StockArrivalModal
+                        product={selectedProductForStock}
+                        onClose={() => setStockModalOpen(false)}
+                        onSuccess={() => { fetchProducts(); }}
+                    />
+                )
+            }
+
+            {/* BULK STOCK MODAL REMOVED */}
 
             {/* Inline Styles for Toggle Switch if not globally present */}
             <style>{`

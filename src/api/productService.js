@@ -41,6 +41,33 @@ const productService = {
         });
     },
 
+    // --- Stock Operations ---
+
+    /**
+     * Register stock arrival (add to existing stock).
+     * @param {string} id Product ID
+     * @param {number} quantity Amount to add
+     * @param {string} reason Optional reason
+     */
+    addStock: async (id, quantity, reason) => {
+        const params = { quantity };
+        if (reason) params.reason = reason;
+        return client.post(`/admin/products/${id}/stock/add`, null, {
+            params,
+            responseType: 'blob'
+        });
+    },
+
+    /**
+     * Bulk add stock.
+     * @param {Object} payload { reason: string, items: [{ productId, quantity }] }
+     */
+    addStockBulk: async (payload) => {
+        return client.post('/admin/products/stock/bulk-add', payload, {
+            responseType: 'blob'
+        });
+    },
+
     // Note: The previous code used client.post for update (delta). 
     // The prompt says: "Update Individual: PUT /api/admin/products/{id}"
     // I will stick to the prompt's requirement. If the previous code used POST, I'll change it to PUT.
