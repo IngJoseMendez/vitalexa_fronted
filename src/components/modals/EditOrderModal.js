@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { formatCurrency } from '../../utils/formatters';
+import { PromotionType } from '../../utils/types';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
 import './EditOrderModal.css';
@@ -9,6 +10,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [products, setProducts] = useState([]);
     const [productSearch, setProductSearch] = useState('');
     const [isBonifiedMode, setIsBonifiedMode] = useState(false);
+    const [promotionsDetails, setPromotionsDetails] = useState([]); // Store full promotion objects
 
     // ✅ Detect Promo Order (using backend field)
     const isPromoOrder = order.isPromotionOrder === true;
@@ -45,6 +47,20 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             setClients(clientsRes.data);
             setProducts(productsRes.data);
 
+            // Fetch promotions details if any
+            let loadedPromotions = [];
+            if (order.promotionIds && order.promotionIds.length > 0) {
+                try {
+                    const promoPromises = order.promotionIds.map(id => client.get(`/admin/promotions/${id}`));
+                    const promoResponses = await Promise.all(promoPromises);
+                    loadedPromotions = promoResponses.map(res => res.data);
+                } catch (err) {
+                    console.error("Error loading promotions", err);
+                    toast.error("Error al cargar detalles de promociones");
+                }
+            }
+            setPromotionsDetails(loadedPromotions);
+
             // Item mapping logic from EditOrderWindow
             const regularItems = [];
             const bonified = [];
@@ -57,7 +73,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         productName: item.productName || item.product?.nombre || 'Producto desconocido',
                         cantidad: item.cantidad,
                         precioUnitario: parseFloat(item.precioUnitario || item.precio || 0),
-                        isFreightItem: item.isFreightItem || false
+                        isFreightItem: item.isFreightItem || false,
+                        promotionId: item.promotionId || (item.promotion && item.promotion.id) || item.relatedPromotionId // ✅ Preserve promotion ID
                     };
 
                     if (item.isBonified) {
@@ -239,6 +256,22 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         }, 0));
     };
 
+    const handleDeletePromotion = async (promotionId) => {
+        if (!window.confirm('¿Estás seguro de que deseas eliminar esta promoción de la orden? Esta acción no se puede deshacer.')) {
+            return;
+        }
+
+        try {
+            await client.delete(`/admin/orders/${order.id}/promotions/${promotionId}`);
+            toast.success('Promoción eliminada correctamente');
+            if (onSuccess) onSuccess(); // Refresh parent
+            onClose(); // Close modal to reflect changes safely
+        } catch (error) {
+            console.error('Error al eliminar promoción:', error);
+            toast.error('Error al eliminar la promoción');
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -280,19 +313,33 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             };
 
             if (isPromoOrder) {
-                // 🎯 ORDEN DE PROMOCIÓN: Solo enviar flete y bonificados
-                // Los items normales de la promoción son preservados automáticamente por el backend
+                // 🎯 ORDEN DE PROMOCIÓN
 
-                // Items de flete (si están habilitados)
+                // Check for Assortment Promotions (Mix & Match)
+                const hasAssortmentPromotion = promotionsDetails.some(
+                    p => p.type === PromotionType.BUY_GET_FREE
+                );
+
+                payload.items = [];
+
+                // 1. Items de Surtido (Si aplica)
+                if (hasAssortmentPromotion) {
+                    const assortmentItems = formData.items.filter(i => !i.isFreightItem).map(item => ({
+                        productId: item.productId,
+                        cantidad: item.cantidad
+                    }));
+                    payload.items.push(...assortmentItems);
+                    console.log('✅ Incluyendo items de surtido:', assortmentItems.length);
+                }
+
+                // 2. Items de flete (si están habilitados)
                 if (formData.includeFreight) {
                     const freightItems = formData.items.filter(i => i.isFreightItem);
-                    payload.items = freightItems.map(item => ({
+                    payload.items.push(...freightItems.map(item => ({
                         productId: item.productId,
                         cantidad: item.cantidad,
                         isFreightItem: true
-                    }));
-                } else {
-                    payload.items = [];
+                    })));
                 }
 
                 // Items bonificados (si se agregaron manualmente)
@@ -305,10 +352,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     payload.bonifiedItems = [];
                 }
 
-                console.log('🔍 [ORDEN PROMOCIÓN] Items a enviar:');
-                console.log('  - Items de flete:', payload.items.length);
-                console.log('  - Items bonificados:', payload.bonifiedItems.length);
-                console.log('  - Items normales de promo: 0 (preservados por backend)');
+                console.log('🔍 [ORDEN PROMOCIÓN] Items a enviar:', payload.items.length);
 
             } else {
                 // 📦 ORDEN NORMAL: Enviar todos los items
@@ -361,6 +405,85 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
             .slice(0, 5);
     }, [products, freightProductSearch]);
+
+    // Group items by promotion
+    const { itemsByPromo, noPromoItems } = useMemo(() => {
+        const regular = formData.items.filter(i => !i.isFreightItem);
+        const groups = {};
+        const standalone = [];
+
+        regular.forEach(item => {
+            const pid = item.promotionId;
+            if (pid) {
+                if (!groups[pid]) groups[pid] = [];
+                groups[pid].push(item);
+            } else {
+                standalone.push(item);
+            }
+        });
+
+        return { itemsByPromo: groups, noPromoItems: standalone };
+    }, [formData.items]);
+
+    // Helper render row
+    const renderRow = (item) => {
+        console.log('Rendering Row Item:', item);
+        const currentStock = getProductStock(item.productId);
+        const originalUsage = getOriginalUsage(item.productId);
+        const totalUsage = getStockUsage(item.productId);
+        const stockExcess = totalUsage - (currentStock + originalUsage);
+        const hasExcess = stockExcess > 0;
+
+        return (
+            <tr key={item.id} className={hasExcess ? 'stock-warning' : ''}>
+                <td>
+                    <div className="eo-item-name">{item.productName}</div>
+                    <div className="eo-stock-info">
+                        <span className="stock-available">Stock: {currentStock}</span>
+                        {hasExcess && (
+                            <span className="stock-excess">
+                                <span className="material-icons-round" style={{ fontSize: '14px' }}>warning</span>
+                                Excede por {stockExcess}
+                            </span>
+                        )}
+                    </div>
+                </td>
+                <td>
+                    {!isPromoOrder ? (
+                        <input
+                            type="number"
+                            className="eo-qty-input"
+                            value={item.cantidad}
+                            min="1"
+                            onChange={(e) => updateQuantity(item.id, e.target.value)}
+                        />
+                    ) : (
+                        <span>x{item.cantidad}</span>
+                    )}
+                </td>
+                <td style={{ textAlign: 'right' }}>
+                    ${formatCurrency(item.precioUnitario * item.cantidad)}
+                </td>
+                <td>
+                    {!isPromoOrder && (
+                        <button className="eo-remove-btn" onClick={() => removeItem(item.id)}>
+                            <span className="material-icons-round">delete</span>
+                        </button>
+                    )}
+                </td>
+            </tr>
+        );
+    };
+
+    const hasRegularItems = Object.keys(itemsByPromo).length > 0 || noPromoItems.length > 0;
+
+    console.log('🔍 EditOrderModal Debug:');
+    console.log('  - formData.items:', formData.items);
+    console.log('  - itemsByPromo:', itemsByPromo);
+    console.log('  - noPromoItems:', noPromoItems);
+    console.log('  - hasRegularItems:', hasRegularItems);
+    console.log('  - isPromoOrder:', isPromoOrder);
+
 
     if (loading) return <div className="edit-modal-loading">Cargando datos...</div>;
 
@@ -492,70 +615,85 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         <div className="eo-items-container">
                             <h3>Productos en la Orden</h3>
 
-                            {/* Regular Items */}
-                            {formData.items.filter(i => !i.isFreightItem).length > 0 && (
-                                <div className="eo-table-section">
-                                    <h4>Venta Normal</h4>
-                                    <table className="eo-items-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Producto</th>
-                                                <th style={{ width: '80px' }}>Cant.</th>
-                                                <th style={{ textAlign: 'right' }}>Total</th>
-                                                <th style={{ width: '40px' }}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {formData.items.filter(i => !i.isFreightItem).map((item) => {
-                                                const currentStock = getProductStock(item.productId);
-                                                const originalUsage = getOriginalUsage(item.productId);
-                                                const totalUsage = getStockUsage(item.productId);
-                                                const stockExcess = totalUsage - (currentStock + originalUsage);
-                                                const hasExcess = stockExcess > 0;
+                            {/* Regular Items (Grouped by Promotion) */}
+                            {hasRegularItems && (
+                                <>
+                                    {Object.entries(itemsByPromo).map(([promoId, items]) => {
+                                        const promoDetail = promotionsDetails.find(p => p.id === promoId);
+                                        const promoName = promoDetail ? promoDetail.nombre : 'Promoción';
 
-                                                return (
-                                                    <tr key={item.id} className={hasExcess ? 'stock-warning' : ''}>
-                                                        <td>
-                                                            <div className="eo-item-name">{item.productName}</div>
-                                                            <div className="eo-stock-info">
-                                                                <span className="stock-available">Stock: {currentStock}</span>
-                                                                {hasExcess && (
-                                                                    <span className="stock-excess">
-                                                                        <span className="material-icons-round" style={{ fontSize: '14px' }}>warning</span>
-                                                                        Excede por {stockExcess}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td>
-                                                            {!isPromoOrder ? (
-                                                                <input
-                                                                    type="number"
-                                                                    className="eo-qty-input"
-                                                                    value={item.cantidad}
-                                                                    min="1"
-                                                                    onChange={(e) => updateQuantity(item.id, e.target.value)}
-                                                                />
-                                                            ) : (
-                                                                <span>x{item.cantidad}</span>
-                                                            )}
-                                                        </td>
-                                                        <td style={{ textAlign: 'right' }}>
-                                                            ${formatCurrency(item.precioUnitario * item.cantidad)}
-                                                        </td>
-                                                        <td>
-                                                            {!isPromoOrder && (
-                                                                <button className="eo-remove-btn" onClick={() => removeItem(item.id)}>
-                                                                    <span className="material-icons-round">delete</span>
-                                                                </button>
-                                                            )}
-                                                        </td>
+                                        return (
+                                            <div key={promoId} className="eo-table-section promo-group" style={{ marginBottom: '1.5rem', border: '1px solid #d1fae5', borderRadius: '8px' }}>
+                                                <div style={{
+                                                    background: '#ecfdf5',
+                                                    padding: '0.75rem 1rem',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    borderBottom: '1px solid #d1fae5'
+                                                }}>
+                                                    <h4 style={{ margin: 0, color: '#065f46', fontSize: '0.95rem', display: 'flex', alignItems: 'center' }}>
+                                                        <span className="material-icons-round" style={{ marginRight: '6px', fontSize: '18px' }}>campaign</span>
+                                                        {promoName}
+                                                        <span style={{ marginLeft: '10px', fontSize: '0.8rem', color: '#6b7280' }}>({items.length} productos)</span>
+                                                    </h4>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeletePromotion(promoId)}
+                                                        style={{
+                                                            background: '#fee2e2',
+                                                            border: '1px solid #fecaca',
+                                                            color: '#b91c1c',
+                                                            borderRadius: '4px',
+                                                            padding: '4px 8px',
+                                                            fontSize: '0.8rem',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}
+                                                    >
+                                                        <span className="material-icons-round" style={{ fontSize: '14px' }}>delete</span>
+                                                        Eliminar Promo
+                                                    </button>
+                                                </div>
+                                                <table className="eo-items-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Producto</th>
+                                                            <th style={{ width: '80px' }}>Cant.</th>
+                                                            <th style={{ textAlign: 'right' }}>Total</th>
+                                                            <th style={{ width: '40px' }}></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {items.map((item, idx) => renderRow(item))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Display Other Items */}
+                                    {noPromoItems.length > 0 && (
+                                        <div className="eo-table-section">
+                                            <h4>Venta Normal / Otros</h4>
+                                            <table className="eo-items-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Producto</th>
+                                                        <th style={{ width: '80px' }}>Cant.</th>
+                                                        <th style={{ textAlign: 'right' }}>Total</th>
+                                                        <th style={{ width: '40px' }}></th>
                                                     </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                </thead>
+                                                <tbody>
+                                                    {noPromoItems.map(renderRow)}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </>
                             )}
 
                             {/* Bonified Items */}
