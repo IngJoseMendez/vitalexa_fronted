@@ -3,6 +3,7 @@ import { useToast } from './ToastContainer';
 import specialProductService from '../api/specialProductService';
 import { tagService } from '../api/tagService';
 import { TagBadge } from './TagComponents';
+import { formatCurrency } from '../utils/formatters';
 import SpecialProductFormModal from './modals/SpecialProductFormModal';
 import '../styles/SpecialProducts.css';
 
@@ -236,7 +237,7 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
                                     <div className="sp-card-stats">
                                         <div>
                                             <span className="sp-stat-label">Precio</span>
-                                            <span className="sp-stat-value">${parseFloat(product.precio).toFixed(2)}</span>
+                                            <span className="sp-stat-value">${formatCurrency(product.precio)}</span>
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
                                             <span className="sp-stat-label">Stock</span>

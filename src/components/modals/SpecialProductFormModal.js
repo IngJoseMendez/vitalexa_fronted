@@ -299,13 +299,18 @@ export default function SpecialProductFormModal({ product, tags, onClose, onSucc
                     <div className="sp-form-row">
                         <div className="sp-form-group">
                             <label>Precio *</label>
-                            <input type="number" min="0" step="0.01" value={precio} onChange={e => setPrecio(e.target.value)} placeholder="0.00" required />
+                            <input type="number" min="0" step="0.01" value={precio} onChange={e => setPrecio(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="0.00" required />
+                            {precio && (
+                                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>
+                                    Vista previa: <strong>${formatCurrency(precio)}</strong>
+                                </div>
+                            )}
                         </div>
                         {/* Stock only for standalone or edit-standalone */}
                         {(mode === 'standalone' || (isEdit && !product.parentProductId)) && (
                             <div className="sp-form-group">
                                 <label>Stock *</label>
-                                <input type="number" min="0" value={stock} onChange={e => setStock(e.target.value)} placeholder="0" />
+                                <input type="number" min="0" value={stock} onChange={e => setStock(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="0" />
                             </div>
                         )}
                         {mode === 'linked' && !isEdit && (
@@ -321,7 +326,7 @@ export default function SpecialProductFormModal({ product, tags, onClose, onSucc
                     <div className="sp-form-row">
                         <div className="sp-form-group">
                             <label>Punto de Reorden</label>
-                            <input type="number" min="0" value={reorderPoint} onChange={e => setReorderPoint(e.target.value)} />
+                            <input type="number" min="0" value={reorderPoint} onChange={e => setReorderPoint(e.target.value)} onWheel={(e) => e.target.blur()} />
                         </div>
                         <div className="sp-form-group">
                             <label>Etiqueta</label>

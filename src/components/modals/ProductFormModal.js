@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../ToastContainer';
+
 import productService from '../../api/productService';
+import { formatCurrency } from '../../utils/formatters';
 import './ProductFormModal.css';
 
 export default function ProductFormModal({ product, tags, onClose, onSuccess }) {
@@ -223,6 +225,11 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
                                     onWheel={(e) => e.target.blur()}
                                     onChange={e => setFormData({ ...formData, precio: e.target.value })}
                                 />
+                                {formData.precio && (
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--pfm-text-sec)', marginTop: '4px' }}>
+                                        Vista previa: <strong>${formatCurrency(formData.precio)}</strong>
+                                    </div>
+                                )}
                             </div>
                             <div className="pfm-group">
                                 <label className="pfm-label">Stock *</label>
@@ -232,8 +239,8 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
                                     required
                                     className="pfm-input"
                                     value={formData.stock}
-                                    onWheel={(e) => e.target.blur()}
                                     onChange={e => setFormData({ ...formData, stock: e.target.value })}
+                                    onWheel={(e) => e.target.blur()}
                                 />
                             </div>
                             <div className="pfm-group">
@@ -243,8 +250,8 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
                                     min="0"
                                     className="pfm-input"
                                     value={formData.reorderPoint}
-                                    onWheel={(e) => e.target.blur()}
                                     onChange={e => setFormData({ ...formData, reorderPoint: e.target.value })}
+                                    onWheel={(e) => e.target.blur()}
                                     placeholder="Def: 10"
                                 />
                             </div>
