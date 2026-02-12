@@ -161,6 +161,7 @@ export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
                                                 fontWeight: hasValue ? 'bold' : 'normal',
                                                 textAlign: 'center'
                                             }}
+                                            onWheel={(e) => e.target.blur()}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                     // Optional: auto-focus next input? 

@@ -799,6 +799,7 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                                             className="form-input"
                                             value={finalPrice}
                                             onChange={e => handleCellChange(p.id, 'precio', e.target.value)}
+                                            onWheel={(e) => e.target.blur()}
                                             style={{ borderColor: changes.precio ? '#f59e0b' : '' }}
                                         />
                                     </td>
@@ -809,6 +810,7 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                                             className="form-input"
                                             value={finalStock}
                                             onChange={e => handleCellChange(p.id, 'stock', e.target.value)}
+                                            onWheel={(e) => e.target.blur()}
                                             style={{ borderColor: changes.stock ? '#f59e0b' : '' }}
                                         />
                                     </td>
@@ -819,6 +821,7 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                                             className="form-input"
                                             value={changes.reorderPoint !== undefined ? changes.reorderPoint : (p.reorderPoint || 10)}
                                             onChange={e => handleCellChange(p.id, 'reorderPoint', e.target.value)}
+                                            onWheel={(e) => e.target.blur()}
                                             style={{ borderColor: changes.reorderPoint ? '#f59e0b' : '' }}
                                         />
                                     </td>
@@ -1032,6 +1035,7 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
                                         placeholder="0.00"
                                         min="0"
                                         value={row.precio}
+                                        onWheel={(e) => e.target.blur()}
                                         onChange={e => handleRowChange(row.id, 'precio', e.target.value)}
                                     />
                                 </td>
@@ -1042,6 +1046,7 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
                                         placeholder="0"
                                         min="0"
                                         value={row.stock}
+                                        onWheel={(e) => e.target.blur()}
                                         onChange={e => handleRowChange(row.id, 'stock', e.target.value)}
                                     />
                                 </td>
@@ -1051,6 +1056,7 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
                                         className="form-input"
                                         placeholder="10"
                                         value={row.reorderPoint}
+                                        onWheel={(e) => e.target.blur()}
                                         onChange={e => handleRowChange(row.id, 'reorderPoint', e.target.value)}
                                     />
                                 </td>
