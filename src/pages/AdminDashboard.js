@@ -13,7 +13,8 @@ import AdminDiscountSection from '../components/AdminDiscountSection';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import EditOrderModal from '../components/modals/EditOrderModal';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
-import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
+import AdminPromotionsCatalog from '../components/AdminPromotionsCatalog';
+import { getStatusLabel, getStatusBadgeClass, PromotionType } from '../utils/types';
 import { formatCurrency } from '../utils/formatters';
 import '../styles/AdminDashboard.css';
 
@@ -991,6 +992,9 @@ function OrdersPanel({ refreshTrigger }) {
 // ============================================
 // PANEL NUEVA VENTA PARA ADMIN
 // ============================================
+// ============================================
+// PANEL NUEVA VENTA PARA ADMIN
+// ============================================
 function AdminNuevaVentaPanel() {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
@@ -998,21 +1002,17 @@ function AdminNuevaVentaPanel() {
   const [selectedVendedor, setSelectedVendedor] = useState('');
   const [vendedores, setVendedores] = useState([]);
   const [cart, setCart] = useState([]);
-  const [bonifiedCart, setBonifiedCart] = useState([]); // ✅ NEW: Separate list for bonified items
-  const [isBonifiedMode, setIsBonifiedMode] = useState(false); // ✅ NEW: Toggle for adding as bonified
-  // const [promotionsCart, setPromotionsCart] = useState([]); // Unused
+  const [bonifiedCart, setBonifiedCart] = useState([]);
+  const [isBonifiedMode, setIsBonifiedMode] = useState(false);
+  const [promotionsCart, setPromotionsCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
 
 
-  // Freight & Bonification State
-  const [includeFreight, setIncludeFreight] = useState(false);
-  const [isFreightBonified, setIsFreightBonified] = useState(false);
-  const [freightCustomText, setFreightCustomText] = useState('');
-  const [freightQuantity, setFreightQuantity] = useState(1);
-  const [freightItems, setFreightItems] = useState([]); // Items specific to freight
-  const [freightProductSearch, setFreightProductSearch] = useState('');
+  // Assortment Selection State
+  const [showAssortmentModal, setShowAssortmentModal] = useState(false);
+  const [selectedPromotion, setSelectedPromotion] = useState(null);
 
   const [clientSearch, setClientSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -1108,31 +1108,65 @@ function AdminNuevaVentaPanel() {
     }
   };
 
-  // Freight Item Logic
-  const addFreightItem = (product) => {
-    const existing = freightItems.find(i => i.productId === product.id);
-    if (existing) {
-      setFreightItems(freightItems.map(i => i.productId === product.id ? { ...i, cantidad: i.cantidad + 1 } : i));
-    } else {
-      setFreightItems([...freightItems, {
-        productId: product.id,
-        nombre: product.nombre,
-        cantidad: 1,
-        isFreightItem: true
-      }]);
-    }
-  };
-
-  const removeFreightItem = (productId) => {
-    setFreightItems(freightItems.filter(i => i.productId !== productId));
-  };
-
-  const updateFreightItemQty = (productId, qty) => {
-    if (qty <= 0) {
-      removeFreightItem(productId);
+  // Promotion Logic
+  const addPromotionToCart = (promotion) => {
+    // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
+    if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
+      setSelectedPromotion(promotion);
+      setShowAssortmentModal(true);
       return;
     }
-    setFreightItems(freightItems.map(i => i.productId === productId ? { ...i, cantidad: qty } : i));
+
+    // Add unique ID for cart processing to allow duplicates
+    const promoInstance = {
+      ...promotion,
+      cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+
+    setPromotionsCart([...promotionsCart, promoInstance]);
+    toast.success('Promoción agregada');
+  };
+
+  const handleAssortmentConfirmation = (items) => {
+    // Process items to match cart structure
+    const newCartItems = [...cart];
+
+    items.forEach(item => {
+      const existingItemIndex = newCartItems.findIndex(cartItem => cartItem.productId === item.productId);
+
+      if (existingItemIndex >= 0) {
+        newCartItems[existingItemIndex].cantidad += item.cantidad;
+      } else {
+        newCartItems.push({
+          productId: item.productId,
+          nombre: item.nombre,
+          precio: item.precio, // NORMAL PRICE (These are the buy items)
+          cantidad: item.cantidad,
+          stockDisponible: item.stock || 9999,
+          allowOutOfStock: true,
+          promotionId: item.promotionId
+        });
+      }
+    });
+
+    setCart(newCartItems);
+
+    // Add the promotion itself to track it (for the ID)
+    if (selectedPromotion) {
+      const promoInstance = {
+        ...selectedPromotion,
+        cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      };
+      setPromotionsCart([...promotionsCart, promoInstance]);
+    }
+
+    setShowAssortmentModal(false);
+    setSelectedPromotion(null);
+    toast.success('Productos de la promoción agregados al carrito');
+  };
+
+  const removePromotionFromCart = (cartId) => {
+    setPromotionsCart(promotionsCart.filter(p => p.cartId !== cartId));
   };
 
   const removeFromCart = (productId, isBonifiedList = false) => {
@@ -1144,18 +1178,34 @@ function AdminNuevaVentaPanel() {
   };
 
   const updateQuantity = (productId, newQuantity, isBonifiedList = false) => {
-    if (newQuantity <= 0) {
+    // Permite que el input quede vacío temporalmente
+    if (newQuantity === '') {
+      if (isBonifiedList) {
+        setBonifiedCart(bonifiedCart.map(item =>
+          item.productId === productId ? { ...item, cantidad: '' } : item
+        ));
+      } else {
+        setCart(cart.map(item =>
+          item.productId === productId ? { ...item, cantidad: '' } : item
+        ));
+      }
+      return;
+    }
+
+    const qty = parseInt(newQuantity);
+
+    if (isNaN(qty) || qty <= 0) {
       removeFromCart(productId, isBonifiedList);
       return;
     }
 
     if (isBonifiedList) {
       setBonifiedCart(bonifiedCart.map(item =>
-        item.productId === productId ? { ...item, cantidad: newQuantity } : item
+        item.productId === productId ? { ...item, cantidad: qty } : item
       ));
     } else {
       setCart(cart.map(item =>
-        item.productId === productId ? { ...item, cantidad: newQuantity } : item
+        item.productId === productId ? { ...item, cantidad: qty } : item
       ));
     }
   };
@@ -1166,12 +1216,13 @@ function AdminNuevaVentaPanel() {
       if (item.isBonified) return sum;
       return sum + (item.precio * item.cantidad);
     }, 0);
-    return formatCurrency(productsTotal);
+    const promotionsTotal = promotionsCart.reduce((sum, item) => sum + (item.packPrice || 0), 0);
+    return formatCurrency(productsTotal + promotionsTotal);
   };
 
   const handleSubmitOrder = async () => {
-    if (cart.length === 0 && bonifiedCart.length === 0) {
-      toast.warning('Agrega productos al carrito');
+    if (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0) {
+      toast.warning('Agrega productos o promociones al carrito');
       return;
     }
 
@@ -1195,24 +1246,20 @@ function AdminNuevaVentaPanel() {
             specialProductId: item.isSpecialProduct ? item.productId : null,
             cantidad: item.cantidad,
             allowOutOfStock: item.allowOutOfStock,
+            relatedPromotionId: item.promotionId || null
             // isBonified removed
-          })),
-          ...freightItems.map(item => ({
-            productId: item.productId,
-            cantidad: item.cantidad,
-            isFreightItem: true
           }))
         ],
         bonifiedItems: bonifiedCart.map(item => ({
           productId: item.productId,
           cantidad: item.cantidad
         })),
-        promotionIds: [],
+        promotionIds: promotionsCart.map(p => p.id),
         notas: notas.trim() || null,
-        includeFreight: includeFreight,
-        isFreightBonified: includeFreight ? isFreightBonified : false,
-        freightCustomText: includeFreight ? freightCustomText : null,
-        freightQuantity: includeFreight ? (parseInt(freightQuantity) || 1) : 1,
+        includeFreight: false,
+        isFreightBonified: false,
+        freightCustomText: null,
+        freightQuantity: 1,
         sellerId: selectedVendedor
       };
 
@@ -1222,11 +1269,7 @@ function AdminNuevaVentaPanel() {
       setNotas('');
       setCart([]);
       setBonifiedCart([]);
-      setFreightItems([]);
-      setIncludeFreight(false);
-      setIsFreightBonified(false);
-      setFreightCustomText('');
-      setFreightQuantity(1);
+      setPromotionsCart([]);
       setSelectedClient('');
       setAllowNoClient(false);
       setIsBonifiedMode(false);
@@ -1255,460 +1298,292 @@ function AdminNuevaVentaPanel() {
   });
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', padding: '1.5rem' }}>
-      {/* Productos */}
-      <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="material-icons-round">inventory_2</span>
-          Productos
-        </h3>
-
-        <div style={{ marginBottom: '1rem' }}>
-          {/* Search and Bonified Toggle */}
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>search</span>
-              <input
-                type="text"
-                placeholder="Buscar producto..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '0.6rem 1rem',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem'
-                }}
-              />
-            </div>
-
-            {/* ✅ Toggle Mode */}
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              background: isBonifiedMode ? '#ecfdf5' : '#f3f4f6',
-              padding: '0.5rem 1rem',
-              borderRadius: '20px',
-              border: isBonifiedMode ? '1px solid #10b981' : '1px solid transparent',
-              transition: 'all 0.2s'
-            }}>
-              <input
-                type="checkbox"
-                checked={isBonifiedMode}
-                onChange={(e) => setIsBonifiedMode(e.target.checked)}
-                style={{ accentColor: '#10b981' }}
-              />
-              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: isBonifiedMode ? '#047857' : '#4b5563' }}>
-                {isBonifiedMode ? '🎁 Modo Regalo (Bonificado)' : '📦 Modo Normal'}
-              </span>
-            </label>
+    <div className="admin-sales-panel">
+      {/* LEFT COLUMN: PRODUCTS & FILTERS */}
+      <div className="sales-products-column">
+        {/* FILTERS BAR */}
+        <div className="sales-filters-bar">
+          <div className="sales-search-container">
+            <span className="material-icons-round sales-search-icon">search</span>
+            <input
+              type="text"
+              className="sales-search-input"
+              placeholder="Buscar producto..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+            />
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-            gap: '1rem',
-            maxHeight: '500px',
-            overflowY: 'auto',
-            border: isBonifiedMode ? '2px solid #10b981' : 'none',
-            borderRadius: '8px',
-            padding: isBonifiedMode ? '1rem' : '0'
-          }}>
-            {filteredProducts.map(product => (
-              <div
-                key={product.id}
-                onClick={() => addToCart(product)}
-                style={{
-                  padding: '1rem',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  background: isBonifiedMode ? '#f0fdf4' : 'white'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)'}
-                onMouseOut={(e) => e.currentTarget.style.boxShadow = 'none'}
-              >
-                <div style={{ fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                  <span>{product.nombre}</span>
-                  {product.isSpecialProduct && (
-                    <span style={{
-                      fontSize: '0.65rem',
-                      background: 'linear-gradient(135deg, #8b5cf6, #d946ef)',
-                      color: 'white',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontWeight: 'bold'
-                    }}>
-                      ESPECIAL
-                    </span>
-                  )}
-                </div>
-                <div style={{ color: isBonifiedMode ? '#10b981' : 'var(--primary)', fontWeight: '700', marginBottom: '0.25rem' }}>
-                  {isBonifiedMode ? '$0.00 (Regalo)' : `$${formatCurrency(product.precio)}`}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Stock: {product.stock}</div>
+          <div
+            className={`mode-toggle-label ${isBonifiedMode ? 'bonified' : 'normal'}`}
+            onClick={() => setIsBonifiedMode(!isBonifiedMode)}
+            title="Alternar modo de venta"
+          >
+            <span className="material-icons-round" style={{ fontSize: '20px' }}>
+              {isBonifiedMode ? 'card_giftcard' : 'inventory_2'}
+            </span>
+            {isBonifiedMode ? 'Modo Regalo (Bonificado)' : 'Modo Venta Regular'}
+          </div>
+        </div>
+
+        {/* PRODUCTS LIST */}
+        <div className="sales-products-list">
+          {/* CATALOGO DE PROMOCIONES - ADMIN */}
+          <div style={{ marginBottom: '1rem' }}>
+            <AdminPromotionsCatalog onAddToCart={addPromotionToCart} />
+          </div>
+
+          <h4 style={{ margin: '0.5rem 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>Catálogo de Productos</h4>
+
+          {filteredProducts.map(product => (
+            <div
+              key={product.id}
+              className={`sales-product-item ${isBonifiedMode ? 'bonified-mode' : ''}`}
+              onClick={() => addToCart(product)}
+            >
+              {/* Image Placeholder or Actual Image if available */}
+              <div className="product-item-image">
+                <span className="material-icons-round" style={{ fontSize: '24px', color: '#cbd5e1' }}>image</span>
               </div>
-            ))}
-          </div>
+
+              <div className="product-item-info">
+                <div className="product-item-name">{product.nombre}</div>
+                {product.isSpecialProduct && (
+                  <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #8b5cf6, #d946ef)', color: 'white', padding: '1px 4px', borderRadius: '3px', width: 'fit-content' }}>ESPECIAL</span>
+                )}
+              </div>
+
+              <div className={`product-item-stock ${product.stock < 10 ? 'low' : ''}`}>
+                <span className="material-icons-round" style={{ fontSize: '12px' }}>inventory_2</span>
+                {product.stock}
+              </div>
+
+              <div className={`product-item-price ${isBonifiedMode ? 'free' : ''}`}>
+                {isBonifiedMode ? 'FREE' : `$${formatCurrency(product.precio)}`}
+              </div>
+
+              <button className="btn-add-circle">
+                <span className="material-icons-round" style={{ fontSize: '20px' }}>add</span>
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Carrito y Vendedor */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-        {/* Vendedor */}
-        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span className="material-icons-round">badge</span>
-            Vendedor
-          </h3>
 
-          <select
-            value={selectedVendedor}
-            onChange={(e) => handleVendorChange(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              fontSize: '0.95rem'
-            }}
-          >
-            <option value="">Seleccionar vendedor</option>
-            {vendedores.map(v => (
-              <option key={v.id} value={v.id}>{v.username}</option>
-            ))}
-          </select>
-        </div>
+      {/* RIGHT COLUMN: CART SIDEBAR */}
+      <div className="sales-cart-sidebar">
+        <div className="cart-header">
+          <div className="cart-title">
+            <span className="material-icons-round" style={{ color: 'var(--primary)' }}>shopping_cart</span>
+            Nueva Venta
+          </div>
 
-        {/* Cliente */}
-        {selectedVendedor && (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-icons-round">person</span>
-              Cliente
-            </h3>
-
-            <input
-              type="text"
-              placeholder="Buscar cliente..."
-              value={clientSearch}
-              onChange={(e) => setClientSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '0.6rem',
-                marginBottom: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                fontSize: '0.9rem'
-              }}
-            />
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {clientsLoading ? 'Cargando...' : `${filteredClients.length} clientes`}
-              </div>
-              <button
-                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                style={{
-                  background: 'none',
-                  border: '1px solid var(--border)',
-                  borderRadius: '4px',
-                  padding: '2px 6px',
-                  fontSize: '0.8rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: 'var(--text-secondary)'
-                }}
-                title="Ordenar alfabéticamente"
-              >
-                <span className="material-icons-round" style={{ fontSize: '14px' }}>sort_by_alpha</span>
-                {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
-              </button>
-            </div>
-
+          <div className="cart-customer-selector">
+            {/* Vendedor Selector */}
             <select
-              value={selectedClient}
-              onChange={(e) => {
-                setSelectedClient(e.target.value);
-                setAllowNoClient(false);
-              }}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                fontSize: '0.95rem',
-                marginBottom: '0.75rem'
-              }}
+              className="cart-select"
+              value={selectedVendedor}
+              onChange={(e) => handleVendorChange(e.target.value)}
             >
-              <option value="">Seleccionar cliente</option>
-              {filteredClients.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
+              <option value="">-- Seleccionar Vendedor --</option>
+              {vendedores.map(v => (
+                <option key={v.id} value={v.id}>{v.username}</option>
               ))}
             </select>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={allowNoClient}
-                onChange={(e) => {
-                  setAllowNoClient(e.target.checked);
-                  if (e.target.checked) setSelectedClient('');
-                }}
-              />
-              Venta sin cliente
-            </label>
-          </div>
-        )}
-
-        {/* Carrito */}
-        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span className="material-icons-round">shopping_cart</span>
-            Carrito ({cart.length + bonifiedCart.length})
-          </h3>
-
-          <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '1rem' }}>
-            {cart.length === 0 && bonifiedCart.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>Carrito vacío</p>
-            ) : (
+            {/* Client Selector */}
+            {selectedVendedor && (
               <>
-                {/* ✅ REGULAR ITEMS SECTION */}
-                {cart.length > 0 && (
-                  <div style={{ marginBottom: '1rem' }}>
-                    <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4b5563', paddingBottom: '4px', borderBottom: '1px solid #e5e7eb', marginBottom: '8px' }}>📦 Productos</h5>
-                    {cart.map(item => (
-                      <div key={item.productId} style={{ padding: '0.75rem', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.nombre}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {`$${formatCurrency(item.precio)}`}
-                          </div>
-                        </div>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar cliente..."
+                    className="cart-select"
+                    style={{ paddingRight: '2.5rem' }}
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                  />
+                  <button
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer'
+                    }}
+                    title="Ordenar A-Z"
+                  >
+                    <span className="material-icons-round" style={{ fontSize: '18px' }}>sort_by_alpha</span>
+                  </button>
+                </div>
 
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          {/* removed isBonified checkbox */}
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.cantidad - 1, false)}
-                            style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
-                          >
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            value={item.cantidad}
-                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, false)}
-                            style={{ width: '40px', padding: '0.25rem', textAlign: 'center', border: '1px solid #e5e7eb', borderRadius: '4px' }}
-                            onWheel={(e) => e.target.blur()}
-                          />
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.cantidad + 1, false)}
-                            style={{ background: '#f3f4f6', border: 'none', padding: '0.3rem 0.6rem', borderRadius: '4px', cursor: 'pointer' }}
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(item.productId, false)}
-                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '18px' }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textAlign: 'right' }}>
+                  {clientsLoading ? 'Cargando clientes...' : `${filteredClients.length} clientes encontrados`}
+                </div>
 
-                {/* ✅ BONIFIED ITEMS SECTION */}
-                {bonifiedCart.length > 0 && (
-                  <div style={{ marginBottom: '1rem', background: '#f0fdf4', borderRadius: '8px', padding: '8px', border: '1px solid #bbf7d0' }}>
-                    <h5 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#15803d', paddingBottom: '4px', borderBottom: '1px solid #bbf7d0', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
-                      Regalos (Bonificados)
-                    </h5>
-                    {bonifiedCart.map(item => (
-                      <div key={item.productId} style={{ padding: '0.5rem 0', borderBottom: '1px solid #dcfce7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#166534' }}>{item.nombre}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#15803d' }}>
-                            $0.00
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.cantidad - 1, true)}
-                            style={{ background: 'white', border: '1px solid #bbf7d0', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
-                          >
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            value={item.cantidad}
-                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
-                            style={{ width: '40px', padding: '0.2rem', textAlign: 'center', border: '1px solid #bbf7d0', borderRadius: '4px', background: 'white' }}
-                            onWheel={(e) => e.target.blur()}
-                          />
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.cantidad + 1, true)}
-                            style={{ background: 'white', border: '1px solid #bbf7d0', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(item.productId, true)}
-                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px' }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <select
+                  className="cart-select"
+                  value={selectedClient}
+                  onChange={(e) => {
+                    setSelectedClient(e.target.value);
+                    setAllowNoClient(false);
+                  }}
+                >
+                  <option value="">-- Seleccionar Cliente --</option>
+                  {filteredClients.map(client => (
+                    <option key={client.id} value={client.id}>{client.nombre}</option>
+                  ))}
+                </select>
               </>
             )}
           </div>
+        </div>
 
-          <div style={{ paddingTop: '1rem', borderTop: '2px solid #f3f4f6', marginBottom: '1rem' }}>
-            <input
-              type="checkbox"
-              checked={includeFreight}
-              onChange={(e) => setIncludeFreight(e.target.checked)}
-            />
-            Incluir Flete
-          </div>
-
-          {includeFreight && (
-            <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={isFreightBonified}
-                    onChange={(e) => setIsFreightBonified(e.target.checked)}
-                  />
-                  Bonificar Flete (Costo $0)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Texto personalizado (ej: Envío Express)"
-                  value={freightCustomText}
-                  onChange={(e) => setFreightCustomText(e.target.value)}
-                  style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
-                />
-                <input
-                  type="number"
-                  min="1"
-                  placeholder="Cant."
-                  value={freightQuantity}
-                  onChange={(e) => setFreightQuantity(e.target.value)}
-                  style={{ width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
-                  title="Cantidad de fletes"
-                  onWheel={(e) => e.target.blur()}
-                />
-              </div>
-
-              <div className="freight-items-section">
-                <h5 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: '#64748b' }}>📦 Productos por cuenta del Flete</h5>
-
-                {/* Freight Product Search */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', position: 'relative' }}>
-                  <input
-                    type="text"
-                    placeholder="Buscar producto para flete..."
-                    value={freightProductSearch}
-                    onChange={(e) => setFreightProductSearch(e.target.value)}
-                    style={{ flex: 1, padding: '0.3rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                  />
-                  {freightProductSearch && (
-                    <div style={{ position: 'absolute', background: 'white', border: '1px solid #ddd', borderRadius: '4px', maxHeight: '150px', overflowY: 'auto', width: '250px', zIndex: 10, marginTop: '2rem' }}>
-                      {products
-                        .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
-                        .slice(0, 5)
-                        .map(p => (
-                          <div
-                            key={p.id}
-                            onClick={() => { addFreightItem(p); setFreightProductSearch(''); }}
-                            style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #eee', fontSize: '0.8rem' }}
-                          >
-                            {p.nombre}
-                          </div>
-                        ))
-                      }
-                    </div>
-                  )}
-                </div>
-
-                {/* Freight Items List */}
-                {freightItems.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', padding: '4px 8px', borderRadius: '4px', marginBottom: '4px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '0.8rem' }}>{item.nombre}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
-                        style={{ width: '40px', padding: '2px', textAlign: 'center', fontSize: '0.8rem' }}
-                        onWheel={(e) => e.target.blur()}
-                      />
-                      <button onClick={() => removeFreightItem(item.productId)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
-                    </div>
-                  </div>
-                ))}
-                {freightItems.length === 0 && <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Sin productos de flete</span>}
-              </div>
+        <div className="cart-items-container">
+          {cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-icons-round" style={{ fontSize: '48px', color: '#e2e8f0' }}>shopping_basket</span>
+              <p>El carrito está vacío</p>
+              <p style={{ fontSize: '0.8rem' }}>Selecciona productos o promociones del panel izquierdo.</p>
             </div>
           )}
 
-          <div style={{ fontSize: '1.1rem', fontWeight: '700', textAlign: 'right', marginBottom: '1rem' }}>
-            Total: ${calculateTotal()}
+          {/* PROMOTIONS */}
+          {promotionsCart.length > 0 && (
+            <div className="cart-group">
+              <div className="cart-group-header">
+                Promociones
+              </div>
+              {promotionsCart.map((promo) => (
+                <div key={promo.cartId} className="cart-item">
+                  <div className="cart-item-info">
+                    <div className="cart-item-name" style={{ color: '#0369a1' }}>{promo.nombre}</div>
+                    {promo.packPrice && (
+                      <div className="cart-item-price" style={{ color: '#0ea5e9', fontWeight: 700 }}>${formatCurrency(promo.packPrice)}</div>
+                    )}
+                  </div>
+                  <button className="btn-remove-item" onClick={() => removePromotionFromCart(promo.cartId)}>
+                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* REGULAR ITEMS */}
+          {cart.length > 0 && (
+            <div className="cart-group">
+              <div className="cart-group-header">
+                Productos
+              </div>
+              {cart.map(item => (
+                <div key={item.productId} className="cart-item">
+                  <div className="cart-item-info">
+                    <div className="cart-item-name">{item.nombre}</div>
+                    <div className="cart-item-price">${formatCurrency(item.precio)}</div>
+                  </div>
+
+                  <div className="cart-item-qty-control">
+                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad - 1, false)}>−</button>
+                    <input
+                      className="qty-input"
+                      type="number"
+                      value={item.cantidad}
+                      onChange={(e) => updateQuantity(item.productId, e.target.value, false)}
+                      onWheel={(e) => e.target.blur()}
+                    />
+                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad + 1, false)}>+</button>
+                  </div>
+
+                  <button className="btn-remove-item" onClick={() => removeFromCart(item.productId, false)}>
+                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* BONIFIED ITEMS */}
+          {bonifiedCart.length > 0 && (
+            <div className="cart-group" style={{ border: '1px solid #bbf7d0' }}>
+              <div className="cart-group-header" style={{ color: '#15803d', background: '#f0fdf4', borderBottomColor: '#dcfce7' }}>
+                🎁 Regalos
+              </div>
+              {bonifiedCart.map(item => (
+                <div key={item.productId} className="cart-item" style={{ background: '#f0fdf4' }}>
+                  <div className="cart-item-info">
+                    <div className="cart-item-name" style={{ color: '#166534' }}>{item.nombre}</div>
+                    <div className="cart-item-price" style={{ color: '#15803d', fontWeight: 700 }}>GRATIS</div>
+                  </div>
+
+                  <div className="cart-item-qty-control" style={{ background: 'white', border: '1px solid #bbf7d0' }}>
+                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad - 1, true)}>−</button>
+                    <input
+                      className="qty-input"
+                      type="number"
+                      value={item.cantidad}
+                      onChange={(e) => updateQuantity(item.productId, e.target.value, true)}
+                      onWheel={(e) => e.target.blur()}
+                    />
+                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad + 1, true)}>+</button>
+                  </div>
+
+                  <button className="btn-remove-item" onClick={() => removeFromCart(item.productId, true)}>
+                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+
+        <div className="cart-footer">
+          <div className="cart-total">
+            <span>Total</span>
+            <span style={{ color: 'var(--primary)' }}>${calculateTotal()}</span>
           </div>
 
           <textarea
-            placeholder="Notas..."
+            className="cart-notes"
+            placeholder="Notas de la venta..."
+            rows="2"
             value={notas}
             onChange={(e) => setNotas(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              marginBottom: '1rem',
-              fontSize: '0.9rem',
-              resize: 'vertical',
-              minHeight: '60px'
-            }}
           />
 
           <button
+            className="btn-checkout"
             onClick={handleSubmitOrder}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              background: '#10b981',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '1rem',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
+            disabled={cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0}
           >
-            <span className="material-icons-round" style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}>check</span>
+            <span className="material-icons-round">check_circle</span>
             Finalizar Venta
           </button>
         </div>
       </div>
+
+      {/* Assortment Modal */}
+      {
+        showAssortmentModal && selectedPromotion && (
+          <AssortmentSelectionModal
+            orderId={null} // New order, so no ID yet
+            promotion={selectedPromotion}
+            onClose={() => {
+              setShowAssortmentModal(false);
+              setSelectedPromotion(null);
+            }}
+            onConfirm={handleAssortmentConfirmation}
+            isStandalone={true} // Mode for new sale (client-side selection)
+          />
+        )
+      }
     </div>
-
-
   );
 }
 

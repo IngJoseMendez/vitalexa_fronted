@@ -31,6 +31,11 @@ const promotionService = {
         return await client.get('/vendedor/promotions');
     },
 
+    // Admin endpoint for valid promotions (New Sale)
+    getValidAdmin: async () => {
+        return await client.get('/admin/promotions/valid');
+    },
+
     // Complete assortment selection for promotion
     completeAssortment: async (orderId, promotionId, products) => {
         return await client.post(
