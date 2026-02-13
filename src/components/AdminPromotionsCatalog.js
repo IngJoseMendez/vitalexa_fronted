@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import { getPromotionTypeLabel, PromotionType } from '../utils/types';
 import promotionService from '../api/promotionService';
+import specialPromotionService from '../api/specialPromotionService';
 import { useToast } from './ToastContainer';
 import '../styles/Promotions.css';
 
@@ -14,9 +15,27 @@ function AdminPromotionsCatalog({ onAddToCart }) {
         const fetchPromotions = async () => {
             try {
                 setLoading(true);
-                // Use the new Admin endpoint
-                const response = await promotionService.getValidAdmin();
-                setPromotions(response.data || []);
+                // Fetch standard and special promotions in parallel
+                const [standardRes, specialRes] = await Promise.all([
+                    promotionService.getValidAdmin(),
+                    specialPromotionService.getVendorPromotions(0, 100) // Fetch up to 100 special promos
+                ]);
+
+                const standardPromos = standardRes.data || [];
+
+                // Helper to extract content from paginated or list response
+                let specialPromos = [];
+                const spData = specialRes.data;
+                if (Array.isArray(spData)) {
+                    specialPromos = spData;
+                } else if (spData && spData.content) {
+                    specialPromos = spData.content;
+                }
+
+                // Add 'isSpecial' flag to special promotions for UI distinction
+                const markedSpecialPromos = specialPromos.map(p => ({ ...p, isSpecial: true }));
+
+                setPromotions([...standardPromos, ...markedSpecialPromos]);
             } catch (error) {
                 console.error('Error al cargar promociones:', error);
                 toast.error('Error al cargar promociones disponibles');
@@ -56,10 +75,17 @@ function AdminPromotionsCatalog({ onAddToCart }) {
                             <span className={`promotion-badge type-${promotion.type.toLowerCase().replace('_', '-')}`}>
                                 {getPromotionTypeLabel(promotion.type)}
                             </span>
+                            {promotion.isSpecial && (
+                                <span className="promotion-badge" style={{ background: '#7c3aed', color: 'white', marginLeft: '5px' }}>
+                                    ESPECIAL
+                                </span>
+                            )}
                         </div>
 
                         <div className="promotion-desc-compact">
-                            <div style={{ marginBottom: '4px' }}>Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}</div>
+                            <div style={{ marginBottom: '4px' }}>
+                                Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}
+                            </div>
                             <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
                                 Recibe Gratis:
                                 {promotion.type === PromotionType.PACK ? (

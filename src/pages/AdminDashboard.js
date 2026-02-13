@@ -8,6 +8,7 @@ import PromotionsPanel from '../components/PromotionsPanel';
 import AdminClientsPanel from '../components/AdminClientsPanel';
 import ProductsPanel from '../components/ProductsPanel';
 import SpecialProductsPanel from '../components/SpecialProductsPanel';
+import SpecialPromotionsPanel from '../components/SpecialPromotionsPanel';
 import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
 import AdminDiscountSection from '../components/AdminDiscountSection';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
@@ -65,6 +66,12 @@ function AdminDashboard() {
           <span className="material-icons-round">star</span> Especiales
         </button>
         <button
+          className={activeTab === 'special-promotions' ? 'active' : ''}
+          onClick={() => setActiveTab('special-promotions')}
+        >
+          <span className="material-icons-round">stars</span> Promociones Especiales
+        </button>
+        <button
           className={activeTab === 'inventory-history' ? 'active' : ''}
           onClick={() => setActiveTab('inventory-history')}
         >
@@ -111,6 +118,7 @@ function AdminDashboard() {
         {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
         {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'special-promotions' && <SpecialPromotionsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
         {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
@@ -1120,7 +1128,9 @@ function AdminNuevaVentaPanel() {
     // Add unique ID for cart processing to allow duplicates
     const promoInstance = {
       ...promotion,
-      cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      // ✅ Capture Special Promotion ID if present
+      specialPromotionId: promotion.isSpecial ? promotion.id : null
     };
 
     setPromotionsCart([...promotionsCart, promoInstance]);
@@ -1144,7 +1154,9 @@ function AdminNuevaVentaPanel() {
           cantidad: item.cantidad,
           stockDisponible: item.stock || 9999,
           allowOutOfStock: true,
-          promotionId: item.promotionId
+          promotionId: item.promotionId,
+          // ✅ Pass down specialPromotionId from the selected promotion
+          specialPromotionId: selectedPromotion?.isSpecial ? selectedPromotion.id : null
         });
       }
     });
@@ -1155,7 +1167,9 @@ function AdminNuevaVentaPanel() {
     if (selectedPromotion) {
       const promoInstance = {
         ...selectedPromotion,
-        cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        // ✅ Capture Special Promotion ID
+        specialPromotionId: selectedPromotion.isSpecial ? selectedPromotion.id : null
       };
       setPromotionsCart([...promotionsCart, promoInstance]);
     }
@@ -1246,7 +1260,9 @@ function AdminNuevaVentaPanel() {
             specialProductId: item.isSpecialProduct ? item.productId : null,
             cantidad: item.cantidad,
             allowOutOfStock: item.allowOutOfStock,
-            relatedPromotionId: item.promotionId || null
+            relatedPromotionId: item.promotionId || null,
+            // ✅ Include specialPromotionId in item payload
+            specialPromotionId: item.specialPromotionId || null
             // isBonified removed
           }))
         ],

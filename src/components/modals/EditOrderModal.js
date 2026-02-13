@@ -53,9 +53,53 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             let loadedPromotions = [];
             if (order.promotionIds && order.promotionIds.length > 0) {
                 try {
-                    const promoPromises = order.promotionIds.map(id => client.get(`/admin/promotions/${id}`));
+                    // ✅ Determine if promotions are special or global by checking items
+                    const specialPromoIds = new Set();
+                    const globalPromoIds = new Set();
+
+                    if (order.items) {
+                        order.items.forEach(item => {
+                            if (item.specialPromotionId) {
+                                specialPromoIds.add(item.specialPromotionId);
+                            } else if (item.promotionId) {
+                                globalPromoIds.add(item.promotionId);
+                            }
+                        });
+                    }
+
+                    // Fallback: if no items have special/global markers, check promotionIds
+                    order.promotionIds.forEach(id => {
+                        if (!specialPromoIds.has(id) && !globalPromoIds.has(id)) {
+                            globalPromoIds.add(id);
+                        }
+                    });
+
+                    const promoPromises = [];
+
+                    // Load global promotions
+                    globalPromoIds.forEach(id => {
+                        promoPromises.push(
+                            client.get(`/admin/promotions/${id}`)
+                                .catch(err => {
+                                    console.warn(`Failed to load global promotion ${id}:`, err);
+                                    return null;
+                                })
+                        );
+                    });
+
+                    // Load special promotions
+                    specialPromoIds.forEach(id => {
+                        promoPromises.push(
+                            client.get(`/admin/special-promotions/${id}`)
+                                .catch(err => {
+                                    console.warn(`Failed to load special promotion ${id}:`, err);
+                                    return null;
+                                })
+                        );
+                    });
+
                     const promoResponses = await Promise.all(promoPromises);
-                    loadedPromotions = promoResponses.map(res => res.data);
+                    loadedPromotions = promoResponses.filter(res => res !== null).map(res => res.data);
                 } catch (err) {
                     console.error("Error loading promotions", err);
                     toast.error("Error al cargar detalles de promociones");
@@ -83,7 +127,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         promotionGroupIndex: item.promotionGroupIndex,
                         cantidadDescontada: item.cantidadDescontada,
                         cantidadPendiente: item.cantidadPendiente,
-                        promotionName: item.promotionName
+                        promotionName: item.promotionName,
+                        // ✅ Capture Special Promotion ID
+                        specialPromotionId: item.specialPromotionId || null
                     };
 
                     if (item.isBonified) {
@@ -308,7 +354,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 if (hasAssortmentPromotion) {
                     const assortmentItems = formData.items.filter(i => !i.isFreightItem).map(item => ({
                         productId: item.productId,
-                        cantidad: item.cantidad
+                        cantidad: item.cantidad,
+                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
                     }));
                     payload.items.push(...assortmentItems);
                     console.log('✅ Incluyendo items de surtido:', assortmentItems.length);
@@ -320,7 +367,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     payload.items.push(...freightItems.map(item => ({
                         productId: item.productId,
                         cantidad: item.cantidad,
-                        isFreightItem: true
+                        isFreightItem: true,
+                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
                     })));
                 }
 
@@ -341,12 +389,14 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 payload.items = [
                     ...validItems.filter(i => !i.isFreightItem).map(item => ({
                         productId: item.productId,
-                        cantidad: item.cantidad
+                        cantidad: item.cantidad,
+                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
                     })),
                     ...formData.items.filter(i => i.isFreightItem).map(item => ({
                         productId: item.productId,
                         cantidad: item.cantidad,
-                        isFreightItem: true
+                        isFreightItem: true,
+                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
                     }))
                 ];
 
@@ -377,7 +427,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         if (!productSearch) return [];
         return products
             .filter(p => p.active && p.nombre.toLowerCase().includes(productSearch.toLowerCase()))
-            .slice(0, 10);
+            .sort((a, b) => a.nombre.localeCompare(b.nombre))
+            .slice(0, 20);
     }, [products, productSearch]);
 
     // Derived states for Freight Search
