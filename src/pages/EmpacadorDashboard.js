@@ -73,6 +73,10 @@ function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [notas, setNotas] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    // ✅ CART DRAWER STATE
+    const [showCart, setShowCart] = useState(false);
+    // ✅ GRID CONTROL (1, 2, or 3 columns)
+    const [gridCols, setGridCols] = useState(2); // Default to 2 for mobile-first balance
     const toast = useToast();
 
     const fetchProducts = useCallback(async () => {
@@ -175,6 +179,20 @@ function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
 
     return (
         <div className="nuevo-reembolso-panel">
+            {/* ✅ FLOATING CART BUTTON (Mobile) */}
+            <button
+                className={`floating-cart-button ${cart.length > 0 ? 'has-items' : ''}`}
+                onClick={() => setShowCart(true)}
+            >
+                <span className="material-icons-round">shopping_cart</span>
+                {cart.length > 0 && <span className="cart-badge">{calculateTotalItems()}</span>}
+            </button>
+
+            {/* ✅ CART DRAWER OVERLAY */}
+            {showCart && (
+                <div className="cart-drawer-overlay" onClick={() => setShowCart(false)}></div>
+            )}
+
             {/* SECCION IZQUIERDA - CATALOGO */}
             <div className="catalog-section">
                 <div className="catalog-header">
@@ -189,12 +207,37 @@ function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
                             className="search-input"
                         />
                     </div>
+
+                    {/* ✅ GRID CONTROLS */}
+                    <div className="grid-controls">
+                        <button
+                            className={`grid-btn ${gridCols === 1 ? 'active' : ''}`}
+                            onClick={() => setGridCols(1)}
+                            title="1 Columna"
+                        >
+                            <span className="material-icons-round">view_agenda</span>
+                        </button>
+                        <button
+                            className={`grid-btn ${gridCols === 2 ? 'active' : ''}`}
+                            onClick={() => setGridCols(2)}
+                            title="2 Columnas"
+                        >
+                            <span className="material-icons-round">grid_view</span>
+                        </button>
+                        <button
+                            className={`grid-btn ${gridCols === 3 ? 'active' : ''}`}
+                            onClick={() => setGridCols(3)}
+                            title="3 Columnas"
+                        >
+                            <span className="material-icons-round">view_module</span>
+                        </button>
+                    </div>
                 </div>
 
                 {loading ? (
                     <div className="loading">Cargando productos...</div>
                 ) : (
-                    <div className="products-grid">
+                    <div className={`products-grid cols-${gridCols}`}>
                         {filteredProducts.map(product => (
                             <div key={product.id} className="product-card">
                                 <img
@@ -223,8 +266,16 @@ function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
             </div>
 
             {/* SECCION DERECHA - CARRITO */}
-            <div className="cart-section">
-                <h3><span className="material-icons-round">shopping_cart</span> Carrito de Reembolso</h3>
+            <div className={`cart-section ${showCart ? 'cart-drawer-open' : ''}`}>
+                <div className="cart-header">
+                    <h3>
+                        <span className="material-icons-round">shopping_cart</span>
+                        Carrito ({calculateTotalItems()})
+                    </h3>
+                    <button className="close-cart-drawer" onClick={() => setShowCart(false)}>
+                        <span className="material-icons-round">close</span> Cerrar
+                    </button>
+                </div>
 
                 <div className="cart-items-container">
                     {cart.length === 0 ? (
