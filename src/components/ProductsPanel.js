@@ -148,6 +148,42 @@ export default function ProductsPanel({ refreshTrigger }) {
         }
     };
 
+    const handleDownloadExcel = async () => {
+        try {
+            toast.info('Generando Excel...');
+            const response = await productService.exportInventoryExcel();
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'inventario_productos.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            toast.success('Excel descargado correctamente');
+        } catch (error) {
+            console.error('Download Excel error:', error);
+            toast.error('Error al descargar Excel');
+        }
+    };
+
+    const handleDownloadPDF = async () => {
+        try {
+            toast.info('Generando PDF...');
+            const response = await productService.exportInventoryPDF();
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'inventario_productos.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            toast.success('PDF descargado correctamente');
+        } catch (error) {
+            console.error('Download PDF error:', error);
+            toast.error('Error al descargar PDF');
+        }
+    };
+
     const openCreateModal = () => {
         setEditingProduct(null);
         setIsModalOpen(true);
@@ -277,6 +313,77 @@ export default function ProductsPanel({ refreshTrigger }) {
                                 <span className="material-icons-round">add</span>
                                 Nuevo Producto
                             </button>
+
+                            {/* Dropdown for Inventory Download */}
+                            <div className="dropdown" style={{ position: 'relative', display: 'inline-block' }}>
+                                <button
+                                    style={{
+                                        background: 'white',
+                                        color: 'var(--text-secondary)',
+                                        border: '1px solid var(--border)',
+                                        padding: '0.6rem 1.2rem',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        fontWeight: 600
+                                    }}
+                                    onClick={(e) => {
+                                        const menu = e.currentTarget.nextElementSibling;
+                                        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                                    }}
+                                    onBlur={(e) => {
+                                        // Delay to allow click on items
+                                        const menu = e.currentTarget.nextElementSibling;
+                                        setTimeout(() => { menu.style.display = 'none'; }, 200);
+                                    }}
+                                >
+                                    <span className="material-icons-round">download</span>
+                                    Descargar Inventario
+                                    <span className="material-icons-round" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                                </button>
+                                <div style={{
+                                    display: 'none',
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: '100%',
+                                    marginTop: '5px',
+                                    background: 'white',
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                    borderRadius: '8px',
+                                    zIndex: 10,
+                                    minWidth: '160px',
+                                    overflow: 'hidden',
+                                    border: '1px solid var(--border)'
+                                }}>
+                                    <button
+                                        onClick={handleDownloadExcel}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '8px',
+                                            padding: '10px 16px', width: '100%', border: 'none', background: 'white',
+                                            textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-primary)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                    >
+                                        <span className="material-icons-round" style={{ color: '#10b981' }}>table_view</span> Excel (.xlsx)
+                                    </button>
+                                    <button
+                                        onClick={handleDownloadPDF}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '8px',
+                                            padding: '10px 16px', width: '100%', border: 'none', background: 'white',
+                                            textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-primary)',
+                                            borderTop: '1px solid var(--border)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                    >
+                                        <span className="material-icons-round" style={{ color: '#ef4444' }}>picture_as_pdf</span> PDF (.pdf)
+                                    </button>
+                                </div>
+                            </div>
                         </>
                     )}
                     {bulkMode === 'none' && (

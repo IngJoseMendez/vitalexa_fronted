@@ -99,6 +99,20 @@ const productService = {
         return client.get(`/admin/inventory/history/${id}/export`, {
             responseType: 'blob'
         });
+    },
+
+    // --- Inventory Export (Full) ---
+
+    exportInventoryExcel: async () => {
+        return client.get('/admin/products/inventory/export', {
+            responseType: 'blob'
+        });
+    },
+
+    exportInventoryPDF: async () => {
+        return client.get('/admin/products/inventory/export/pdf', {
+            responseType: 'blob'
+        });
     }
 };
 
