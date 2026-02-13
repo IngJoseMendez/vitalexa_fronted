@@ -72,6 +72,12 @@ function AdminDashboard() {
           <span className="material-icons-round">stars</span> Promociones Especiales
         </button>
         <button
+          className={activeTab === 'promotions' ? 'active' : ''}
+          onClick={() => setActiveTab('promotions')}
+        >
+          <span className="material-icons-round">card_giftcard</span> Promociones
+        </button>
+        <button
           className={activeTab === 'inventory-history' ? 'active' : ''}
           onClick={() => setActiveTab('inventory-history')}
         >
@@ -88,12 +94,6 @@ function AdminDashboard() {
           onClick={() => setActiveTab('tags')}
         >
           <span className="material-icons-round">local_offer</span> Etiquetas
-        </button>
-        <button
-          className={activeTab === 'promotions' ? 'active' : ''}
-          onClick={() => setActiveTab('promotions')}
-        >
-          <span className="material-icons-round">card_giftcard</span> Promociones
         </button>
         <button
           className={activeTab === 'reports' ? 'active' : ''}
@@ -430,79 +430,79 @@ function OrdersPanel({ refreshTrigger }) {
     <div className="orders-panel">
       <div className="panel-header">
         <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment_turned_in</span> Gestión de Órdenes</h2>
-        <div className="filter-buttons">
-          <button
-            className={filter === 'pending' ? 'active' : ''}
-            onClick={() => setFilter('pending')}
-          >
-            <span className="material-icons-round">pending_actions</span> Pendientes ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO' || o.estado === 'PENDING_PROMOTION_COMPLETION').length})
-          </button>
-          <button
-            className={filter === 'completed' ? 'active' : ''}
-            onClick={() => setFilter('completed')}
-          >
-            <span className="material-icons-round">check_circle</span> Completadas ({orders.filter(o => o.estado === 'COMPLETADO').length})
-          </button>
-          <button
-            className={filter === 'all' ? 'active' : ''}
-            onClick={() => setFilter('all')}
-          >
-            <span className="material-icons-round">analytics</span> Todas ({orders.length})
-          </button>
+      </div>
 
-          <div className="filter-divider" style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 0.5rem' }}></div>
+      {/* Filter Buttons Row */}
+      <div className="filter-buttons" style={{ marginBottom: '1.5rem' }}>
+        <button
+          className={filter === 'pending' ? 'active' : ''}
+          onClick={() => setFilter('pending')}
+        >
+          <span className="material-icons-round">pending_actions</span> Pendientes ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO' || o.estado === 'PENDING_PROMOTION_COMPLETION').length})
+        </button>
+        <button
+          className={filter === 'completed' ? 'active' : ''}
+          onClick={() => setFilter('completed')}
+        >
+          <span className="material-icons-round">check_circle</span> Completadas ({orders.filter(o => o.estado === 'COMPLETADO').length})
+        </button>
+        <button
+          className={filter === 'all' ? 'active' : ''}
+          onClick={() => setFilter('all')}
+        >
+          <span className="material-icons-round">analytics</span> Todas ({orders.length})
+        </button>
 
-          <button
-            className={filter === 'cancelled' ? 'active' : ''}
-            onClick={() => setFilter('cancelled')}
-            style={{ color: filter === 'cancelled' ? '#ef4444' : 'var(--text-secondary)' }}
-          >
-            <span className="material-icons-round">block</span> Anuladas ({orders.filter(o => o.estado === 'ANULADA' || o.estado === 'CANCELADO').length})
-          </button>
+        <div className="filter-divider" style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 0.5rem' }}></div>
 
-          <button
-            className={filter === 'historical' ? 'active' : ''}
-            onClick={() => setFilter('historical')}
-            style={{ color: filter === 'historical' ? '#d97706' : 'var(--text-secondary)' }}
-          >
-            <span className="material-icons-round">history</span> Historia ({orders.filter(o => !o.items || o.items.length === 0).length})
-          </button>
+        <button
+          className={filter === 'cancelled' ? 'active' : ''}
+          onClick={() => setFilter('cancelled')}
+          style={{ color: filter === 'cancelled' ? '#ef4444' : 'var(--text-secondary)' }}
+        >
+          <span className="material-icons-round">block</span> Anuladas ({orders.filter(o => o.estado === 'ANULADA' || o.estado === 'CANCELADO').length})
+        </button>
 
-          {/* Invoice Search Input */}
-          <div className="invoice-search-box" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
-              <input
-                type="text"
-                placeholder="Buscar orden, cliente, rep..."
-                value={invoiceSearch}
-                onChange={(e) => setInvoiceSearch(e.target.value)}
-                style={{
-                  padding: '0.5rem 1rem',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  width: '180px'
-                }}
-              />
-              {invoiceSearch && (
-                <button
-                  onClick={() => setInvoiceSearch('')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-secondary)',
-                    padding: '4px'
-                  }}
-                >
-                  <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
-                </button>
-              )}
-            </div>
+        <button
+          className={filter === 'historical' ? 'active' : ''}
+          onClick={() => setFilter('historical')}
+          style={{ color: filter === 'historical' ? '#d97706' : 'var(--text-secondary)' }}
+        >
+          <span className="material-icons-round">history</span> Historia ({orders.filter(o => !o.items || o.items.length === 0).length})
+        </button>
+      </div>
 
-            {/* Vendor Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {/* Search and Filters Row */}
+      <div className="orders-search-filters" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Invoice Search Input */}
+        <div className="invoice-search-box" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto', minWidth: '250px' }}>
+        {/* Invoice Search Input */}
+        <div className="invoice-search-box">
+          <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
+          <input
+            type="text"
+            placeholder="Buscar orden, cliente, rep..."
+            value={invoiceSearch}
+            onChange={(e) => setInvoiceSearch(e.target.value)}
+          />
+          {invoiceSearch && (
+            <button
+              onClick={() => setInvoiceSearch('')}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-secondary)',
+                padding: '4px'
+              }}
+            >
+              <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+            </button>
+          )}
+        </div>
+
+        {/* Vendor Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '0 1 auto' }}>
               <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>badge</span>
               <select
                 value={selectedVendedor}
@@ -681,9 +681,11 @@ function OrdersPanel({ refreshTrigger }) {
                 )}
               </div>
             )}
-          </div>
         </div>
+      </div>
 
+      {/* Sorting Controls Row */}
+      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <div className="sorting-controls">
           <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>sort</span>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="sort-select">
