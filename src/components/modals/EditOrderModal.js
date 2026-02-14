@@ -308,8 +308,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         // Given user context "I want to empty it to type", if they submit empty, they probably meant 0/remove or forgot.
         // Let's filter out invalid quantities on submit logic below.
 
+        // ✅ ACTUALIZADO: Mensaje más descriptivo
         if (formData.items.length === 0 && formData.bonifiedItems.length === 0 && !isPromoOrder) {
-            toast.warning('Debe haber al menos un producto en la orden');
+            toast.warning('Debe haber al menos un producto, promoción o bonificado en la orden');
             return;
         }
 
@@ -322,7 +323,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         const validBonified = formData.bonifiedItems.filter(item => item.productId && item.cantidad > 0);
 
         if (!isPromoOrder && validItems.length === 0 && validBonified.length === 0) {
-            toast.warning('No hay productos válidos en la orden');
+            toast.warning('No hay productos o bonificados válidos en la orden');
             return;
         }
 

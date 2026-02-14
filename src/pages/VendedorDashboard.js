@@ -377,9 +377,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const handleSubmitOrder = async () => {
-    // Allow orders with products OR promotions (or both)
-    if (cart.length === 0 && promotionsCart.length === 0) {
-      toast.warning('Agrega productos o promociones al carrito');
+    // ✅ ACTUALIZADO: Permite órdenes solo con bonificados
+    if (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0) {
+      toast.warning('Agrega productos, promociones o bonificados al carrito');
       return;
     }
 

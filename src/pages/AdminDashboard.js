@@ -1237,8 +1237,9 @@ function AdminNuevaVentaPanel() {
   };
 
   const handleSubmitOrder = async () => {
+    // ✅ ACTUALIZADO: Permite órdenes solo con bonificados
     if (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0) {
-      toast.warning('Agrega productos o promociones al carrito');
+      toast.warning('Agrega productos, promociones o bonificados al carrito');
       return;
     }
 
