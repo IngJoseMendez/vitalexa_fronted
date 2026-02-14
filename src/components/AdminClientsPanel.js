@@ -670,7 +670,13 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
 
     return (
         <div className="modal-overlay">
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+                maxWidth: '520px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                margin: 'auto'
+            }}>
                 <div className="modal-header">
                     <h3>
                         <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>person_add</span>
@@ -872,7 +878,13 @@ function AdminClientEditModal({ clientToEdit, vendedores, onClose, onSuccess }) 
 
     return (
         <div className="modal-overlay">
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+                maxWidth: '520px',
+                width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                margin: 'auto'
+            }}>
                 <div className="modal-header">
                     <h3>
                         <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>edit</span>

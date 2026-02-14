@@ -850,10 +850,12 @@
   justify-content: center;
   z-index: 9999;
   padding: 1.5rem;
+  overflow-y: auto;
 }
 
 .modal-content-large,
-.modal-content.form-modal {
+.modal-content.form-modal,
+.modal-content {
   background: white;
   border-radius: 1.5rem;
   max-width: 600px;
@@ -862,6 +864,7 @@
   overflow-y: auto;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  margin: auto;
 }
 
 @keyframes modalSlideIn {
@@ -919,7 +922,8 @@
 }
 
 /* Product Form Styles */
-.product-form {
+.product-form,
+.client-form {
   padding: 2rem;
   display: flex;
   flex-direction: column;
@@ -942,7 +946,8 @@
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   padding: 0.85rem 1.25rem;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
@@ -953,15 +958,11 @@
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
 }
 
 .form-row {
@@ -1547,7 +1548,7 @@
 }
 
 /* === EDIT ORDER MODAL === */
-.modal-content-large {
+.modal-content_large {
   background: white;
   border-radius: 2rem;
   max-width: 800px;
@@ -1754,16 +1755,18 @@
 
   /* MODAL FULLSCREEN MOBILE */
   .modal-overlay {
-    padding: 0;
-    align-items: flex-end;
+    padding: 1rem;
+    align-items: flex-start;
+    overflow-y: auto;
   }
 
-  .modal-content-large {
+  .modal-content-large,
+  .modal-content {
     width: 100%;
-    height: 94vh;
-    max-height: 94vh;
-    border-radius: 2rem 2rem 0 0;
-    margin: 0;
+    max-height: none;
+    min-height: auto;
+    border-radius: 1.5rem;
+    margin: 1rem auto;
   }
 
   .edit-order-form {
@@ -2314,7 +2317,7 @@
 .sales-product-item:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  border-color: var(--primary-light);
+  border-color: rgba(99, 102, 241, 0.2);
 }
 
 .sales-product-item.bonified-mode:hover {
@@ -2657,3 +2660,4 @@
     /* On mobile, might want to make it sticky bottom or top, but for now stack it */
   }
 }
+
