@@ -12,6 +12,34 @@ const balanceService = {
     // Get single client balance details
     getClientBalance: (clientId) => apiClient.get(`/balances/client/${clientId}`),
 
+    // 🆕 Get pending invoices for a client with optional date filters
+    getPendingInvoices: (clientId, startDate = null, endDate = null) => {
+        const params = {};
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+        return apiClient.get(`/balances/client/${clientId}/pending-invoices`, { params });
+    },
+
+    // 🆕 Get days overdue for a client
+    getDaysOverdue: (clientId) => apiClient.get(`/balances/client/${clientId}/days-overdue`),
+
+    // 🆕 Get last payment date for a client
+    getLastPaymentDate: (clientId) => apiClient.get(`/balances/client/${clientId}/last-payment-date`),
+
+    // 🆕 Export balances to Excel with filters
+    exportToExcel: (filters = {}) => {
+        const params = {};
+        if (filters.vendedorId) params.vendedorId = filters.vendedorId;
+        if (filters.startDate) params.startDate = filters.startDate;
+        if (filters.endDate) params.endDate = filters.endDate;
+        if (filters.onlyWithDebt !== undefined) params.onlyWithDebt = filters.onlyWithDebt;
+
+        return apiClient.get('/balances/export/excel', {
+            params,
+            responseType: 'blob'
+        });
+    },
+
     // === OWNER ONLY ENDPOINTS ===
 
     // Set credit limit for a client

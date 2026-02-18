@@ -1,11 +1,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDateISO } from '../utils/formatters';
 import balanceService from '../api/balanceService';
 import clientApi from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
+import { PaymentHistoryModal } from '../components/modals/PaymentHistoryModal';
+import { PaymentFormModal } from '../components/modals/OrderManagementModal';
 import './BalancesPage.css';
 
 function BalancesPage() {
@@ -98,6 +100,52 @@ function BalancesPage() {
             ? nameA.localeCompare(nameB)
             : nameB.localeCompare(nameA);
     });
+
+    // Export to Excel function
+    const handleExportExcel = async () => {
+        try {
+            toast.info('Generando archivo Excel...');
+
+            // Prepare filters
+            const filters = {};
+
+            // Get vendor ID if filtered
+            if (selectedVendedor && vendedores.length > 0) {
+                const vendorObj = vendedores.find(v => v.username === selectedVendedor);
+                if (vendorObj) filters.vendedorId = vendorObj.id;
+            }
+
+            // Add debt filter if applicable
+            if (filterStatus === 'owing') {
+                filters.onlyWithDebt = true;
+            }
+
+            const response = await balanceService.exportToExcel(filters);
+
+            // Create download link
+            const blob = new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+
+            // Generate filename with date
+            const dateStr = formatDateISO(new Date()).replace(/-/g, '');
+            const vendorStr = selectedVendedor ? `_${selectedVendedor}` : '';
+            link.download = `Saldos_Clientes${vendorStr}_${dateStr}.xlsx`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
+            toast.success('Archivo Excel descargado correctamente');
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            toast.error('Error al exportar a Excel: ' + (error.response?.data?.message || error.message));
+        }
+    };
 
     const getRoleLabel = () => {
         if (userRole === 'ROLE_OWNER') return 'Owner';
@@ -232,6 +280,15 @@ function BalancesPage() {
                         <span className="material-icons-round">refresh</span>
                         Actualizar
                     </button>
+
+                    <button
+                        className="btn-export-excel"
+                        onClick={handleExportExcel}
+                        title="Exportar a Excel"
+                    >
+                        <span className="material-icons-round">download</span>
+                        Exportar Excel
+                    </button>
                 </div>
             </div>
 
@@ -335,6 +392,17 @@ function BalancesPage() {
                                                     ${formatCurrency(client.pendingBalance || 0)}
                                                 </span>
                                                 <span className="balance-label">Pendiente</span>
+                                                {client.daysOverdue > 0 && (
+                                                    <span style={{
+                                                        fontSize: '0.65rem', fontWeight: 700,
+                                                        padding: '1px 6px', borderRadius: '10px',
+                                                        background: client.daysOverdue > 30 ? '#fef2f2' : '#fffbeb',
+                                                        color: client.daysOverdue > 30 ? '#dc2626' : '#d97706',
+                                                        marginTop: '2px'
+                                                    }}>
+                                                        {client.daysOverdue}d mora
+                                                    </span>
+                                                )}
                                             </>
                                         ) : (
                                             <>
@@ -383,10 +451,15 @@ function ClientDetailView({ client, onRefresh, userRole }) {
     const [saving, setSaving] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
+    const [sortBy, setSortBy] = useState('date'); // 'invoice' or 'date'
 
     // Modal States
     const [selectedOrderForModal, setSelectedOrderForModal] = useState(null);
     const [loadingOrder, setLoadingOrder] = useState(false);
+    const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+    const [selectedOrderForHistory, setSelectedOrderForHistory] = useState(null);
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null);
 
     // Services
     const toast = useToast();
@@ -449,6 +522,45 @@ function ClientDetailView({ client, onRefresh, userRole }) {
         } finally {
             setLoadingOrder(false);
         }
+    };
+
+    // MOSTRAR HISTORIAL DE PAGOS AL HACER CLICK EN FACTURA
+    const handleShowPaymentHistory = (order) => {
+        setSelectedOrderForHistory(order);
+        setShowPaymentHistory(true);
+    };
+
+    // CERRAR MODAL DE HISTORIAL DE PAGOS
+    const handleClosePaymentHistory = () => {
+        setShowPaymentHistory(false);
+        setSelectedOrderForHistory(null);
+    };
+
+    // ACTUALIZAR DATOS DESPUÉS DE CAMBIOS EN PAGOS
+    const handlePaymentUpdate = () => {
+        fetchClientDetail();
+        onRefresh();
+    };
+
+    // ABRIR MODAL DE REGISTRO DE PAGO
+    const handleOpenPaymentForm = (order) => {
+        setSelectedOrderForPayment({
+            ...order,
+            clientName: client.clientName
+        });
+        setShowPaymentForm(true);
+    };
+
+    // CERRAR MODAL DE REGISTRO DE PAGO
+    const handleClosePaymentForm = () => {
+        setShowPaymentForm(false);
+        setSelectedOrderForPayment(null);
+    };
+
+    // DESPUÉS DE REGISTRAR UN PAGO
+    const handlePaymentRegistered = () => {
+        fetchClientDetail();
+        onRefresh();
     };
 
     // Save credit limit
@@ -580,8 +692,8 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                 <div className="summary-card">
                     <span className="material-icons-round">account_balance</span>
                     <div>
-                        <span className="value">${formatCurrency(clientDetail?.totalOwed || 0)}</span>
-                        <span className="label">Total Adeudado</span>
+                        <span className="value">${formatCurrency(clientDetail?.totalOrders || 0)}</span>
+                        <span className="label">Total Órdenes</span>
                     </div>
                 </div>
                 <div className="summary-card success">
@@ -598,6 +710,33 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         <span className="label">Saldo Pendiente</span>
                     </div>
                 </div>
+            </div>
+
+            {/* Days Overdue & Last Payment */}
+            <div className="client-extra-info" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                {clientDetail?.daysOverdue > 0 && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.4rem',
+                        padding: '0.4rem 0.8rem', borderRadius: '8px',
+                        background: clientDetail.daysOverdue > 30 ? '#fef2f2' : clientDetail.daysOverdue > 15 ? '#fffbeb' : '#f0fdf4',
+                        color: clientDetail.daysOverdue > 30 ? '#dc2626' : clientDetail.daysOverdue > 15 ? '#d97706' : '#16a34a',
+                        fontSize: '0.85rem', fontWeight: 600
+                    }}>
+                        <span className="material-icons-round" style={{ fontSize: '16px' }}>schedule</span>
+                        {clientDetail.daysOverdue} días de mora
+                    </div>
+                )}
+                {clientDetail?.lastPaymentDate && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0.4rem',
+                        padding: '0.4rem 0.8rem', borderRadius: '8px',
+                        background: '#f0f9ff', color: '#0369a1',
+                        fontSize: '0.85rem', fontWeight: 500
+                    }}>
+                        <span className="material-icons-round" style={{ fontSize: '16px' }}>event</span>
+                        Último pago: {new Date(clientDetail.lastPaymentDate).toLocaleDateString()}
+                    </div>
+                )}
             </div>
 
             {/* Owner Controls */}
@@ -749,10 +888,24 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                     </div>
                     <button
                         className="btn-sort"
+                        onClick={() => setSortBy(prev => prev === 'invoice' ? 'date' : 'invoice')}
+                        title={sortBy === 'invoice' ? 'Ordenar por factura' : 'Ordenar por fecha'}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                        <span className="material-icons-round" style={{ fontSize: '16px' }}>
+                            {sortBy === 'date' ? 'calendar_today' : 'tag'}
+                        </span>
+                        {sortBy === 'date' ? 'Fecha' : 'Factura'}
+                    </button>
+                    <button
+                        className="btn-sort"
                         onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
                         title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                        <span className="material-icons-round">sort_by_alpha</span>
+                        <span className="material-icons-round" style={{ fontSize: '16px' }}>
+                            {sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+                        </span>
                         {sortOrder === 'asc' ? 'Asc' : 'Desc'}
                     </button>
                 </div>
@@ -764,47 +917,118 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                 return invoice.toLowerCase().includes(searchTerm.toLowerCase());
                             })
                             .sort((a, b) => {
+                                if (sortBy === 'date') {
+                                    const dateA = new Date(a.fecha || 0).getTime();
+                                    const dateB = new Date(b.fecha || 0).getTime();
+                                    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+                                }
                                 const invoiceA = String(a.invoiceNumber || '');
                                 const invoiceB = String(b.invoiceNumber || '');
                                 return sortOrder === 'asc'
                                     ? invoiceA.localeCompare(invoiceB)
                                     : invoiceB.localeCompare(invoiceA);
                             })
-                            .map(order => (
-                                <div key={order.id} className="order-item">
-                                    <div className="order-main">
-                                        <span className="order-id">#{order.invoiceNumber || order.id?.substring(0, 8)}</span>
-                                        <span className="order-date">
-                                            {new Date(order.fecha).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                    <div className="order-amounts">
-                                        <div className="amount-row">
-                                            <span>Total:</span>
-                                            <strong>${formatCurrency(order.total || 0)}</strong>
-                                        </div>
-                                        <div className="amount-row">
-                                            <span>Pagado:</span>
-                                            <span className="paid">${formatCurrency(order.paidAmount || 0)}</span>
-                                        </div>
-                                        <div className="amount-row pending">
-                                            <span>Pendiente:</span>
-                                            <strong>${formatCurrency(order.pendingAmount || 0)}</strong>
-                                        </div>
-                                    </div>
-                                    {/* Manage Button - Only for Owner */}
-                                    {userRole === 'ROLE_OWNER' && (
-                                        <button
-                                            className="btn-manage-order"
-                                            onClick={() => handleManageOrder(order.id || order.orderId)}
-                                            title="Gestionar Pagos y Detalles"
-                                            disabled={loadingOrder}
+                            .map(order => {
+                                // Determine payment status badge
+                                const statusInfo = order.pendingAmount <= 0
+                                    ? { text: 'Pagado', color: '#16a34a', bg: '#f0fdf4' }
+                                    : order.paidAmount > 0
+                                        ? { text: 'Parcial', color: '#d97706', bg: '#fffbeb' }
+                                        : { text: 'Pendiente', color: '#dc2626', bg: '#fef2f2' };
+
+                                return (
+                                    <div key={order.orderId || order.id} className="order-item">
+                                        {/* Main order info - CLICKEABLE para ver historial */}
+                                        <div
+                                            className="order-main clickable"
+                                            onClick={() => handleShowPaymentHistory(order)}
+                                            title="Ver historial de pagos"
                                         >
-                                            <span className="material-icons-round">edit</span>
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
+                                            <div className="order-invoice-info">
+                                                <span className="order-id">#{order.invoiceNumber || (order.orderId || order.id)?.substring(0, 8)}</span>
+                                                <span className="order-date">
+                                                    {new Date(order.fecha).toLocaleDateString()}
+                                                </span>
+                                                {/* Payment Status Badge */}
+                                                <span style={{
+                                                    padding: '2px 8px', borderRadius: '12px',
+                                                    fontSize: '0.7rem', fontWeight: 700,
+                                                    background: statusInfo.bg, color: statusInfo.color,
+                                                    marginLeft: '0.5rem'
+                                                }}>
+                                                    {statusInfo.text}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="order-amounts">
+                                            <div className="amount-row">
+                                                <span>Total:</span>
+                                                <strong>${formatCurrency(order.discountedTotal || order.total || 0)}</strong>
+                                            </div>
+                                            <div className="amount-row">
+                                                <span>Pagado:</span>
+                                                <span className="paid">${formatCurrency(order.paidAmount || 0)}</span>
+                                            </div>
+                                            <div className="amount-row pending">
+                                                <span>Pendiente:</span>
+                                                <strong>${formatCurrency(order.pendingAmount || 0)}</strong>
+                                            </div>
+                                        </div>
+                                        {/* Action Buttons */}
+                                        <div className="order-actions">
+                                            {/* History Button - Available for all users */}
+                                            <button
+                                                className="btn-history"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleShowPaymentHistory(order);
+                                                }}
+                                                title="Ver historial de pagos"
+                                            >
+                                                <span className="material-icons-round">history</span>
+                                            </button>
+
+                                            {/* Register Payment Button - Only for Owner, and only if pending > 0 */}
+                                            {isOwner && order.pendingAmount > 0 && (
+                                                <button
+                                                    className="btn-register-payment"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenPaymentForm(order);
+                                                    }}
+                                                    title="Registrar Pago"
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                                        padding: '6px 12px', borderRadius: '8px',
+                                                        border: 'none', cursor: 'pointer',
+                                                        background: '#10b981', color: 'white',
+                                                        fontSize: '0.8rem', fontWeight: 600,
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <span className="material-icons-round" style={{ fontSize: '16px' }}>payments</span>
+                                                    Pagar
+                                                </button>
+                                            )}
+
+                                            {/* Manage Button - Only for Owner */}
+                                            {isOwner && (
+                                                <button
+                                                    className="btn-manage-order"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleManageOrder(order.id || order.orderId);
+                                                    }}
+                                                    title="Ver detalles de la orden"
+                                                    disabled={loadingOrder}
+                                                >
+                                                    <span className="material-icons-round">visibility</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                     </div>
                 ) : (
                     <div className="empty-orders">
@@ -825,6 +1049,31 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         fetchClientDetail();
                         // Also refresh the specific order to update totals/discounts
                         handleManageOrder(selectedOrderForModal.id || selectedOrderForModal.orderId);
+                    }}
+                />
+            )}
+
+            {/* Payment History Modal */}
+            {showPaymentHistory && selectedOrderForHistory && (
+                <PaymentHistoryModal
+                    isOpen={showPaymentHistory}
+                    onClose={handleClosePaymentHistory}
+                    orderId={selectedOrderForHistory.id || selectedOrderForHistory.orderId}
+                    invoiceNumber={selectedOrderForHistory.invoiceNumber}
+                    onPaymentUpdate={handlePaymentUpdate}
+                />
+            )}
+
+            {/* Payment Form Modal (reusing styled modal from OrderManagementModal) */}
+            {showPaymentForm && selectedOrderForPayment && (
+                <PaymentFormModal
+                    orderId={selectedOrderForPayment.orderId || selectedOrderForPayment.id}
+                    orderTotal={selectedOrderForPayment.discountedTotal || selectedOrderForPayment.total || 0}
+                    totalPaid={selectedOrderForPayment.paidAmount || 0}
+                    onClose={handleClosePaymentForm}
+                    onSuccess={() => {
+                        handleClosePaymentForm();
+                        handlePaymentRegistered();
                     }}
                 />
             )}

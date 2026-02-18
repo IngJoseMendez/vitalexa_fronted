@@ -8,7 +8,7 @@ import orderService from '../../api/orderService';
 import client from '../../api/client';
 import { OrdenStatus, PromotionType } from '../../utils/types';
 import HistoricalInvoiceModal from './HistoricalInvoiceModal'; // Import for editing
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDateISO } from '../../utils/formatters';
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -696,10 +696,22 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     );
 }
 
-// ===== PAYMENT FORM MODAL =====
-function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }) {
+// ===== PAYMENT FORM MODAL (EXTENDED) =====
+// Exported so it can be reused from BalancesPage
+const PAYMENT_METHODS = [
+    { value: 'EFECTIVO', label: 'Efectivo', icon: '💵' },
+    { value: 'TRANSFERENCIA', label: 'Transferencia', icon: '🏦' },
+    { value: 'CHEQUE', label: 'Cheque', icon: '📝' },
+    { value: 'TARJETA', label: 'Tarjeta', icon: '💳' },
+    { value: 'CREDITO', label: 'Crédito', icon: '📊' },
+    { value: 'OTRO', label: 'Otro', icon: '🔖' }
+];
+
+export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }) {
     const [formData, setFormData] = useState({
         amount: '',
+        paymentMethod: 'EFECTIVO',
+        actualPaymentDate: formatDateISO(new Date()),
         withinDeadline: true,
         notes: ''
     });
@@ -724,11 +736,18 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
             return;
         }
 
+        if (!formData.paymentMethod) {
+            toast.warning('Seleccione un método de pago');
+            return;
+        }
+
         try {
             setSaving(true);
             await paymentService.createPayment({
                 orderId,
                 amount: parseFloat(formData.amount),
+                paymentMethod: formData.paymentMethod,
+                actualPaymentDate: formData.actualPaymentDate || null,
                 withinDeadline: formData.withinDeadline,
                 notes: formData.notes || null
             });
@@ -767,7 +786,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                     </div>
                 </div>
 
-                {/* Dynamic Preview Line - Moved outside flex container */}
+                {/* Dynamic Preview Line */}
                 {finalPaymentAmount > 0 && (
                     <div className="payment-preview-box">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -804,6 +823,41 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                         </div>
                     </div>
 
+                    <div className="form-group">
+                        <label>Método de Pago *</label>
+                        <select
+                            value={formData.paymentMethod}
+                            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                            required
+                            style={{
+                                width: '100%', padding: '0.6rem 0.8rem',
+                                borderRadius: '8px', border: '1px solid #e2e8f0',
+                                fontSize: '0.9rem', background: 'white',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {PAYMENT_METHODS.map(m => (
+                                <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Fecha del Pago</label>
+                        <input
+                            type="date"
+                            value={formData.actualPaymentDate}
+                            onChange={(e) => setFormData({ ...formData, actualPaymentDate: e.target.value })}
+                            max={formatDateISO(new Date())}
+                            style={{
+                                width: '100%', padding: '0.6rem 0.8rem',
+                                borderRadius: '8px', border: '1px solid #e2e8f0',
+                                fontSize: '0.9rem'
+                            }}
+                        />
+                        <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Fecha real en que se realizó el pago</small>
+                    </div>
+
                     <div className="form-group checkbox">
                         <input
                             type="checkbox"
@@ -822,7 +876,7 @@ function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }
                         <textarea
                             value={formData.notes}
                             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                            placeholder="Método de pago, referencia, observaciones..."
+                            placeholder="Referencia, observaciones..."
                             rows="2"
                         />
                     </div>

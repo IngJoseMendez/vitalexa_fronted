@@ -1,0 +1,59 @@
+/* src/components/DaysOverdueBadge.css */
+
+.days-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.days-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.days-label {
+    line-height: 1;
+}
+
+/* Variants */
+.days-badge-success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.days-badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.days-badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.days-badge-unknown {
+    background: #f3f4f6;
+    color: #6b7280;
+    border: 1px solid #e5e7eb;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .days-badge {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.7rem;
+    }
+
+    .days-icon {
+        font-size: 0.9rem;
+    }
+}
+

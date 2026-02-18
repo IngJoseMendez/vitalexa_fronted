@@ -1,0 +1,433 @@
+/* src/components/modals/PaymentHistoryModal.css */
+/* Estilos para el modal de historial de pagos */
+
+/* The modal uses .modal-container which has no global definition,
+   so we define all structural styles here */
+.payment-history-modal {
+    background: white;
+    border-radius: 1.25rem;
+    max-width: 700px;
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.3);
+    animation: phm-slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+@keyframes phm-slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.payment-history-modal .modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+    flex-shrink: 0;
+}
+
+.payment-history-modal .modal-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.5rem;
+}
+
+.payment-history-modal .modal-filters {
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    flex-shrink: 0;
+}
+
+.payment-history-modal .toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.payment-history-modal .toggle-switch input[type="checkbox"] {
+    display: none;
+}
+
+.payment-history-modal .toggle-slider {
+    position: relative;
+    width: 44px;
+    min-width: 44px;
+    height: 24px;
+    background: #cbd5e1;
+    border-radius: 12px;
+    transition: background 0.3s ease;
+    flex-shrink: 0;
+}
+
+.payment-history-modal .toggle-slider::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.payment-history-modal .toggle-switch input[type="checkbox"]:checked+.toggle-slider {
+    background: var(--primary-color, #6366f1);
+}
+
+.payment-history-modal .toggle-switch input[type="checkbox"]:checked+.toggle-slider::before {
+    transform: translateX(20px);
+}
+
+.payment-history-modal .toggle-label {
+    font-size: 0.9rem;
+    color: #374151;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Modal Body - Scrollable */
+.payment-history-modal .modal-body {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* Payment Timeline */
+.payment-timeline {
+    position: relative;
+    padding: 1.5rem 1.5rem 1.5rem 3rem;
+}
+
+.payment-timeline::before {
+    content: '';
+    position: absolute;
+    left: 2rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #e5e7eb 0%, #e5e7eb 100%);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.timeline-item:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-icon {
+    position: absolute;
+    left: -2.5rem;
+    top: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 3px solid #10b981;
+    font-size: 1rem;
+    z-index: 1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-item.cancelled .timeline-icon {
+    border-color: #ef4444;
+    opacity: 0.7;
+}
+
+/* Payment Card */
+.payment-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.payment-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.timeline-item.cancelled .payment-card {
+    opacity: 0.8;
+    border: 2px dashed #ef4444;
+    background: #fef2f2;
+}
+
+.payment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.payment-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.payment-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.payment-method-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f3f4f6;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+/* Payment Body */
+.payment-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+.info-label {
+    font-size: 0.9rem;
+    color: #6b7280;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.info-value {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+}
+
+.info-value.highlight {
+    color: #6366f1;
+    font-size: 1rem;
+}
+
+.info-value.success {
+    color: #10b981;
+}
+
+/* Cancellation Info */
+.cancellation-info {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+}
+
+.cancellation-info .info-row {
+    padding: 0.35rem 0;
+}
+
+.cancellation-info .info-label {
+    color: #991b1b;
+}
+
+.cancellation-info .info-value {
+    color: #dc2626;
+}
+
+/* Payment Footer */
+.payment-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* Modal Footer */
+.payment-history-modal .modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+.payment-history-modal .modal-footer .btn-secondary {
+    padding: 0.6rem 1.5rem;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.payment-history-modal .modal-footer .btn-secondary:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+/* Button Styles */
+.payment-history-modal .btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.2s;
+}
+
+.payment-history-modal .btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.payment-history-modal .btn-danger:hover {
+    background: #dc2626;
+}
+
+.payment-history-modal .btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.payment-history-modal .btn-warning:hover {
+    background: #d97706;
+}
+
+/* Empty & Loading States */
+.payment-history-modal .empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #9ca3af;
+}
+
+.payment-history-modal .empty-state .material-icons-round {
+    font-size: 3rem;
+    color: #d1d5db;
+    margin-bottom: 0.75rem;
+}
+
+.payment-history-modal .empty-state p {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.payment-history-modal .loading-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #9ca3af;
+}
+
+.payment-history-modal .loading-state .material-icons-round {
+    font-size: 2rem;
+    color: var(--primary-color, #6366f1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .payment-history-modal {
+        max-width: 95%;
+        max-height: 90vh;
+    }
+
+    .payment-timeline {
+        padding-left: 2.5rem;
+    }
+
+    .payment-timeline::before {
+        left: 1.5rem;
+    }
+
+    .timeline-icon {
+        left: -2rem;
+        width: 28px;
+        height: 28px;
+    }
+
+    .payment-header {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+
+    .info-row {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .info-value {
+        text-align: left;
+    }
+}

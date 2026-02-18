@@ -476,64 +476,197 @@ function OrdersPanel({ refreshTrigger }) {
       <div className="orders-search-filters" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
         {/* Invoice Search Input */}
         <div className="invoice-search-box" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto', minWidth: '250px' }}>
-        {/* Invoice Search Input */}
-        <div className="invoice-search-box">
-          <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
-          <input
-            type="text"
-            placeholder="Buscar orden, cliente, rep..."
-            value={invoiceSearch}
-            onChange={(e) => setInvoiceSearch(e.target.value)}
-          />
-          {invoiceSearch && (
-            <button
-              onClick={() => setInvoiceSearch('')}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-secondary)',
-                padding: '4px'
-              }}
-            >
-              <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
-            </button>
-          )}
-        </div>
-
-        {/* Vendor Filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '0 1 auto' }}>
-              <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>badge</span>
-              <select
-                value={selectedVendedor}
-                onChange={(e) => {
-                  setSelectedVendedor(e.target.value);
-                  setSelectedCliente('');
-                  if (e.target.value) {
-                    fetchClientesPorVendedor(e.target.value);
-                  } else {
-                    setClientes([]);
-                  }
-                }}
+          {/* Invoice Search Input */}
+          <div className="invoice-search-box">
+            <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
+            <input
+              type="text"
+              placeholder="Buscar orden, cliente, rep..."
+              value={invoiceSearch}
+              onChange={(e) => setInvoiceSearch(e.target.value)}
+            />
+            {invoiceSearch && (
+              <button
+                onClick={() => setInvoiceSearch('')}
                 style={{
-                  padding: '0.5rem 0.75rem',
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px',
-                  fontSize: '0.9rem',
-                  background: selectedVendedor ? '#f0fdf4' : 'white'
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: '4px'
                 }}
               >
-                <option value="">Todos los vendedores</option>
-                {vendedores.map(v => (
-                  <option key={v.id} value={v.username}>{v.username}</option>
-                ))}
-              </select>
-              {selectedVendedor && (
+                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+              </button>
+            )}
+          </div>
+
+          {/* Vendor Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '0 1 auto' }}>
+            <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>badge</span>
+            <select
+              value={selectedVendedor}
+              onChange={(e) => {
+                setSelectedVendedor(e.target.value);
+                setSelectedCliente('');
+                if (e.target.value) {
+                  fetchClientesPorVendedor(e.target.value);
+                } else {
+                  setClientes([]);
+                }
+              }}
+              style={{
+                padding: '0.5rem 0.75rem',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                background: selectedVendedor ? '#f0fdf4' : 'white'
+              }}
+            >
+              <option value="">Todos los vendedores</option>
+              {vendedores.map(v => (
+                <option key={v.id} value={v.username}>{v.username}</option>
+              ))}
+            </select>
+            {selectedVendedor && (
+              <button
+                onClick={() => {
+                  setSelectedVendedor('');
+                  setClientes([]);
+                  setSelectedCliente('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: '4px'
+                }}
+              >
+                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+              </button>
+            )}
+          </div>
+
+          {/* Client Filter - Searchable */}
+          {selectedVendedor && (
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>person</span>
+              <div className="client-search-container" style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={clientSearchTerm}
+                  onChange={(e) => {
+                    setClientSearchTerm(e.target.value);
+                    setShowClientDropdown(true);
+                    if (!e.target.value) {
+                      setSelectedCliente('');
+                    }
+                  }}
+                  onFocus={() => setShowClientDropdown(true)}
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    background: selectedCliente ? '#f0fdf4' : 'white',
+                    minWidth: '200px'
+                  }}
+                />
+
+                {/* Dropdown with filtered clients */}
+                {showClientDropdown && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      background: 'white',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      zIndex: 1000
+                    }}
+                  >
+                    {/* "All clients" option */}
+                    <div
+                      onClick={() => {
+                        setSelectedCliente('');
+                        setClientSearchTerm('');
+                        setShowClientDropdown(false);
+                      }}
+                      style={{
+                        padding: '0.75rem',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--border)',
+                        background: !selectedCliente ? '#f0fdf4' : 'transparent',
+                        fontWeight: !selectedCliente ? 600 : 400
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                      onMouseLeave={(e) => e.target.style.background = !selectedCliente ? '#f0fdf4' : 'transparent'}
+                    >
+                      Todos los clientes
+                    </div>
+
+                    {/* Filtered client list */}
+                    {clientes
+                      .filter(c => {
+                        const searchLower = clientSearchTerm.toLowerCase();
+                        const nameMatch = (c.nombre || '').toLowerCase().includes(searchLower);
+                        const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
+                        return nameMatch || repMatch;
+                      })
+                      .map(c => (
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedCliente(c.nombre);
+                            setClientSearchTerm(c.nombre);
+                            setShowClientDropdown(false);
+                          }}
+                          style={{
+                            padding: '0.75rem',
+                            cursor: 'pointer',
+                            background: selectedCliente === c.nombre ? '#f0fdf4' : 'transparent',
+                            fontWeight: selectedCliente === c.nombre ? 600 : 400
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                          onMouseLeave={(e) => e.target.style.background = selectedCliente === c.nombre ? '#f0fdf4' : 'transparent'}
+                        >
+                          <div style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.nombre}</div>
+                          {c.representanteLegal && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                              <span className="material-icons-round" style={{ fontSize: '0.7rem', verticalAlign: 'middle' }}>badge</span> {c.representanteLegal}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                    {/* No results message */}
+                    {clientes.filter(c => {
+                      const searchLower = clientSearchTerm.toLowerCase();
+                      const nameMatch = (c.nombre || '').toLowerCase().includes(searchLower);
+                      const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
+                      return nameMatch || repMatch;
+                    }).length === 0 && (
+                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                          No se encontraron clientes
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
+
+              {selectedCliente && (
                 <button
                   onClick={() => {
-                    setSelectedVendedor('');
-                    setClientes([]);
                     setSelectedCliente('');
+                    setClientSearchTerm('');
                   }}
                   style={{
                     background: 'none',
@@ -547,140 +680,7 @@ function OrdersPanel({ refreshTrigger }) {
                 </button>
               )}
             </div>
-
-            {/* Client Filter - Searchable */}
-            {selectedVendedor && (
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>person</span>
-                <div className="client-search-container" style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    placeholder="Buscar cliente..."
-                    value={clientSearchTerm}
-                    onChange={(e) => {
-                      setClientSearchTerm(e.target.value);
-                      setShowClientDropdown(true);
-                      if (!e.target.value) {
-                        setSelectedCliente('');
-                      }
-                    }}
-                    onFocus={() => setShowClientDropdown(true)}
-                    style={{
-                      padding: '0.5rem 0.75rem',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      fontSize: '0.9rem',
-                      background: selectedCliente ? '#f0fdf4' : 'white',
-                      minWidth: '200px'
-                    }}
-                  />
-
-                  {/* Dropdown with filtered clients */}
-                  {showClientDropdown && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '4px',
-                        background: 'white',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        maxHeight: '300px',
-                        overflowY: 'auto',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                        zIndex: 1000
-                      }}
-                    >
-                      {/* "All clients" option */}
-                      <div
-                        onClick={() => {
-                          setSelectedCliente('');
-                          setClientSearchTerm('');
-                          setShowClientDropdown(false);
-                        }}
-                        style={{
-                          padding: '0.75rem',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                          background: !selectedCliente ? '#f0fdf4' : 'transparent',
-                          fontWeight: !selectedCliente ? 600 : 400
-                        }}
-                        onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
-                        onMouseLeave={(e) => e.target.style.background = !selectedCliente ? '#f0fdf4' : 'transparent'}
-                      >
-                        Todos los clientes
-                      </div>
-
-                      {/* Filtered client list */}
-                      {clientes
-                        .filter(c => {
-                          const searchLower = clientSearchTerm.toLowerCase();
-                          const nameMatch = (c.nombre || '').toLowerCase().includes(searchLower);
-                          const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
-                          return nameMatch || repMatch;
-                        })
-                        .map(c => (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setSelectedCliente(c.nombre);
-                              setClientSearchTerm(c.nombre);
-                              setShowClientDropdown(false);
-                            }}
-                            style={{
-                              padding: '0.75rem',
-                              cursor: 'pointer',
-                              background: selectedCliente === c.nombre ? '#f0fdf4' : 'transparent',
-                              fontWeight: selectedCliente === c.nombre ? 600 : 400
-                            }}
-                            onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
-                            onMouseLeave={(e) => e.target.style.background = selectedCliente === c.nombre ? '#f0fdf4' : 'transparent'}
-                          >
-                            <div style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.nombre}</div>
-                            {c.representanteLegal && (
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                <span className="material-icons-round" style={{ fontSize: '0.7rem', verticalAlign: 'middle' }}>badge</span> {c.representanteLegal}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-
-                      {/* No results message */}
-                      {clientes.filter(c => {
-                        const searchLower = clientSearchTerm.toLowerCase();
-                        const nameMatch = (c.nombre || '').toLowerCase().includes(searchLower);
-                        const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
-                        return nameMatch || repMatch;
-                      }).length === 0 && (
-                          <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                            No se encontraron clientes
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div>
-
-                {selectedCliente && (
-                  <button
-                    onClick={() => {
-                      setSelectedCliente('');
-                      setClientSearchTerm('');
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-secondary)',
-                      padding: '4px'
-                    }}
-                  >
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
-                  </button>
-                )}
-              </div>
-            )}
+          )}
         </div>
       </div>
 
@@ -1306,9 +1306,19 @@ function AdminNuevaVentaPanel() {
     p.nombre.toLowerCase().includes(productSearch.toLowerCase())
   ).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  const filteredClients = clients.filter(c =>
-    c.nombre.toLowerCase().includes(clientSearch.toLowerCase())
-  ).sort((a, b) => {
+  const filteredClients = clients.filter(c => {
+    const term = clientSearch.toLowerCase();
+    if (!term) return true;
+    return (
+      (c.nombre || '').toLowerCase().includes(term) ||
+      (c.nit || '').toLowerCase().includes(term) ||
+      (c.email || '').toLowerCase().includes(term) ||
+      (c.telefono || '').toLowerCase().includes(term) ||
+      (c.direccion || '').toLowerCase().includes(term) ||
+      (c.administrador || '').toLowerCase().includes(term) ||
+      (c.representanteLegal || '').toLowerCase().includes(term)
+    );
+  }).sort((a, b) => {
     const nameA = a.nombre || '';
     const nameB = b.nombre || '';
     return sortOrder === 'asc'
