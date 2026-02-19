@@ -128,8 +128,10 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         cantidadDescontada: item.cantidadDescontada,
                         cantidadPendiente: item.cantidadPendiente,
                         promotionName: item.promotionName,
-                        // ✅ Capture Special Promotion ID
-                        specialPromotionId: item.specialPromotionId || null
+                        // ✅ Capture Special Product & Promotion IDs
+                        specialProductId: item.specialProductId || null,
+                        specialPromotionId: item.specialPromotionId || null,
+                        isSpecialProduct: !!item.specialProductId
                     };
 
                     if (item.isBonified) {
@@ -200,7 +202,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const getOriginalUsage = (productId) => {
         if (!order.items) return 0;
         return order.items.reduce((sum, item) => {
-            const id = item.productId || item.product?.id || item.id;
+            // ✅ Match by specialProductId for special products, productId for regular
+            const id = item.specialProductId || item.productId || item.product?.id || item.id;
             if (id === productId) {
                 return sum + (parseFloat(item.cantidad) || 0);
             }
@@ -211,46 +214,69 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const addItem = (product, isFreight = false, isBonified = false) => {
         setHasChanges(true);
 
+        // ✅ Determinar identificador correcto para matching y payload
+        const isSpecial = product.isSpecialProduct || false;
+        // Para productos especiales: productId en el cart = product.id (UUID del SpecialProduct)
+        // Para productos regulares: productId en el cart = product.id (UUID del Product)
+        // La distinción se hace al enviar al backend en handleSubmit
+        const matchId = product.id;
+
         if (isBonified) {
-            const existing = formData.bonifiedItems.find(i => i.productId === product.id);
+            const existing = formData.bonifiedItems.find(i => {
+                if (isSpecial) return i.specialProductId === matchId;
+                return i.productId === matchId && !i.isSpecialProduct;
+            });
             if (existing) {
                 setFormData(prev => ({
                     ...prev,
-                    bonifiedItems: prev.bonifiedItems.map(i => i.productId === product.id ? { ...i, cantidad: i.cantidad + 1 } : i)
+                    bonifiedItems: prev.bonifiedItems.map(i => {
+                        const matches = isSpecial
+                            ? i.specialProductId === matchId
+                            : (i.productId === matchId && !i.isSpecialProduct);
+                        return matches ? { ...i, cantidad: (parseInt(i.cantidad) || 0) + 1 } : i;
+                    })
                 }));
             } else {
                 const newItem = {
                     id: `item-bon-${Date.now()}-${Math.random()}`,
-                    productId: product.id,
+                    productId: isSpecial ? null : product.id,
+                    specialProductId: isSpecial ? product.id : null,
+                    isSpecialProduct: isSpecial,
                     productName: product.nombre,
                     cantidad: 1,
                     precioUnitario: 0,
                     isFreightItem: false,
-                    stock: product.stock  // ✅ Store stock info
+                    stock: product.stock
                 };
                 setFormData(prev => ({ ...prev, bonifiedItems: [...prev.bonifiedItems, newItem] }));
             }
         } else {
-            const existing = formData.items.find(i => i.productId === product.id && i.isFreightItem === isFreight);
+            const existing = formData.items.find(i => {
+                if (isSpecial) return i.specialProductId === matchId && i.isFreightItem === isFreight;
+                return i.productId === matchId && i.isFreightItem === isFreight && !i.isSpecialProduct;
+            });
 
             if (existing) {
                 setFormData(prev => ({
                     ...prev,
-                    items: prev.items.map(i =>
-                        (i.productId === product.id && i.isFreightItem === isFreight)
-                            ? { ...i, cantidad: i.cantidad + 1 }
-                            : i
-                    )
+                    items: prev.items.map(i => {
+                        const matches = isSpecial
+                            ? (i.specialProductId === matchId && i.isFreightItem === isFreight)
+                            : (i.productId === matchId && i.isFreightItem === isFreight && !i.isSpecialProduct);
+                        return matches ? { ...i, cantidad: (parseInt(i.cantidad) || 0) + 1 } : i;
+                    })
                 }));
             } else {
                 const newItem = {
                     id: `item-${Date.now()}-${Math.random()}`,
-                    productId: product.id,
+                    productId: isSpecial ? null : product.id,
+                    specialProductId: isSpecial ? product.id : null,
+                    isSpecialProduct: isSpecial,
                     productName: product.nombre,
                     cantidad: 1,
                     precioUnitario: parseFloat(product.precio),
                     isFreightItem: isFreight,
-                    stock: product.stock  // ✅ Store stock info
+                    stock: product.stock
                 };
 
                 setFormData(prev => ({
@@ -319,8 +345,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             return;
         }
 
-        const validItems = formData.items.filter(item => item.productId && item.cantidad > 0);
-        const validBonified = formData.bonifiedItems.filter(item => item.productId && item.cantidad > 0);
+        const validItems = formData.items.filter(item => (item.productId || item.specialProductId) && item.cantidad > 0);
+        const validBonified = formData.bonifiedItems.filter(item => (item.productId || item.specialProductId) && item.cantidad > 0);
 
         if (!isPromoOrder && validItems.length === 0 && validBonified.length === 0) {
             toast.warning('No hay productos o bonificados válidos en la orden');
@@ -334,7 +360,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 bonifiedItems: [],
                 promotionIds: formData.promotionIds || [], // ✅ Use state promotions instead of original order props
                 notas: formData.notas || null,
-                allowOutOfStock: true,
+
                 includeFreight: formData.includeFreight,
                 isFreightBonified: formData.includeFreight ? formData.isFreightBonified : false,
                 freightCustomText: formData.includeFreight ? formData.freightCustomText : null,
@@ -354,9 +380,11 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 // 1. Items de Surtido (Si aplica)
                 if (hasAssortmentPromotion) {
                     const assortmentItems = formData.items.filter(i => !i.isFreightItem).map(item => ({
-                        productId: item.productId,
+                        productId: item.isSpecialProduct ? null : item.productId,
+                        specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
                         cantidad: item.cantidad,
-                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
+                        allowOutOfStock: true,
+                        specialPromotionId: item.specialPromotionId || null
                     }));
                     payload.items.push(...assortmentItems);
                     console.log('✅ Incluyendo items de surtido:', assortmentItems.length);
@@ -366,17 +394,20 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 if (formData.includeFreight) {
                     const freightItems = formData.items.filter(i => i.isFreightItem);
                     payload.items.push(...freightItems.map(item => ({
-                        productId: item.productId,
+                        productId: item.isSpecialProduct ? null : item.productId,
+                        specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
                         cantidad: item.cantidad,
                         isFreightItem: true,
-                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
+                        allowOutOfStock: true,
+                        specialPromotionId: item.specialPromotionId || null
                     })));
                 }
 
                 // Items bonificados (si se agregaron manualmente)
                 if (validBonified.length > 0) {
                     payload.bonifiedItems = validBonified.map(item => ({
-                        productId: item.productId,
+                        productId: item.isSpecialProduct ? null : item.productId,
+                        specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
                         cantidad: item.cantidad
                     }));
                 } else {
@@ -389,20 +420,25 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 // 📦 ORDEN NORMAL: Enviar todos los items
                 payload.items = [
                     ...validItems.filter(i => !i.isFreightItem).map(item => ({
-                        productId: item.productId,
+                        productId: item.isSpecialProduct ? null : item.productId,
+                        specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
                         cantidad: item.cantidad,
-                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
+                        allowOutOfStock: true,
+                        specialPromotionId: item.specialPromotionId || null
                     })),
                     ...formData.items.filter(i => i.isFreightItem).map(item => ({
-                        productId: item.productId,
+                        productId: item.isSpecialProduct ? null : item.productId,
+                        specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
                         cantidad: item.cantidad,
                         isFreightItem: true,
-                        specialPromotionId: item.specialPromotionId || null // ✅ Pass through
+                        allowOutOfStock: true,
+                        specialPromotionId: item.specialPromotionId || null
                     }))
                 ];
 
                 payload.bonifiedItems = validBonified.map(item => ({
-                    productId: item.productId,
+                    productId: item.isSpecialProduct ? null : item.productId,
+                    specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
                     cantidad: item.cantidad
                 }));
 
