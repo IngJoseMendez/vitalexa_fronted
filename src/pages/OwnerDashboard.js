@@ -7,6 +7,7 @@ import { tagService } from '../api/tagService'; // Added Tag Service
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import AdminClientsPanel from '../components/AdminClientsPanel'; // Import AdminClientsPanel
+import StockReportPanel from '../components/StockReportPanel';
 import '../styles/OwnerDashboard.css';
 import '../styles/ChartStyles.css';
 
@@ -162,6 +163,12 @@ function OwnerDashboard() {
           <span className="material-icons-round">insights</span> Reports
         </button>
         <button
+          className={activeTab === 'stock-report' ? 'active' : ''}
+          onClick={() => setActiveTab('stock-report')}
+        >
+          <span className="material-icons-round">warehouse</span> Stock Real
+        </button>
+        <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
         >
@@ -199,6 +206,7 @@ function OwnerDashboard() {
           />
         )}
         {activeTab === 'reports' && <ReportsTab orders={orders} products={products} vendedores={vendedores} />}
+        {activeTab === 'stock-report' && <StockReportPanel role="owner" />}
       </div>
 
       {selectedOrder && (

@@ -113,6 +113,24 @@ const productService = {
         return client.get('/admin/products/inventory/export/pdf', {
             responseType: 'blob'
         });
+    },
+
+    // --- Stock Report (real inventory with committed stock context) ---
+
+    /**
+     * Full inventory stock report: stockEnBD, stockComprometido, stockFisicoReal.
+     * @param {'admin'|'owner'} role  Auth role prefix in the URL
+     */
+    getStockReport: async (role = 'admin') => {
+        return client.get(`/${role}/products/inventory/stock-report`);
+    },
+
+    /**
+     * Only products where stockEnBD < 0 (critical alerts).
+     * @param {'admin'|'owner'} role  Auth role prefix in the URL
+     */
+    getStockAlerts: async (role = 'admin') => {
+        return client.get(`/${role}/products/inventory/stock-alerts`);
     }
 };
 

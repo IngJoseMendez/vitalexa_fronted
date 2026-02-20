@@ -10,6 +10,7 @@ import ProductsPanel from '../components/ProductsPanel';
 import SpecialProductsPanel from '../components/SpecialProductsPanel';
 import SpecialPromotionsPanel from '../components/SpecialPromotionsPanel';
 import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
+import StockReportPanel from '../components/StockReportPanel';
 import AdminDiscountSection from '../components/AdminDiscountSection';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import EditOrderModal from '../components/modals/EditOrderModal';
@@ -84,6 +85,12 @@ function AdminDashboard() {
           <span className="material-icons-round">history</span> Historial Inventario
         </button>
         <button
+          className={activeTab === 'stock-report' ? 'active' : ''}
+          onClick={() => setActiveTab('stock-report')}
+        >
+          <span className="material-icons-round">warehouse</span> Stock Real
+        </button>
+        <button
           className={activeTab === 'clients' ? 'active' : ''}
           onClick={() => setActiveTab('clients')}
         >
@@ -120,6 +127,7 @@ function AdminDashboard() {
         {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'special-promotions' && <SpecialPromotionsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
+        {activeTab === 'stock-report' && <StockReportPanel role="admin" />}
         {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
         {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
