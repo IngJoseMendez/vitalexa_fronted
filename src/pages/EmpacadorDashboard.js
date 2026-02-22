@@ -1,413 +1,429 @@
 import { useState, useEffect, useCallback } from 'react';
-
-import client from '../api/client';
+import productService from '../api/productService';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import '../styles/EmpacadorDashboard.css';
 
-// ✅ PLACEHOLDER SVG
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
+// ============================================================
+//  EMPACADOR DASHBOARD — Solo visor de inventario (mobile-first)
+// ============================================================
 
 function EmpacadorDashboard() {
-    const [activeTab, setActiveTab] = useState('nuevo-reembolso');
-    // Shared state for cart to persist between tab switches if needed (optional)
-    const [cart, setCart] = useState([]);
-
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [lastUpdate, setLastUpdate] = useState(new Date());
 
     useEffect(() => {
-        // Connect to WebSocket using the Empacador role
         NotificationService.connect((notification) => {
             if (notification.type === 'INVENTORY_UPDATE') {
-                console.log("📦 Inventory update received, refreshing catalog...");
+                console.log('📦 Inventory update received, refreshing...');
                 setRefreshTrigger(Date.now());
+                setLastUpdate(new Date());
             }
         }, 'empacador');
-
-        return () => {
-            NotificationService.disconnect();
-        };
+        return () => NotificationService.disconnect();
     }, []);
 
+    const handleRefresh = () => {
+        setRefreshTrigger(Date.now());
+        setLastUpdate(new Date());
+    };
 
     return (
-        <div className="empacador-dashboard">
-            <nav className="dashboard-nav">
-                <button
-                    className={activeTab === 'nuevo-reembolso' ? 'active' : ''}
-                    onClick={() => setActiveTab('nuevo-reembolso')}
-                >
-                    <span className="material-icons-round">add_box</span> Nuevo Reembolso
-                </button>
-                <button
-                    className={activeTab === 'historial' ? 'active' : ''}
-                    onClick={() => setActiveTab('historial')}
-                >
-                    <span className="material-icons-round">history</span> Historial
-                </button>
-                <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+        <div className="emp-dashboard">
+            {/* ── Top Bar ── */}
+            <header className="emp-topbar">
+                <div className="emp-topbar-left">
+                    <span className="material-icons-round emp-logo-icon">inventory_2</span>
+                    <div>
+                        <h1 className="emp-title">Inventario</h1>
+                        <p className="emp-subtitle">
+                            Actualizado: {lastUpdate.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    </div>
+                </div>
+                <button className="emp-refresh-btn" onClick={handleRefresh} title="Actualizar inventario">
                     <span className="material-icons-round">sync</span>
                 </button>
-            </nav>
+            </header>
 
-            <div className="dashboard-content">
-                {activeTab === 'nuevo-reembolso' && (
-                    <NuevoReembolsoPanel
-                        cart={cart}
-                        setCart={setCart}
-                        refreshTrigger={refreshTrigger}
-                    />
-                )}
-                {activeTab === 'historial' && <HistorialReembolsosPanel key={refreshTrigger} />}
-            </div>
+            {/* ── Main Content ── */}
+            <main className="emp-main">
+                <InventarioPanel key={refreshTrigger} onRefresh={handleRefresh} />
+            </main>
         </div>
     );
 }
 
-// ============================================
-// PANEL NUEVO REEMBOLSO
-// ============================================
-function NuevoReembolsoPanel({ cart, setCart, refreshTrigger }) {
-    const [products, setProducts] = useState([]);
+// ============================================================
+//  PANEL PRINCIPAL DE INVENTARIO
+// ============================================================
+function InventarioPanel() {
+    const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [notas, setNotas] = useState('');
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    // ✅ CART DRAWER STATE
-    const [showCart, setShowCart] = useState(false);
-    // ✅ GRID CONTROL (1, 2, or 3 columns)
-    const [gridCols, setGridCols] = useState(2); // Default to 2 for mobile-first balance
+    const [search, setSearch] = useState('');
+    const [filter, setFilter] = useState('all');   // 'all' | 'alerts' | 'committed'
+    const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'list'
+    const [sortBy, setSortBy] = useState('nombre'); // 'nombre' | 'stock_asc' | 'stock_desc' | 'alerta'
     const toast = useToast();
 
-    const fetchProducts = useCallback(async () => {
+    const fetchInventario = useCallback(async () => {
+        setLoading(true);
         try {
-            const response = await client.get('/empacador/products');
-            setProducts(response.data);
+            // Endpoint propio del empacador (requiere ROLE_EMPACADOR)
+            const response = await productService.getStockReport('empacador');
+            setItems(response.data || []);
         } catch (error) {
-            console.error('Error al cargar productos:', error);
-            toast.error('Error al cargar catálogo de productos');
+            console.error('Error al cargar inventario:', error);
+            toast.error('Error al cargar inventario');
         } finally {
             setLoading(false);
         }
     }, [toast]);
 
     useEffect(() => {
-        fetchProducts();
-    }, [refreshTrigger, fetchProducts]);
+        fetchInventario();
+    }, [fetchInventario]);
 
-    const addToCart = (product) => {
-        const existingItem = cart.find(item => item.productoId === product.id);
+    // ── Derived data ──
+    const totalProductos = items.length;
+    const alertasCriticas = items.filter(i => i.alertaCritica || i.stockEnBD < 0).length;
+    const conComprometido = items.filter(i => i.stockComprometido > 0).length;
+    const totalUnidades = items.reduce((acc, i) => {
+        const f = i.stockFisicoReal != null
+            ? i.stockFisicoReal
+            : (Number(i.stockEnBD) || 0) + (Number(i.stockComprometido) || 0);
+        return acc + f;
+    }, 0);
 
-        if (existingItem) {
-            if (existingItem.cantidad >= product.stock) {
-                toast.warning('No hay suficiente stock disponible');
-                return;
-            }
-            setCart(cart.map(item =>
-                item.productoId === product.id
-                    ? { ...item, cantidad: item.cantidad + 1 }
-                    : item
-            ));
-        } else {
-            setCart([...cart, {
-                productoId: product.id,
-                nombre: product.nombre,
-                precio: product.precio,
-                imageUrl: product.imageUrl,
-                cantidad: 1,
-                stockDisponible: product.stock
-            }]);
+    // ── Filter ──
+    let filtered = items.filter(i => {
+        if (filter === 'alerts') return i.alertaCritica || i.stockEnBD < 0;
+        if (filter === 'committed') return i.stockComprometido > 0;
+        return true;
+    });
+
+    // ── Search ──
+    if (search.trim()) {
+        filtered = filtered.filter(i =>
+            (i.nombre || '').toLowerCase().includes(search.toLowerCase())
+        );
+    }
+
+    // ── Sort ──
+    filtered = [...filtered].sort((a, b) => {
+        if (sortBy === 'stock_asc') {
+            const fa = getBodega(a), fb = getBodega(b);
+            return fa - fb;
         }
-    };
-
-    const removeFromCart = (productId) => {
-        setCart(cart.filter(item => item.productoId !== productId));
-    };
-
-    const updateQuantity = (productId, newQuantity) => {
-        const item = cart.find(i => i.productoId === productId);
-        if (!item) return;
-
-        if (newQuantity > item.stockDisponible) {
-            toast.warning('No hay suficiente stock disponible');
-            return;
+        if (sortBy === 'stock_desc') {
+            const fa = getBodega(a), fb = getBodega(b);
+            return fb - fa;
         }
-
-        if (newQuantity <= 0) {
-            removeFromCart(productId);
-            return;
+        if (sortBy === 'alerta') {
+            return (b.alertaCritica ? 1 : 0) - (a.alertaCritica ? 1 : 0);
         }
-
-        setCart(cart.map(item =>
-            item.productoId === productId
-                ? { ...item, cantidad: newQuantity }
-                : item
-        ));
-    };
-
-    const calculateTotalItems = () => {
-        return cart.reduce((sum, item) => sum + item.cantidad, 0);
-    };
-
-    const handleConfirmReembolso = async () => {
-        try {
-            const request = {
-                items: cart.map(item => ({
-                    productoId: item.productoId,
-                    cantidad: item.cantidad
-                })),
-                notas: notas
-            };
-
-            await client.post('/empacador/reembolsos', request);
-            toast.success('Reembolso creado exitosamente');
-
-            setCart([]);
-            setNotas('');
-            setShowConfirmModal(false);
-            fetchProducts(); // Refresh stock immediately
-        } catch (error) {
-            console.error('Error al crear reembolso:', error);
-            toast.error('Error al crear reembolso: ' + (error.response?.data?.message || 'Error desconocido'));
-        }
-    };
-
-    const filteredProducts = products.filter(p =>
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+        return (a.nombre || '').localeCompare(b.nombre || '');
+    });
 
     return (
-        <div className="nuevo-reembolso-panel">
-            {/* ✅ FLOATING CART BUTTON (Mobile) */}
-            <button
-                className={`floating-cart-button ${cart.length > 0 ? 'has-items' : ''}`}
-                onClick={() => setShowCart(true)}
-            >
-                <span className="material-icons-round">shopping_cart</span>
-                {cart.length > 0 && <span className="cart-badge">{calculateTotalItems()}</span>}
-            </button>
+        <div className="emp-inv-panel">
 
-            {/* ✅ CART DRAWER OVERLAY */}
-            {showCart && (
-                <div className="cart-drawer-overlay" onClick={() => setShowCart(false)}></div>
-            )}
-
-            {/* SECCION IZQUIERDA - CATALOGO */}
-            <div className="catalog-section">
-                <div className="catalog-header">
-                    <h3>Productos Disponibles</h3>
-                    <div className="search-container">
-                        <span className="material-icons-round search-icon">search</span>
-                        <input
-                            type="text"
-                            placeholder="Buscar productos..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="search-input"
-                        />
-                    </div>
-
-                    {/* ✅ GRID CONTROLS */}
-                    <div className="grid-controls">
-                        <button
-                            className={`grid-btn ${gridCols === 1 ? 'active' : ''}`}
-                            onClick={() => setGridCols(1)}
-                            title="1 Columna"
-                        >
-                            <span className="material-icons-round">view_agenda</span>
-                        </button>
-                        <button
-                            className={`grid-btn ${gridCols === 2 ? 'active' : ''}`}
-                            onClick={() => setGridCols(2)}
-                            title="2 Columnas"
-                        >
-                            <span className="material-icons-round">grid_view</span>
-                        </button>
-                        <button
-                            className={`grid-btn ${gridCols === 3 ? 'active' : ''}`}
-                            onClick={() => setGridCols(3)}
-                            title="3 Columnas"
-                        >
-                            <span className="material-icons-round">view_module</span>
-                        </button>
-                    </div>
-                </div>
-
-                {loading ? (
-                    <div className="loading">Cargando productos...</div>
-                ) : (
-                    <div className={`products-grid cols-${gridCols}`}>
-                        {filteredProducts.map(product => (
-                            <div key={product.id} className="product-card">
-                                <img
-                                    src={product.imageUrl || PLACEHOLDER_IMAGE}
-                                    alt={product.nombre}
-                                    onError={(e) => { e.target.src = PLACEHOLDER_IMAGE }}
-                                    loading="lazy"
-                                />
-                                <div className="product-info">
-                                    <h4>{product.nombre}</h4>
-                                    <p className="product-stock">Stock: {product.stock}</p>
-                                    <button
-                                        onClick={() => addToCart(product)}
-                                        className="btn-add-cart"
-                                    >
-                                        + Agregar
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        {filteredProducts.length === 0 && (
-                            <div className="empty-search">No se encontraron productos</div>
-                        )}
-                    </div>
-                )}
+            {/* ── Summary Cards ── */}
+            <div className="emp-stats-row">
+                <StatCard icon="category" label="Productos" value={totalProductos} color="#6366f1" bg="#eef2ff" />
+                <StatCard icon="layers" label="Total Unidades" value={totalUnidades} color="#0ea5e9" bg="#e0f2fe" />
+                <StatCard
+                    icon="warning_amber"
+                    label="Alertas"
+                    value={alertasCriticas}
+                    color={alertasCriticas > 0 ? '#dc2626' : '#16a34a'}
+                    bg={alertasCriticas > 0 ? '#fef2f2' : '#f0fdf4'}
+                    onClick={() => setFilter(filter === 'alerts' ? 'all' : 'alerts')}
+                    active={filter === 'alerts'}
+                />
+                <StatCard
+                    icon="local_shipping"
+                    label="En Pedidos"
+                    value={conComprometido}
+                    color="#d97706"
+                    bg="#fffbeb"
+                    onClick={() => setFilter(filter === 'committed' ? 'all' : 'committed')}
+                    active={filter === 'committed'}
+                />
             </div>
 
-            {/* SECCION DERECHA - CARRITO */}
-            <div className={`cart-section ${showCart ? 'cart-drawer-open' : ''}`}>
-                <div className="cart-header">
-                    <h3>
-                        <span className="material-icons-round">shopping_cart</span>
-                        Carrito ({calculateTotalItems()})
-                    </h3>
-                    <button className="close-cart-drawer" onClick={() => setShowCart(false)}>
-                        <span className="material-icons-round">close</span> Cerrar
-                    </button>
-                </div>
-
-                <div className="cart-items-container">
-                    {cart.length === 0 ? (
-                        <div className="empty-cart-state">
-                            <span className="material-icons-round">remove_shopping_cart</span>
-                            <p>Selecciona productos para agregar al reembolso</p>
-                        </div>
-                    ) : (
-                        <div className="cart-list">
-                            {cart.map(item => (
-                                <div key={item.productoId} className="cart-item">
-                                    <div className="item-details">
-                                        <h5>{item.nombre}</h5>
-                                        <span className="item-price">Stock Max: {item.stockDisponible}</span>
-                                    </div>
-                                    <div className="item-controls">
-                                        <button onClick={() => updateQuantity(item.productoId, item.cantidad - 1)}>-</button>
-                                        <span className="quantity">{item.cantidad}</span>
-                                        <button onClick={() => updateQuantity(item.productoId, item.cantidad + 1)}>+</button>
-                                        <button className="btn-remove" onClick={() => removeFromCart(item.productoId)}>
-                                            <span className="material-icons-round">close</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+            {/* ── Controls ── */}
+            <div className="emp-controls">
+                {/* Buscador */}
+                <div className="emp-search-wrap">
+                    <span className="material-icons-round emp-search-icon">search</span>
+                    <input
+                        className="emp-search-input"
+                        type="text"
+                        placeholder="Buscar producto..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                    {search && (
+                        <button className="emp-clear-btn" onClick={() => setSearch('')}>
+                            <span className="material-icons-round">close</span>
+                        </button>
                     )}
                 </div>
 
-                <div className="cart-footer">
-                    <div className="form-group">
-                        <label>Notas (Opcional)</label>
-                        <textarea
-                            value={notas}
-                            onChange={(e) => setNotas(e.target.value)}
-                            placeholder="Razón del reembolso, # de envío, etc."
-                            rows="3"
-                        />
+                {/* Fila de controles secundarios */}
+                <div className="emp-controls-row">
+                    {/* Filtros rápidos */}
+                    <div className="emp-filter-chips">
+                        <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} icon="apps">Todos</FilterChip>
+                        <FilterChip active={filter === 'alerts'} danger onClick={() => setFilter(filter === 'alerts' ? 'all' : 'alerts')} icon="error_outline">
+                            Alertas {alertasCriticas > 0 && `(${alertasCriticas})`}
+                        </FilterChip>
+                        <FilterChip active={filter === 'committed'} warning onClick={() => setFilter(filter === 'committed' ? 'all' : 'committed')} icon="local_shipping">
+                            En pedidos {conComprometido > 0 && `(${conComprometido})`}
+                        </FilterChip>
                     </div>
 
-                    <div className="cart-summary">
-                        <span>Total Items: <strong>{calculateTotalItems()}</strong></span>
-                    </div>
+                    {/* Sort + View toggle */}
+                    <div className="emp-right-controls">
+                        <select
+                            className="emp-sort-select"
+                            value={sortBy}
+                            onChange={e => setSortBy(e.target.value)}
+                        >
+                            <option value="nombre">A → Z</option>
+                            <option value="stock_desc">Mayor stock</option>
+                            <option value="stock_asc">Menor stock</option>
+                            <option value="alerta">Alertas primero</option>
+                        </select>
 
-                    <button
-                        className="btn-confirm-action"
-                        disabled={cart.length === 0}
-                        onClick={() => setShowConfirmModal(true)}
-                    >
-                        Confirmar Reembolso
-                    </button>
+                        <div className="emp-view-toggle">
+                            <button
+                                className={viewMode === 'cards' ? 'active' : ''}
+                                onClick={() => setViewMode('cards')}
+                                title="Vista tarjetas"
+                            >
+                                <span className="material-icons-round">grid_view</span>
+                            </button>
+                            <button
+                                className={viewMode === 'list' ? 'active' : ''}
+                                onClick={() => setViewMode('list')}
+                                title="Vista lista"
+                            >
+                                <span className="material-icons-round">view_list</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
+
+                {/* Contador de resultados */}
+                <p className="emp-result-count">
+                    {loading ? 'Cargando...' : `${filtered.length} producto${filtered.length !== 1 ? 's' : ''}`}
+                    {filter !== 'all' || search ? (
+                        <button className="emp-reset-filter" onClick={() => { setFilter('all'); setSearch(''); }}>
+                            Limpiar filtros
+                        </button>
+                    ) : null}
+                </p>
             </div>
 
-            {/* MODAL CONFIRMACION */}
-            {showConfirmModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <h3>Confirmar Reembolso</h3>
-                        <p>¿Estás seguro de crear este reembolso? <br /> <strong>Se descontarán {calculateTotalItems()} items del inventario.</strong></p>
-
-                        <div className="modal-list-preview">
-                            <ul>
-                                {cart.map(i => <li key={i.productoId}>{i.nombre} (x{i.cantidad})</li>)}
-                            </ul>
-                        </div>
-
-                        <div className="modal-actions">
-                            <button className="btn-cancel" onClick={() => setShowConfirmModal(false)}>Cancelar</button>
-                            <button className="btn-confirm" onClick={handleConfirmReembolso}>Confirmar</button>
-                        </div>
-                    </div>
+            {/* ── Content ── */}
+            {loading ? (
+                <div className="emp-loading">
+                    <span className="material-icons-round emp-spin">hourglass_top</span>
+                    <p>Cargando inventario...</p>
+                </div>
+            ) : filtered.length === 0 ? (
+                <div className="emp-empty">
+                    <span className="material-icons-round">
+                        {filter === 'alerts' ? 'check_circle' : 'search_off'}
+                    </span>
+                    <p>
+                        {filter === 'alerts'
+                            ? '¡Sin alertas críticas! Inventario en orden.'
+                            : search
+                                ? `Sin resultados para "${search}"`
+                                : 'No hay productos en inventario.'}
+                    </p>
+                </div>
+            ) : viewMode === 'cards' ? (
+                <div className="emp-cards-grid">
+                    {filtered.map(item => (
+                        <ProductCardMobile key={item.productId} item={item} />
+                    ))}
+                </div>
+            ) : (
+                <div className="emp-list">
+                    {filtered.map(item => (
+                        <ProductRowMobile key={item.productId} item={item} />
+                    ))}
                 </div>
             )}
 
+            {/* ── Leyenda ── */}
+            {!loading && filtered.length > 0 && (
+                <div className="emp-legend">
+                    <span className="emp-legend-item">
+                        <span className="material-icons-round" style={{ color: '#dc2626', fontSize: '14px' }}>circle</span>
+                        Stock negativo
+                    </span>
+                    <span className="emp-legend-item">
+                        <span className="material-icons-round" style={{ color: '#d97706', fontSize: '14px' }}>circle</span>
+                        Stock = 0
+                    </span>
+                    <span className="emp-legend-item">
+                        <span className="material-icons-round" style={{ color: '#16a34a', fontSize: '14px' }}>circle</span>
+                        Stock positivo
+                    </span>
+                    <span className="emp-legend-item">
+                        <span className="material-icons-round" style={{ color: '#d97706', fontSize: '14px' }}>local_shipping</span>
+                        En pedidos activos
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
 
-// ============================================
-// PANEL HISTORIAL
-// ============================================
-function HistorialReembolsosPanel() {
-    const [reembolsos, setReembolsos] = useState([]);
-    const [loading, setLoading] = useState(true);
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-    const fetchHistory = useCallback(async () => {
-        try {
-            const response = await client.get('/empacador/reembolsos');
-            setReembolsos(response.data);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+function getBodega(item) {
+    return item.stockFisicoReal != null
+        ? item.stockFisicoReal
+        : (Number(item.stockEnBD) || 0) + (Number(item.stockComprometido) || 0);
+}
 
-    useEffect(() => {
-        fetchHistory();
-    }, [fetchHistory]);
+function getSistemaIcon(val) {
+    if (val < 0) return <span className="material-icons-round" style={{ fontSize: '14px', color: '#dc2626' }}>cancel</span>;
+    if (val === 0) return <span className="material-icons-round" style={{ fontSize: '14px', color: '#d97706' }}>warning_amber</span>;
+    return <span className="material-icons-round" style={{ fontSize: '14px', color: '#16a34a' }}>check_circle</span>;
+}
 
-    if (loading) return <div className="loading">Cargando historial...</div>;
+function getSistemaColor(val) {
+    if (val < 0) return '#dc2626';
+    if (val === 0) return '#d97706';
+    return '#16a34a';
+}
+
+// ── Sub-componentes ───────────────────────────────────────────────────────────
+
+function StatCard({ icon, label, value, color, bg, onClick, active }) {
+    return (
+        <div
+            className={`emp-stat-card${onClick ? ' clickable' : ''}${active ? ' active' : ''}`}
+            style={{ '--stat-color': color, '--stat-bg': bg }}
+            onClick={onClick}
+        >
+            <span className="material-icons-round emp-stat-icon">{icon}</span>
+            <div className="emp-stat-value">{value}</div>
+            <div className="emp-stat-label">{label}</div>
+        </div>
+    );
+}
+
+function FilterChip({ active, danger, warning, onClick, icon, children }) {
+    let cls = 'emp-chip';
+    if (active && danger) cls += ' active-danger';
+    else if (active && warning) cls += ' active-warning';
+    else if (active) cls += ' active';
+    return (
+        <button className={cls} onClick={onClick}>
+            {icon && <span className="material-icons-round" style={{ fontSize: '14px' }}>{icon}</span>}
+            {children}
+        </button>
+    );
+}
+
+// Vista TARJETAS (2 columnas en móvil)
+function ProductCardMobile({ item }) {
+    const bodega = getBodega(item);
+    const sistema = item.stockEnBD;
+    const comprometido = item.stockComprometido || 0;
+    const isCritical = item.alertaCritica || sistema < 0;
+    const hasCommitted = comprometido > 0;
+
+    // Barra de stock visual
+    const maxStock = Math.max(bodega, 1);
+    const pct = Math.min(100, Math.max(0, (bodega / maxStock) * 100));
+    const barColor = sistema < 0 ? '#dc2626' : sistema === 0 ? '#d97706' : bodega < 5 ? '#f59e0b' : '#10b981';
 
     return (
-        <div className="historial-panel">
-            <h2>Historial de Reembolsos</h2>
-            {reembolsos.length === 0 ? (
-                <div className="empty-state">No has realizado reembolsos aún.</div>
-            ) : (
-                <div className="reembolsos-list">
-                    {reembolsos.map(r => (
-                        <div key={r.id} className="reembolso-card">
-                            <div className="reembolso-header">
-                                <span className="reembolso-id">#{r.id}</span>
-                                <span className="reembolso-date">{new Date(r.fecha).toLocaleString()}</span>
-                                <span className="reembolso-status">{r.estado}</span>
-                            </div>
-                            <div className="reembolso-body">
-                                <p><strong>Notas:</strong> {r.notas || 'Sin notas'}</p>
-                                <details>
-                                    <summary>Ver {r.items.length} productos</summary>
-                                    <ul>
-                                        {r.items.map((item, idx) => (
-                                            <li key={idx}>{item.productoNombre} - Cantidad: {item.cantidad}</li>
-                                        ))}
-                                    </ul>
-                                </details>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+        <div className={`emp-pcard${isCritical ? ' critical' : hasCommitted ? ' committed' : ''}`}>
+            {/* Status badge */}
+            {isCritical && (
+                <span className="emp-badge danger">
+                    <span className="material-icons-round" style={{ fontSize: '12px' }}>error</span>
+                    Alerta
+                </span>
             )}
+            {!isCritical && hasCommitted && (
+                <span className="emp-badge warning">
+                    <span className="material-icons-round" style={{ fontSize: '12px' }}>local_shipping</span>
+                    Pedidos
+                </span>
+            )}
+
+            <div className="emp-pcard-name">{item.nombre}</div>
+            <div className="emp-pcard-id">{item.productId?.substring(0, 8)}…</div>
+
+            {/* Barra visual */}
+            <div className="emp-stock-bar-wrap">
+                <div className="emp-stock-bar">
+                    <div className="emp-stock-fill" style={{ width: `${pct}%`, background: barColor }} />
+                </div>
+            </div>
+
+            {/* Números */}
+            <div className="emp-pcard-nums">
+                <div className="emp-pcard-num">
+                    <span className="emp-num-label">Bodega</span>
+                    <span className="emp-num-value" style={{ color: barColor }}>{bodega}</span>
+                </div>
+                {hasCommitted && (
+                    <div className="emp-pcard-num">
+                        <span className="emp-num-label">Pedidos</span>
+                        <span className="emp-num-value" style={{ color: '#d97706' }}>{comprometido}</span>
+                    </div>
+                )}
+                <div className="emp-pcard-num">
+                    <span className="emp-num-label">Sistema</span>
+                    <span className="emp-num-value" style={{ color: getSistemaColor(sistema) }}>
+                        {getSistemaIcon(sistema)} {sistema}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Vista LISTA (más compacta, buena para auditar rápido)
+function ProductRowMobile({ item }) {
+    const bodega = getBodega(item);
+    const sistema = item.stockEnBD;
+    const comprometido = item.stockComprometido || 0;
+    const isCritical = item.alertaCritica || sistema < 0;
+
+    return (
+        <div className={`emp-prow${isCritical ? ' critical' : comprometido > 0 ? ' committed' : ''}`}>
+            <div className="emp-prow-left">
+                <div className="emp-prow-dot" style={{ background: getSistemaColor(sistema) }} />
+                <div>
+                    <div className="emp-prow-name">{item.nombre}</div>
+                    <div className="emp-prow-id">{item.productId?.substring(0, 8)}…</div>
+                </div>
+            </div>
+            <div className="emp-prow-nums">
+                <span className="emp-prow-badge bodega">{bodega}</span>
+                {comprometido > 0 && (
+                    <span className="emp-prow-badge ped">
+                        <span className="material-icons-round" style={{ fontSize: '12px' }}>local_shipping</span>
+                        {comprometido}
+                    </span>
+                )}
+                <span className="emp-prow-badge sistema" style={{ color: getSistemaColor(sistema) }}>
+                    {getSistemaIcon(sistema)}{sistema}
+                </span>
+            </div>
         </div>
     );
 }
