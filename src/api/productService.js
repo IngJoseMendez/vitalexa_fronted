@@ -115,14 +115,21 @@ const productService = {
         });
     },
 
-    // --- Stock Report (real inventory with committed stock context) ---
+    // --- Stock Report (role-specific) ---
 
     /**
      * Full inventory stock report: stockEnBD, stockComprometido, stockFisicoReal.
-     * @param {'admin'|'owner'} role  Auth role prefix in the URL
+     * @param {'admin'|'owner'|'empacador'} role  Auth role prefix in the URL
      */
     getStockReport: async (role = 'admin') => {
         return client.get(`/${role}/products/inventory/stock-report`);
+    },
+
+    /**
+     * Explicit helper for empacador frontend to call the correct endpoint.
+     */
+    getStockReportForEmpacador: async () => {
+        return client.get('/empacador/products/inventory/stock-report');
     },
 
     /**

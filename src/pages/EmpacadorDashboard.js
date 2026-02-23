@@ -70,11 +70,11 @@ function InventarioPanel() {
         setLoading(true);
         try {
             // Endpoint propio del empacador (requiere ROLE_EMPACADOR)
-            const response = await productService.getStockReport('empacador');
+            const response = await productService.getStockReportForEmpacador();
             setItems(response.data || []);
         } catch (error) {
             console.error('Error al cargar inventario:', error);
-            toast.error('Error al cargar inventario');
+            toast.error('Error al cargar inventario: ' + (error.response?.data?.message || error.message));
         } finally {
             setLoading(false);
         }

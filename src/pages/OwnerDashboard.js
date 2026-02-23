@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatCompactCurrency } from '../utils/formatters';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
@@ -1574,7 +1574,10 @@ function TopProductsChart({ data }) {
     <div className="top-products-chart">
       {data.map((product, idx) => (
         <div key={idx} className="product-bar-row">
-          <div className="product-name">{product.productName}</div>
+          <div className="product-info-col">
+            <div className="product-name">{product.productName}</div>
+            <div className="product-amount">${formatCurrency(product.revenue)}</div>
+          </div>
           <div className="product-bar-container">
             <div
               className="product-bar"
@@ -1585,7 +1588,6 @@ function TopProductsChart({ data }) {
               <span className="bar-text">{product.quantitySold} unidades</span>
             </div>
           </div>
-          <div className="product-amount">${formatCurrency(product.revenue)}</div>
         </div>
       ))}
     </div>
@@ -1657,11 +1659,21 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
                   <div className="goal-stats">
                     <div className="stat">
                       <span className="label">Meta:</span>
-                      <span className="value">${formatCurrency(vendedor.currentGoal.targetAmount)}</span>
+                      <span
+                        className="value"
+                        title={`$${formatCurrency(vendedor.currentGoal.targetAmount)}`}
+                      >
+                        ${formatCompactCurrency(vendedor.currentGoal.targetAmount)}
+                      </span>
                     </div>
                     <div className="stat">
                       <span className="label">Actual:</span>
-                      <span className="value">${formatCurrency(vendedor.currentGoal.currentAmount)}</span>
+                      <span
+                        className="value"
+                        title={`$${formatCurrency(vendedor.currentGoal.currentAmount)}`}
+                      >
+                        ${formatCompactCurrency(vendedor.currentGoal.currentAmount)}
+                      </span>
                     </div>
                   </div>
 

@@ -484,10 +484,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           <div className="products-header">
             <h3>Productos Disponibles</h3>
             <div className="products-header-toolbar">
-
-              {/* ✅ Mode Toggle aligned */}
-
-
+              {/* ✅ Grid columns selector */}
               <div className="grid-columns-selector">
                 {[1, 2, 3].map(cols => (
                   <button
@@ -2065,7 +2062,7 @@ function MisMetasPanel() {
                 {parseFloat(currentGoal.percentage) >= 25 && parseFloat(currentGoal.percentage) < 50 && (
                   <>
                     <span className="material-icons-round">directions_run</span>
-                    <p>¡Buen ritmo! Ya llevas el 25% de tu meta.</p>
+                    <p>¡Buen ritmo! Ya llevas el {parseFloat(currentGoal.percentage).toFixed(1)}% de tu meta.</p>
                   </>
                 )}
                 {parseFloat(currentGoal.percentage) >= 50 && parseFloat(currentGoal.percentage) < 75 && (

@@ -45,74 +45,98 @@ function AdminDashboard() {
         <button
           className={activeTab === 'orders' ? 'active' : ''}
           onClick={() => setActiveTab('orders')}
+          title="Órdenes"
         >
-          <span className="material-icons-round">assignment</span> Órdenes
+          <span className="material-icons-round">assignment</span>
+          <span className="nav-label">Órdenes</span>
         </button>
         <button
           className={activeTab === 'nueva-venta' ? 'active' : ''}
           onClick={() => setActiveTab('nueva-venta')}
+          title="Nueva Venta"
         >
-          <span className="material-icons-round">add_shopping_cart</span> Nueva Venta
+          <span className="material-icons-round">add_shopping_cart</span>
+          <span className="nav-label">Nueva Venta</span>
         </button>
         <button
           className={activeTab === 'products' ? 'active' : ''}
           onClick={() => setActiveTab('products')}
+          title="Productos"
         >
-          <span className="material-icons-round">inventory_2</span> Productos
+          <span className="material-icons-round">inventory_2</span>
+          <span className="nav-label">Productos</span>
         </button>
         <button
           className={activeTab === 'special-products' ? 'active' : ''}
           onClick={() => setActiveTab('special-products')}
+          title="Especiales"
         >
-          <span className="material-icons-round">star</span> Especiales
+          <span className="material-icons-round">star</span>
+          <span className="nav-label">Especiales</span>
         </button>
         <button
           className={activeTab === 'special-promotions' ? 'active' : ''}
           onClick={() => setActiveTab('special-promotions')}
+          title="Promociones Especiales"
         >
-          <span className="material-icons-round">stars</span> Promociones Especiales
+          <span className="material-icons-round">stars</span>
+          <span className="nav-label">Promociones Especiales</span>
         </button>
         <button
           className={activeTab === 'promotions' ? 'active' : ''}
           onClick={() => setActiveTab('promotions')}
+          title="Promociones"
         >
-          <span className="material-icons-round">card_giftcard</span> Promociones
+          <span className="material-icons-round">card_giftcard</span>
+          <span className="nav-label">Promociones</span>
         </button>
         <button
           className={activeTab === 'inventory-history' ? 'active' : ''}
           onClick={() => setActiveTab('inventory-history')}
+          title="Historial Inventario"
         >
-          <span className="material-icons-round">history</span> Historial Inventario
+          <span className="material-icons-round">history</span>
+          <span className="nav-label">Historial Inventario</span>
         </button>
         <button
           className={activeTab === 'stock-report' ? 'active' : ''}
           onClick={() => setActiveTab('stock-report')}
+          title="Stock Real"
         >
-          <span className="material-icons-round">warehouse</span> Stock Real
+          <span className="material-icons-round">warehouse</span>
+          <span className="nav-label">Stock Real</span>
         </button>
         <button
           className={activeTab === 'clients' ? 'active' : ''}
           onClick={() => setActiveTab('clients')}
+          title="Clientes"
         >
-          <span className="material-icons-round">people</span> Clientes
+          <span className="material-icons-round">people</span>
+          <span className="nav-label">Clientes</span>
         </button>
         <button
           className={activeTab === 'tags' ? 'active' : ''}
           onClick={() => setActiveTab('tags')}
+          title="Etiquetas"
         >
-          <span className="material-icons-round">local_offer</span> Etiquetas
+          <span className="material-icons-round">local_offer</span>
+          <span className="nav-label">Etiquetas</span>
         </button>
         <button
           className={activeTab === 'reports' ? 'active' : ''}
           onClick={() => setActiveTab('reports')}
+          title="Reportes"
         >
-          <span className="material-icons-round">analytics</span> Reportes
+          <span className="material-icons-round">analytics</span>
+          <span className="nav-label">Reportes</span>
         </button>
         <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
+          title="Saldos"
         >
-          <span className="material-icons-round">account_balance_wallet</span> Saldos
+          <span className="material-icons-round">account_balance_wallet</span>
+          <span className="nav-label">Saldos</span>
         </button>
       </nav>
 
@@ -832,8 +856,9 @@ function OrdersPanel({ refreshTrigger }) {
                               )}
                             </div>
                             {item.promotionName && (
-                              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>
-                                🎁 {item.promotionName}
+                              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                <span className="material-icons-round" style={{ fontSize: '12px', color: '#f59e0b' }}>card_giftcard</span>
+                                {item.promotionName}
                               </span>
                             )}
                             {item.outOfStock && item.estimatedArrivalDate && (
@@ -1549,7 +1574,7 @@ function AdminNuevaVentaPanel() {
           {bonifiedCart.length > 0 && (
             <div className="cart-group" style={{ border: '1px solid #bbf7d0' }}>
               <div className="cart-group-header" style={{ color: '#15803d', background: '#f0fdf4', borderBottomColor: '#dcfce7' }}>
-                🎁 Regalos
+                <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>card_giftcard</span> Regalos
               </div>
               {bonifiedCart.map(item => (
                 <div key={item.productId} className="cart-item" style={{ background: '#f0fdf4' }}>

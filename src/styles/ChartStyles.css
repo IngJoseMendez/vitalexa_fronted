@@ -174,10 +174,10 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.03);
     border: 2px solid rgba(0, 0, 0, 0.02);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 1.75rem;
+    padding: 1.25rem 1.5rem;
     display: flex;
     align-items: center;
-    gap: 1.75rem;
+    gap: 1.25rem;
     position: relative;
 }
 
@@ -203,15 +203,36 @@
     border-color: rgba(16, 185, 129, 0.3);
 }
 
+/* Columna izquierda: nombre + monto apilados */
+.product-info-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 130px;
+    max-width: 160px;
+    flex-shrink: 0;
+}
+
 .product-name {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--text-main);
-    min-width: 180px;
-    max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.product-amount {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #059669;
+    white-space: nowrap;
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    padding: 0.25rem 0.65rem;
+    border-radius: 99px;
+    border: 1.5px solid #86efac;
+    display: inline-block;
+    width: fit-content;
 }
 
 .product-bar-container {
@@ -233,7 +254,7 @@
     display: flex;
     align-items: center;
     padding: 0 1.25rem;
-    min-width: 100px;
+    min-width: 60px;
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
     position: relative;
     overflow: hidden;
@@ -242,37 +263,19 @@
 .product-bar::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.4) 50%,
-            transparent 100%);
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 50%, transparent 100%);
     animation: shimmer 2.5s infinite;
 }
 
 .bar-text {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 800;
     color: white;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     position: relative;
     z-index: 1;
-}
-
-.product-amount {
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: #10b981;
     white-space: nowrap;
-    min-width: 140px;
-    text-align: right;
-    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-    padding: 0.5rem 1rem;
-    border-radius: 99px;
-    border: 2px solid #86efac;
 }
 
 .top-products-chart .no-data {

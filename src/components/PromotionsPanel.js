@@ -83,6 +83,13 @@ function PromotionsPanel() {
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
+        // Evitar bug UTC: "2026-02-14" interpretado como UTC medianoche
+        // muestra el día anterior en zonas UTC-5 (Colombia).
+        if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            const [year, month, day] = dateString.split('-');
+            return new Date(Number(year), Number(month) - 1, Number(day))
+                .toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
         return new Date(dateString).toLocaleDateString('es-ES', {
             year: 'numeric',
             month: 'short',

@@ -71,8 +71,110 @@
   }
 }
 
-.dashboard-nav button .material-icons-round {
-  font-size: 20px;
+/* NAV BUTTONS: apariencia mejorada, iconos y etiquetas */
+.admin-dashboard .dashboard-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  height: 40px;
+  box-shadow: none;
+}
+
+.admin-dashboard .dashboard-nav button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  color: var(--primary-dark);
+}
+
+.admin-dashboard .dashboard-nav button .material-icons-round {
+  font-size: 18px;
+  color: var(--primary);
+}
+
+.admin-dashboard .dashboard-nav button.active {
+  background: linear-gradient(90deg, rgba(99,102,241,0.12), rgba(124,58,237,0.06));
+  border-color: rgba(99,102,241,0.18);
+  color: var(--primary-dark);
+  box-shadow: 0 6px 18px rgba(99,102,241,0.12);
+}
+
+/* Etiqueta al lado del icono; en móvil vamos a ocultarla dejando solo icono */
+.admin-dashboard .dashboard-nav .nav-label {
+  display: inline-block;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Botón de refrescar flotante pequeño */
+.btn-refresh-dashboard {
+  position: fixed;
+  right: 18px;
+  top: 88px;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.06);
+  cursor: pointer;
+  z-index: 120;
+}
+
+.btn-refresh-dashboard .material-icons-round {
+  color: var(--primary);
+}
+
+/* Responsive: en pantallas pequeñas mostrar solo iconos (mas espacio) */
+@media (max-width: 640px) {
+  .admin-dashboard .dashboard-nav {
+    padding: 0.5rem 0.75rem;
+    gap: 0.35rem;
+  }
+
+  .admin-dashboard .dashboard-nav button {
+    padding: 0.45rem 0.6rem;
+    height: 40px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+
+  /* Ocultar labels manteniendo el title para accesibilidad */
+  .admin-dashboard .dashboard-nav .nav-label {
+    display: none;
+  }
+
+  .btn-refresh-dashboard {
+    top: 74px;
+    right: 12px;
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Small tweak for very wide nav: keep buttons compact but readable */
+@media (min-width: 1024px) {
+  .admin-dashboard .dashboard-nav {
+    padding: 0.9rem 2rem;
+    gap: 0.6rem;
+  }
+}
+
+/* Accessibility: focus style */
+.admin-dashboard .dashboard-nav button:focus-visible {
+  outline: 3px solid rgba(99,102,241,0.18);
+  outline-offset: 2px;
 }
 
 /* MAIN CONTENT */
@@ -1331,6 +1433,46 @@
 }
 
 @media (max-width: 640px) {
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .panel-header h2 {
+    width: 100%;
+    font-size: 1.4rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+
+  .search-input {
+    width: 100%;
+    font-size: 1rem;
+  }
+
+  .grid-columns-selector {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .grid-btn {
+    flex: 1;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
   }
@@ -1345,16 +1487,11 @@
   }
 }
 
-/* === TAGS PANEL STYLES (CONSOLIDATED) - Responsive Version === */
-.tags-panel {
-  animation: fadeIn 0.3s ease-in;
-}
-
+/* === TAGS PANEL STYLES === */
 .tags-table-container {
   background: white;
   border-radius: 1.5rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
   margin-top: 1rem;
@@ -1364,7 +1501,6 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  min-width: 400px;
 }
 
 .modern-table th {
@@ -1376,14 +1512,12 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 2px solid var(--border);
-  white-space: nowrap;
 }
 
 .modern-table td {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
-  word-break: break-word;
 }
 
 .modern-table tr:last-child td {
@@ -1400,16 +1534,13 @@
   gap: 0.75rem;
   font-weight: 600;
   color: var(--text-main);
-  flex-wrap: wrap;
 }
 
 .tag-dot {
   width: 8px;
   height: 8px;
-  min-width: 8px;
   border-radius: 50%;
   background: var(--primary);
-  flex-shrink: 0;
 }
 
 .tag-dot.sr {
@@ -1423,7 +1554,6 @@
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .tag-type-badge.system {
