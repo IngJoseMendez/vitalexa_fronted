@@ -41,6 +41,11 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [freightProductSearch, setFreightProductSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [hasChanges, setHasChanges] = useState(false);
+    // ── Agregar promociones a orden de promoción ──────────────────
+    const [availablePromotions, setAvailablePromotions] = useState([]);
+    const [promoSearch, setPromoSearch] = useState('');
+    const [promoQueue, setPromoQueue] = useState([]); // [{ id, nombre, qty }]
+    const [addingPromos, setAddingPromos] = useState(false);
     const toast = useToast();
 
     useEffect(() => {
@@ -52,11 +57,21 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         try {
             const [clientsRes, productsRes] = await Promise.all([
                 client.get('/admin/clients'),
-                client.get('/admin/products') // Changed to /admin/products to match EditOrderWindow logic
+                client.get('/admin/products'),
             ]);
 
             setClients(clientsRes.data);
             setProducts(productsRes.data);
+
+            // Cargar promociones disponibles para órdenes de promoción
+            if (isPromoOrder) {
+                try {
+                    const promoRes = await client.get('/admin/promotions');
+                    setAvailablePromotions(promoRes.data?.filter(p => p.active) || []);
+                } catch (err) {
+                    console.warn('No se pudieron cargar las promociones disponibles:', err);
+                }
+            }
 
             // Fetch promotions details if any
             let loadedPromotions = [];
@@ -623,6 +638,29 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         return formatCurrency(total);
     };
 
+    // ── Agregar promociones al endpoint dedicado ────────────────
+    const handleAddPromotions = async () => {
+        if (promoQueue.length === 0) {
+            toast.warning('Agrega al menos una promoción a la cola');
+            return;
+        }
+        // Construir lista de IDs con repeticiones según cantidad
+        const ids = promoQueue.flatMap(p => Array(p.qty).fill(p.id));
+        setAddingPromos(true);
+        try {
+            await client.post(`/admin/orders/${order.id}/promotions/add`, ids);
+            toast.success(`${ids.length} instancia(s) de promoción agregada(s) correctamente`);
+            setPromoQueue([]);
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message;
+            toast.error('Error al agregar promociones: ' + msg);
+        } finally {
+            setAddingPromos(false);
+        }
+    };
+
     // New Delete Handler for Promotion Instances
     const handleDeletePromotionInstance = async (promotionInstanceId) => {
         if (!window.confirm('¿Estás seguro de que deseas eliminar esta promoción?')) {
@@ -827,27 +865,111 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         )}
 
                         {isPromoOrder && (
-                            <div className="alert-info" style={{
-                                background: '#fffbeb',
-                                border: '1px solid #fde68a',
-                                borderRadius: '8px',
-                                padding: '0.875rem 1rem',
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                gap: '0.5rem',
-                                color: '#92400e',
-                                fontSize: '0.875rem'
-                            }}>
-                                <span className="material-icons-round" style={{ fontSize: '20px', color: '#f59e0b', flexShrink: 0 }}>info</span>
-                                <div>
-                                    <strong>Orden de Promoción</strong>
-                                    <p style={{ margin: '0.25rem 0 0' }}>
-                                        Los productos de esta promoción <strong>no se pueden modificar individualmente</strong>.
-                                        Solo puedes editar el cliente, las notas y el flete.
-                                        Para cambios en los ítems, contacta al administrador del sistema.
-                                    </p>
+                            <section className="eo-section" style={{ marginTop: '1rem' }}>
+                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span className="material-icons-round" style={{ color: '#7c3aed' }}>add_circle</span>
+                                    Agregar Promociones
+                                </h3>
+                                <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 0.75rem' }}>
+                                    Los ítems existentes <strong>no se modifican</strong>. Solo se añaden nuevas instancias.
+                                </p>
+
+                                {/* Buscador */}
+                                <div className="eo-search-wrapper" style={{ marginBottom: '0.5rem' }}>
+                                    <span className="material-icons-round search-icon">search</span>
+                                    <input
+                                        type="text"
+                                        className="eo-search-input"
+                                        placeholder="Buscar promoción..."
+                                        value={promoSearch}
+                                        onChange={e => setPromoSearch(e.target.value)}
+                                    />
+                                    {promoSearch && (
+                                        <button className="eo-search-clear" onClick={() => setPromoSearch('')}>
+                                            <span className="material-icons-round">close</span>
+                                        </button>
+                                    )}
                                 </div>
-                            </div>
+
+                                {/* Resultados */}
+                                {promoSearch && (
+                                    <div className="eo-search-results" style={{ marginBottom: '0.75rem' }}>
+                                        {availablePromotions
+                                            .filter(p => p.nombre.toLowerCase().includes(promoSearch.toLowerCase()))
+                                            .slice(0, 10)
+                                            .map(p => (
+                                                <div
+                                                    key={p.id}
+                                                    className="eo-search-item"
+                                                    onClick={() => {
+                                                        setPromoQueue(prev => {
+                                                            const existing = prev.find(x => x.id === p.id);
+                                                            if (existing) {
+                                                                return prev.map(x => x.id === p.id ? { ...x, qty: x.qty + 1 } : x);
+                                                            }
+                                                            return [...prev, { id: p.id, nombre: p.nombre, qty: 1 }];
+                                                        });
+                                                        setPromoSearch('');
+                                                        toast.success(`"${p.nombre}" agregada a la cola`);
+                                                    }}
+                                                >
+                                                    <div className="item-info">
+                                                        <span className="item-name">{p.nombre}</span>
+                                                        <span className="item-stock instock">{p.type}</span>
+                                                    </div>
+                                                    <span className="material-icons-round" style={{ color: '#7c3aed', fontSize: '20px' }}>add</span>
+                                                </div>
+                                            ))
+                                        }
+                                        {availablePromotions.filter(p => p.nombre.toLowerCase().includes(promoSearch.toLowerCase())).length === 0 && (
+                                            <div className="no-results">No se encontraron promociones</div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Cola de promociones a agregar */}
+                                {promoQueue.length > 0 && (
+                                    <div style={{ background: '#f5f3ff', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.75rem', border: '1px solid #ddd6fe' }}>
+                                        <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#5b21b6', margin: '0 0 0.5rem' }}>
+                                            Cola ({promoQueue.reduce((s, x) => s + x.qty, 0)} instancia/s):
+                                        </p>
+                                        {promoQueue.map(p => (
+                                            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                                <span style={{ flex: 1, fontSize: '0.85rem', color: '#374151' }}>{p.nombre}</span>
+                                                <button
+                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.id === p.id && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
+                                                    style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
+                                                >−</button>
+                                                <span style={{ fontWeight: 700, minWidth: '20px', textAlign: 'center', color: '#7c3aed' }}>{p.qty}</span>
+                                                <button
+                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.id === p.id ? { ...x, qty: x.qty + 1 } : x))}
+                                                    style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
+                                                >+</button>
+                                                <button
+                                                    onClick={() => setPromoQueue(prev => prev.filter(x => x.id !== p.id))}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                                                ><span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span></button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={handleAddPromotions}
+                                            disabled={addingPromos}
+                                            style={{
+                                                marginTop: '0.5rem', width: '100%',
+                                                padding: '0.6rem', background: addingPromos ? '#a78bfa' : '#7c3aed',
+                                                color: 'white', border: 'none', borderRadius: '8px',
+                                                fontWeight: 700, cursor: addingPromos ? 'not-allowed' : 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
+                                            }}
+                                        >
+                                            <span className="material-icons-round" style={{ fontSize: '18px' }}>
+                                                {addingPromos ? 'sync' : 'add_shopping_cart'}
+                                            </span>
+                                            {addingPromos ? 'Agregando...' : 'Confirmar y Agregar'}
+                                        </button>
+                                    </div>
+                                )}
+                            </section>
                         )}
                     </div>
 
