@@ -45,7 +45,7 @@ export default function MiNominaPanel() {
       let filename = `mi_nomina_${MESES[month - 1]}_${year}.${ext}`;
       if (contentDisposition) {
         const m = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i) ||
-                  contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+          contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
         if (m?.[1]) filename = decodeURIComponent(m[1].replace(/"/g, ''));
       }
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -281,14 +281,19 @@ function NominaView({ nomina }) {
         <CommissionCard
           title="Comisión General"
           icon="star"
-          met={true}
-          metLabel="Comisión general habilitada"
-          amount={nomina.generalCommissionAmount}
+          met={nomina.generalCommissionGoalMet}
+          metLabel={nomina.generalCommissionGoalMet ? 'Meta global alcanzada ✅' : 'Meta global no alcanzada ❌'}
+          amount={nomina.generalCommissionGoalMet ? nomina.generalCommissionAmount : 0}
           rows={[
-            { label: 'Suma metas globales', value: `$${formatCurrency(nomina.totalGlobalGoals)}` },
+            { label: 'Ventas empresa del mes', value: `$${formatCurrency(nomina.totalCompanySales)}` },
+            { label: 'Umbral de metas', value: `$${formatCurrency(nomina.totalGlobalGoals)}` },
+            { label: 'Estado del umbral', value: nomina.generalCommissionGoalMet ? '✅ Alcanzado' : '❌ No alcanzado' },
             { label: 'Comisión aplicada', value: pct(nomina.generalCommissionPct) },
           ]}
-          detail={`Comisión general activa: ${pct(nomina.generalCommissionPct)} sobre la suma de todas las metas del equipo.`}
+          detail={nomina.generalCommissionGoalMet
+            ? `Las ventas del equipo ($${formatCurrency(nomina.totalCompanySales)}) alcanzaron el umbral. Comisión: ${pct(nomina.generalCommissionPct)} sobre la suma de metas.`
+            : `Las ventas del equipo ($${formatCurrency(nomina.totalCompanySales)}) no alcanzaron el umbral de $${formatCurrency(nomina.totalGlobalGoals)}. Comisión general: $0.`
+          }
         />
       ) : (
         <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '1rem', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#9ca3af' }}>

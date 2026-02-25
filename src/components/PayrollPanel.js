@@ -39,7 +39,7 @@ function downloadBlob(response, fallbackName) {
   let filename = fallbackName;
   if (contentDisposition) {
     const m = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i) ||
-              contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+      contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
     if (m?.[1]) filename = decodeURIComponent(m[1].replace(/"/g, ''));
   }
   const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -383,7 +383,7 @@ function NominaCard({ nomina, onView, onRecalculate, onHistory, onExportExcel, o
             color={collectColor}
           />
           {nomina.generalCommissionEnabled && (
-            <Badge icon="star" label="Com. general" color="#f59e0b" />
+            <Badge icon="star" label="Com. general" color={nomina.generalCommissionGoalMet ? '#f59e0b' : '#9ca3af'} />
           )}
         </div>
 
@@ -463,9 +463,11 @@ function NominaDetailModal({ nomina, onClose, onRecalculate, onExportExcel, onEx
             <Row label="Habilitada" value={nomina.generalCommissionEnabled ? '✅ Sí' : '❌ No'} color={nomina.generalCommissionEnabled ? '#10b981' : '#ef4444'} />
             {nomina.generalCommissionEnabled && (
               <>
-                <Row label="Total metas globales" value={`$${formatCurrency(nomina.totalGlobalGoals)}`} />
+                <Row label="Ventas empresa del mes" value={`$${formatCurrency(nomina.totalCompanySales)}`} />
+                <Row label="Umbral de metas" value={`$${formatCurrency(nomina.totalGlobalGoals)}`} />
+                <Row label="Estado del umbral" value={nomina.generalCommissionGoalMet ? '✅ Alcanzado' : '❌ No alcanzado'} color={nomina.generalCommissionGoalMet ? '#10b981' : '#ef4444'} />
                 <Row label="Porcentaje comisión" value={pct(nomina.generalCommissionPct)} />
-                <Row label="Comisión general" value={`$${formatCurrency(nomina.generalCommissionAmount)}`} highlight color="#f59e0b" />
+                <Row label="Comisión general" value={`$${formatCurrency(nomina.generalCommissionGoalMet ? nomina.generalCommissionAmount : 0)}`} highlight color={nomina.generalCommissionGoalMet ? '#f59e0b' : '#9ca3af'} />
               </>
             )}
           </Section>
