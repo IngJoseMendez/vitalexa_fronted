@@ -1061,6 +1061,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                     orderId={selectedOrderForHistory.id || selectedOrderForHistory.orderId}
                     invoiceNumber={selectedOrderForHistory.invoiceNumber}
                     onPaymentUpdate={handlePaymentUpdate}
+                    userRole={userRole}
                 />
             )}
 

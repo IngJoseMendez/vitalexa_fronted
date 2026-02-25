@@ -441,6 +441,11 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     max-height: calc(100vh - 300px);
     overflow-y: auto;
+    /* ✅ FIX: Evitar scroll horizontal */
+    overflow-x: hidden;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .detail-loading {
@@ -456,6 +461,8 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+    width: 100%;
 }
 
 .detail-header {
@@ -483,6 +490,14 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
+    min-width: 0;
+    width: 100%;
+}
+
+@media (max-width: 900px) {
+    .balance-summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 768px) {
@@ -499,6 +514,14 @@
     background: #f8fafc;
     border-radius: 1rem;
     border: 1px solid var(--border);
+    /* ✅ FIX: Evitar desbordamiento horizontal */
+    min-width: 0;
+    overflow: hidden;
+}
+
+.summary-card > div {
+    min-width: 0;
+    flex: 1;
 }
 
 .summary-card .material-icons-round {
@@ -529,6 +552,10 @@
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--text-main);
+    /* ✅ FIX: Números grandes no desbordan */
+    word-break: break-all;
+    overflow-wrap: break-word;
+    min-width: 0;
 }
 
 .summary-card .label {
@@ -726,6 +753,8 @@
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
 }
 
 .amount-row span {
@@ -1166,4 +1195,98 @@
 .order-item:hover {
     border-color: #cbd5e1;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   ✅ FIX: PREVENIR OVERFLOW HORIZONTAL EN PANEL DETALLE
+   Aplica en iPad Air (~820px) y dispositivos similares
+   ============================================ */
+
+/* Forzar que ningún elemento dentro del panel de detalle desborde */
+.client-detail-panel * {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Los amount-row no deben desbordar */
+.amount-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.amount-row span,
+.amount-row strong {
+    word-break: break-all;
+    min-width: 0;
+}
+
+/* El order-main y order-amounts juntos no deben exceder el ancho */
+.order-main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.order-amounts {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: 50%;
+}
+
+/* En pantallas medianas (iPad Air = ~820px) */
+@media (max-width: 860px) {
+    .balances-content {
+        grid-template-columns: 1fr;
+    }
+
+    .client-detail-panel {
+        max-height: none;
+        padding: 1.25rem;
+    }
+
+    .clients-list-panel {
+        max-height: 45vh;
+    }
+
+    .balance-summary-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .order-item {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .order-amounts {
+        max-width: 100%;
+        text-align: left;
+    }
+
+    .amount-row {
+        justify-content: flex-start;
+    }
+
+    .order-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+/* Header en tablet: wrap los controles para no salir del ancho */
+@media (max-width: 1024px) {
+    .balances-header {
+        flex-wrap: wrap;
+    }
+
+    .header-actions {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .search-box {
+        flex: 1 1 180px;
+        min-width: 140px;
+    }
 }

@@ -10,6 +10,7 @@ import AssortmentSelectionModal from '../components/modals/AssortmentSelectionMo
 import { PromotionType } from '../utils/types';
 import VendorSpecialProductsPanel from '../components/VendorSpecialProductsPanel';
 import VendorProductCard from '../components/VendorProductCard';
+import MiNominaPanel from '../components/MiNominaPanel';
 import '../styles/VendedorDashboard.css';
 
 
@@ -82,6 +83,12 @@ function VendedorDashboard() {
           <span className="material-icons-round">star</span> Especiales
         </button>
         <button
+          className={activeTab === 'mi-nomina' ? 'active' : ''}
+          onClick={() => setActiveTab('mi-nomina')}
+        >
+          <span className="material-icons-round">payments</span> Mi Nómina
+        </button>
+        <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
         >
@@ -100,6 +107,7 @@ function VendedorDashboard() {
         {activeTab === 'clientes' && <ClientesPanel key={refreshTrigger} />}
         {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
         {activeTab === 'special-products' && <VendorSpecialProductsPanel refreshTrigger={refreshTrigger} />}
+        {activeTab === 'mi-nomina' && <MiNominaPanel />}
       </div>
     </div>
   );
@@ -1953,6 +1961,46 @@ function MisMetasPanel() {
     }
   };
 
+  // ✅ DESCARGA EXCEL
+  const toast = useToast();
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(new Date().setDate(1)).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+  });
+
+  const handleDownloadExcel = async () => {
+    if (exportingExcel) return;
+    setExportingExcel(true);
+    try {
+      const response = await apiClient.get('/reports/export/complete/excel', {
+        params: { startDate: dateRange.startDate, endDate: dateRange.endDate },
+        responseType: 'blob',
+      });
+      const contentDisposition = response.headers?.['content-disposition'];
+      let filename = `mis_ventas_${dateRange.startDate}_${dateRange.endDate}.xlsx`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i) ||
+                      contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+        if (match?.[1]) filename = decodeURIComponent(match[1].replace(/"/g, ''));
+      }
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('✅ Reporte Excel descargado exitosamente');
+    } catch (err) {
+      console.error('Error al descargar Excel:', err);
+      toast.error('Error al descargar el reporte Excel');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   if (loading) {
     return <div className="loading">Cargando tu meta...</div>;
   }
@@ -1966,6 +2014,59 @@ function MisMetasPanel() {
           </span>
           {' '}Mis Metas de Ventas
         </h2>
+      </div>
+
+      {/* ✅ SECCIÓN DESCARGA EXCEL */}
+      <div style={{
+        background: 'white', borderRadius: '12px', border: '1px solid #d1fae5',
+        padding: '1.25rem', marginBottom: '1.5rem',
+        boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
+      }}>
+        <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#065f46' }}>
+          <span className="material-icons-round" style={{ fontSize: '22px', color: '#10b981' }}>download</span>
+          Descargar Mi Reporte Excel
+        </h3>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>Desde:</label>
+            <input
+              type="date"
+              value={dateRange.startDate}
+              onChange={e => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+              style={{ padding: '0.45rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>Hasta:</label>
+            <input
+              type="date"
+              value={dateRange.endDate}
+              onChange={e => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+              style={{ padding: '0.45rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
+            />
+          </div>
+          <button
+            onClick={handleDownloadExcel}
+            disabled={exportingExcel}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.4rem',
+              padding: '0.55rem 1.25rem',
+              background: exportingExcel ? '#6ee7b7' : '#10b981',
+              color: 'white', border: 'none', borderRadius: '8px',
+              cursor: exportingExcel ? 'not-allowed' : 'pointer',
+              fontWeight: 700, fontSize: '0.9rem',
+              boxShadow: '0 2px 6px rgba(16,185,129,0.3)'
+            }}
+          >
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>
+              {exportingExcel ? 'sync' : 'table_chart'}
+            </span>
+            {exportingExcel ? 'Descargando...' : 'Descargar Excel'}
+          </button>
+        </div>
+        <p style={{ margin: '0.75rem 0 0', fontSize: '0.8rem', color: '#6b7280' }}>
+          💡 El reporte incluye únicamente tus propias ventas en el rango de fechas seleccionado.
+        </p>
       </div>
 
       {error && !currentGoal ? (

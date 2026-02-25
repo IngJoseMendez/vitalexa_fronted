@@ -7,11 +7,14 @@ import { useConfirm } from '../ConfirmDialog';
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
 import './PaymentHistoryModal.css';
 
-export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, onPaymentUpdate }) {
+export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, onPaymentUpdate, userRole }) {
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showCancelled, setShowCancelled] = useState(true);
     const [processingPaymentId, setProcessingPaymentId] = useState(null);
+
+    // Solo el OWNER puede anular/restaurar pagos
+    const canManagePayments = userRole === 'ROLE_OWNER';
 
     const toast = useToast();
     const confirm = useConfirm();
@@ -216,7 +219,7 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
                                         </div>
 
                                         <div className="payment-footer">
-                                            {!payment.isCancelled && (
+                                            {!payment.isCancelled && canManagePayments && (
                                                 <button
                                                     className="btn btn-danger btn-sm"
                                                     onClick={() => handleCancelPayment(payment)}
@@ -227,7 +230,7 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
                                                 </button>
                                             )}
 
-                                            {payment.isCancelled && (
+                                            {payment.isCancelled && canManagePayments && (
                                                 <button
                                                     className="btn btn-warning btn-sm"
                                                     onClick={() => handleRestorePayment(payment)}

@@ -150,7 +150,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
     // Handle Order Annulling
     const handleAnnulOrder = () => {
-        if (!isAdmin) return;
+        if (!isOwner && !isAdmin) return;
         setShowAnnulationModal(true);
     };
 
@@ -234,7 +234,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         Detalle de Orden #{order.invoiceNumber || (order.id || order.orderId)?.substring(0, 8)}
                     </h3>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {(isAdmin || isOwner) && (
+                        {isOwner && (
                             <button
                                 className="btn-edit-invoice"
                                 onClick={() => setShowEditHistoryModal(true)}
@@ -257,7 +257,9 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 Editar Factura
                             </button>
                         )}
-                        {isAdmin && currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
+                        {/* Anular: OWNER puede siempre, ADMIN solo si la orden es PENDIENTE o CONFIRMADA */}
+                        {(isOwner || (isAdmin && (currentOrder.estado === 'PENDIENTE' || currentOrder.estado === 'CONFIRMADO'))) &&
+                          currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
                             <button
                                 className="btn-cancel"
                                 style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}

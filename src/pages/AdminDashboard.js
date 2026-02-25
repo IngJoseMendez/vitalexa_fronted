@@ -12,6 +12,7 @@ import SpecialPromotionsPanel from '../components/SpecialPromotionsPanel';
 import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
 import StockReportPanel from '../components/StockReportPanel';
 import AdminDiscountSection from '../components/AdminDiscountSection';
+import PayrollPanel from '../components/PayrollPanel';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import EditOrderModal from '../components/modals/EditOrderModal';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
@@ -131,6 +132,14 @@ function AdminDashboard() {
           <span className="nav-label">Reportes</span>
         </button>
         <button
+          className={activeTab === 'nomina' ? 'active' : ''}
+          onClick={() => setActiveTab('nomina')}
+          title="Nómina"
+        >
+          <span className="material-icons-round">payments</span>
+          <span className="nav-label">Nómina</span>
+        </button>
+        <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
           title="Saldos"
@@ -156,6 +165,7 @@ function AdminDashboard() {
         {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
         {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
         {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
+        {activeTab === 'nomina' && <PayrollPanel />}
       </div>
     </div>
   );
@@ -265,6 +275,9 @@ function OrdersPanel({ refreshTrigger }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showClientDropdown]);
 
+  // Cambiar estado de una orden (CONFIRMAR, COMPLETAR, etc.)
+  // ⚠️ ANULAR directamente vía status=ANULADA requiere OWNER.
+  // El Admin puede anular órdenes PENDIENTES usando POST /annul (desde OrderDetailModal).
   const changeStatus = async (orderId, newStatus) => {
     try {
       await client.patch(`/admin/orders/${orderId}/status?status=${newStatus}`);
@@ -940,7 +953,7 @@ function OrdersPanel({ refreshTrigger }) {
                   {order.estado === 'PENDING_PROMOTION_COMPLETION' && (
                     <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                       {order.items
-                        .filter(item => item.isPromotionItem && !item.isFreeItem) // Filter for the main promotion triggers
+                        .filter(item => item.isPromotionItem && !item.isFreeItem)
                         .map((item, idx) => (
                           <button
                             key={idx}
@@ -969,7 +982,7 @@ function OrdersPanel({ refreshTrigger }) {
                       <button
                         className="btn-edit"
                         onClick={() => setSelectedOrder(order)}
-                        style={{ color: '#1f2937' }} // Dark text for visibility
+                        style={{ color: '#1f2937' }}
                       >
                         <span className="material-icons-round">edit</span> Editar
                       </button>
@@ -988,6 +1001,7 @@ function OrdersPanel({ refreshTrigger }) {
           })}
         </div>
       )}
+
 
       {selectedOrder && (
         <EditOrderModal

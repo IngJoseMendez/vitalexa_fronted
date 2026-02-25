@@ -13,8 +13,17 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [isBonifiedMode, setIsBonifiedMode] = useState(false);
     const [promotionsDetails, setPromotionsDetails] = useState([]); // Store full promotion objects
 
-    // ✅ Detect Promo Order (using backend field)
-    const isPromoOrder = order.isPromotionOrder === true;
+    // ✅ Detect Promo Order con detección robusta:
+    // El backend puede no enviar `isPromotionOrder`, así que usamos múltiples indicadores.
+    const isPromoOrder = (
+        order.isPromotionOrder === true ||
+        // Tiene promotionIds cargados con al menos una promoción
+        (Array.isArray(order.promotionIds) && order.promotionIds.length > 0) ||
+        // Al menos uno de los items tiene promotionId o promotionInstanceId (vino de una promo)
+        (Array.isArray(order.items) && order.items.some(
+            item => item.promotionId || item.promotionInstanceId || item.isPromotionItem
+        ))
+    );
     const isHistorical = order.isHistorical === true;
 
     const [formData, setFormData] = useState({
@@ -818,8 +827,26 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         )}
 
                         {isPromoOrder && (
-                            <div className="alert-info">
-                                <p><strong>Nota:</strong> Los productos de promoción no se pueden agregar/quitar individualmente. Solo se gestionan fletes y notas.</p>
+                            <div className="alert-info" style={{
+                                background: '#fffbeb',
+                                border: '1px solid #fde68a',
+                                borderRadius: '8px',
+                                padding: '0.875rem 1rem',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '0.5rem',
+                                color: '#92400e',
+                                fontSize: '0.875rem'
+                            }}>
+                                <span className="material-icons-round" style={{ fontSize: '20px', color: '#f59e0b', flexShrink: 0 }}>info</span>
+                                <div>
+                                    <strong>Orden de Promoción</strong>
+                                    <p style={{ margin: '0.25rem 0 0' }}>
+                                        Los productos de esta promoción <strong>no se pueden modificar individualmente</strong>.
+                                        Solo puedes editar el cliente, las notas y el flete.
+                                        Para cambios en los ítems, contacta al administrador del sistema.
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </div>
