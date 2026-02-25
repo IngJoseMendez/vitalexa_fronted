@@ -286,13 +286,16 @@ function NominaView({ nomina }) {
           amount={nomina.generalCommissionGoalMet ? nomina.generalCommissionAmount : 0}
           rows={[
             { label: 'Ventas empresa del mes', value: `$${formatCurrency(nomina.totalCompanySales)}` },
-            { label: 'Umbral de metas', value: `$${formatCurrency(nomina.totalGlobalGoals)}` },
+            {
+              label: nomina.thresholdIsCustom ? '🎯 Umbral personalizado (Owner)' : '📊 Umbral de referencia (suma metas)',
+              value: `$${formatCurrency(nomina.effectiveThreshold ?? nomina.totalGlobalGoals)}`,
+            },
             { label: 'Estado del umbral', value: nomina.generalCommissionGoalMet ? '✅ Alcanzado' : '❌ No alcanzado' },
             { label: 'Comisión aplicada', value: pct(nomina.generalCommissionPct) },
           ]}
           detail={nomina.generalCommissionGoalMet
-            ? `Las ventas del equipo ($${formatCurrency(nomina.totalCompanySales)}) alcanzaron el umbral. Comisión: ${pct(nomina.generalCommissionPct)} sobre la suma de metas.`
-            : `Las ventas del equipo ($${formatCurrency(nomina.totalCompanySales)}) no alcanzaron el umbral de $${formatCurrency(nomina.totalGlobalGoals)}. Comisión general: $0.`
+            ? `Las ventas del equipo ($${formatCurrency(nomina.totalCompanySales)}) alcanzaron el umbral${nomina.thresholdIsCustom ? ' personalizado' : ' de referencia'}. Comisión: ${pct(nomina.generalCommissionPct)} sobre la suma de metas.`
+            : `Las ventas del equipo ($${formatCurrency(nomina.totalCompanySales)}) no alcanzaron el umbral${nomina.thresholdIsCustom ? ' personalizado' : ' de referencia'} de $${formatCurrency(nomina.effectiveThreshold ?? nomina.totalGlobalGoals)}. Comisión general: $0.`
           }
         />
       ) : (

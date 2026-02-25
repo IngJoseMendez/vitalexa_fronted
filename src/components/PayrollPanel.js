@@ -109,6 +109,7 @@ function NominasTab({ toast }) {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [calcNotes, setCalcNotes] = useState('');
+  const [generalCommissionThreshold, setGeneralCommissionThreshold] = useState('');
 
   const fetchNominas = useCallback(async () => {
     setLoading(true);
@@ -132,7 +133,8 @@ function NominasTab({ toast }) {
     if (!window.confirm(`¿Calcular nómina de TODOS los vendedores para ${MESES[month - 1]} ${year}? Esto sobreescribirá nóminas existentes.`)) return;
     setCalculating(true);
     try {
-      const res = await calculateAllPayrolls(month, year);
+      const threshold = generalCommissionThreshold !== '' ? parseFloat(generalCommissionThreshold) : null;
+      const res = await calculateAllPayrolls(month, year, threshold);
       setNominas(res.data || []);
       toast.success(`✅ Nóminas calculadas: ${res.data?.length || 0} vendedores`);
     } catch (err) {
@@ -231,6 +233,17 @@ function NominasTab({ toast }) {
           value={calcNotes}
           onChange={e => setCalcNotes(e.target.value)}
           style={{ flex: 1, minWidth: '180px', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
+        />
+
+        <input
+          type="number"
+          placeholder="Umbral personalizado ventas (opcional)"
+          value={generalCommissionThreshold}
+          onChange={e => setGeneralCommissionThreshold(e.target.value)}
+          min="0"
+          step="100000"
+          title="Dejar vacío para usar la suma de metas de los vendedores"
+          style={{ width: '230px', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
         />
 
         <button
@@ -464,7 +477,10 @@ function NominaDetailModal({ nomina, onClose, onRecalculate, onExportExcel, onEx
             {nomina.generalCommissionEnabled && (
               <>
                 <Row label="Ventas empresa del mes" value={`$${formatCurrency(nomina.totalCompanySales)}`} />
-                <Row label="Umbral de metas" value={`$${formatCurrency(nomina.totalGlobalGoals)}`} />
+                <Row
+                  label={nomina.thresholdIsCustom ? '🎯 Umbral personalizado (Owner)' : '📊 Umbral de referencia (suma metas)'}
+                  value={`$${formatCurrency(nomina.effectiveThreshold ?? nomina.totalGlobalGoals)}`}
+                />
                 <Row label="Estado del umbral" value={nomina.generalCommissionGoalMet ? '✅ Alcanzado' : '❌ No alcanzado'} color={nomina.generalCommissionGoalMet ? '#10b981' : '#ef4444'} />
                 <Row label="Porcentaje comisión" value={pct(nomina.generalCommissionPct)} />
                 <Row label="Comisión general" value={`$${formatCurrency(nomina.generalCommissionGoalMet ? nomina.generalCommissionAmount : 0)}`} highlight color={nomina.generalCommissionGoalMet ? '#f59e0b' : '#9ca3af'} />

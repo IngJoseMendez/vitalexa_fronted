@@ -25,9 +25,15 @@ export const savePayrollConfig = (data) =>
 export const calculatePayroll = (data) =>
   client.post('/owner/payroll/calculate', data);
 
-/** Calcula la nómina de todos los vendedores activos para un mes/año */
-export const calculateAllPayrolls = (month, year) =>
-  client.post('/owner/payroll/calculate-all', null, { params: { month, year } });
+/** Calcula la nómina de todos los vendedores activos para un mes/año.
+ *  @param generalCommissionThreshold - umbral personalizado (opcional). Si es null/undefined, el backend usa la suma de metas. */
+export const calculateAllPayrolls = (month, year, generalCommissionThreshold) => {
+  const params = { month, year };
+  if (generalCommissionThreshold != null && generalCommissionThreshold !== '') {
+    params.generalCommissionThreshold = generalCommissionThreshold;
+  }
+  return client.post('/owner/payroll/calculate-all', null, { params });
+};
 
 /** Lista las nóminas calculadas de todos los vendedores para un mes/año */
 export const getAllPayrolls = (month, year) =>
