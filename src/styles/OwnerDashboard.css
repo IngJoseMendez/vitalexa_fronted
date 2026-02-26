@@ -33,10 +33,11 @@
   padding-bottom: 2rem;
 }
 
-.dashboard-content {
+.owner-dashboard .dashboard-content {
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 1.5rem;
+  padding-top: 2rem;
 }
 
 /* 3. HEADER SECTION */
@@ -97,22 +98,18 @@
 .dashboard-tabs {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.5rem 0.75rem 1.5rem;
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
   border-bottom: 1px solid var(--border);
   margin-bottom: 2rem;
-  /* ✅ FIX: Barra fija que no se desplaza al hacer scroll */
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: var(--shadow-sm);
-  /* Hide scrollbar but allow scroll */
   -ms-overflow-style: none;
   scrollbar-width: none;
-  /* Prevent clipping of last item */
-  padding-right: 1.5rem;
 }
 
 .dashboard-tabs::after {

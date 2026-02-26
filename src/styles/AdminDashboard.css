@@ -1,5 +1,5 @@
 /* ============================================
-   ADMIN DASHBOARD MODERN STYLES (2026 Premium)
+   ADMIN DASHBOARD — SIDEBAR LATERAL 2026
    ============================================ */
 
 :root {
@@ -17,204 +17,301 @@
   --danger: #ef4444;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --sidebar-width: 220px;
+  --sidebar-collapsed: 68px;
 }
 
+/* ── Layout raíz ── */
 .admin-dashboard {
   min-height: 100vh;
   width: 100%;
-  background: #f1f5f9;
+  background: #f8fafc;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   font-family: 'Inter', sans-serif;
 }
 
-/* NAVIGATION TABS - Floating Pill Style */
-.admin-dashboard .dashboard-nav {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 0.75rem 2rem;
+/* ══════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════ */
+.admin-sidebar {
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  background: #ffffff;
   display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
-  overflow-x: auto;
-  overflow-y: hidden;
+  flex-direction: column;
+  position: sticky;
   top: 0;
-  z-index: 90;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 100;
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
   scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+  scrollbar-color: rgba(0,0,0,0.08) transparent;
+  flex-shrink: 0;
 }
 
-/* Scrollbar personalizada para webkit */
-.admin-dashboard .dashboard-nav::-webkit-scrollbar {
-  height: 4px;
+.admin-sidebar::-webkit-scrollbar { width: 4px; }
+.admin-sidebar::-webkit-scrollbar-track { background: transparent; }
+.admin-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.1);
+  border-radius: 4px;
 }
 
-.admin-dashboard .dashboard-nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.admin-dashboard .dashboard-nav::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
-  border-radius: 10px;
-}
-
-.admin-dashboard .dashboard-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.5);
-}
-
-@media (max-width: 768px) {
-  .admin-dashboard .dashboard-nav {
-    padding: 0.75rem 1rem;
-    gap: 0.35rem;
-  }
-}
-
-/* NAV BUTTONS: apariencia mejorada, iconos y etiquetas */
-.admin-dashboard .dashboard-nav button {
-  display: inline-flex;
+/* ── Brand / Logo ── */
+.sidebar-brand {
+  display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-secondary);
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  white-space: nowrap;
-  height: 40px;
-  box-shadow: none;
+  gap: 0.75rem;
+  padding: 1.4rem 1.25rem 1.1rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.5rem;
 }
 
-.admin-dashboard .dashboard-nav button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-  color: var(--primary-dark);
-}
-
-.admin-dashboard .dashboard-nav button .material-icons-round {
-  font-size: 18px;
+.sidebar-brand .material-icons-round {
+  font-size: 26px;
   color: var(--primary);
 }
 
-.admin-dashboard .dashboard-nav button.active {
-  background: linear-gradient(90deg, rgba(99,102,241,0.12), rgba(124,58,237,0.06));
-  border-color: rgba(99,102,241,0.18);
-  color: var(--primary-dark);
-  box-shadow: 0 6px 18px rgba(99,102,241,0.12);
+.sidebar-brand-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
 }
 
-/* Etiqueta al lado del icono; en móvil vamos a ocultarla dejando solo icono */
-.admin-dashboard .dashboard-nav .nav-label {
-  display: inline-block;
-  font-size: 0.9rem;
+/* ── Nav contenedor ── */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0.6rem;
+  flex: 1;
+}
+
+/* ── Item de navegación ── */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.62rem 0.9rem;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+  position: relative;
+}
+
+.sidebar-item:hover {
+  background: #f1f5f9;
+  color: var(--primary);
+  transform: translateX(3px);
+}
+
+.sidebar-item.active {
+  background: #eef2ff;
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.sidebar-item.active .sidebar-icon {
+  color: var(--primary);
+}
+
+.sidebar-icon {
+  font-size: 20px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: color 0.18s;
+}
+
+.sidebar-item:hover .sidebar-icon {
+  color: var(--primary);
+}
+
+.sidebar-label {
+  font-size: 0.875rem;
   line-height: 1;
 }
 
-/* Botón de refrescar flotante pequeño */
-.btn-refresh-dashboard {
-  position: fixed;
-  right: 18px;
-  top: 88px;
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  display: inline-flex;
+/* ── Divider ── */
+.sidebar-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 0.5rem 0.3rem;
+}
+
+/* ── Botón externo (Saldos) ── */
+.sidebar-external {
+  color: #059669;
+}
+
+.sidebar-external .sidebar-icon {
+  color: #10b981;
+}
+
+.sidebar-external:hover {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.sidebar-external:hover .sidebar-icon {
+  color: #047857;
+}
+
+/* ── Botón Refresh (pie de sidebar) ── */
+.sidebar-refresh {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  background: white;
-  border: 1px solid var(--border);
-  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.06);
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0.6rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
-  z-index: 120;
+  transition: all 0.18s ease;
+  width: calc(100% - 1.2rem);
 }
 
-.btn-refresh-dashboard .material-icons-round {
+.sidebar-refresh:hover {
+  background: #eef2ff;
   color: var(--primary);
+  border-color: #c7d2fe;
 }
 
-/* Responsive: en pantallas pequeñas mostrar solo iconos (mas espacio) */
-@media (max-width: 640px) {
-  .admin-dashboard .dashboard-nav {
-    padding: 0.5rem 0.75rem;
-    gap: 0.35rem;
-  }
-
-  .admin-dashboard .dashboard-nav button {
-    padding: 0.45rem 0.6rem;
-    height: 40px;
-    border-radius: 10px;
-    font-weight: 600;
-  }
-
-  /* Ocultar labels manteniendo el title para accesibilidad */
-  .admin-dashboard .dashboard-nav .nav-label {
-    display: none;
-  }
-
-  .btn-refresh-dashboard {
-    top: 74px;
-    right: 12px;
-    width: 40px;
-    height: 40px;
-  }
+.sidebar-refresh .material-icons-round {
+  font-size: 18px;
 }
 
-/* Small tweak for very wide nav: keep buttons compact but readable */
-@media (min-width: 1024px) {
-  .admin-dashboard .dashboard-nav {
-    padding: 0.9rem 2rem;
-    gap: 0.6rem;
-  }
+/* ══════════════════════════════════════════
+   MAIN CONTENT
+══════════════════════════════════════════ */
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: white;
 }
 
-/* Accessibility: focus style */
-.admin-dashboard .dashboard-nav button:focus-visible {
-  outline: 3px solid rgba(99,102,241,0.18);
-  outline-offset: 2px;
-}
-
-/* MAIN CONTENT */
 .dashboard-content {
-  padding: 2rem;
+  padding: 1.25rem 1.5rem;
   flex: 1;
   width: 100%;
+  min-height: 100vh;
+  background: white;
+  box-sizing: border-box;
 }
 
 @media (min-width: 1200px) {
   .dashboard-content {
-    padding: 2.5rem 3rem;
+    padding: 1.25rem 1.75rem;
   }
 }
 
+/* ══════════════════════════════════════════
+   RESPONSIVE — SIDEBAR COLAPSADA EN MÓVIL
+══════════════════════════════════════════ */
 @media (max-width: 768px) {
+  .admin-dashboard {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    min-height: unset;
+    height: auto;
+    position: sticky;
+    top: 0;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0;
+    box-shadow: 0 4px 16px rgba(49,46,129,0.18);
+  }
+
+  .sidebar-brand { display: none; }
+
+  .sidebar-nav {
+    flex-direction: row;
+    padding: 0.5rem 0.5rem;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .sidebar-item {
+    flex-direction: column;
+    gap: 2px;
+    padding: 0.5rem 0.6rem;
+    min-width: 56px;
+    justify-content: center;
+    align-items: center;
+    transform: none !important;
+  }
+
+  .sidebar-item.active {
+    box-shadow: inset 0 -3px 0 #a5b4fc;
+  }
+
+  .sidebar-label {
+    font-size: 0.62rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .sidebar-divider { display: none; }
+
+  .sidebar-refresh {
+    flex-direction: column;
+    gap: 2px;
+    min-width: 56px;
+    padding: 0.5rem 0.6rem;
+    margin: 0.5rem 0.3rem;
+    align-self: center;
+    width: auto;
+  }
+
   .dashboard-content {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 }
 
-/* PANEL HEADER */
+/* ══════════════════════════════════════════
+   PANEL HEADER
+══════════════════════════════════════════ */
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 0.75rem;
 }
 
 .panel-header h2 {
   margin: 0;
   color: var(--text-main);
-  font-size: 1.85rem;
+  font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .header-actions {
@@ -316,15 +413,14 @@
 /* GRID DE ÓRDENES */
 .orders-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
 }
 
 .order-card {
   background: white;
-  padding: 1.5rem;
-  /* Reduced padding for better space efficiency */
-  border-radius: 1.25rem;
+  padding: 1rem;
+  border-radius: 1rem;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   border: 1px solid rgba(0, 0, 0, 0.04);
@@ -396,14 +492,14 @@
 
 /* === INVOICE ACTIONS (PDF) === */
 .invoice-actions {
-  margin-top: 1.5rem;
-  padding: 1.25rem;
+  margin-top: 0.75rem;
+  padding: 0.875rem;
   background: #f8fafc;
-  border-radius: 1.25rem;
+  border-radius: 0.875rem;
   border: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .invoice-actions h4 {
@@ -544,8 +640,8 @@
 }
 
 .order-info p {
-  margin: 0.75rem 0;
-  font-size: 0.95rem;
+  margin: 0.4rem 0;
+  font-size: 0.88rem;
   color: var(--text-secondary);
   display: flex;
   justify-content: space-between;
@@ -557,10 +653,10 @@
 }
 
 .order-total {
-  margin-top: 1.5rem !important;
-  padding-top: 1.5rem;
+  margin-top: 0.75rem !important;
+  padding-top: 0.75rem;
   border-top: 1px dashed var(--border);
-  font-size: 1.5rem !important;
+  font-size: 1.25rem !important;
   color: var(--text-main) !important;
   font-weight: 800 !important;
   letter-spacing: -0.02em;
@@ -570,19 +666,19 @@
 
 .order-notes {
   background: #fffbeb;
-  padding: 1.25rem;
-  border-radius: 1rem;
-  margin-top: 1.25rem;
-  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
   color: #b45309;
   border-left: 4px solid #f59e0b;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 /* DETAILS & ACTIONS */
 .order-details {
-  margin: 1.5rem 0;
-  border-radius: 1rem;
+  margin: 0.75rem 0;
+  border-radius: 0.75rem;
   overflow: hidden;
   border: 1px solid #f1f5f9;
 }
@@ -658,32 +754,28 @@
 
 .order-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
   flex-wrap: wrap;
-  /* ✅ Allow wrapping */
 }
 
 .order-actions button,
 .order-actions>div {
-  /* Apply to the container of surtir buttons too */
-  flex: 1 1 120px;
-  /* Grow, shrink, but aim for 120px min */
-  padding: 0.75rem 1rem;
+  flex: 1 1 100px;
+  padding: 0.55rem 0.75rem;
   border: none;
-  border-radius: 0.75rem;
+  border-radius: 0.65rem;
   cursor: pointer;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   color: white;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   min-width: fit-content;
-  /* Ensure text doesn't wrap awkwardly inside button */
 }
 
 /* Specific styling for the container of Surtir buttons to reset flex behavior */
@@ -1070,7 +1162,7 @@
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .image-upload-section {
@@ -1604,10 +1696,10 @@
   flex: 1 1 auto;
   min-width: 250px;
   background: white;
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 0.5rem 1rem;
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 .invoice-search-box input {

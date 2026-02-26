@@ -1610,6 +1610,9 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
   const [selectedVendedor, setSelectedVendedor] = useState(null);
   const [currentMonth] = useState(new Date().getMonth() + 1);
   const [currentYear] = useState(new Date().getFullYear());
+  const [recalcMonth, setRecalcMonth] = useState(new Date().getMonth() + 1);
+  const [recalcYear, setRecalcYear] = useState(new Date().getFullYear());
+  const [recalculating, setRecalculating] = useState(false);
 
   const handleCreateGoal = (vendedor) => {
     setSelectedVendedor(vendedor);
@@ -1629,6 +1632,21 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
     }
   };
 
+  const handleRecalculate = async () => {
+    if (!window.confirm(`¿Recalcular metas de ${getMonthName(recalcMonth)} ${recalcYear}? Esto actualizará el progreso de todos los vendedores.`)) return;
+    try {
+      setRecalculating(true);
+      await client.post(`/owner/sale-goals/recalculate?month=${recalcMonth}&year=${recalcYear}`);
+      toast.success(`✅ Metas de ${getMonthName(recalcMonth)} ${recalcYear} recalculadas correctamente`);
+      onUpdate();
+    } catch (error) {
+      console.error('Error al recalcular:', error);
+      toast.error('Error al recalcular metas');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   return (
     <div className="sale-goals-tab">
       <div className="tab-header">
@@ -1639,6 +1657,45 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
         <p className="subtitle">
           Mes actual: {getMonthName(currentMonth)} {currentYear}
         </p>
+        {/* Botón de recalculación */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+          <select
+            value={recalcMonth}
+            onChange={e => setRecalcMonth(Number(e.target.value))}
+            style={{ padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.875rem', background: 'rgba(255,255,255,0.2)', color: 'white' }}
+          >
+            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+              <option key={m} value={m} style={{ color: '#0f172a' }}>{getMonthName(m)}</option>
+            ))}
+          </select>
+          <select
+            value={recalcYear}
+            onChange={e => setRecalcYear(Number(e.target.value))}
+            style={{ padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.875rem', background: 'rgba(255,255,255,0.2)', color: 'white' }}
+          >
+            {[2024, 2025, 2026, 2027].map(y => (
+              <option key={y} value={y} style={{ color: '#0f172a' }}>{y}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleRecalculate}
+            disabled={recalculating}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.4rem',
+              padding: '0.5rem 1.1rem', borderRadius: '8px', border: 'none',
+              background: recalculating ? '#94a3b8' : 'rgba(255,255,255,0.25)',
+              color: 'white', fontWeight: '700', fontSize: '0.875rem',
+              cursor: recalculating ? 'not-allowed' : 'pointer',
+              backdropFilter: 'blur(4px)',
+              transition: 'all 0.2s'
+            }}
+          >
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>
+              {recalculating ? 'hourglass_top' : 'calculate'}
+            </span>
+            {recalculating ? 'Recalculando...' : 'Recalcular metas'}
+          </button>
+        </div>
       </div>
 
       <div className="vendedores-grid">
@@ -1667,20 +1724,14 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
                   <div className="goal-stats">
                     <div className="stat">
                       <span className="label">Meta:</span>
-                      <span
-                        className="value"
-                        title={`$${formatCurrency(vendedor.currentGoal.targetAmount)}`}
-                      >
-                        ${formatCompactCurrency(vendedor.currentGoal.targetAmount)}
+                      <span className="value">
+                        ${formatCurrency(vendedor.currentGoal.targetAmount)}
                       </span>
                     </div>
                     <div className="stat">
                       <span className="label">Actual:</span>
-                      <span
-                        className="value"
-                        title={`$${formatCurrency(vendedor.currentGoal.currentAmount)}`}
-                      >
-                        ${formatCompactCurrency(vendedor.currentGoal.currentAmount)}
+                      <span className="value">
+                        ${formatCurrency(vendedor.currentGoal.currentAmount)}
                       </span>
                     </div>
                   </div>

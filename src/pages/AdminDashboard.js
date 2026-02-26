@@ -42,131 +42,82 @@ function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
-      <nav className="dashboard-nav">
-        <button
-          className={activeTab === 'orders' ? 'active' : ''}
-          onClick={() => setActiveTab('orders')}
-          title="Órdenes"
-        >
-          <span className="material-icons-round">assignment</span>
-          <span className="nav-label">Órdenes</span>
-        </button>
-        <button
-          className={activeTab === 'nueva-venta' ? 'active' : ''}
-          onClick={() => setActiveTab('nueva-venta')}
-          title="Nueva Venta"
-        >
-          <span className="material-icons-round">add_shopping_cart</span>
-          <span className="nav-label">Nueva Venta</span>
-        </button>
-        <button
-          className={activeTab === 'products' ? 'active' : ''}
-          onClick={() => setActiveTab('products')}
-          title="Productos"
-        >
-          <span className="material-icons-round">inventory_2</span>
-          <span className="nav-label">Productos</span>
-        </button>
-        <button
-          className={activeTab === 'special-products' ? 'active' : ''}
-          onClick={() => setActiveTab('special-products')}
-          title="Especiales"
-        >
-          <span className="material-icons-round">star</span>
-          <span className="nav-label">Especiales</span>
-        </button>
-        <button
-          className={activeTab === 'special-promotions' ? 'active' : ''}
-          onClick={() => setActiveTab('special-promotions')}
-          title="Promociones Especiales"
-        >
-          <span className="material-icons-round">stars</span>
-          <span className="nav-label">Promociones Especiales</span>
-        </button>
-        <button
-          className={activeTab === 'promotions' ? 'active' : ''}
-          onClick={() => setActiveTab('promotions')}
-          title="Promociones"
-        >
-          <span className="material-icons-round">card_giftcard</span>
-          <span className="nav-label">Promociones</span>
-        </button>
-        <button
-          className={activeTab === 'inventory-history' ? 'active' : ''}
-          onClick={() => setActiveTab('inventory-history')}
-          title="Historial Inventario"
-        >
-          <span className="material-icons-round">history</span>
-          <span className="nav-label">Historial Inventario</span>
-        </button>
-        <button
-          className={activeTab === 'stock-report' ? 'active' : ''}
-          onClick={() => setActiveTab('stock-report')}
-          title="Stock Real"
-        >
-          <span className="material-icons-round">warehouse</span>
-          <span className="nav-label">Stock Real</span>
-        </button>
-        <button
-          className={activeTab === 'clients' ? 'active' : ''}
-          onClick={() => setActiveTab('clients')}
-          title="Clientes"
-        >
-          <span className="material-icons-round">people</span>
-          <span className="nav-label">Clientes</span>
-        </button>
-        <button
-          className={activeTab === 'tags' ? 'active' : ''}
-          onClick={() => setActiveTab('tags')}
-          title="Etiquetas"
-        >
-          <span className="material-icons-round">local_offer</span>
-          <span className="nav-label">Etiquetas</span>
-        </button>
-        <button
-          className={activeTab === 'reports' ? 'active' : ''}
-          onClick={() => setActiveTab('reports')}
-          title="Reportes"
-        >
-          <span className="material-icons-round">analytics</span>
-          <span className="nav-label">Reportes</span>
-        </button>
-        <button
-          className={activeTab === 'nomina' ? 'active' : ''}
-          onClick={() => setActiveTab('nomina')}
-          title="Nómina"
-        >
-          <span className="material-icons-round">payments</span>
-          <span className="nav-label">Nómina</span>
-        </button>
-        <button
-          className="nav-external"
-          onClick={() => window.location.href = '/balances'}
-          title="Saldos"
-        >
-          <span className="material-icons-round">account_balance_wallet</span>
-          <span className="nav-label">Saldos</span>
-        </button>
-      </nav>
 
-      <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
-        <span className="material-icons-round">sync</span>
-      </button>
+      {/* ── SIDEBAR IZQUIERDA ── */}
+      <aside className="admin-sidebar">
+        {/* Logo / Marca */}
+        <div className="sidebar-brand">
+          <span className="material-icons-round">admin_panel_settings</span>
+          <span className="sidebar-brand-name">Admin</span>
+        </div>
 
-      <div className="dashboard-content">
-        {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
-        {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'special-promotions' && <SpecialPromotionsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
-        {activeTab === 'stock-report' && <StockReportPanel role="admin" />}
-        {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
-        {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
-        {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
-        {activeTab === 'nomina' && <PayrollPanel />}
-      </div>
+        {/* Items de navegación */}
+        <nav className="sidebar-nav">
+          {[
+            { key: 'orders',              icon: 'assignment',             label: 'Órdenes' },
+            { key: 'nueva-venta',         icon: 'add_shopping_cart',      label: 'Nueva Venta' },
+            { key: 'products',            icon: 'inventory_2',            label: 'Productos' },
+            { key: 'special-products',    icon: 'star',                   label: 'Especiales' },
+            { key: 'special-promotions',  icon: 'stars',                  label: 'Prom. Especiales' },
+            { key: 'promotions',          icon: 'card_giftcard',          label: 'Promociones' },
+            { key: 'inventory-history',   icon: 'history',                label: 'Historial Inv.' },
+            { key: 'stock-report',        icon: 'warehouse',              label: 'Stock Real' },
+            { key: 'clients',             icon: 'people',                 label: 'Clientes' },
+            { key: 'tags',                icon: 'local_offer',            label: 'Etiquetas' },
+            { key: 'reports',             icon: 'analytics',              label: 'Reportes' },
+            { key: 'nomina',              icon: 'payments',               label: 'Nómina' },
+          ].map(item => (
+            <button
+              key={item.key}
+              className={`sidebar-item${activeTab === item.key ? ' active' : ''}`}
+              onClick={() => setActiveTab(item.key)}
+              title={item.label}
+            >
+              <span className="material-icons-round sidebar-icon">{item.icon}</span>
+              <span className="sidebar-label">{item.label}</span>
+            </button>
+          ))}
+
+          <div className="sidebar-divider" />
+
+          <button
+            className="sidebar-item sidebar-external"
+            onClick={() => window.location.href = '/balances'}
+            title="Saldos"
+          >
+            <span className="material-icons-round sidebar-icon">account_balance_wallet</span>
+            <span className="sidebar-label">Saldos</span>
+          </button>
+        </nav>
+
+        {/* Botón refresh en la parte inferior */}
+        <button
+          className="sidebar-refresh"
+          onClick={() => setRefreshTrigger(Date.now())}
+          title="Actualizar datos"
+        >
+          <span className="material-icons-round">sync</span>
+          <span className="sidebar-label">Actualizar</span>
+        </button>
+      </aside>
+
+      {/* ── CONTENIDO PRINCIPAL ── */}
+      <main className="admin-main">
+        <div className="dashboard-content">
+          {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
+          {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'special-promotions' && <SpecialPromotionsPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
+          {activeTab === 'stock-report' && <StockReportPanel role="admin" />}
+          {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
+          {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
+          {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
+          {activeTab === 'nomina' && <PayrollPanel />}
+        </div>
+      </main>
     </div>
   );
 }
@@ -474,11 +425,11 @@ function OrdersPanel({ refreshTrigger }) {
   return (
     <div className="orders-panel">
       <div className="panel-header">
-        <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment_turned_in</span> Gestión de Órdenes</h2>
+        <h2><span className="material-icons-round" style={{ fontSize: '24px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment_turned_in</span> Gestión de Órdenes</h2>
       </div>
 
       {/* Filter Buttons Row */}
-      <div className="filter-buttons" style={{ marginBottom: '1.5rem' }}>
+      <div className="filter-buttons" style={{ marginBottom: '0.75rem' }}>
         <button
           className={filter === 'pending' ? 'active' : ''}
           onClick={() => setFilter('pending')}
