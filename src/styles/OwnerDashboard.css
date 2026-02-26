@@ -73,6 +73,149 @@
   background: white;
 }
 
+/* ══════════════════════════════════════════
+   OWNER SIDEBAR — ELEMENTOS INTERNOS
+══════════════════════════════════════════ */
+
+/* Brand / Logo */
+.owner-sidebar .sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.4rem 1.25rem 1.1rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.5rem;
+}
+
+.owner-sidebar .sidebar-brand .material-icons-round {
+  font-size: 26px;
+  color: #f59e0b;
+}
+
+.owner-sidebar .sidebar-brand-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+/* Nav contenedor */
+.owner-sidebar .sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0.6rem;
+  flex: 1;
+}
+
+/* Item de navegación */
+.owner-sidebar .sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.62rem 0.9rem;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+  position: relative;
+}
+
+.owner-sidebar .sidebar-item:hover {
+  background: #fef3c7;
+  color: #92400e;
+  transform: translateX(3px);
+}
+
+.owner-sidebar .sidebar-item.active {
+  background: #fffbeb;
+  color: #d97706;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 #f59e0b;
+}
+
+.owner-sidebar .sidebar-item.active .sidebar-icon {
+  color: #f59e0b;
+}
+
+.owner-sidebar .sidebar-icon {
+  font-size: 20px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: color 0.18s;
+}
+
+.owner-sidebar .sidebar-item:hover .sidebar-icon {
+  color: #d97706;
+}
+
+.owner-sidebar .sidebar-label {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+/* Divider */
+.owner-sidebar .sidebar-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 0.5rem 0.3rem;
+}
+
+/* Botón externo (Saldos) */
+.owner-sidebar .sidebar-external {
+  color: #059669;
+}
+
+.owner-sidebar .sidebar-external .sidebar-icon {
+  color: #10b981;
+}
+
+.owner-sidebar .sidebar-external:hover {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.owner-sidebar .sidebar-external:hover .sidebar-icon {
+  color: #047857;
+}
+
+/* Botón Refresh (pie de sidebar) */
+.owner-sidebar .sidebar-refresh {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0.6rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  width: calc(100% - 1.2rem);
+}
+
+.owner-sidebar .sidebar-refresh:hover {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
+.owner-sidebar .sidebar-refresh .material-icons-round {
+  font-size: 18px;
+}
+
+
+
 .owner-dashboard .dashboard-content {
   padding: 1.25rem 1.5rem;
   flex: 1;
@@ -116,22 +259,47 @@
   .owner-sidebar .sidebar-nav {
     flex-direction: row;
     flex-wrap: nowrap;
-    padding: 0.4rem 0.5rem;
-    gap: 2px;
+    padding: 0.5rem 0.5rem;
+    gap: 4px;
+    flex: 1;
   }
 
   .owner-sidebar .sidebar-item {
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0.5rem 0.6rem;
+    min-width: 56px;
+    justify-content: center;
+    align-items: center;
+    transform: none !important;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
+  .owner-sidebar .sidebar-item.active {
+    box-shadow: inset 0 -3px 0 #f59e0b;
+  }
+
+  .owner-sidebar .sidebar-label {
+    font-size: 0.62rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .owner-sidebar .sidebar-divider { display: none; }
+
   .owner-sidebar .sidebar-refresh {
-    margin: 0.4rem 0.5rem;
-    padding: 0.5rem 0.75rem;
-    flex-shrink: 0;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 56px;
+    padding: 0.5rem 0.6rem;
+    margin: 0.5rem 0.3rem;
+    align-self: center;
     width: auto;
+  }
+
+  .owner-dashboard .dashboard-content {
+    padding: 0.75rem;
   }
 }
 
