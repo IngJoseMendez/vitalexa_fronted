@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { formatCurrency, formatCompactCurrency } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
