@@ -121,101 +121,91 @@ function OwnerDashboard() {
 
   return (
     <div className="owner-dashboard">
-      <header className="dashboard-header">
-        <h1><span className="material-icons-round" style={{ fontSize: '32px', verticalAlign: 'middle', color: '#fbbf24' }}>verified_user</span> Panel de Dueño</h1>
-        <p>Visión general del negocio</p>
-      </header>
 
-      <nav className="dashboard-tabs">
+      {/* ── SIDEBAR IZQUIERDA ── */}
+      <aside className="owner-sidebar">
+        <div className="sidebar-brand">
+          <span className="material-icons-round" style={{ color: '#f59e0b', fontSize: '26px' }}>verified_user</span>
+          <span className="sidebar-brand-name">Owner</span>
+        </div>
+
+        <nav className="sidebar-nav">
+          {[
+            { key: 'overview',     icon: 'dashboard',     label: 'Resumen' },
+            { key: 'orders',       icon: 'inventory',     label: `Órdenes (${stats?.totalOrders || 0})` },
+            { key: 'products',     icon: 'store',         label: `Productos (${stats?.totalProducts || 0})` },
+            { key: 'clients',      icon: 'people',        label: 'Clientes' },
+            { key: 'metas',        icon: 'trending_up',   label: `Metas (${vendedores.length})` },
+            { key: 'reports',      icon: 'insights',      label: 'Reportes' },
+            { key: 'stock-report', icon: 'warehouse',     label: 'Stock Real' },
+            { key: 'nomina',       icon: 'payments',      label: 'Nómina' },
+          ].map(item => (
+            <button
+              key={item.key}
+              className={`sidebar-item${activeTab === item.key ? ' active' : ''}`}
+              onClick={() => setActiveTab(item.key)}
+              title={item.label}
+            >
+              <span className="material-icons-round sidebar-icon">{item.icon}</span>
+              <span className="sidebar-label">{item.label}</span>
+            </button>
+          ))}
+
+          <div className="sidebar-divider" />
+
+          <button
+            className="sidebar-item sidebar-external"
+            onClick={() => window.location.href = '/balances'}
+            title="Saldos"
+          >
+            <span className="material-icons-round sidebar-icon">account_balance_wallet</span>
+            <span className="sidebar-label">Saldos</span>
+          </button>
+        </nav>
+
         <button
-          className={activeTab === 'overview' ? 'active' : ''}
-          onClick={() => setActiveTab('overview')}
+          className="sidebar-refresh"
+          onClick={() => setRefreshTrigger(Date.now())}
+          title="Actualizar datos"
         >
-          <span className="material-icons-round">dashboard</span> Resumen
-        </button>
-        <button
-          className={activeTab === 'orders' ? 'active' : ''}
-          onClick={() => setActiveTab('orders')}
-        >
-          <span className="material-icons-round">inventory</span> Órdenes ({stats?.totalOrders || 0})
-        </button>
-        <button
-          className={activeTab === 'products' ? 'active' : ''}
-          onClick={() => setActiveTab('products')}
-        >
-          <span className="material-icons-round">store</span> Productos ({stats?.totalProducts || 0})
-        </button>
-        <button
-          className={activeTab === 'clients' ? 'active' : ''}
-          onClick={() => setActiveTab('clients')}
-        >
-          <span className="material-icons-round">people</span> Clientes
-        </button>
-        <button
-          className={activeTab === 'metas' ? 'active' : ''}
-          onClick={() => setActiveTab('metas')}
-        >
-          <span className="material-icons-round">trending_up</span> Metas ({vendedores.length})
-        </button>
-        <button
-          className={activeTab === 'reports' ? 'active' : ''}
-          onClick={() => setActiveTab('reports')}
-        >
-          <span className="material-icons-round">insights</span> Reports
-        </button>
-        <button
-          className={activeTab === 'stock-report' ? 'active' : ''}
-          onClick={() => setActiveTab('stock-report')}
-        >
-          <span className="material-icons-round">warehouse</span> Stock Real
-        </button>
-        <button
-          className={activeTab === 'nomina' ? 'active' : ''}
-          onClick={() => setActiveTab('nomina')}
-        >
-          <span className="material-icons-round">payments</span> Nómina
-        </button>
-        <button
-          className="nav-external"
-          onClick={() => window.location.href = '/balances'}
-        >
-          <span className="material-icons-round">account_balance_wallet</span> Saldos
-        </button>
-        <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
           <span className="material-icons-round">sync</span>
+          <span className="sidebar-label">Actualizar</span>
         </button>
-      </nav>
+      </aside>
 
-      <div className="dashboard-content">
-        {activeTab === 'overview' && <OverviewTab stats={stats} />}
-        {activeTab === 'orders' && (
-          <OrdersTab
-            orders={orders}
-            onSelectOrder={setSelectedOrder}
-            onOpenHistoricalModal={() => setShowHistoricalModal(true)}
-            refreshTrigger={refreshTrigger}
-          />
-        )}
-        {activeTab === 'products' && (
-          <ProductsTab
-            products={products}
-            tags={tags}
-            onRefresh={fetchData}
-            refreshTrigger={refreshTrigger}
-          />
-        )}
-        {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'metas' && (
-          <SaleGoalsTab
-            vendedores={vendedores}
-            onUpdate={fetchData}
-            toast={toast}
-          />
-        )}
-        {activeTab === 'reports' && <ReportsTab orders={orders} products={products} vendedores={vendedores} />}
-        {activeTab === 'stock-report' && <StockReportPanel role="owner" />}
-        {activeTab === 'nomina' && <PayrollPanel vendedores={vendedores} />}
-      </div>
+      {/* ── CONTENIDO PRINCIPAL ── */}
+      <main className="owner-main">
+        <div className="owner-content">
+          {activeTab === 'overview' && <OverviewTab stats={stats} />}
+          {activeTab === 'orders' && (
+            <OrdersTab
+              orders={orders}
+              onSelectOrder={setSelectedOrder}
+              onOpenHistoricalModal={() => setShowHistoricalModal(true)}
+              refreshTrigger={refreshTrigger}
+            />
+          )}
+          {activeTab === 'products' && (
+            <ProductsTab
+              products={products}
+              tags={tags}
+              onRefresh={fetchData}
+              refreshTrigger={refreshTrigger}
+            />
+          )}
+          {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'metas' && (
+            <SaleGoalsTab
+              vendedores={vendedores}
+              onUpdate={fetchData}
+              toast={toast}
+            />
+          )}
+          {activeTab === 'reports' && <ReportsTab orders={orders} products={products} vendedores={vendedores} />}
+          {activeTab === 'stock-report' && <StockReportPanel role="owner" />}
+          {activeTab === 'nomina' && <PayrollPanel vendedores={vendedores} />}
+        </div>
+      </main>
 
       {selectedOrder && (
         <OrderDetailModal
@@ -229,9 +219,7 @@ function OwnerDashboard() {
       {showHistoricalModal && (
         <HistoricalInvoiceModal
           onClose={() => setShowHistoricalModal(false)}
-          onSuccess={() => {
-            fetchData();
-          }}
+          onSuccess={() => { fetchData(); }}
         />
       )}
     </div>

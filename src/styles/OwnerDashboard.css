@@ -216,19 +216,17 @@
 
 
 
-.owner-dashboard .dashboard-content {
+.owner-content {
   padding: 1.25rem 1.5rem;
   flex: 1;
   width: 100%;
   min-height: 100vh;
   background: white;
   box-sizing: border-box;
-  max-width: none;
-  margin: 0;
 }
 
 @media (min-width: 1200px) {
-  .owner-dashboard .dashboard-content {
+  .owner-content {
     padding: 1.25rem 1.75rem;
   }
 }
@@ -298,7 +296,8 @@
     width: auto;
   }
 
-  .owner-dashboard .dashboard-content {
+  .owner-dashboard .dashboard-content,
+  .owner-content {
     padding: 0.75rem;
   }
 }
