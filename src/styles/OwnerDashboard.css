@@ -27,18 +27,115 @@
 /* 2. BASE LAYOUT */
 .owner-dashboard {
   min-height: 100vh;
-  background-color: var(--background);
-  color: var(--text-main);
+  width: 100%;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: row;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  padding-bottom: 2rem;
+}
+
+/* ══════════════════════════════════════════
+   OWNER SIDEBAR
+══════════════════════════════════════════ */
+.owner-sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 100;
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.08) transparent;
+  flex-shrink: 0;
+}
+
+.owner-sidebar::-webkit-scrollbar { width: 4px; }
+.owner-sidebar::-webkit-scrollbar-track { background: transparent; }
+.owner-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.1);
+  border-radius: 4px;
+}
+
+/* ── Main content area ── */
+.owner-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: white;
 }
 
 .owner-dashboard .dashboard-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-  padding-top: 2rem;
+  padding: 1.25rem 1.5rem;
+  flex: 1;
+  width: 100%;
+  min-height: 100vh;
+  background: white;
+  box-sizing: border-box;
+  max-width: none;
+  margin: 0;
 }
+
+@media (min-width: 1200px) {
+  .owner-dashboard .dashboard-content {
+    padding: 1.25rem 1.75rem;
+  }
+}
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — SIDEBAR COLAPSADA EN MÓVIL
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .owner-dashboard {
+    flex-direction: column;
+  }
+
+  .owner-sidebar {
+    width: 100%;
+    min-height: unset;
+    height: auto;
+    position: sticky;
+    top: 0;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0;
+    box-shadow: 0 4px 16px rgba(245,158,11,0.15);
+  }
+
+  .owner-sidebar .sidebar-brand { display: none; }
+
+  .owner-sidebar .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 0.4rem 0.5rem;
+    gap: 2px;
+  }
+
+  .owner-sidebar .sidebar-item {
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .owner-sidebar .sidebar-refresh {
+    margin: 0.4rem 0.5rem;
+    padding: 0.5rem 0.75rem;
+    flex-shrink: 0;
+    width: auto;
+  }
+}
+
+
 
 /* 3. HEADER SECTION */
 .dashboard-header {
