@@ -241,38 +241,46 @@ function NominaView({ nomina }) {
 
       {/* Comisión por ventas */}
       <CommissionCard
-        title="Comisión por Ventas"
+        title={nomina.salesCommissionByGoal === false ? 'Comisión por Ventas (Directa)' : 'Comisión por Ventas (Por Meta)'}
         icon="trending_up"
-        met={nomina.salesGoalMet}
-        metLabel="Meta de ventas cumplida"
+        met={nomina.salesCommissionByGoal === false ? true : nomina.salesGoalMet}
+        metLabel={nomina.salesCommissionByGoal === false ? '⚡ Modalidad directa — siempre aplica' : 'Meta de ventas cumplida'}
         amount={nomina.salesCommissionAmount}
         rows={[
-          { label: 'Meta mensual', value: `$${formatCurrency(nomina.salesGoalTarget)}` },
+          { label: 'Modalidad', value: nomina.salesCommissionByGoal === false ? '⚡ % directo sin meta' : '🎯 Solo si cumple meta' },
+          ...(nomina.salesCommissionByGoal !== false ? [{ label: 'Meta mensual', value: `$${formatCurrency(nomina.salesGoalTarget)}` }] : []),
           { label: 'Total vendido', value: `$${formatCurrency(nomina.totalSold)}` },
           { label: 'Comisión aplicada', value: pct(nomina.salesCommissionPct) },
         ]}
-        detail={nomina.salesGoalMet
-          ? `Felicitaciones, cumpliste tu meta. Comisión: ${pct(nomina.salesCommissionPct)} sobre $${formatCurrency(nomina.totalSold)}`
-          : `Aún no alcanzaste la meta de $${formatCurrency(nomina.salesGoalTarget)}. Vendiste $${formatCurrency(nomina.totalSold)}.`
+        detail={nomina.salesCommissionByGoal === false
+          ? `Comisión directa: ${pct(nomina.salesCommissionPct)} sobre $${formatCurrency(nomina.totalSold)} vendido.`
+          : nomina.salesGoalMet
+            ? `Felicitaciones, cumpliste tu meta. Comisión: ${pct(nomina.salesCommissionPct)} sobre $${formatCurrency(nomina.totalSold)}`
+            : `Aún no alcanzaste la meta de $${formatCurrency(nomina.salesGoalTarget)}. Vendiste $${formatCurrency(nomina.totalSold)}.`
         }
       />
 
       {/* Comisión por recaudo */}
       <CommissionCard
-        title="Comisión por Recaudo"
+        title={nomina.collectionCommissionByGoal === false ? 'Comisión por Recaudo (Directa)' : 'Comisión por Recaudo (Por Umbral)'}
         icon="account_balance_wallet"
-        met={nomina.collectionGoalMet}
-        metLabel="Meta de recaudo cumplida"
+        met={nomina.collectionCommissionByGoal === false ? true : nomina.collectionGoalMet}
+        metLabel={nomina.collectionCommissionByGoal === false ? '⚡ Modalidad directa — siempre aplica' : 'Meta de recaudo cumplida'}
         amount={nomina.collectionCommissionAmount}
         rows={[
-          { label: 'Vendido mes anterior', value: `$${formatCurrency(nomina.prevMonthTotalSold)}` },
+          { label: 'Modalidad', value: nomina.collectionCommissionByGoal === false ? '⚡ % directo sin umbral' : '🎯 Solo si ≥ umbral' },
+          ...(nomina.collectionCommissionByGoal !== false ? [
+            { label: 'Vendido mes anterior', value: `$${formatCurrency(nomina.prevMonthTotalSold)}` },
+            { label: '% Recaudado', value: formatPct(nomina.collectionPct) },
+          ] : []),
           { label: 'Total recaudado', value: `$${formatCurrency(nomina.totalCollected)}` },
-          { label: '% Recaudado', value: formatPct(nomina.collectionPct) },
           { label: 'Comisión aplicada', value: pct(nomina.collectionCommissionPct) },
         ]}
-        detail={nomina.collectionGoalMet
-          ? `Recaudaste el ${formatPct(nomina.collectionPct)} de lo vendido el mes anterior. ¡Meta superada!`
-          : `Recaudaste ${formatPct(nomina.collectionPct)}. Se requería el ${pct(nomina.collectionThresholdPct || 0.8)} para aplicar la comisión.`
+        detail={nomina.collectionCommissionByGoal === false
+          ? `Comisión directa: ${pct(nomina.collectionCommissionPct)} sobre $${formatCurrency(nomina.totalCollected)} recaudado.`
+          : nomina.collectionGoalMet
+            ? `Recaudaste el ${formatPct(nomina.collectionPct)} de lo vendido el mes anterior. ¡Meta superada!`
+            : `Recaudaste ${formatPct(nomina.collectionPct)}. Se requería el ${pct(nomina.collectionThresholdPct || 0.8)} para aplicar la comisión.`
         }
       />
 

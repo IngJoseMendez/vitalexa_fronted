@@ -385,16 +385,16 @@ function NominaCard({ nomina, onView, onRecalculate, onHistory, onExportExcel, o
 
         {/* Indicators */}
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-          <Badge
-            icon={nomina.salesGoalMet ? 'check_circle' : 'cancel'}
-            label="Meta ventas"
-            color={goalColor}
-          />
-          <Badge
-            icon={nomina.collectionGoalMet ? 'check_circle' : 'cancel'}
-            label="Meta recaudo"
-            color={collectColor}
-          />
+          {nomina.salesCommissionByGoal === false ? (
+            <Badge icon="bolt" label="Ventas directa" color="#0ea5e9" />
+          ) : (
+            <Badge icon={nomina.salesGoalMet ? 'check_circle' : 'cancel'} label="Meta ventas" color={goalColor} />
+          )}
+          {nomina.collectionCommissionByGoal === false ? (
+            <Badge icon="bolt" label="Recaudo directo" color="#0ea5e9" />
+          ) : (
+            <Badge icon={nomina.collectionGoalMet ? 'check_circle' : 'cancel'} label="Meta recaudo" color={collectColor} />
+          )}
           {nomina.generalCommissionEnabled && (
             <Badge icon="star" label="Com. general" color={nomina.generalCommissionGoalMet ? '#f59e0b' : '#9ca3af'} />
           )}
@@ -452,23 +452,33 @@ function NominaDetailModal({ nomina, onClose, onRecalculate, onExportExcel, onEx
           </Section>
 
           {/* Comisión por ventas */}
-          <Section title="📈 Comisión por Ventas">
-            <Row label="Meta de ventas" value={`$${formatCurrency(nomina.salesGoalTarget)}`} />
+          <Section title={nomina.salesCommissionByGoal === false ? '📈 Comisión por Ventas (Directa — Sin Meta)' : '📈 Comisión por Ventas (Por Meta)'}>
+            <Row label="Modalidad" value={nomina.salesCommissionByGoal === false ? '⚡ % directo sobre lo vendido' : '🎯 Solo si cumple meta'} color={nomina.salesCommissionByGoal === false ? '#0ea5e9' : '#7c3aed'} />
+            {nomina.salesCommissionByGoal !== false && (
+              <>
+                <Row label="Meta de ventas" value={`$${formatCurrency(nomina.salesGoalTarget)}`} />
+                <Row label="¿Cumplió meta?" value={nomina.salesGoalMet ? '✅ Sí' : '❌ No'} color={nomina.salesGoalMet ? '#10b981' : '#ef4444'} />
+              </>
+            )}
             <Row label="Total vendido" value={`$${formatCurrency(nomina.totalSold)}`} />
-            <Row label="¿Cumplió meta?" value={nomina.salesGoalMet ? '✅ Sí' : '❌ No'} color={nomina.salesGoalMet ? '#10b981' : '#ef4444'} />
             <Row label="Porcentaje comisión" value={pct(nomina.salesCommissionPct)} />
-            <Row label="Comisión ventas" value={`$${formatCurrency(nomina.salesCommissionAmount)}`} highlight color={nomina.salesGoalMet ? '#10b981' : '#9ca3af'} />
+            <Row label="Comisión ventas" value={`$${formatCurrency(nomina.salesCommissionAmount)}`} highlight color={(nomina.salesCommissionByGoal === false || nomina.salesGoalMet) ? '#10b981' : '#9ca3af'} />
           </Section>
 
           {/* Comisión por recaudo */}
-          <Section title="💰 Comisión por Recaudo">
-            <Row label="Vendido mes anterior" value={`$${formatCurrency(nomina.prevMonthTotalSold)}`} />
+          <Section title={nomina.collectionCommissionByGoal === false ? '💰 Comisión por Recaudo (Directa — Sin Umbral)' : '💰 Comisión por Recaudo (Por Umbral)'}>
+            <Row label="Modalidad" value={nomina.collectionCommissionByGoal === false ? '⚡ % directo sobre lo recaudado' : '🎯 Solo si recauda ≥ umbral'} color={nomina.collectionCommissionByGoal === false ? '#0ea5e9' : '#7c3aed'} />
+            {nomina.collectionCommissionByGoal !== false && (
+              <>
+                <Row label="Vendido mes anterior" value={`$${formatCurrency(nomina.prevMonthTotalSold)}`} />
+                <Row label="% Recaudado" value={formatPct(nomina.collectionPct)} />
+                <Row label="Umbral requerido" value={pct(nomina.collectionThresholdPct || 0.8)} />
+                <Row label="¿Cumplió meta?" value={nomina.collectionGoalMet ? '✅ Sí' : '❌ No'} color={nomina.collectionGoalMet ? '#10b981' : '#ef4444'} />
+              </>
+            )}
             <Row label="Total recaudado" value={`$${formatCurrency(nomina.totalCollected)}`} />
-            <Row label="% Recaudado" value={formatPct(nomina.collectionPct)} />
-            <Row label="Umbral requerido" value={pct(nomina.collectionThresholdPct || 0.8)} />
-            <Row label="¿Cumplió meta?" value={nomina.collectionGoalMet ? '✅ Sí' : '❌ No'} color={nomina.collectionGoalMet ? '#10b981' : '#ef4444'} />
             <Row label="Porcentaje comisión" value={pct(nomina.collectionCommissionPct)} />
-            <Row label="Comisión recaudo" value={`$${formatCurrency(nomina.collectionCommissionAmount)}`} highlight color={nomina.collectionGoalMet ? '#10b981' : '#9ca3af'} />
+            <Row label="Comisión recaudo" value={`$${formatCurrency(nomina.collectionCommissionAmount)}`} highlight color={(nomina.collectionCommissionByGoal === false || nomina.collectionGoalMet) ? '#10b981' : '#9ca3af'} />
           </Section>
 
           {/* Comisión general */}
@@ -602,7 +612,9 @@ function ConfigTab({ vendedores, toast }) {
         vendedorUsername: v?.username || vendedorId,
         baseSalary: 1500000,
         salesCommissionPct: 0.015,
+        salesCommissionByGoal: true,
         collectionCommissionPct: 0.03,
+        collectionCommissionByGoal: true,
         collectionThresholdPct: 0.8,
         generalCommissionEnabled: false,
         generalCommissionPct: 0.02,
@@ -656,9 +668,14 @@ function ConfigTab({ vendedores, toast }) {
                 {cfg ? (
                   <div style={{ padding: '0.875rem 1rem' }}>
                     <Row label="Salario base" value={`$${formatCurrency(cfg.baseSalary)}`} />
-                    <Row label="Comisión ventas" value={pct(cfg.salesCommissionPct)} />
-                    <Row label="Comisión recaudo" value={pct(cfg.collectionCommissionPct)} />
-                    <Row label="Umbral recaudo" value={pct(cfg.collectionThresholdPct)} />
+                    <Row
+                      label="Comisión ventas"
+                      value={`${pct(cfg.salesCommissionPct)} ${cfg.salesCommissionByGoal === false ? '⚡ Directa' : '🎯 Por meta'}`}
+                    />
+                    <Row
+                      label="Comisión recaudo"
+                      value={`${pct(cfg.collectionCommissionPct)} ${cfg.collectionCommissionByGoal === false ? '⚡ Directa' : `🎯 Umbral ${pct(cfg.collectionThresholdPct)}`}`}
+                    />
                     <Row label="Com. general" value={cfg.generalCommissionEnabled ? `${pct(cfg.generalCommissionPct)} ✅` : '❌ Deshabilitada'} />
                   </div>
                 ) : (
@@ -691,7 +708,9 @@ function ConfigEditModal({ config, onSave, onClose, saving }) {
     vendedorId: config.vendedorId,
     baseSalary: config.baseSalary ?? 1500000,
     salesCommissionPct: ((config.salesCommissionPct ?? 0.015) * 100).toFixed(3),
+    salesCommissionByGoal: config.salesCommissionByGoal ?? true,
     collectionCommissionPct: ((config.collectionCommissionPct ?? 0.03) * 100).toFixed(3),
+    collectionCommissionByGoal: config.collectionCommissionByGoal ?? true,
     collectionThresholdPct: ((config.collectionThresholdPct ?? 0.8) * 100).toFixed(1),
     generalCommissionEnabled: config.generalCommissionEnabled ?? false,
     generalCommissionPct: ((config.generalCommissionPct ?? 0.02) * 100).toFixed(3),
@@ -705,41 +724,106 @@ function ConfigEditModal({ config, onSave, onClose, saving }) {
       vendedorId: form.vendedorId,
       baseSalary: parseFloat(form.baseSalary),
       salesCommissionPct: parseFloat(form.salesCommissionPct) / 100,
+      salesCommissionByGoal: form.salesCommissionByGoal,
       collectionCommissionPct: parseFloat(form.collectionCommissionPct) / 100,
+      collectionCommissionByGoal: form.collectionCommissionByGoal,
       collectionThresholdPct: parseFloat(form.collectionThresholdPct) / 100,
       generalCommissionEnabled: form.generalCommissionEnabled,
       generalCommissionPct: parseFloat(form.generalCommissionPct) / 100,
     });
   };
 
+  const toggleStyle = (active) => ({
+    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+    padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer',
+    fontSize: '0.82rem', fontWeight: 600, border: '1.5px solid',
+    borderColor: active ? '#7c3aed' : '#d1d5db',
+    background: active ? '#f5f3ff' : '#f9fafb',
+    color: active ? '#7c3aed' : '#6b7280',
+  });
+
   return (
     <div style={overlayStyle} onClick={onClose}>
-      <div style={{ ...modalStyle, maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
+      <div style={{ ...modalStyle, maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '1.25rem', background: '#7c3aed', color: 'white', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0 }}>Configurar Nómina — {config.vendedorUsername}</h3>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: 'white', cursor: 'pointer', fontSize: '18px' }}>×</button>
         </div>
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+        <form onSubmit={handleSubmit} style={{ padding: '1.5rem', overflowY: 'auto', maxHeight: '80vh' }}>
+
           <FieldGroup label="Salario Base ($)">
             <input type="number" value={form.baseSalary} onChange={e => set('baseSalary', e.target.value)} style={inputStyle} min="0" step="1000" required />
           </FieldGroup>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <FieldGroup label="Comisión ventas (%)">
+          {/* ── Comisión Ventas ── */}
+          <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '1rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
+            <div style={{ fontWeight: 700, color: '#374151', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span className="material-icons-round" style={{ fontSize: '18px', color: '#7c3aed' }}>trending_up</span>
+              Comisión por Ventas
+            </div>
+            <FieldGroup label="Porcentaje (%)">
               <input type="number" value={form.salesCommissionPct} onChange={e => set('salesCommissionPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.001" required />
-              <small style={{ color: '#9ca3af' }}>Solo si cumplió meta</small>
             </FieldGroup>
-            <FieldGroup label="Comisión recaudo (%)">
-              <input type="number" value={form.collectionCommissionPct} onChange={e => set('collectionCommissionPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.001" required />
-              <small style={{ color: '#9ca3af' }}>Si recauda ≥ umbral</small>
-            </FieldGroup>
+            <div style={{ marginTop: '0.5rem' }}>
+              <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 0.5rem' }}>Modalidad:</p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <label style={toggleStyle(form.salesCommissionByGoal === true)}>
+                  <input type="radio" name="salesMode" checked={form.salesCommissionByGoal === true}
+                    onChange={() => set('salesCommissionByGoal', true)} style={{ display: 'none' }} />
+                  🎯 Solo si cumple meta
+                </label>
+                <label style={toggleStyle(form.salesCommissionByGoal === false)}>
+                  <input type="radio" name="salesMode" checked={form.salesCommissionByGoal === false}
+                    onChange={() => set('salesCommissionByGoal', false)} style={{ display: 'none' }} />
+                  ⚡ Siempre (directa)
+                </label>
+              </div>
+              <small style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
+                {form.salesCommissionByGoal === false
+                  ? 'Se aplica: totalVendido × % — sin importar meta'
+                  : 'Se aplica solo si la vendedora cumplió su meta mensual'}
+              </small>
+            </div>
           </div>
 
-          <FieldGroup label="Umbral de recaudo requerido (%)">
-            <input type="number" value={form.collectionThresholdPct} onChange={e => set('collectionThresholdPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.1" required />
-            <small style={{ color: '#9ca3af' }}>% de lo vendido el mes anterior que debe recaudar</small>
-          </FieldGroup>
+          {/* ── Comisión Recaudo ── */}
+          <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '1rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
+            <div style={{ fontWeight: 700, color: '#374151', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span className="material-icons-round" style={{ fontSize: '18px', color: '#10b981' }}>account_balance</span>
+              Comisión por Recaudo
+            </div>
+            <FieldGroup label="Porcentaje (%)">
+              <input type="number" value={form.collectionCommissionPct} onChange={e => set('collectionCommissionPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.001" required />
+            </FieldGroup>
+            <div style={{ marginTop: '0.5rem' }}>
+              <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 0.5rem' }}>Modalidad:</p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <label style={toggleStyle(form.collectionCommissionByGoal === true)}>
+                  <input type="radio" name="collectionMode" checked={form.collectionCommissionByGoal === true}
+                    onChange={() => set('collectionCommissionByGoal', true)} style={{ display: 'none' }} />
+                  🎯 Solo si ≥ umbral
+                </label>
+                <label style={toggleStyle(form.collectionCommissionByGoal === false)}>
+                  <input type="radio" name="collectionMode" checked={form.collectionCommissionByGoal === false}
+                    onChange={() => set('collectionCommissionByGoal', false)} style={{ display: 'none' }} />
+                  ⚡ Siempre (directa)
+                </label>
+              </div>
+              {form.collectionCommissionByGoal !== false && (
+                <FieldGroup label="Umbral de recaudo requerido (%)" style={{ marginTop: '0.5rem' }}>
+                  <input type="number" value={form.collectionThresholdPct} onChange={e => set('collectionThresholdPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.1" required />
+                  <small style={{ color: '#9ca3af' }}>% de lo vendido el mes anterior</small>
+                </FieldGroup>
+              )}
+              <small style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
+                {form.collectionCommissionByGoal === false
+                  ? 'Se aplica: totalRecaudado × % — sin importar umbral'
+                  : 'Se aplica solo si recaudó ≥ umbral del mes anterior'}
+              </small>
+            </div>
+          </div>
 
+          {/* ── Comisión General ── */}
           <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1rem', marginTop: '0.5rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.75rem' }}>
               <input
