@@ -65,6 +65,51 @@
   z-index: 10;
 }
 
+.vendedor-dashboard .dashboard-nav button {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 1.25rem 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: nowrap;
+}
+
+.vendedor-dashboard .dashboard-nav button .material-icons-round {
+  font-size: 20px;
+  transition: transform 0.3s;
+}
+
+.vendedor-dashboard .dashboard-nav button:hover {
+  color: var(--primary);
+}
+
+.vendedor-dashboard .dashboard-nav button:hover .material-icons-round {
+  transform: translateY(-2px);
+}
+
+.vendedor-dashboard .dashboard-nav button.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.vendedor-dashboard .dashboard-nav .nav-external {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+
+.vendedor-dashboard .dashboard-nav .nav-external:hover {
+  color: var(--primary);
+}
+
 /* ============================================
    ✅ FIX TCL 50 PRO N / GPU Mali-G57 / Móviles gama media-baja
    backdrop-filter satura la GPU → freeze + parpadeo al cambiar pestañas
