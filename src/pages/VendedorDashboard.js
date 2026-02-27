@@ -152,9 +152,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
   // ✅ Datos del endpoint unificado /vendedor/init (1 sola petición al iniciar)
   const [initPromociones, setInitPromociones] = useState(null);
-  // isOffline = true SOLO cuando el servidor no responde y se cayó a caché vencida
-  // (caché fresca con internet es silenciosa — no muestra banner)
-  const [isOffline, setIsOffline] = useState(false);
 
   // Check if user is Admin or Owner
   const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
@@ -214,10 +211,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
   // Con caché local para funcionar con internet débil o sin conexión
   const fetchInitData = useCallback(async () => {
     setLoading(true);
-    setIsOffline(false); // Resetear al reintentar
     try {
       const datos = await vendedorInitService.cargarDatosInicio();
-      // Si hay filtro de tag activo, los productos del init no aplican — hacer fetch normal
       if (activeTagId) {
         const tagRes = await apiClient.get(`/vendedor/products/tag/${activeTagId}`);
         setProducts(tagRes.data.content || tagRes.data || []);
@@ -225,23 +220,18 @@ function NuevaVentaPanel({ refreshTrigger }) {
         setProducts(datos.productos || []);
       }
       setInitPromociones(datos.promociones || []);
-      // Solo mostrar banner si el servidor falló y se usó caché de emergencia
-      // (fromCache=true con datos frescos es silencioso — hay internet)
-      setIsOffline(datos.serverFailed === true);
     } catch (error) {
-      console.error('❌ [VendedorInit] Sin internet y sin caché:', error);
-      setIsOffline(true);
-      // Fallback: intentar cargar al menos los productos
+      console.error('❌ [VendedorInit] Error al cargar datos de inicio:', error);
+      // Fallback silencioso: intentar cargar al menos los productos
       try {
         await fetchProducts();
       } catch (e) {
         console.error('Error al cargar productos en fallback:', e);
-        toast.error('Sin conexión a internet. Reintenta cuando tengas señal.');
       }
     } finally {
       setLoading(false);
     }
-  }, [activeTagId, fetchProducts, toast]);
+  }, [activeTagId, fetchProducts]);
 
   useEffect(() => {
     fetchInitData();
@@ -502,7 +492,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
       setAssignedVendor('');
       // ✅ Invalidar caché del init porque el stock cambió al crear el pedido
       vendedorInitService.invalidarCache();
-      fetchProducts();
+      fetchInitData();
     } catch (error) {
       console.error('Error al crear orden:', error);
       if (error.response?.status === 403 && error.response?.data?.message?.includes('Límite de crédito')) {
@@ -528,46 +518,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
     <div className="nueva-venta-panel">
       <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>add_shopping_cart</span> Nueva Venta</h2>
 
-      {/* ✅ Banner SOLO cuando realmente no hay internet y se usan datos de emergencia */}
-      {isOffline && (
-        <div style={{
-          background: '#fff3cd',
-          border: '1px solid #ffc107',
-          borderRadius: '8px',
-          padding: '10px 16px',
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          fontSize: '0.88rem',
-          color: '#856404'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>wifi_off</span>
-            <span>Sin internet — mostrando datos guardados. Los precios y stock pueden no estar actualizados.</span>
-          </div>
-          <button
-            onClick={fetchInitData}
-            style={{
-              background: '#856404',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontSize: '0.82rem',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            <span className="material-icons-round" style={{ fontSize: '14px' }}>refresh</span>
-            Reintentar
-          </button>
-        </div>
-      )}
 
       <div className="venta-layout">
         {/* ✅ SECCIÓN IZQUIERDA - PRODUCTOS CON IMÁGENES CORREGIDAS */}
@@ -593,7 +543,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           </div>
 
           {/* CATALOGO DE PROMOCIONES */}
-          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} />
+          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} initLoading={loading} />
 
           {/* Buscador de Productos movido abajo de promociones */}
           <div className="search-container search-container-sm">

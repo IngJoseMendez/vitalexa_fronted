@@ -10,23 +10,33 @@ import '../styles/Promotions.css';
  *
  * Props:
  *  - onAddToCart: función al agregar una promo al carrito
- *  - initialPromotions: array de promociones ya cargadas (del endpoint unificado /vendedor/init).
- *    Si se provee, NO hace fetch propio. Si es null/undefined, hace fetch como antes (fallback).
+ *  - initialPromotions: array de promociones ya cargadas (del endpoint /vendedor/init).
+ *    - undefined → componente autónomo, hace su propio fetch
+ *    - null      → el init padre está cargando, mostrar spinner
+ *    - []        → init terminó, sin promociones
+ *    - [...]     → init terminó, usar estos datos directamente
+ *  - initLoading: boolean, true mientras el padre está cargando el init
  */
-function VendedorPromotionsCatalog({ onAddToCart, initialPromotions }) {
+function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading }) {
     const [promotions, setPromotions] = useState([]);
     const [loading, setLoading] = useState(true);
     const toast = useToast();
 
     useEffect(() => {
-        // Si el padre ya cargó las promociones vía /vendedor/init, usarlas directamente
-        if (initialPromotions !== undefined && initialPromotions !== null) {
+        // Caso 1: el padre controla los datos (initialPromotions no es undefined)
+        if (initialPromotions !== undefined) {
+            // Mientras el init del padre sigue cargando, mostrar spinner
+            if (initLoading || initialPromotions === null) {
+                setLoading(true);
+                return;
+            }
+            // Init terminó — usar datos recibidos directamente, sin fetch propio
             setPromotions(initialPromotions || []);
             setLoading(false);
             return;
         }
 
-        // Fallback: fetch propio (cuando el componente se usa sin datos del init unificado)
+        // Caso 2: componente autónomo (sin prop initialPromotions) — fetch propio
         const fetchPromotions = async () => {
             try {
                 setLoading(true);
@@ -41,7 +51,7 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions }) {
         };
 
         fetchPromotions();
-    }, [initialPromotions, toast]);
+    }, [initialPromotions, initLoading, toast]);
 
     if (loading) {
         return <div className="loading-inline">Cargando promociones...</div>;
