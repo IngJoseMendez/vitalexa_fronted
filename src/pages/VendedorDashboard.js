@@ -11,6 +11,7 @@ import { PromotionType } from '../utils/types';
 import VendorSpecialProductsPanel from '../components/VendorSpecialProductsPanel';
 import VendorProductCard from '../components/VendorProductCard';
 import MiNominaPanel from '../components/MiNominaPanel';
+import vendedorInitService from '../api/vendedorInitService';
 import '../styles/VendedorDashboard.css';
 
 
@@ -149,6 +150,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [tags, setTags] = useState([]);
   const [activeTagId, setActiveTagId] = useState(null);
 
+  // ✅ Datos del endpoint unificado /vendedor/init (1 sola petición al iniciar)
+  const [initPromociones, setInitPromociones] = useState(null);
+  // isOffline = true SOLO cuando el servidor no responde y se cayó a caché vencida
+  // (caché fresca con internet es silenciosa — no muestra banner)
+  const [isOffline, setIsOffline] = useState(false);
+
   // Check if user is Admin or Owner
   const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
 
@@ -203,12 +210,45 @@ function NuevaVentaPanel({ refreshTrigger }) {
     }
   }, [activeTagId]);
 
+  // ✅ Carga inicial unificada: 1 sola petición para productos + promociones + promos especiales
+  // Con caché local para funcionar con internet débil o sin conexión
+  const fetchInitData = useCallback(async () => {
+    setLoading(true);
+    setIsOffline(false); // Resetear al reintentar
+    try {
+      const datos = await vendedorInitService.cargarDatosInicio();
+      // Si hay filtro de tag activo, los productos del init no aplican — hacer fetch normal
+      if (activeTagId) {
+        const tagRes = await apiClient.get(`/vendedor/products/tag/${activeTagId}`);
+        setProducts(tagRes.data.content || tagRes.data || []);
+      } else {
+        setProducts(datos.productos || []);
+      }
+      setInitPromociones(datos.promociones || []);
+      // Solo mostrar banner si el servidor falló y se usó caché de emergencia
+      // (fromCache=true con datos frescos es silencioso — hay internet)
+      setIsOffline(datos.serverFailed === true);
+    } catch (error) {
+      console.error('❌ [VendedorInit] Sin internet y sin caché:', error);
+      setIsOffline(true);
+      // Fallback: intentar cargar al menos los productos
+      try {
+        await fetchProducts();
+      } catch (e) {
+        console.error('Error al cargar productos en fallback:', e);
+        toast.error('Sin conexión a internet. Reintenta cuando tengas señal.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTagId, fetchProducts, toast]);
+
   useEffect(() => {
+    fetchInitData();
     fetchClients();
-    fetchProducts();
     fetchTags();
     fetchVendedores();
-  }, [refreshTrigger, activeTagId, fetchClients, fetchProducts, fetchTags, fetchVendedores]);
+  }, [refreshTrigger, activeTagId, fetchInitData, fetchClients, fetchTags, fetchVendedores]);
 
   const addToCart = (product, quantity = 1) => {
     if (isBonifiedMode) { // ✅ Logic for Bonified Items
@@ -460,6 +500,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
       setFreightQuantity(1);
       setFreightItems([]);
       setAssignedVendor('');
+      // ✅ Invalidar caché del init porque el stock cambió al crear el pedido
+      vendedorInitService.invalidarCache();
       fetchProducts();
     } catch (error) {
       console.error('Error al crear orden:', error);
@@ -486,6 +528,47 @@ function NuevaVentaPanel({ refreshTrigger }) {
     <div className="nueva-venta-panel">
       <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>add_shopping_cart</span> Nueva Venta</h2>
 
+      {/* ✅ Banner SOLO cuando realmente no hay internet y se usan datos de emergencia */}
+      {isOffline && (
+        <div style={{
+          background: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '8px',
+          padding: '10px 16px',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          fontSize: '0.88rem',
+          color: '#856404'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>wifi_off</span>
+            <span>Sin internet — mostrando datos guardados. Los precios y stock pueden no estar actualizados.</span>
+          </div>
+          <button
+            onClick={fetchInitData}
+            style={{
+              background: '#856404',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '4px 10px',
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span className="material-icons-round" style={{ fontSize: '14px' }}>refresh</span>
+            Reintentar
+          </button>
+        </div>
+      )}
+
       <div className="venta-layout">
         {/* ✅ SECCIÓN IZQUIERDA - PRODUCTOS CON IMÁGENES CORREGIDAS */}
         <div className="productos-section">
@@ -510,7 +593,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           </div>
 
           {/* CATALOGO DE PROMOCIONES */}
-          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} />
+          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} />
 
           {/* Buscador de Productos movido abajo de promociones */}
           <div className="search-container search-container-sm">

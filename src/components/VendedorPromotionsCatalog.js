@@ -5,12 +5,28 @@ import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
 import '../styles/Promotions.css';
 
-function VendedorPromotionsCatalog({ onAddToCart }) {
+/**
+ * Catálogo de promociones para el vendedor.
+ *
+ * Props:
+ *  - onAddToCart: función al agregar una promo al carrito
+ *  - initialPromotions: array de promociones ya cargadas (del endpoint unificado /vendedor/init).
+ *    Si se provee, NO hace fetch propio. Si es null/undefined, hace fetch como antes (fallback).
+ */
+function VendedorPromotionsCatalog({ onAddToCart, initialPromotions }) {
     const [promotions, setPromotions] = useState([]);
     const [loading, setLoading] = useState(true);
     const toast = useToast();
 
     useEffect(() => {
+        // Si el padre ya cargó las promociones vía /vendedor/init, usarlas directamente
+        if (initialPromotions !== undefined && initialPromotions !== null) {
+            setPromotions(initialPromotions || []);
+            setLoading(false);
+            return;
+        }
+
+        // Fallback: fetch propio (cuando el componente se usa sin datos del init unificado)
         const fetchPromotions = async () => {
             try {
                 setLoading(true);
@@ -25,7 +41,7 @@ function VendedorPromotionsCatalog({ onAddToCart }) {
         };
 
         fetchPromotions();
-    }, [toast]);
+    }, [initialPromotions, toast]);
 
     if (loading) {
         return <div className="loading-inline">Cargando promociones...</div>;
