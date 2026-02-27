@@ -65,40 +65,58 @@
   z-index: 10;
 }
 
-.vendedor-dashboard .dashboard-nav button {
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  padding: 1.25rem 0.75rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  white-space: nowrap;
-}
+/* ============================================
+   ✅ FIX TCL 50 PRO N / GPU Mali-G57 / Móviles gama media-baja
+   backdrop-filter satura la GPU → freeze + parpadeo al cambiar pestañas
+   ============================================ */
+@media (max-width: 768px) {
+  .vendedor-dashboard .dashboard-header {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #ffffff !important;
+  }
 
-.vendedor-dashboard .dashboard-nav button .material-icons-round {
-  font-size: 20px;
-  transition: transform 0.3s;
-}
+  .vendedor-dashboard .dashboard-nav {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #ffffff !important;
+  }
 
-.vendedor-dashboard .dashboard-nav button:hover {
-  color: var(--primary);
-}
+  .productos-section {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 
-.vendedor-dashboard .dashboard-nav button:hover .material-icons-round {
-  transform: translateY(-2px);
-}
+  .carrito-section {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 
-.vendedor-dashboard .dashboard-nav button.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-  background: transparent !important;
-  box-shadow: none !important;
+  /* Desactivar animaciones pesadas de hover en táctil — no tienen hover real */
+  .product-card:hover {
+    transform: none !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  .product-card:hover img {
+    transform: none !important;
+    padding: 1.5rem !important;
+  }
+
+  .product-card:hover::before {
+    opacity: 0 !important;
+  }
+
+  /* ✅ Fix 100vh dinámico en Chrome Android — la barra URL cambia el viewport */
+  .productos-grid {
+    max-height: none !important;
+    height: auto !important;
+    overflow-y: visible !important;
+  }
+
+  .venta-layout {
+    height: auto !important;
+  }
 }
 
 /* CONTENT */
@@ -1253,9 +1271,7 @@
 }
 
 .cart-item-subtotal {
-  font-weight: 700;
-  color: var(--primary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 .cart-total {
@@ -2569,7 +2585,7 @@
     flex: 1;
   }
 }
-/* Bot�n Flotante de Carrito para M�vil */
+/* Bot�n Flotante de Carrito para M�vil */
 .mobile-cart-fab {
   display: none;
   position: fixed;
@@ -2631,7 +2647,7 @@
   transform: scale(0.95);
 }
 
-/* Estilos para buscador de productos m�s peque�o y responsive */
+/* Estilos para buscador de productos m�s peque�o y responsive */
 .search-container-sm {
   margin: 1rem auto;
   max-width: 450px !important;

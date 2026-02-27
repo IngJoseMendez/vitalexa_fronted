@@ -8,7 +8,7 @@ class NotificationService {
     this.subscriptions = [];
     this.connected = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 10;
+    this.maxReconnectAttempts = 3; // ✅ Reducido de 10 → 3 para no saturar CPU/red en móviles con mala señal
   }
 
   connect(onMessageReceived, userRole = 'vendedor') {
@@ -87,7 +87,8 @@ class NotificationService {
   handleReconnect(onMessageReceived, userRole) {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+      // ✅ Delay máximo 60s (antes 30s) — evita spam de requests en señal débil (TCL / móviles gama baja)
+      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60000);
 
       console.log(`🔄 Reintentando conexión en ${delay / 1000}s (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
@@ -95,7 +96,7 @@ class NotificationService {
         this.connect(onMessageReceived, userRole);
       }, delay);
     } else {
-      console.error('❌ Se alcanzó el máximo de intentos de reconexión');
+      console.warn('⚠️ WebSocket: máximo de intentos alcanzado. La app funcionará sin notificaciones en tiempo real.');
     }
   }
 
