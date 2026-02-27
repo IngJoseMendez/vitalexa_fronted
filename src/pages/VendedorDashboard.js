@@ -193,20 +193,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
     }
   }, []);
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      let url = '/vendedor/products';
-      if (activeTagId) {
-        url = `/vendedor/products/tag/${activeTagId}`;
-      }
-      const response = await apiClient.get(url);
-      setProducts(response.data.content || response.data || []);
-    } catch (error) {
-      console.error('Error al cargar productos:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTagId]);
 
   // ✅ Carga inicial unificada: 1 sola petición para productos + promociones + promos especiales
   // Con caché local para funcionar con internet débil o sin conexión
