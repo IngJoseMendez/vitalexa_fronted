@@ -26,11 +26,11 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
         // Caso 1: el padre controla los datos (initialPromotions no es undefined)
         if (initialPromotions !== undefined) {
             // Mientras el init del padre sigue cargando, mostrar spinner
-            if (initLoading || initialPromotions === null) {
+            if (initLoading) {
                 setLoading(true);
                 return;
             }
-            // Init terminó — usar datos recibidos directamente, sin fetch propio
+            // Init terminó — usar datos recibidos (null se trata como array vacío)
             setPromotions(initialPromotions || []);
             setLoading(false);
             return;

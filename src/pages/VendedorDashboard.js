@@ -152,6 +152,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
   // ✅ Datos del endpoint unificado /vendedor/init (1 sola petición al iniciar)
   const [initPromociones, setInitPromociones] = useState(null);
+  const [promosLoading, setPromosLoading] = useState(true); // ✅ Estado de carga INDEPENDIENTE para promociones
 
   // Check if user is Admin or Owner
   const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
@@ -211,6 +212,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   // Con caché local para funcionar con internet débil o sin conexión
   const fetchInitData = useCallback(async () => {
     setLoading(true);
+    setPromosLoading(true); // ✅ Indicar que las promociones también están cargando
     try {
       const datos = await vendedorInitService.cargarDatosInicio();
       if (activeTagId) {
@@ -222,23 +224,29 @@ function NuevaVentaPanel({ refreshTrigger }) {
       setInitPromociones(datos.promociones || []);
     } catch (error) {
       console.error('❌ [VendedorInit] Error al cargar datos de inicio:', error);
-      // Fallback silencioso: intentar cargar al menos los productos
+      // Fallback silencioso: intentar cargar al menos los productos (lógica inline, sin dependencia extra)
       try {
-        await fetchProducts();
+        let url = activeTagId ? `/vendedor/products/tag/${activeTagId}` : '/vendedor/products';
+        const response = await apiClient.get(url);
+        setProducts(response.data.content || response.data || []);
       } catch (e) {
         console.error('Error al cargar productos en fallback:', e);
       }
+      // En caso de error de red, dejar las promociones vacías para no bloquear la UI
+      setInitPromociones([]);
     } finally {
       setLoading(false);
+      setPromosLoading(false); // ✅ Siempre marcar como terminado
     }
-  }, [activeTagId, fetchProducts]);
+  }, [activeTagId]); // ✅ SIN fetchProducts en dependencias — evita bucle infinito
 
   useEffect(() => {
     fetchInitData();
     fetchClients();
     fetchTags();
     fetchVendedores();
-  }, [refreshTrigger, activeTagId, fetchInitData, fetchClients, fetchTags, fetchVendedores]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger, activeTagId]); // ✅ SIN fetchInitData/fetchClients/etc. en deps — evita bucle infinito de renders
 
   const addToCart = (product, quantity = 1) => {
     if (isBonifiedMode) { // ✅ Logic for Bonified Items
@@ -543,7 +551,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           </div>
 
           {/* CATALOGO DE PROMOCIONES */}
-          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} initLoading={loading} />
+          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} initLoading={promosLoading} />
 
           {/* Buscador de Productos movido abajo de promociones */}
           <div className="search-container search-container-sm">
