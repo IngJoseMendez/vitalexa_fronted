@@ -900,7 +900,8 @@ function OrdersPanel({ refreshTrigger }) {
                 {/* ✅ SECCIÓN DE DESCUENTOS - ADMIN */}
                 <AdminDiscountSection
                   orderId={order.id}
-                  onSuccess={fetchOrders}
+                  orderStatus={order.estado}
+                  onDiscountChange={fetchOrders}
                 />
 
                 {/* ✅ BOTONES DE GESTIÓN DE ORDEN */}
