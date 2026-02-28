@@ -9,6 +9,7 @@ import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import AdminClientsPanel from '../components/AdminClientsPanel'; // Import AdminClientsPanel
 import StockReportPanel from '../components/StockReportPanel';
 import PayrollPanel from '../components/PayrollPanel';
+import PaymentTransferPanel from '../components/PaymentTransferPanel';
 import '../styles/OwnerDashboard.css';
 import '../styles/ChartStyles.css';
 
@@ -139,6 +140,7 @@ function OwnerDashboard() {
             { key: 'reports', icon: 'insights', label: 'Reportes' },
             { key: 'stock-report', icon: 'warehouse', label: 'Stock Real' },
             { key: 'nomina', icon: 'payments', label: 'Nómina' },
+            { key: 'transferencias', icon: 'swap_horiz', label: 'Transferencias' },
           ].map(item => (
             <button
               key={item.key}
@@ -204,6 +206,7 @@ function OwnerDashboard() {
           {activeTab === 'reports' && <ReportsTab orders={orders} products={products} vendedores={vendedores} />}
           {activeTab === 'stock-report' && <StockReportPanel role="owner" />}
           {activeTab === 'nomina' && <PayrollPanel vendedores={vendedores} />}
+          {activeTab === 'transferencias' && <PaymentTransferPanel vendedores={vendedores} />}
         </div>
       </main>
 
