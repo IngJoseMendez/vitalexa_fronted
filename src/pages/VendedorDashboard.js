@@ -1273,7 +1273,12 @@ function VentasCompletadasPanel() {
 
               <div className="venta-info">
                 <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
-                <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
+                <p>
+                  <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
+                  {order.estado === 'COMPLETADO' && order.completedAt
+                    ? new Date(order.completedAt).toLocaleDateString('es-ES')
+                    : new Date(order.fecha).toLocaleString()}
+                </p>
                 <p><strong>Total:</strong> ${formatCurrency(parseFloat(order.total))}</p>
 
                 {order.notas && (
@@ -1790,7 +1795,12 @@ function MisVentasPanel() {
 
               <div className="venta-info">
                 <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
-                <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString()}</p>
+                <p>
+                  <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
+                  {order.estado === 'COMPLETADO' && order.completedAt
+                    ? new Date(order.completedAt).toLocaleDateString('es-ES')
+                    : new Date(order.fecha).toLocaleString()}
+                </p>
                 <p><strong>Total:</strong> ${formatCurrency(parseFloat(order.total))}</p>
 
                 {order.notas && (
@@ -2008,7 +2018,7 @@ function MisMetasPanel() {
       let filename = `mis_ventas_${dateRange.startDate}_${dateRange.endDate}.xlsx`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i) ||
-                      contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+          contentDisposition.match(/filename\s*=\s*"?([^";]+)"?/i);
         if (match?.[1]) filename = decodeURIComponent(match[1].replace(/"/g, ''));
       }
       const url = window.URL.createObjectURL(new Blob([response.data]));

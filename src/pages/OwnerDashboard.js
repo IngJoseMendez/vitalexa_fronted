@@ -131,14 +131,14 @@ function OwnerDashboard() {
 
         <nav className="sidebar-nav">
           {[
-            { key: 'overview',     icon: 'dashboard',     label: 'Resumen' },
-            { key: 'orders',       icon: 'inventory',     label: `Órdenes (${stats?.totalOrders || 0})` },
-            { key: 'products',     icon: 'store',         label: `Productos (${stats?.totalProducts || 0})` },
-            { key: 'clients',      icon: 'people',        label: 'Clientes' },
-            { key: 'metas',        icon: 'trending_up',   label: `Metas (${vendedores.length})` },
-            { key: 'reports',      icon: 'insights',      label: 'Reportes' },
-            { key: 'stock-report', icon: 'warehouse',     label: 'Stock Real' },
-            { key: 'nomina',       icon: 'payments',      label: 'Nómina' },
+            { key: 'overview', icon: 'dashboard', label: 'Resumen' },
+            { key: 'orders', icon: 'inventory', label: `Órdenes (${stats?.totalOrders || 0})` },
+            { key: 'products', icon: 'store', label: `Productos (${stats?.totalProducts || 0})` },
+            { key: 'clients', icon: 'people', label: 'Clientes' },
+            { key: 'metas', icon: 'trending_up', label: `Metas (${vendedores.length})` },
+            { key: 'reports', icon: 'insights', label: 'Reportes' },
+            { key: 'stock-report', icon: 'warehouse', label: 'Stock Real' },
+            { key: 'nomina', icon: 'payments', label: 'Nómina' },
           ].map(item => (
             <button
               key={item.key}
@@ -470,7 +470,12 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
                 <div className="order-info">
                   <p><strong>Vendedor:</strong> {order.vendedor}</p>
                   <p><strong>Cliente:</strong> {order.cliente}</p>
-                  <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
+                  <p>
+                    <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
+                    {order.estado === 'COMPLETADO' && order.completedAt
+                      ? new Date(order.completedAt).toLocaleDateString('es-ES')
+                      : new Date(order.fecha).toLocaleString('es-ES')}
+                  </p>
                   <p className="order-total">
                     <strong>Total:</strong> ${formatCurrency(order.total)}
                   </p>
@@ -1652,7 +1657,7 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
             onChange={e => setRecalcMonth(Number(e.target.value))}
             style={{ padding: '0.45rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.875rem', background: 'rgba(255,255,255,0.2)', color: 'white' }}
           >
-            {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => (
               <option key={m} value={m} style={{ color: '#0f172a' }}>{getMonthName(m)}</option>
             ))}
           </select>

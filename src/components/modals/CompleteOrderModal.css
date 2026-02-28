@@ -1,0 +1,223 @@
+/* src/components/modals/CompleteOrderModal.css */
+
+.complete-order-modal {
+    max-width: 520px !important;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.complete-order-modal .modal-header {
+    border-bottom: 2px solid #10b981;
+    background: rgba(16, 185, 129, 0.05);
+    padding: 1.1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.complete-order-modal .modal-header h3 {
+    color: #10b981;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+}
+
+.complete-order-modal .modal-body {
+    padding: 1.5rem;
+}
+
+.complete-order-modal .modal-footer {
+    padding: 1rem 1.5rem 1.25rem;
+}
+
+/* ── Info section (azul suave) ── */
+.complete-info-section {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    background: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+}
+
+.complete-info-icon {
+    color: #2563eb;
+    flex-shrink: 0;
+    font-size: 1.4rem;
+}
+
+.complete-info-text {
+    margin: 0;
+    color: #1e40af;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.complete-info-text strong {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.95rem;
+}
+
+/* ── Form groups ── */
+.complete-order-modal .form-group {
+    margin: 1.2rem 0;
+}
+
+.complete-order-modal .form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+    color: var(--text-primary, #1f2937);
+    font-size: 0.9rem;
+}
+
+.complete-order-modal .form-label .optional-badge {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #9ca3af;
+    margin-left: 0.4rem;
+}
+
+.complete-order-modal .form-control {
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.complete-order-modal .form-control:focus {
+    outline: none;
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.complete-order-modal .form-control:disabled {
+    background-color: #f5f5f5;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+/* ── Date row with "Use today" button ── */
+.date-input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.date-input-row .form-control {
+    flex: 1;
+}
+
+.btn-use-today {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.65rem 0.8rem;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+
+.btn-use-today:hover:not(:disabled) {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+}
+
+.btn-use-today:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Footer ── */
+/* padding is now set above in the combined rule */
+.complete-order-modal .modal-footer {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    border-top: 1px solid #e5e7eb;
+}
+
+.complete-order-modal .btn-success {
+    background: #10b981;
+    border: 1px solid #10b981;
+    color: white;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    font-size: 0.9rem;
+}
+
+.complete-order-modal .btn-success:hover:not(:disabled) {
+    background: #059669;
+    border-color: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.complete-order-modal .btn-success:disabled {
+    background: #d1d5db;
+    border-color: #d1d5db;
+    color: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.complete-order-modal .btn-secondary {
+    background: transparent;
+    border: 1px solid #d1d5db;
+    color: #6b7280;
+    padding: 0.6rem 1.1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-size: 0.9rem;
+}
+
+.complete-order-modal .btn-secondary:hover:not(:disabled) {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.complete-order-modal .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Spinner ── */
+.complete-spinner {
+    display: inline-block;
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: complete-spin 0.8s linear infinite;
+}
+
+@keyframes complete-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

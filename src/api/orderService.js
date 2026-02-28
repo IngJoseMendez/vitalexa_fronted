@@ -23,6 +23,10 @@ const orderService = {
   // ✅ Annul order with reason
   annulOrder: (id, reason) => apiClient.post(`/admin/orders/${id}/annul`, null, { params: { reason } }),
 
+  // ✅ Complete order with optional invoice date and audit note
+  // payload: {} → uses today | { completedAt: "YYYY-MM-DD", auditNote: "..." } → uses manual date
+  completeOrder: (id, payload = {}) => apiClient.post(`/admin/orders/${id}/complete`, payload),
+
   // ✅ Download invoice PDF
   getInvoicePdf: (id) => apiClient.get(`/admin/orders/${id}/invoice/pdf`, { responseType: 'blob' }),
 };

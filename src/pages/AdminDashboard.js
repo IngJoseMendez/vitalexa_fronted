@@ -16,6 +16,7 @@ import PayrollPanel from '../components/PayrollPanel';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import EditOrderModal from '../components/modals/EditOrderModal';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
+import CompleteOrderModal from '../components/modals/CompleteOrderModal';
 import AdminPromotionsCatalog from '../components/AdminPromotionsCatalog';
 import { getStatusLabel, getStatusBadgeClass, PromotionType } from '../utils/types';
 import { formatCurrency } from '../utils/formatters';
@@ -54,18 +55,18 @@ function AdminDashboard() {
         {/* Items de navegación */}
         <nav className="sidebar-nav">
           {[
-            { key: 'orders',              icon: 'assignment',             label: 'Órdenes' },
-            { key: 'nueva-venta',         icon: 'add_shopping_cart',      label: 'Nueva Venta' },
-            { key: 'products',            icon: 'inventory_2',            label: 'Productos' },
-            { key: 'special-products',    icon: 'star',                   label: 'Especiales' },
-            { key: 'special-promotions',  icon: 'stars',                  label: 'Prom. Especiales' },
-            { key: 'promotions',          icon: 'card_giftcard',          label: 'Promociones' },
-            { key: 'inventory-history',   icon: 'history',                label: 'Historial Inv.' },
-            { key: 'stock-report',        icon: 'warehouse',              label: 'Stock Real' },
-            { key: 'clients',             icon: 'people',                 label: 'Clientes' },
-            { key: 'tags',                icon: 'local_offer',            label: 'Etiquetas' },
-            { key: 'reports',             icon: 'analytics',              label: 'Reportes' },
-            { key: 'nomina',              icon: 'payments',               label: 'Nómina' },
+            { key: 'orders', icon: 'assignment', label: 'Órdenes' },
+            { key: 'nueva-venta', icon: 'add_shopping_cart', label: 'Nueva Venta' },
+            { key: 'products', icon: 'inventory_2', label: 'Productos' },
+            { key: 'special-products', icon: 'star', label: 'Especiales' },
+            { key: 'special-promotions', icon: 'stars', label: 'Prom. Especiales' },
+            { key: 'promotions', icon: 'card_giftcard', label: 'Promociones' },
+            { key: 'inventory-history', icon: 'history', label: 'Historial Inv.' },
+            { key: 'stock-report', icon: 'warehouse', label: 'Stock Real' },
+            { key: 'clients', icon: 'people', label: 'Clientes' },
+            { key: 'tags', icon: 'local_offer', label: 'Etiquetas' },
+            { key: 'reports', icon: 'analytics', label: 'Reportes' },
+            { key: 'nomina', icon: 'payments', label: 'Nómina' },
           ].map(item => (
             <button
               key={item.key}
@@ -149,6 +150,9 @@ function OrdersPanel({ refreshTrigger }) {
   const [showAssortmentModal, setShowAssortmentModal] = useState(false);
   const [selectedPromotionForAssortment, setSelectedPromotionForAssortment] = useState(null);
   const [selectedOrderForAssortment, setSelectedOrderForAssortment] = useState(null);
+
+  // ✅ STATE FOR COMPLETE ORDER MODAL
+  const [completeOrderTarget, setCompleteOrderTarget] = useState(null);
 
   const toast = useToast();
 
@@ -404,8 +408,12 @@ function OrdersPanel({ refreshTrigger }) {
     .sort((a, b) => {
       let valA, valB;
       if (sortBy === 'fecha') {
-        valA = new Date(a.fecha);
-        valB = new Date(b.fecha);
+        const getEffectiveDate = (o) =>
+          o.estado === 'COMPLETADO' && o.completedAt
+            ? new Date(o.completedAt)
+            : new Date(o.fecha);
+        valA = getEffectiveDate(a);
+        valB = getEffectiveDate(b);
       } else if (sortBy === 'total') {
         valA = parseFloat(a.total);
         valB = parseFloat(b.total);
@@ -761,7 +769,12 @@ function OrdersPanel({ refreshTrigger }) {
                 <div className="order-info">
                   <p><strong>Vendedor:</strong> {order.vendedor}</p>
                   <p><strong>Cliente:</strong> {order.cliente}</p>
-                  <p><strong>Fecha:</strong> {new Date(order.fecha).toLocaleString('es-ES')}</p>
+                  <p>
+                    <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
+                    {order.estado === 'COMPLETADO' && order.completedAt
+                      ? new Date(order.completedAt).toLocaleDateString('es-ES')
+                      : new Date(order.fecha).toLocaleString('es-ES')}
+                  </p>
                   <p className="order-total"><strong>Total:</strong> ${formatCurrency(order.total)}</p>
                   {order.discountedTotal && order.discountedTotal !== order.total && (
                     <p className="order-discounted-total">
@@ -939,7 +952,7 @@ function OrdersPanel({ refreshTrigger }) {
                       </button>
                       <button
                         className="btn-complete"
-                        onClick={() => changeStatus(order.id, 'COMPLETADO')}
+                        onClick={() => setCompleteOrderTarget(order)}
                         style={{ backgroundColor: '#10b981', color: '#ffffff', border: 'none' }}
                       >
                         <span className="material-icons-round">done_all</span> Completar
@@ -986,6 +999,18 @@ function OrdersPanel({ refreshTrigger }) {
           }}
           onSuccess={() => {
             fetchOrders(); // Refresh to see status update
+          }}
+        />
+      )}
+
+      {/* ✅ COMPLETE ORDER MODAL */}
+      {completeOrderTarget && (
+        <CompleteOrderModal
+          order={completeOrderTarget}
+          onClose={() => setCompleteOrderTarget(null)}
+          onSuccess={() => {
+            setCompleteOrderTarget(null);
+            fetchOrders();
           }}
         />
       )}
