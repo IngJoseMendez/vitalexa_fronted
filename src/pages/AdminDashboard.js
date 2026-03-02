@@ -421,6 +421,11 @@ function OrdersPanel({ refreshTrigger }) {
         // Handle empty items arrays for promotion-only orders
         valA = a.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
         valB = b.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
+      } else if (sortBy === 'invoiceNumber') {
+        const codeA = String(a.invoiceNumber || '');
+        const codeB = String(b.invoiceNumber || '');
+        const comparison = codeA.localeCompare(codeB, undefined, { numeric: true });
+        return sortOrder === 'desc' ? -comparison : comparison;
       }
 
       return sortOrder === 'desc' ? valB - valA : valA - valB;
@@ -696,6 +701,7 @@ function OrdersPanel({ refreshTrigger }) {
             <option value="fecha">Fecha</option>
             <option value="total">Precio Total</option>
             <option value="cantidad">Cantidad Productos</option>
+            <option value="invoiceNumber">Número de Factura</option>
           </select>
           <button
             className="btn-sort-order"
