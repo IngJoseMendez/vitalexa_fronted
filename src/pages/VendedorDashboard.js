@@ -1231,6 +1231,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
 function VentasCompletadasPanel() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateSort, setDateSort] = useState('desc');
 
   useEffect(() => {
     fetchCompletedOrders();
@@ -1248,6 +1250,29 @@ function VentasCompletadasPanel() {
     }
   };
 
+  const filteredAndSortedOrders = orders
+    .filter(order => {
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.toLowerCase();
+      const productMatch = (order.items || []).some(item =>
+        (item.productName || '').toLowerCase().includes(q)
+      );
+      return (
+        (order.id || '').toLowerCase().includes(q) ||
+        (order.invoiceNumber || '').toLowerCase().includes(q) ||
+        (order.cliente || '').toLowerCase().includes(q) ||
+        (order.estado || '').toLowerCase().includes(q) ||
+        (order.notas || '').toLowerCase().includes(q) ||
+        String(order.total || '').includes(q) ||
+        productMatch
+      );
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.completedAt || a.fecha);
+      const dateB = new Date(b.completedAt || b.fecha);
+      return dateSort === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+
   if (loading) {
     return <div className="loading">Cargando...</div>;
   }
@@ -1256,13 +1281,42 @@ function VentasCompletadasPanel() {
     <div className="ventas-completadas-panel">
       <h2><span className="material-icons-round" style={{ color: 'var(--success)', verticalAlign: 'middle' }}>check_circle</span> Ventas Completadas</h2>
 
-      {orders.length === 0 ? (
+      <div className="ventas-filter-toolbar">
+        <div className="ventas-search-container">
+          <span className="material-icons-round ventas-search-icon">search</span>
+          <input
+            type="text"
+            className="ventas-search-input"
+            placeholder="Buscar por cliente, factura, producto, estado, nota..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button className="ventas-search-clear" onClick={() => setSearchTerm('')}>
+              <span className="material-icons-round">close</span>
+            </button>
+          )}
+        </div>
+        <div className="ventas-sort-container">
+          <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }}>sort</span>
+          <select
+            className="ventas-sort-select"
+            value={dateSort}
+            onChange={e => setDateSort(e.target.value)}
+          >
+            <option value="desc">Más recientes primero</option>
+            <option value="asc">Más antiguas primero</option>
+          </select>
+        </div>
+      </div>
+
+      {filteredAndSortedOrders.length === 0 ? (
         <div className="empty-state">
-          <p>No tienes ventas completadas aún</p>
+          <p>{searchTerm ? 'No se encontraron ventas con esa búsqueda' : 'No tienes ventas completadas aún'}</p>
         </div>
       ) : (
         <div className="ventas-list">
-          {orders.map(order => (
+          {filteredAndSortedOrders.map(order => (
             <div key={order.id} className={`venta-card completed payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
                 <span className="venta-id">#{order.id.substring(0, 8)}</span>
@@ -1739,6 +1793,8 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
 function MisVentasPanel() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateSort, setDateSort] = useState('desc');
 
   useEffect(() => {
     fetchMyOrders();
@@ -1758,6 +1814,29 @@ function MisVentasPanel() {
     }
   };
 
+  const filteredAndSortedOrders = orders
+    .filter(order => {
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.toLowerCase();
+      const productMatch = (order.items || []).some(item =>
+        (item.productName || '').toLowerCase().includes(q)
+      );
+      return (
+        (order.id || '').toLowerCase().includes(q) ||
+        (order.invoiceNumber || '').toLowerCase().includes(q) ||
+        (order.cliente || '').toLowerCase().includes(q) ||
+        (order.estado || '').toLowerCase().includes(q) ||
+        (order.notas || '').toLowerCase().includes(q) ||
+        String(order.total || '').includes(q) ||
+        productMatch
+      );
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.fecha);
+      const dateB = new Date(b.fecha);
+      return dateSort === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+
   if (loading) {
     return <div className="loading">Cargando...</div>;
   }
@@ -1766,13 +1845,42 @@ function MisVentasPanel() {
     <div className="mis-ventas-panel">
       <h2><span className="material-icons-round" style={{ verticalAlign: 'middle' }}>receipt_long</span> Mis Ventas (En Progreso)</h2>
 
-      {orders.length === 0 ? (
+      <div className="ventas-filter-toolbar">
+        <div className="ventas-search-container">
+          <span className="material-icons-round ventas-search-icon">search</span>
+          <input
+            type="text"
+            className="ventas-search-input"
+            placeholder="Buscar por cliente, factura, producto, estado, nota..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button className="ventas-search-clear" onClick={() => setSearchTerm('')}>
+              <span className="material-icons-round">close</span>
+            </button>
+          )}
+        </div>
+        <div className="ventas-sort-container">
+          <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }}>sort</span>
+          <select
+            className="ventas-sort-select"
+            value={dateSort}
+            onChange={e => setDateSort(e.target.value)}
+          >
+            <option value="desc">Más recientes primero</option>
+            <option value="asc">Más antiguas primero</option>
+          </select>
+        </div>
+      </div>
+
+      {filteredAndSortedOrders.length === 0 ? (
         <div className="empty-state">
-          <p>No tienes ventas en proceso</p>
+          <p>{searchTerm ? 'No se encontraron ventas con esa búsqueda' : 'No tienes ventas en proceso'}</p>
         </div>
       ) : (
         <div className="ventas-list">
-          {orders.map(order => (
+          {filteredAndSortedOrders.map(order => (
             <div key={order.id} className={`venta-card ${order.isSROrder ? 'is-sr' : 'is-normal'} payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

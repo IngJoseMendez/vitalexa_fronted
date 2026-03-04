@@ -1523,6 +1523,113 @@
   }
 }
 
+/* ============================================
+   VENTAS FILTER TOOLBAR (Mis Ventas & Completadas)
+   ============================================ */
+.ventas-filter-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ventas-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 220px;
+}
+
+.ventas-search-icon {
+  position: absolute;
+  left: 0.85rem;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  pointer-events: none;
+}
+
+.ventas-search-input {
+  width: 100%;
+  padding: 0.65rem 2.5rem 0.65rem 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.ventas-search-input:focus {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.ventas-search-clear {
+  position: absolute;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 0.2rem;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.ventas-search-clear:hover {
+  color: var(--text-main);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.ventas-search-clear .material-icons-round {
+  font-size: 1rem;
+}
+
+.ventas-sort-container {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.ventas-sort-select {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  background: #f8fafc;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ventas-sort-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+@media (max-width: 600px) {
+  .ventas-filter-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ventas-sort-container {
+    justify-content: flex-start;
+  }
+
+  .ventas-sort-select {
+    flex: 1;
+  }
+}
+
 .venta-card,
 .cliente-card {
   border: 1px solid var(--border);
@@ -2630,6 +2737,7 @@
     flex: 1;
   }
 }
+
 /* Bot�n Flotante de Carrito para M�vil */
 .mobile-cart-fab {
   display: none;
@@ -2652,8 +2760,15 @@
 }
 
 @keyframes bounceIn {
-  0% { transform: scale(0); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .mobile-cart-fab .material-icons-round {
@@ -2722,6 +2837,7 @@
   color: #64748b;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
+
 .btn-refresh-dashboard:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -2729,13 +2845,16 @@
   color: #6366f1;
   background: #eef2ff;
 }
+
 .btn-refresh-dashboard:active {
   transform: translateY(0);
 }
+
 .btn-refresh-dashboard .material-icons-round {
   font-size: 1.25rem;
   transition: transform 0.5s ease;
 }
+
 .btn-refresh-dashboard:hover .material-icons-round {
   transform: rotate(180deg);
 }
@@ -2746,10 +2865,12 @@
   .productos-grid {
     grid-template-columns: 1fr !important;
   }
+
   .product-card {
     max-width: 100%;
     box-sizing: border-box;
   }
+
   .product-card img {
     width: 100%;
     height: auto;
@@ -2913,14 +3034,20 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes slideUp {
     from {
       transform: translateY(100%);
     }
+
     to {
       transform: translateY(0);
     }
@@ -2968,7 +3095,8 @@
 
   /* Adjust search inputs for mobile */
   .search-container-sm input {
-    font-size: 16px; /* Prevents zoom on iOS */
+    font-size: 16px;
+    /* Prevents zoom on iOS */
   }
 }
 
@@ -2984,13 +3112,13 @@
   }
 
   /* Force buttons to stay visible and prevent flex shrinking */
-  .product-card .product-info > div[style*="display: flex"] button {
+  .product-card .product-info>div[style*="display: flex"] button {
     flex-shrink: 0 !important;
     min-width: 32px !important;
   }
 
   /* Ensure input doesn't push buttons out */
-  .product-card .product-info > div[style*="display: flex"] input[type="number"] {
+  .product-card .product-info>div[style*="display: flex"] input[type="number"] {
     min-width: 0 !important;
     flex: 1 1 auto !important;
   }
@@ -3002,6 +3130,7 @@
    ======================================== */
 
 @media (max-width: 1024px) {
+
   /* Enhanced Modal Header */
   .mobile-cart-modal .modal-header {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
@@ -3138,7 +3267,7 @@
     gap: 0.5rem;
   }
 
-  .mobile-cart-modal .cart-item-controls > div {
+  .mobile-cart-modal .cart-item-controls>div {
     display: flex;
     align-items: center;
     gap: 0.25rem;
@@ -3241,14 +3370,14 @@
   }
 
   /* Bonifications Section */
-  .mobile-cart-modal .cart-items > div[style*="borderTop"] {
+  .mobile-cart-modal .cart-items>div[style*="borderTop"] {
     background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
     padding: 1rem;
     border-radius: 12px;
     border: 2px solid #bbf7d0 !important;
   }
 
-  .mobile-cart-modal .cart-items > div[style*="borderTop"] h4 {
+  .mobile-cart-modal .cart-items>div[style*="borderTop"] h4 {
     display: flex;
     align-items: center;
     gap: 0.5rem;
