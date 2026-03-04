@@ -394,15 +394,22 @@ function OrdersPanel({ refreshTrigger }) {
       return true;
     })
     .sort((a, b) => {
-      let valA, valB;
+      // ─── FECHA: el backend ya trae los datos ordenados DESC (más recientes primero).
+      // Solo invertimos para "asc" dentro de la página.  NO re-ordenar en "desc"
+      // para no romper la paginación entre páginas.
       if (sortBy === 'fecha') {
-        const getEffectiveDate = (o) =>
-          o.estado === 'COMPLETADO' && o.completedAt
-            ? new Date(o.completedAt)
-            : new Date(o.fecha);
-        valA = getEffectiveDate(a);
-        valB = getEffectiveDate(b);
-      } else if (sortBy === 'total') {
+        if (sortOrder === 'asc') {
+          const getEffectiveDate = (o) =>
+            o.estado === 'COMPLETADO' && o.completedAt
+              ? new Date(o.completedAt)
+              : new Date(o.fecha);
+          return getEffectiveDate(a) - getEffectiveDate(b); // asc = más antiguas primero
+        }
+        return 0; // desc = mantener el orden que trajo el backend (más recientes primero)
+      }
+      // ─── Otros criterios: sort client-side normal ───────────────────────────
+      let valA, valB;
+      if (sortBy === 'total') {
         valA = parseFloat(a.total);
         valB = parseFloat(b.total);
       } else if (sortBy === 'cantidad') {
