@@ -726,6 +726,27 @@ function OrdersPanel({ refreshTrigger }) {
           {totalElements > 0 && `${totalElements} órdenes totales`}
         </span>
       </div>
+      {/* Banner de advertencia si hay filtros locales activos con paginación */}
+      {(invoiceSearch.trim() || selectedVendedor || selectedCliente) && totalPages > 1 && (
+        <div style={{
+          background: '#fffbeb',
+          borderLeft: '4px solid #f59e0b',
+          padding: '1rem',
+          marginBottom: '1rem',
+          borderRadius: '4px',
+          display: 'flex',
+          gap: '0.75rem',
+          alignItems: 'flex-start'
+        }}>
+          <span className="material-icons-round" style={{ color: '#f59e0b' }}>info</span>
+          <div>
+            <h4 style={{ margin: '0 0 0.25rem 0', color: '#b45309', fontSize: '0.95rem' }}>Atención con los filtros</h4>
+            <p style={{ margin: 0, color: '#92400e', fontSize: '0.85rem', lineHeight: '1.4' }}>
+              Los filtros de <strong>búsqueda, vendedor y cliente</strong> se aplican únicamente a las <strong>{pageSize} órdenes</strong> de la página actual. Para buscar en toda la base de datos de esta categoría, te sugerimos mostrar más órdenes por página (ej. 100) o buscar en las páginas siguientes.
+            </p>
+          </div>
+        </div>
+      )}
 
       {filteredOrders.length === 0 ? (
         <div className="empty-state">
