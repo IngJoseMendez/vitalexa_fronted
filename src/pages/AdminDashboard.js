@@ -146,6 +146,12 @@ function OrdersPanel({ refreshTrigger }) {
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
 
+  // ── PAGINACIÓN ──
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+
   // ✅ NEW STATE FOR ASSORTMENT
   const [showAssortmentModal, setShowAssortmentModal] = useState(false);
   const [selectedPromotionForAssortment, setSelectedPromotionForAssortment] = useState(null);
@@ -156,18 +162,29 @@ function OrdersPanel({ refreshTrigger }) {
 
   const toast = useToast();
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (page, size, status) => {
+    const p = page !== undefined ? page : currentPage;
+    const s = size !== undefined ? size : pageSize;
+    const st = status !== undefined ? status : filter;
+    setLoading(true);
     try {
-      const response = await client.get('/admin/orders');
-      setOrders(response.data);
-      console.log('✅ Órdenes actualizadas:', response.data.length);
+      const response = await client.get('/admin/orders/paginated', {
+        params: { page: p, size: s, status: st }
+      });
+      const data = response.data;
+      setOrders(data.content || []);
+      setTotalPages(data.totalPages || 0);
+      setTotalElements(data.totalElements || 0);
+      setCurrentPage(data.number || 0);
+      console.log(`✅ Órdenes actualizadas: p${data.number + 1}/${data.totalPages}, ${data.totalElements} total`);
     } catch (error) {
       console.error('Error al cargar órdenes:', error);
       toast.error('Error al cargar órdenes: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, currentPage, pageSize, filter]);
 
   const fetchVendedores = useCallback(async () => {
     try {
@@ -206,7 +223,7 @@ function OrdersPanel({ refreshTrigger }) {
     // ✅ LISTENER PARA AUTO-ACTUALIZACIÓN AL RECIBIR NOTIFICACIÓN
     const handleNewOrder = () => {
       console.log('🔄 Auto-actualizando órdenes...');
-      fetchOrders();
+      fetchOrders(currentPage, pageSize, filter);
     };
 
     window.addEventListener('new-order-notification', handleNewOrder);
@@ -216,7 +233,8 @@ function OrdersPanel({ refreshTrigger }) {
       window.removeEventListener('new-order-notification', handleNewOrder);
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
-  }, [fetchOrders, fetchVendedores, refreshTrigger]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchVendedores, refreshTrigger, currentPage, pageSize, filter]);
 
   // Close client dropdown when clicking outside
   useEffect(() => {
@@ -320,32 +338,27 @@ function OrdersPanel({ refreshTrigger }) {
     }
   };
 
+  // Filtrar client-side (busqüeda, vendedor, cliente) sobre la página actual
+  // Los filtros de estado (pending/completed/etc.) son server-side
   const filteredOrders = orders
     .filter(order => {
-      // Vendor filter - case-insensitive comparison
+      // Vendor filter
       if (selectedVendedor) {
         const orderVendor = (order.vendedor || '').trim().toLowerCase();
         const selectedVendor = selectedVendedor.trim().toLowerCase();
-        if (orderVendor !== selectedVendor) {
-          return false;
-        }
+        if (orderVendor !== selectedVendor) return false;
       }
 
-
-      // Client filter - case-insensitive comparison
+      // Client filter
       if (selectedCliente) {
         const orderClient = (order.cliente || '').trim().toLowerCase();
         const selectedClient = selectedCliente.trim().toLowerCase();
-        if (orderClient !== selectedClient) {
-          return false;
-        }
+        if (orderClient !== selectedClient) return false;
       }
 
-      // Comprehensive search filter - searches ALL order and client fields
+      // Text search filter
       if (invoiceSearch.trim()) {
         const searchStr = invoiceSearch.toLowerCase().trim();
-
-        // Search in order basic fields
         const invoiceNum = String(order.invoiceNumber || '').toLowerCase();
         const orderId = String(order.id || '').toLowerCase();
         const vendorName = String(order.vendedor || '').toLowerCase();
@@ -353,20 +366,14 @@ function OrdersPanel({ refreshTrigger }) {
         const orderDate = String(order.fecha || '').toLowerCase();
         const orderTotal = String(order.total || '').toLowerCase();
         const orderStatus = String(order.estado || '').toLowerCase();
-
-        // Search in client data (if available)
         const clientPhone = String(order.clientePhone || order.telefono || '').toLowerCase();
         const clientAddress = String(order.clienteAddress || order.direccion || '').toLowerCase();
         const clientNit = String(order.clienteNit || order.nit || '').toLowerCase();
         const clientEmail = String(order.clienteEmail || order.email || '').toLowerCase();
         const clientRep = String(order.clienteRepresentative || order.representanteLegal || '').toLowerCase();
-
-        // Search in order items (product names)
         const productNames = (order.items || [])
           .map(item => String(item.nombre || item.productName || '').toLowerCase())
           .join(' ');
-
-        // Check if search term is found in any field
         const matchesSearch =
           invoiceNum.includes(searchStr) ||
           orderId.includes(searchStr) ||
@@ -381,29 +388,10 @@ function OrdersPanel({ refreshTrigger }) {
           orderTotal.includes(searchStr) ||
           orderStatus.includes(searchStr) ||
           productNames.includes(searchStr);
+        if (!matchesSearch) return false;
+      }
 
-        if (!matchesSearch) {
-          return false;
-        }
-      }
-      // Status filter
-      if (filter === 'pending') {
-        return order.estado === 'PENDIENTE' ||
-          order.estado === 'CONFIRMADO' ||
-          order.estado === 'PENDING_PROMOTION_COMPLETION';
-      }
-      if (filter === 'completed') return order.estado === 'COMPLETADO';
-      if (filter === 'cancelled') return order.estado === 'ANULADA' || order.estado === 'CANCELADO';
-      if (filter === 'historical') {
-        // Logic for historical invoices:
-        // Suggestion: Filter by those with NO items but have a total (HistoricalInvoiceModal creates orders with empty items but totalValue)
-        // Note: HistoricalInvoiceModal saves data. But does it create items?
-        // In HistoricalInvoiceModal logic, it sends `totalValue`, etc. It does NOT seem to send `items` array populated with products. 
-        // So `order.items.length === 0` is a good heuristic for now combined with `total > 0`.
-        return (!order.items || order.items.length === 0) && parseFloat(order.total) > 0;
-      }
-      if (filter === 'all') return true;
-      return order.estado === filter;
+      return true;
     })
     .sort((a, b) => {
       let valA, valB;
@@ -418,7 +406,6 @@ function OrdersPanel({ refreshTrigger }) {
         valA = parseFloat(a.total);
         valB = parseFloat(b.total);
       } else if (sortBy === 'cantidad') {
-        // Handle empty items arrays for promotion-only orders
         valA = a.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
         valB = b.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
       } else if (sortBy === 'invoiceNumber') {
@@ -427,7 +414,6 @@ function OrdersPanel({ refreshTrigger }) {
         const comparison = codeA.localeCompare(codeB, undefined, { numeric: true });
         return sortOrder === 'desc' ? -comparison : comparison;
       }
-
       return sortOrder === 'desc' ? valB - valA : valA - valB;
     });
 
@@ -445,39 +431,39 @@ function OrdersPanel({ refreshTrigger }) {
       <div className="filter-buttons" style={{ marginBottom: '0.75rem' }}>
         <button
           className={filter === 'pending' ? 'active' : ''}
-          onClick={() => setFilter('pending')}
+          onClick={() => { setFilter('pending'); setCurrentPage(0); }}
         >
-          <span className="material-icons-round">pending_actions</span> Pendientes ({orders.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO' || o.estado === 'PENDING_PROMOTION_COMPLETION').length})
+          <span className="material-icons-round">pending_actions</span> Pendientes{filter === 'pending' ? ` (${totalElements})` : ''}
         </button>
         <button
           className={filter === 'completed' ? 'active' : ''}
-          onClick={() => setFilter('completed')}
+          onClick={() => { setFilter('completed'); setCurrentPage(0); }}
         >
-          <span className="material-icons-round">check_circle</span> Completadas ({orders.filter(o => o.estado === 'COMPLETADO').length})
+          <span className="material-icons-round">check_circle</span> Completadas{filter === 'completed' ? ` (${totalElements})` : ''}
         </button>
         <button
           className={filter === 'all' ? 'active' : ''}
-          onClick={() => setFilter('all')}
+          onClick={() => { setFilter('all'); setCurrentPage(0); }}
         >
-          <span className="material-icons-round">analytics</span> Todas ({orders.length})
+          <span className="material-icons-round">analytics</span> Todas{filter === 'all' ? ` (${totalElements})` : ''}
         </button>
 
         <div className="filter-divider" style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 0.5rem' }}></div>
 
         <button
           className={filter === 'cancelled' ? 'active' : ''}
-          onClick={() => setFilter('cancelled')}
+          onClick={() => { setFilter('cancelled'); setCurrentPage(0); }}
           style={{ color: filter === 'cancelled' ? '#ef4444' : 'var(--text-secondary)' }}
         >
-          <span className="material-icons-round">block</span> Anuladas ({orders.filter(o => o.estado === 'ANULADA' || o.estado === 'CANCELADO').length})
+          <span className="material-icons-round">block</span> Anuladas{filter === 'cancelled' ? ` (${totalElements})` : ''}
         </button>
 
         <button
           className={filter === 'historical' ? 'active' : ''}
-          onClick={() => setFilter('historical')}
+          onClick={() => { setFilter('historical'); setCurrentPage(0); }}
           style={{ color: filter === 'historical' ? '#d97706' : 'var(--text-secondary)' }}
         >
-          <span className="material-icons-round">history</span> Historia ({orders.filter(o => !o.items || o.items.length === 0).length})
+          <span className="material-icons-round">history</span> Historia{filter === 'historical' ? ` (${totalElements})` : ''}
         </button>
       </div>
 
@@ -713,6 +699,25 @@ function OrdersPanel({ refreshTrigger }) {
             </span>
           </button>
         </div>
+      </div>
+
+      {/* Pagination header: pageSize selector + result info */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+          <span className="material-icons-round" style={{ fontSize: '16px' }}>list_alt</span>
+          Mostrar
+          <select
+            value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
+            style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.85rem' }}
+          >
+            {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          por página
+        </div>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          {totalElements > 0 && `${totalElements} órdenes totales`}
+        </span>
       </div>
 
       {filteredOrders.length === 0 ? (
@@ -1020,6 +1025,109 @@ function OrdersPanel({ refreshTrigger }) {
             fetchOrders();
           }}
         />
+      )}
+      {/* ── PAGINATION FOOTER ── */}
+      {totalPages > 1 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
+          padding: '1.25rem 0 0.5rem',
+          flexWrap: 'wrap'
+        }}>
+          <button
+            onClick={() => setCurrentPage(0)}
+            disabled={currentPage === 0}
+            style={{
+              padding: '0.35rem 0.6rem',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: currentPage === 0 ? 'var(--bg-secondary)' : 'white',
+              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+              color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)'
+            }}
+            title="Primera página"
+          >
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>first_page</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+            disabled={currentPage === 0}
+            style={{
+              padding: '0.35rem 0.7rem',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: currentPage === 0 ? 'var(--bg-secondary)' : 'white',
+              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+              color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+              display: 'flex', alignItems: 'center', gap: '0.25rem'
+            }}
+          >
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>chevron_left</span>
+            Anterior
+          </button>
+
+          {/* Page numbers */}
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
+            const pageNum = start + i;
+            return (
+              <button
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                style={{
+                  padding: '0.35rem 0.65rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  background: pageNum === currentPage ? 'var(--primary)' : 'white',
+                  color: pageNum === currentPage ? 'white' : 'var(--text-primary)',
+                  fontWeight: pageNum === currentPage ? 700 : 400,
+                  cursor: 'pointer',
+                  minWidth: '36px'
+                }}
+              >
+                {pageNum + 1}
+              </button>
+            );
+          })}
+
+          <button
+            onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+            disabled={currentPage >= totalPages - 1}
+            style={{
+              padding: '0.35rem 0.7rem',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white',
+              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+              color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+              display: 'flex', alignItems: 'center', gap: '0.25rem'
+            }}
+          >
+            Siguiente
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>chevron_right</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage(totalPages - 1)}
+            disabled={currentPage >= totalPages - 1}
+            style={{
+              padding: '0.35rem 0.6rem',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white',
+              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+              color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)'
+            }}
+            title="Última página"
+          >
+            <span className="material-icons-round" style={{ fontSize: '18px' }}>last_page</span>
+          </button>
+
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
+            Página {currentPage + 1} de {totalPages}
+          </span>
+        </div>
       )}
     </div>
   );

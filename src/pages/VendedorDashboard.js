@@ -1234,21 +1234,34 @@ function VentasCompletadasPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateSort, setDateSort] = useState('desc');
 
-  useEffect(() => {
-    fetchCompletedOrders();
-  }, []);
+  // ── PAGINACIÓN ──
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
-  const fetchCompletedOrders = async () => {
+  const fetchCompletedOrders = useCallback(async (page = 0, size = 20) => {
+    setLoading(true);
     try {
-      const response = await apiClient.get('/vendedor/orders/my');
-      const completed = response.data.filter(order => order.estado === 'COMPLETADO');
-      setOrders(completed);
+      const response = await apiClient.get('/vendedor/orders/my/paginated', {
+        params: { statusGroup: 'completed', page, size }
+      });
+      const data = response.data;
+      setOrders(data.content || []);
+      setTotalPages(data.totalPages || 0);
+      setTotalElements(data.totalElements || 0);
+      setCurrentPage(data.number || 0);
     } catch (error) {
       console.error('Error al cargar ventas completadas:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchCompletedOrders(currentPage, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   const filteredAndSortedOrders = orders
     .filter(order => {
@@ -1355,6 +1368,43 @@ function VentasCompletadasPanel() {
               </details>
             </div>
           ))}
+        </div>
+      )}
+      {/* ─ PAGINACIÓN VENTAS COMPLETADAS ─ */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', padding: '1rem 0 0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Mostrar
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
+              style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.82rem' }}
+            >
+              {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            por página &bull; {totalElements} total
+          </div>
+          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
+              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage === 0 ? 'var(--bg-secondary)' : 'white', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_left</span>
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
+              const pageNum = start + i;
+              return (
+                <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
+                  style={{ padding: '0.3rem 0.55rem', border: '1px solid var(--border)', borderRadius: '6px', background: pageNum === currentPage ? 'var(--primary)' : 'white', color: pageNum === currentPage ? 'white' : 'var(--text-primary)', fontWeight: pageNum === currentPage ? 700 : 400, cursor: 'pointer', minWidth: '32px', fontSize: '0.82rem' }}>
+                  {pageNum + 1}
+                </button>
+              );
+            })}
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
+              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white', cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer', color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_right</span>
+            </button>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Pág. {currentPage + 1}/{totalPages}</span>
+          </div>
         </div>
       )}
     </div>
@@ -1796,23 +1846,34 @@ function MisVentasPanel() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateSort, setDateSort] = useState('desc');
 
-  useEffect(() => {
-    fetchMyOrders();
-  }, []);
+  // ── PAGINACIÓN ──
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
-  const fetchMyOrders = async () => {
+  const fetchMyOrders = useCallback(async (page = 0, size = 20) => {
+    setLoading(true);
     try {
-      const response = await apiClient.get('/vendedor/orders/my');
-      const pending = response.data.filter(order =>
-        ['PENDIENTE', 'CONFIRMADO', 'PENDING_PROMOTION_COMPLETION'].includes(order.estado)
-      );
-      setOrders(pending);
+      const response = await apiClient.get('/vendedor/orders/my/paginated', {
+        params: { statusGroup: 'pending', page, size }
+      });
+      const data = response.data;
+      setOrders(data.content || []);
+      setTotalPages(data.totalPages || 0);
+      setTotalElements(data.totalElements || 0);
+      setCurrentPage(data.number || 0);
     } catch (error) {
       console.error('Error al cargar mis ventas:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchMyOrders(currentPage, pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   const filteredAndSortedOrders = orders
     .filter(order => {
@@ -1946,6 +2007,43 @@ function MisVentasPanel() {
               </details>
             </div>
           ))}
+        </div>
+      )}
+      {/* ─ PAGINACIÓN MIS VENTAS ─ */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', padding: '1rem 0 0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+            Mostrar
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
+              style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.82rem' }}
+            >
+              {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            por página &bull; {totalElements} total
+          </div>
+          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
+              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage === 0 ? 'var(--bg-secondary)' : 'white', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_left</span>
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
+              const pageNum = start + i;
+              return (
+                <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
+                  style={{ padding: '0.3rem 0.55rem', border: '1px solid var(--border)', borderRadius: '6px', background: pageNum === currentPage ? 'var(--primary)' : 'white', color: pageNum === currentPage ? 'white' : 'var(--text-primary)', fontWeight: pageNum === currentPage ? 700 : 400, cursor: 'pointer', minWidth: '32px', fontSize: '0.82rem' }}>
+                  {pageNum + 1}
+                </button>
+              );
+            })}
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
+              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white', cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer', color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_right</span>
+            </button>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Pág. {currentPage + 1}/{totalPages}</span>
+          </div>
         </div>
       )}
     </div>
