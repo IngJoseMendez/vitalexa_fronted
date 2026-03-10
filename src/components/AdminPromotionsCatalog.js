@@ -9,7 +9,28 @@ import '../styles/Promotions.css';
 function AdminPromotionsCatalog({ onAddToCart }) {
     const [promotions, setPromotions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [quantities, setQuantities] = useState({});
     const toast = useToast();
+
+    const getQty = (promoId) => quantities[promoId] ?? 1;
+
+    const handleQtyChange = (promoId, value) => {
+        if (value === '') {
+            setQuantities(prev => ({ ...prev, [promoId]: '' }));
+            return;
+        }
+        const num = parseInt(value);
+        if (!isNaN(num) && num >= 1) {
+            setQuantities(prev => ({ ...prev, [promoId]: num }));
+        }
+    };
+
+    const handleAdd = (promotion) => {
+        const qty = parseInt(getQty(promotion.id)) || 1;
+        onAddToCart(promotion, qty);
+        // Resetear cantidad a 1 después de agregar
+        setQuantities(prev => ({ ...prev, [promotion.id]: 1 }));
+    };
 
     useEffect(() => {
         const fetchPromotions = async () => {
@@ -119,16 +140,41 @@ function AdminPromotionsCatalog({ onAddToCart }) {
                             {promotion.packPrice && (
                                 <span className="promotion-price-tag">${formatCurrency(promotion.packPrice)}</span>
                             )}
-                            <button
-                                className="btn-add-promo"
-                                style={{ background: '#0ea5e9' }}
-                                onClick={() => onAddToCart(promotion)}
-                                onMouseOver={(e) => e.currentTarget.style.background = '#0284c7'}
-                                onMouseOut={(e) => e.currentTarget.style.background = '#0ea5e9'}
-                            >
-                                <span className="material-icons-round">add_shopping_cart</span>
-                                Agregar
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={getQty(promotion.id)}
+                                    onChange={(e) => handleQtyChange(promotion.id, e.target.value)}
+                                    onFocus={(e) => e.target.select()}
+                                    onWheel={(e) => e.target.blur()}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                        width: '56px',
+                                        padding: '5px 6px',
+                                        borderRadius: '6px',
+                                        border: '1px solid #bae6fd',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'center',
+                                        background: 'white',
+                                        color: '#0369a1',
+                                        fontWeight: '600',
+                                        outline: 'none'
+                                    }}
+                                    title="Cantidad de promociones a agregar"
+                                />
+                                <button
+                                    className="btn-add-promo"
+                                    style={{ background: '#0ea5e9', flex: 1 }}
+                                    onClick={() => handleAdd(promotion)}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#0284c7'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = '#0ea5e9'}
+                                    title={`Agregar ${getQty(promotion.id) || 1} vez(ces)`}
+                                >
+                                    <span className="material-icons-round">add_shopping_cart</span>
+                                    Agregar {parseInt(getQty(promotion.id)) > 1 ? `(×${getQty(promotion.id)})` : ''}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}

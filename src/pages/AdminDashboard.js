@@ -1285,7 +1285,7 @@ function AdminNuevaVentaPanel() {
   };
 
   // Promotion Logic
-  const addPromotionToCart = (promotion) => {
+  const addPromotionToCart = (promotion, qty = 1) => {
     // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
     if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
       setSelectedPromotion(promotion);
@@ -1293,16 +1293,21 @@ function AdminNuevaVentaPanel() {
       return;
     }
 
-    // Add unique ID for cart processing to allow duplicates
-    const promoInstance = {
+    // Create all instances at once using functional updater to avoid stale closure
+    const quantity = Math.max(1, parseInt(qty) || 1);
+    const newInstances = Array.from({ length: quantity }, (_, i) => ({
       ...promotion,
-      cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      cartId: `promo-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
       // ✅ Capture Special Promotion ID if present
       specialPromotionId: promotion.isSpecial ? promotion.id : null
-    };
+    }));
 
-    setPromotionsCart([...promotionsCart, promoInstance]);
-    toast.success('Promoción agregada');
+    setPromotionsCart(prev => [...prev, ...newInstances]);
+    if (quantity > 1) {
+      toast.success(`${quantity} promociones agregadas al carrito`);
+    } else {
+      toast.success('Promoción agregada');
+    }
   };
 
   const handleAssortmentConfirmation = (items) => {
