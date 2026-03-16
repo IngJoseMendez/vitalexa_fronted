@@ -41,6 +41,12 @@ const productService = {
         });
     },
 
+    searchProducts: async (query) => {
+        return client.get('/admin/products/search', { 
+            params: { q: query, size: 15 } 
+        });
+    },
+
     // --- Stock Operations ---
 
     /**

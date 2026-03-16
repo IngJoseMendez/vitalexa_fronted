@@ -11,13 +11,15 @@ export default function InventoryHistoryPanel() {
 
     // Filters
     const [type, setType] = useState('');
-    // const [productId, setProductId] = useState('');
-    const productId = null; // Filter not yet implemented in UI
+    const [productId, setProductId] = useState('');
+    const [productNameSearch, setProductNameSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    
     // Product search suggestions
-    // const [productSuggestions, setProductSuggestions] = useState([]);
-    // const [showSuggestions, setShowSuggestions] = useState(false);
+    const [productSuggestions, setProductSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [searchLoading, setSearchLoading] = useState(false);
 
     const toast = useToast();
 
@@ -61,19 +63,30 @@ export default function InventoryHistoryPanel() {
         fetchHistory();
     }, [fetchHistory]);
 
-    // Debounced Product Search - Future Implementation
-    // useEffect(() => {
-    //     if (searchTerm.length > 2) {
-    //         const timer = setTimeout(async () => {
-    //             try {
-    //                 // Search logic
-    //             } catch (e) { }
-    //         }, 300);
-    //         return () => clearTimeout(timer);
-    //     } else {
-    //         setProductSuggestions([]);
-    //     }
-    // }, [searchTerm]);
+    // Debounced Product Search
+    useEffect(() => {
+        if (productNameSearch.length > 2 && !productId) {
+            const timer = setTimeout(async () => {
+                setSearchLoading(true);
+                try {
+                    const response = await productService.searchProducts(productNameSearch);
+                    setProductSuggestions(response.data.content || []);
+                    setShowSuggestions(true);
+                } catch (e) {
+                    console.error('Error searching products:', e);
+                } finally {
+                    setSearchLoading(false);
+                }
+            }, 400);
+            return () => clearTimeout(timer);
+        } else if (productNameSearch.length <= 2) {
+            setProductSuggestions([]);
+            setShowSuggestions(false);
+            if (productId && productNameSearch === '') {
+                setProductId('');
+            }
+        }
+    }, [productNameSearch, productId]);
 
     const handleDownloadPdf = async (id) => {
         try {
@@ -170,7 +183,87 @@ export default function InventoryHistoryPanel() {
                     />
                 </div>
 
-                {/* Product Search could go here too, but simplifying for now */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', position: 'relative', flex: 1, minWidth: '200px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Producto</label>
+                    <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: '6px', border: '1px solid var(--border)', padding: '0 0.5rem', transition: 'box-shadow 0.2s', boxShadow: showSuggestions ? '0 0 0 2px var(--primary-light)' : 'none' }}>
+                        <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>search</span>
+                        <input
+                            type="text"
+                            placeholder="Buscar producto por nombre..."
+                            value={productNameSearch}
+                            onChange={(e) => {
+                                setProductNameSearch(e.target.value);
+                                if (productId) setProductId('');
+                            }}
+                            onFocus={() => {
+                                if (productSuggestions.length > 0) setShowSuggestions(true);
+                            }}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                            style={{ flex: 1, padding: '0.5rem', border: 'none', background: 'transparent', outline: 'none' }}
+                        />
+                        {productNameSearch && (
+                            <button
+                                onClick={() => {
+                                    setProductNameSearch('');
+                                    setProductId('');
+                                    setProductSuggestions([]);
+                                    setPage(0);
+                                }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
+                            >
+                                <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>close</span>
+                            </button>
+                        )}
+                    </div>
+                    {/* Autocomplete Dropdown */}
+                    {showSuggestions && (productSuggestions.length > 0 || searchLoading) && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            right: 0,
+                            background: 'white',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            marginTop: '0.5rem',
+                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+                            zIndex: 10,
+                            maxHeight: '200px',
+                            overflowY: 'auto'
+                        }}>
+                            {searchLoading ? (
+                                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Buscando...</div>
+                            ) : (
+                                productSuggestions.map(product => (
+                                    <div
+                                        key={product.id}
+                                        onClick={() => {
+                                            setProductNameSearch(product.nombre);
+                                            setProductId(product.id);
+                                            setShowSuggestions(false);
+                                            setPage(0);
+                                        }}
+                                        style={{
+                                            padding: '0.75rem 1rem',
+                                            cursor: 'pointer',
+                                            borderBottom: '1px solid #f3f4f6',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                    >
+                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{product.nombre}</span>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', background: '#f3f4f6', padding: '0.1rem 0.4rem', borderRadius: '99px' }}>
+                                            Stock: {product.stock}
+                                        </span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Table */}
