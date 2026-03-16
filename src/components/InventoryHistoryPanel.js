@@ -307,8 +307,8 @@ export default function InventoryHistoryPanel() {
                                     <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{item.reason || '-'}</td>
                                     <td style={{ padding: '1rem' }}>{item.username}</td>
                                     <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.previousStock}</td>
-                                    <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: item.quantityChange > 0 ? '#10b981' : '#ef4444' }}>
-                                        {item.quantityChange > 0 ? '+' : ''}{item.quantityChange}
+                                    <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: ['CREATION', 'RESTOCK', 'RETURN'].includes(item.type) ? '#10b981' : '#ef4444' }}>
+                                        {['CREATION', 'RESTOCK', 'RETURN'].includes(item.type) ? '+' : '-'}{item.quantity}
                                     </td>
                                     <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.newStock}</td>
                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
