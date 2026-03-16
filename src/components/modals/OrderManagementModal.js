@@ -102,16 +102,30 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
     // Cancel a payment
     const handleCancelPayment = async (paymentId) => {
-        if (!window.confirm('¿Está seguro de anular este pago?')) return;
+        const confirmed = window.confirm('¿Está seguro de anular este pago?');
+        if (!confirmed) return;
 
         try {
-            await paymentService.deletePayment(paymentId);
+            await paymentService.cancelPayment(paymentId, "Anulado desde detalle de orden");
             toast.success('Pago anulado correctamente');
             fetchPayments();
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Error canceling payment:', error);
             toast.error('Error al anular el pago');
+        }
+    };
+
+    // Restore a payment
+    const handleRestorePayment = async (paymentId) => {
+        try {
+            await paymentService.restorePayment(paymentId);
+            toast.success('Pago restaurado correctamente');
+            fetchPayments();
+            if (onRefresh) onRefresh();
+        } catch (error) {
+            console.error('Error restoring payment:', error);
+            toast.error('Error al restaurar el pago');
         }
     };
 
@@ -207,7 +221,9 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     };
 
     // Calculate payment summary
-    const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const totalPaid = payments
+        .filter(p => !p.isCancelled)
+        .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
 
     // Calculate totals based on LOCAL fetched discounts to ensure sync
     // This fixes the issue where order prop is stale or missing discountedTotal
@@ -595,16 +611,22 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         ) : (
                             <div className="payments-list">
                                 {payments.map(payment => (
-                                    <div key={payment.id} className="payment-item">
+                                    <div key={payment.id} className={`payment-item ${payment.isCancelled ? 'cancelled' : ''}`}>
                                         <div className="payment-main">
                                             <span className="payment-amount">${formatCurrency(payment.amount)}</span>
                                             <span className="payment-date">
                                                 {new Date(payment.paymentDate).toLocaleDateString()}
                                             </span>
-                                            {payment.withinDeadline && (
-                                                <span className="badge-deadline">
-                                                    <span className="material-icons-round">schedule</span> En plazo
+                                            {payment.isCancelled ? (
+                                                <span className="badge-cancelled">
+                                                    <span className="material-icons-round">cancel</span> ANULADO
                                                 </span>
+                                            ) : (
+                                                payment.withinDeadline && (
+                                                    <span className="badge-deadline">
+                                                        <span className="material-icons-round">schedule</span> En plazo
+                                                    </span>
+                                                )
                                             )}
                                         </div>
                                         <div className="payment-meta">
@@ -612,16 +634,34 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                 <span>Descuento: {payment.discountApplied}%</span>
                                             )}
                                             {payment.notes && <span>Notas: {payment.notes}</span>}
-                                            <span>Registrado por: {payment.registeredByName || 'Sistema'}</span>
+                                            <span>Registrado por: {payment.registeredByUsername || payment.registeredByName || 'Sistema'}</span>
+                                            {payment.isCancelled && payment.cancelledByUsername && (
+                                                <div className="cancellation-info-mini">
+                                                    Anulado por: {payment.cancelledByUsername} 
+                                                    {payment.cancellationReason && ` (${payment.cancellationReason})`}
+                                                </div>
+                                            )}
                                         </div>
-                                        {canManagePayments && (
-                                            <button
-                                                className="btn-cancel-payment"
-                                                onClick={() => handleCancelPayment(payment.id)}
-                                            >
-                                                <span className="material-icons-round">delete_outline</span>
-                                            </button>
-                                        )}
+                                        <div className="payment-actions">
+                                            {canManagePayments && !payment.isCancelled && (
+                                                <button
+                                                    className="btn-cancel-payment"
+                                                    onClick={() => handleCancelPayment(payment.id)}
+                                                    title="Anular Pago"
+                                                >
+                                                    <span className="material-icons-round">delete_outline</span>
+                                                </button>
+                                            )}
+                                            {canManagePayments && payment.isCancelled && (
+                                                <button
+                                                    className="btn-restore-payment"
+                                                    onClick={() => handleRestorePayment(payment.id)}
+                                                    title="Restaurar Pago"
+                                                >
+                                                    <span className="material-icons-round">restore</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>

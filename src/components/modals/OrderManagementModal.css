@@ -445,6 +445,70 @@
     color: #ef4444;
 }
 
+/* Cancelled Payment Styles */
+.payment-item.cancelled {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    opacity: 0.8;
+    position: relative;
+    border-left: 4px solid #94a3b8;
+}
+
+.payment-item.cancelled .payment-amount {
+    color: #94a3b8;
+    text-decoration: line-through;
+}
+
+.badge-cancelled {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.6rem;
+    background: #f1f5f9;
+    color: #64748b;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 1px solid #e2e8f0;
+}
+
+.badge-cancelled .material-icons-round {
+    font-size: 0.9rem;
+}
+
+.cancellation-info-mini {
+    width: 100%;
+    margin-top: 0.4rem;
+    font-size: 0.75rem;
+    color: #ef4444;
+    font-weight: 600;
+}
+
+.payment-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-restore-payment {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    color: #f59e0b;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-restore-payment:hover {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #d97706;
+}
+
 /* Discounts List */
 .discounts-list {
     display: flex;
