@@ -162,15 +162,22 @@ function OrdersPanel({ refreshTrigger }) {
 
   const toast = useToast();
 
-  const fetchOrders = useCallback(async (page, size, status) => {
+  const fetchOrders = useCallback(async (page, size, status, search, vendedor, cliente) => {
     const p = page !== undefined ? page : currentPage;
     const s = size !== undefined ? size : pageSize;
     const st = status !== undefined ? status : filter;
+    const sr = search !== undefined ? search : invoiceSearch;
+    const vd = vendedor !== undefined ? vendedor : selectedVendedor;
+    const cl = cliente !== undefined ? cliente : selectedCliente;
+
     setLoading(true);
     try {
-      const response = await client.get('/admin/orders/paginated', {
-        params: { page: p, size: s, status: st }
-      });
+      const params = { page: p, size: s, status: st };
+      if (sr && sr.trim() !== '') params.search = sr.trim();
+      if (vd && vd.trim() !== '') params.vendedor = vd.trim();
+      if (cl && cl.trim() !== '') params.cliente = cl.trim();
+
+      const response = await client.get('/admin/orders/paginated', { params });
       const data = response.data;
       setOrders(data.content || []);
       setTotalPages(data.totalPages || 0);
@@ -184,7 +191,7 @@ function OrdersPanel({ refreshTrigger }) {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, currentPage, pageSize, filter]);
+  }, [toast, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente]);
 
   const fetchVendedores = useCallback(async () => {
     try {
@@ -217,8 +224,14 @@ function OrdersPanel({ refreshTrigger }) {
   }, [vendedores]);
 
   useEffect(() => {
-    fetchOrders();
     fetchVendedores();
+  }, [fetchVendedores]);
+
+  useEffect(() => {
+    // Debounce de 400ms para evitar múltiples llamadas mientras se escribe
+    const timer = setTimeout(() => {
+      fetchOrders();
+    }, 400);
 
     // ✅ LISTENER PARA AUTO-ACTUALIZACIÓN AL RECIBIR NOTIFICACIÓN
     const handleNewOrder = () => {
@@ -230,11 +243,12 @@ function OrdersPanel({ refreshTrigger }) {
     window.addEventListener('order-completed-notification', handleNewOrder);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('new-order-notification', handleNewOrder);
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchVendedores, refreshTrigger, currentPage, pageSize, filter]);
+  }, [refreshTrigger, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente, fetchOrders]);
 
   // Close client dropdown when clicking outside
   useEffect(() => {
@@ -338,61 +352,8 @@ function OrdersPanel({ refreshTrigger }) {
     }
   };
 
-  // Filtrar client-side (busqüeda, vendedor, cliente) sobre la página actual
-  // Los filtros de estado (pending/completed/etc.) son server-side
-  const filteredOrders = orders
-    .filter(order => {
-      // Vendor filter
-      if (selectedVendedor) {
-        const orderVendor = (order.vendedor || '').trim().toLowerCase();
-        const selectedVendor = selectedVendedor.trim().toLowerCase();
-        if (orderVendor !== selectedVendor) return false;
-      }
-
-      // Client filter
-      if (selectedCliente) {
-        const orderClient = (order.cliente || '').trim().toLowerCase();
-        const selectedClient = selectedCliente.trim().toLowerCase();
-        if (orderClient !== selectedClient) return false;
-      }
-
-      // Text search filter
-      if (invoiceSearch.trim()) {
-        const searchStr = invoiceSearch.toLowerCase().trim();
-        const invoiceNum = String(order.invoiceNumber || '').toLowerCase();
-        const orderId = String(order.id || '').toLowerCase();
-        const vendorName = String(order.vendedor || '').toLowerCase();
-        const clientName = String(order.cliente || '').toLowerCase();
-        const orderDate = String(order.fecha || '').toLowerCase();
-        const orderTotal = String(order.total || '').toLowerCase();
-        const orderStatus = String(order.estado || '').toLowerCase();
-        const clientPhone = String(order.clientePhone || order.telefono || '').toLowerCase();
-        const clientAddress = String(order.clienteAddress || order.direccion || '').toLowerCase();
-        const clientNit = String(order.clienteNit || order.nit || '').toLowerCase();
-        const clientEmail = String(order.clienteEmail || order.email || '').toLowerCase();
-        const clientRep = String(order.clienteRepresentative || order.representanteLegal || '').toLowerCase();
-        const productNames = (order.items || [])
-          .map(item => String(item.nombre || item.productName || '').toLowerCase())
-          .join(' ');
-        const matchesSearch =
-          invoiceNum.includes(searchStr) ||
-          orderId.includes(searchStr) ||
-          vendorName.includes(searchStr) ||
-          clientName.includes(searchStr) ||
-          clientPhone.includes(searchStr) ||
-          clientAddress.includes(searchStr) ||
-          clientNit.includes(searchStr) ||
-          clientEmail.includes(searchStr) ||
-          clientRep.includes(searchStr) ||
-          orderDate.includes(searchStr) ||
-          orderTotal.includes(searchStr) ||
-          orderStatus.includes(searchStr) ||
-          productNames.includes(searchStr);
-        if (!matchesSearch) return false;
-      }
-
-      return true;
-    })
+  // Los filtros ahora son server-side, solo mantenemos el ordenamiento
+  const filteredOrders = [...orders]
     .sort((a, b) => {
       // ─── FECHA: el backend ya trae los datos ordenados DESC (más recientes primero).
       // Solo invertimos para "asc" dentro de la página.  NO re-ordenar en "desc"
@@ -485,7 +446,7 @@ function OrdersPanel({ refreshTrigger }) {
               type="text"
               placeholder="Buscar orden, cliente, rep..."
               value={invoiceSearch}
-              onChange={(e) => setInvoiceSearch(e.target.value)}
+              onChange={(e) => { setInvoiceSearch(e.target.value); setCurrentPage(0); }}
             />
             {invoiceSearch && (
               <button
@@ -511,6 +472,7 @@ function OrdersPanel({ refreshTrigger }) {
               onChange={(e) => {
                 setSelectedVendedor(e.target.value);
                 setSelectedCliente('');
+                setCurrentPage(0);
                 if (e.target.value) {
                   fetchClientesPorVendedor(e.target.value);
                 } else {
@@ -536,6 +498,7 @@ function OrdersPanel({ refreshTrigger }) {
                   setSelectedVendedor('');
                   setClientes([]);
                   setSelectedCliente('');
+                  setCurrentPage(0);
                 }}
                 style={{
                   background: 'none',
@@ -564,6 +527,7 @@ function OrdersPanel({ refreshTrigger }) {
                     setShowClientDropdown(true);
                     if (!e.target.value) {
                       setSelectedCliente('');
+                      setCurrentPage(0);
                     }
                   }}
                   onFocus={() => setShowClientDropdown(true)}
@@ -601,6 +565,7 @@ function OrdersPanel({ refreshTrigger }) {
                         setSelectedCliente('');
                         setClientSearchTerm('');
                         setShowClientDropdown(false);
+                        setCurrentPage(0);
                       }}
                       style={{
                         padding: '0.75rem',
@@ -630,6 +595,7 @@ function OrdersPanel({ refreshTrigger }) {
                             setSelectedCliente(c.nombre);
                             setClientSearchTerm(c.nombre);
                             setShowClientDropdown(false);
+                            setCurrentPage(0);
                           }}
                           style={{
                             padding: '0.75rem',

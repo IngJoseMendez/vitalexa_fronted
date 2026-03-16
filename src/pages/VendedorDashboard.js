@@ -1240,11 +1240,13 @@ function VentasCompletadasPanel() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  const fetchCompletedOrders = useCallback(async (page = 0, size = 20) => {
+  const fetchCompletedOrders = useCallback(async (page = 0, size = 20, search = "") => {
     setLoading(true);
     try {
+      const p = { statusGroup: 'completed', page, size };
+      if (search && search.trim() !== '') p.search = search.trim();
       const response = await apiClient.get('/vendedor/orders/my/paginated', {
-        params: { statusGroup: 'completed', page, size }
+        params: p
       });
       const data = response.data;
       setOrders(data.content || []);
@@ -1259,27 +1261,15 @@ function VentasCompletadasPanel() {
   }, []);
 
   useEffect(() => {
-    fetchCompletedOrders(currentPage, pageSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize]);
+    const timer = setTimeout(() => {
+      fetchCompletedOrders(currentPage, pageSize, searchTerm);
+    }, 400);
 
-  const filteredAndSortedOrders = orders
-    .filter(order => {
-      if (!searchTerm.trim()) return true;
-      const q = searchTerm.toLowerCase();
-      const productMatch = (order.items || []).some(item =>
-        (item.productName || '').toLowerCase().includes(q)
-      );
-      return (
-        (order.id || '').toLowerCase().includes(q) ||
-        (order.invoiceNumber || '').toLowerCase().includes(q) ||
-        (order.cliente || '').toLowerCase().includes(q) ||
-        (order.estado || '').toLowerCase().includes(q) ||
-        (order.notas || '').toLowerCase().includes(q) ||
-        String(order.total || '').includes(q) ||
-        productMatch
-      );
-    })
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize, searchTerm, fetchCompletedOrders]);
+
+  const filteredAndSortedOrders = [...orders]
     .sort((a, b) => {
       const dateA = new Date(a.completedAt || a.fecha);
       const dateB = new Date(b.completedAt || b.fecha);
@@ -1302,10 +1292,10 @@ function VentasCompletadasPanel() {
             className="ventas-search-input"
             placeholder="Buscar por cliente, factura, producto, estado, nota..."
             value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(0); }}
           />
           {searchTerm && (
-            <button className="ventas-search-clear" onClick={() => setSearchTerm('')}>
+            <button className="ventas-search-clear" onClick={() => { setSearchTerm(''); setCurrentPage(0); }}>
               <span className="material-icons-round">close</span>
             </button>
           )}
@@ -1852,11 +1842,13 @@ function MisVentasPanel() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  const fetchMyOrders = useCallback(async (page = 0, size = 20) => {
+  const fetchMyOrders = useCallback(async (page = 0, size = 20, search = '') => {
     setLoading(true);
     try {
+      const p = { statusGroup: 'pending', page, size };
+      if (search && search.trim() !== '') p.search = search.trim();
       const response = await apiClient.get('/vendedor/orders/my/paginated', {
-        params: { statusGroup: 'pending', page, size }
+        params: p
       });
       const data = response.data;
       setOrders(data.content || []);
@@ -1871,27 +1863,15 @@ function MisVentasPanel() {
   }, []);
 
   useEffect(() => {
-    fetchMyOrders(currentPage, pageSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize]);
+    const timer = setTimeout(() => {
+      fetchMyOrders(currentPage, pageSize, searchTerm);
+    }, 400);
 
-  const filteredAndSortedOrders = orders
-    .filter(order => {
-      if (!searchTerm.trim()) return true;
-      const q = searchTerm.toLowerCase();
-      const productMatch = (order.items || []).some(item =>
-        (item.productName || '').toLowerCase().includes(q)
-      );
-      return (
-        (order.id || '').toLowerCase().includes(q) ||
-        (order.invoiceNumber || '').toLowerCase().includes(q) ||
-        (order.cliente || '').toLowerCase().includes(q) ||
-        (order.estado || '').toLowerCase().includes(q) ||
-        (order.notas || '').toLowerCase().includes(q) ||
-        String(order.total || '').includes(q) ||
-        productMatch
-      );
-    })
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize, searchTerm, fetchMyOrders]);
+
+  const filteredAndSortedOrders = [...orders]
     .sort((a, b) => {
       const dateA = new Date(a.fecha);
       const dateB = new Date(b.fecha);
@@ -1914,10 +1894,10 @@ function MisVentasPanel() {
             className="ventas-search-input"
             placeholder="Buscar por cliente, factura, producto, estado, nota..."
             value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
+            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(0); }}
           />
           {searchTerm && (
-            <button className="ventas-search-clear" onClick={() => setSearchTerm('')}>
+            <button className="ventas-search-clear" onClick={() => { setSearchTerm(''); setCurrentPage(0); }}>
               <span className="material-icons-round">close</span>
             </button>
           )}
