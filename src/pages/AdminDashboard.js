@@ -162,17 +162,25 @@ function OrdersPanel({ refreshTrigger }) {
 
   const toast = useToast();
 
-  const fetchOrders = useCallback(async (page, size, status, search, vendedor, cliente) => {
+  const fetchOrders = useCallback(async (page, size, status, search, vendedor, cliente, sortB, sortO) => {
     const p = page !== undefined ? page : currentPage;
     const s = size !== undefined ? size : pageSize;
     const st = status !== undefined ? status : filter;
     const sr = search !== undefined ? search : invoiceSearch;
     const vd = vendedor !== undefined ? vendedor : selectedVendedor;
     const cl = cliente !== undefined ? cliente : selectedCliente;
+    const sby = sortB !== undefined ? sortB : sortBy;
+    const so = sortO !== undefined ? sortO : sortOrder;
 
     setLoading(true);
     try {
-      const params = { page: p, size: s, status: st };
+      const params = { 
+        page: p, 
+        size: s, 
+        status: st,
+        sortBy: sby,
+        sortOrder: so
+      };
       if (sr && sr.trim() !== '') params.search = sr.trim();
       if (vd && vd.trim() !== '') params.vendedor = vd.trim();
       if (cl && cl.trim() !== '') params.cliente = cl.trim();
@@ -236,7 +244,7 @@ function OrdersPanel({ refreshTrigger }) {
     // ✅ LISTENER PARA AUTO-ACTUALIZACIÓN AL RECIBIR NOTIFICACIÓN
     const handleNewOrder = () => {
       console.log('🔄 Auto-actualizando órdenes...');
-      fetchOrders(currentPage, pageSize, filter);
+      fetchOrders(currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente, sortBy, sortOrder);
     };
 
     window.addEventListener('new-order-notification', handleNewOrder);
@@ -248,7 +256,7 @@ function OrdersPanel({ refreshTrigger }) {
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshTrigger, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente, fetchOrders]);
+  }, [refreshTrigger, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente, sortBy, sortOrder, fetchOrders]);
 
   // Close client dropdown when clicking outside
   useEffect(() => {
@@ -355,34 +363,38 @@ function OrdersPanel({ refreshTrigger }) {
   // Los filtros ahora son server-side, solo mantenemos el ordenamiento
   const filteredOrders = [...orders]
     .sort((a, b) => {
-      // ─── FECHA: el backend ya trae los datos ordenados DESC (más recientes primero).
-      // Solo invertimos para "asc" dentro de la página.  NO re-ordenar en "desc"
-      // para no romper la paginación entre páginas.
-      if (sortBy === 'fecha') {
-        if (sortOrder === 'asc') {
-          const getEffectiveDate = (o) =>
-            o.estado === 'COMPLETADO' && o.completedAt
-              ? new Date(o.completedAt)
-              : new Date(o.fecha);
-          return getEffectiveDate(a) - getEffectiveDate(b); // asc = más antiguas primero
+      // ─── Para FECHA y NÚMERO DE FACTURA: confiar plenamente en el orden que ya trae el backend.
+      // Esto evita que el sort local (que solo ve la página actual) confunda al usuario.
+      if (sortBy === 'fecha' || sortBy === 'invoiceNumber' || sortBy === 'total' || sortBy === 'cliente') {
+        if (sortOrder === 'desc') return 0; // Mantener orden backend
+        
+        // Para ASC, realizamos un sort local simple (opcional, el backend ya lo hace si pasamos sortOrder=asc)
+        // Pero lo dejamos aquí por si el usuario cambia el sortOrder en el UI antes de que llegue la respuesta.
+        let valA, valB;
+        if (sortBy === 'fecha') {
+             valA = a.estado === 'COMPLETADO' && a.completedAt ? new Date(a.completedAt) : new Date(a.fecha);
+             valB = b.estado === 'COMPLETADO' && b.completedAt ? new Date(b.completedAt) : new Date(b.fecha);
+        } else if (sortBy === 'invoiceNumber') {
+             valA = Number(a.invoiceNumber || 0);
+             valB = Number(b.invoiceNumber || 0);
+        } else if (sortBy === 'total') {
+             valA = Number(a.total || 0);
+             valB = Number(b.total || 0);
+        } else if (sortBy === 'cliente') {
+             valA = (a.cliente || '').toLowerCase();
+             valB = (b.cliente || '').toLowerCase();
         }
-        return 0; // desc = mantener el orden que trajo el backend (más recientes primero)
+        return sortOrder === 'desc' ? valB - valA : (typeof valA === 'string' ? valA.localeCompare(valB) : valA - valB);
       }
-      // ─── Otros criterios: sort client-side normal ───────────────────────────
-      let valA, valB;
-      if (sortBy === 'total') {
-        valA = parseFloat(a.total);
-        valB = parseFloat(b.total);
-      } else if (sortBy === 'cantidad') {
-        valA = a.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
-        valB = b.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
-      } else if (sortBy === 'invoiceNumber') {
-        const codeA = String(a.invoiceNumber || '');
-        const codeB = String(b.invoiceNumber || '');
-        const comparison = codeA.localeCompare(codeB, undefined, { numeric: true });
-        return sortOrder === 'desc' ? -comparison : comparison;
+      
+      // ─── Cantidad (Sigue siendo local por ahora) ───────────────────────────
+      if (sortBy === 'cantidad') {
+        const valA = a.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
+        const valB = b.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
+        return sortOrder === 'desc' ? valB - valA : valA - valB;
       }
-      return sortOrder === 'desc' ? valB - valA : valA - valB;
+      
+      return 0;
     });
 
   if (loading) {
@@ -656,15 +668,16 @@ function OrdersPanel({ refreshTrigger }) {
       <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <div className="sorting-controls">
           <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>sort</span>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="sort-select">
+          <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setCurrentPage(0); }} className="sort-select">
             <option value="fecha">Fecha</option>
+            <option value="cliente">Nombre Cliente</option>
             <option value="total">Precio Total</option>
-            <option value="cantidad">Cantidad Productos</option>
+            <option value="cantidad">Cant. Prod (Local)</option>
             <option value="invoiceNumber">Número de Factura</option>
           </select>
           <button
             className="btn-sort-order"
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+            onClick={() => { setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); setCurrentPage(0); }}
             title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
           >
             <span className="material-icons-round">
@@ -693,26 +706,7 @@ function OrdersPanel({ refreshTrigger }) {
         </span>
       </div>
       {/* Banner de advertencia si hay filtros locales activos con paginación */}
-      {(invoiceSearch.trim() || selectedVendedor || selectedCliente) && totalPages > 1 && (
-        <div style={{
-          background: '#fffbeb',
-          borderLeft: '4px solid #f59e0b',
-          padding: '1rem',
-          marginBottom: '1rem',
-          borderRadius: '4px',
-          display: 'flex',
-          gap: '0.75rem',
-          alignItems: 'flex-start'
-        }}>
-          <span className="material-icons-round" style={{ color: '#f59e0b' }}>info</span>
-          <div>
-            <h4 style={{ margin: '0 0 0.25rem 0', color: '#b45309', fontSize: '0.95rem' }}>Atención con los filtros</h4>
-            <p style={{ margin: 0, color: '#92400e', fontSize: '0.85rem', lineHeight: '1.4' }}>
-              Los filtros de <strong>búsqueda, vendedor y cliente</strong> se aplican únicamente a las <strong>{pageSize} órdenes</strong> de la página actual. Para buscar en toda la base de datos de esta categoría, te sugerimos mostrar más órdenes por página (ej. 100) o buscar en las páginas siguientes.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Eliminado banner de advertencia sobre filtros locales ya que ahora son server-side */}
 
       {filteredOrders.length === 0 ? (
         <div className="empty-state">
