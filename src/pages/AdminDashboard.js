@@ -360,42 +360,9 @@ function OrdersPanel({ refreshTrigger }) {
     }
   };
 
-  // Los filtros ahora son server-side, solo mantenemos el ordenamiento
-  const filteredOrders = [...orders]
-    .sort((a, b) => {
-      // ─── Para FECHA y NÚMERO DE FACTURA: confiar plenamente en el orden que ya trae el backend.
-      // Esto evita que el sort local (que solo ve la página actual) confunda al usuario.
-      if (sortBy === 'fecha' || sortBy === 'invoiceNumber' || sortBy === 'total' || sortBy === 'cliente') {
-        if (sortOrder === 'desc') return 0; // Mantener orden backend
-        
-        // Para ASC, realizamos un sort local simple (opcional, el backend ya lo hace si pasamos sortOrder=asc)
-        // Pero lo dejamos aquí por si el usuario cambia el sortOrder en el UI antes de que llegue la respuesta.
-        let valA, valB;
-        if (sortBy === 'fecha') {
-             valA = a.estado === 'COMPLETADO' && a.completedAt ? new Date(a.completedAt) : new Date(a.fecha);
-             valB = b.estado === 'COMPLETADO' && b.completedAt ? new Date(b.completedAt) : new Date(b.fecha);
-        } else if (sortBy === 'invoiceNumber') {
-             valA = Number(a.invoiceNumber || 0);
-             valB = Number(b.invoiceNumber || 0);
-        } else if (sortBy === 'total') {
-             valA = Number(a.total || 0);
-             valB = Number(b.total || 0);
-        } else if (sortBy === 'cliente') {
-             valA = (a.cliente || '').toLowerCase();
-             valB = (b.cliente || '').toLowerCase();
-        }
-        return sortOrder === 'desc' ? valB - valA : (typeof valA === 'string' ? valA.localeCompare(valB) : valA - valB);
-      }
-      
-      // ─── Cantidad (Sigue siendo local por ahora) ───────────────────────────
-      if (sortBy === 'cantidad') {
-        const valA = a.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
-        const valB = b.items?.reduce((sum, i) => sum + i.cantidad, 0) || 0;
-        return sortOrder === 'desc' ? valB - valA : valA - valB;
-      }
-      
-      return 0;
-    });
+  // Los filtros y el ordenamiento son completamente server-side.
+  // NO hacer sort local — el backend ya retorna los datos en el orden correcto.
+  const filteredOrders = orders;
 
   if (loading) {
     return <div className="loading">Cargando órdenes...</div>;
@@ -672,7 +639,6 @@ function OrdersPanel({ refreshTrigger }) {
             <option value="fecha">Fecha</option>
             <option value="cliente">Nombre Cliente</option>
             <option value="total">Precio Total</option>
-            <option value="cantidad">Cant. Prod (Local)</option>
             <option value="invoiceNumber">Número de Factura</option>
           </select>
           <button
