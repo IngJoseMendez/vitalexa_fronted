@@ -1125,8 +1125,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                             )}
 
 
-                            {/* FREIGHT SECTION - Disabled for Promo Orders & Historical */}
-                            {!isPromoOrder && !isHistorical && (
+                            {/* FREIGHT SECTION - Disabled for Historical orders only */}
+                            {!isHistorical && (
                                 <div className="eo-freight-section">
                                     <label className="freight-toggle">
                                         <input

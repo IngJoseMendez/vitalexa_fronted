@@ -273,8 +273,8 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 Editar Factura
                             </button>
                         )}
-                        {/* Anular: OWNER puede siempre, ADMIN solo si la orden es PENDIENTE o CONFIRMADA */}
-                        {(isOwner || (isAdmin && (currentOrder.estado === 'PENDIENTE' || currentOrder.estado === 'CONFIRMADO'))) &&
+                        {/* Anular: OWNER y ADMIN pueden anular cualquier orden (incluyendo COMPLETADAS) */}
+                        {(isOwner || isAdmin) &&
                           currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
                             <button
                                 className="btn-cancel"

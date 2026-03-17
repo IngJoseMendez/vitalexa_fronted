@@ -199,7 +199,7 @@ function OrdersPanel({ refreshTrigger }) {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente]);
+  }, [toast, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente, sortBy, sortOrder]);
 
   const fetchVendedores = useCallback(async () => {
     try {
