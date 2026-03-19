@@ -373,10 +373,6 @@ function OrdersPanel({ refreshTrigger }) {
   // NO hacer sort local — el backend ya retorna los datos en el orden correcto.
   const filteredOrders = orders;
 
-  if (loading) {
-    return <div className="loading">Cargando órdenes...</div>;
-  }
-
   return (
     <div className="orders-panel">
       <div className="panel-header">
@@ -683,7 +679,12 @@ function OrdersPanel({ refreshTrigger }) {
       {/* Banner de advertencia si hay filtros locales activos con paginación */}
       {/* Eliminado banner de advertencia sobre filtros locales ya que ahora son server-side */}
 
-      {filteredOrders.length === 0 ? (
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+          <span className="material-icons-round spin" style={{ fontSize: '48px', color: 'var(--primary)', marginBottom: '1rem' }}>autorenew</span>
+          <p style={{ fontSize: '1.1rem', fontWeight: '500' }}>Cargando órdenes...</p>
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <div className="empty-state">
           <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>inbox</span><br />No se encontraron órdenes en esta categoría</p>
         </div>
