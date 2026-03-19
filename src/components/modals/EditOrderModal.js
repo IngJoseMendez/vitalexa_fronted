@@ -474,8 +474,15 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
 
             console.log('📦 Payload a enviar:', payload);
 
-            await client.put(`/admin/orders/${order.id}`, payload);
-            toast.success('Orden actualizada correctamente');
+            const response = await client.put(`/admin/orders/${order.id}`, payload);
+            
+            // Verificar si el backend hizo split S/N
+            const result = response.data;
+            if (result && result.wasSplit) {
+                toast.success('✅ Orden actualizada. Se creó una orden S/N separada con los productos sin registro.');
+            } else {
+                toast.success('Orden actualizada correctamente');
+            }
             if (onSuccess) onSuccess();
             onClose();
         } catch (error) {

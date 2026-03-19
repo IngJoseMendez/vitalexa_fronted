@@ -139,6 +139,7 @@ function OrdersPanel({ refreshTrigger }) {
   const [sortOrder, setSortOrder] = useState('desc');
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceSearchInput, setInvoiceSearchInput] = useState(''); // UI state (not debounced)
   const [vendedores, setVendedores] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [selectedVendedor, setSelectedVendedor] = useState('');
@@ -235,11 +236,20 @@ function OrdersPanel({ refreshTrigger }) {
     fetchVendedores();
   }, [fetchVendedores]);
 
+  // ── Debounce para el campo de búsqueda de texto ──────────────────────────────
+  // invoiceSearchInput: cambia en cada keystroke (no dispara fetch)
+  // invoiceSearch: cambia 500ms después de que el usuario dejó de escribir (dispara fetch)
   useEffect(() => {
-    // Debounce de 400ms para evitar múltiples llamadas mientras se escribe
-    const timer = setTimeout(() => {
-      fetchOrders();
-    }, 400);
+    const debounceTimer = setTimeout(() => {
+      setInvoiceSearch(invoiceSearchInput);
+      setCurrentPage(0); // Resetear página solo cuando el search se confirma
+    }, 300);
+    return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceSearchInput]);
+
+  useEffect(() => {
+    fetchOrders();
 
     // ✅ LISTENER PARA AUTO-ACTUALIZACIÓN AL RECIBIR NOTIFICACIÓN
     const handleNewOrder = () => {
@@ -251,7 +261,6 @@ function OrdersPanel({ refreshTrigger }) {
     window.addEventListener('order-completed-notification', handleNewOrder);
 
     return () => {
-      clearTimeout(timer);
       window.removeEventListener('new-order-notification', handleNewOrder);
       window.removeEventListener('order-completed-notification', handleNewOrder);
     };
@@ -424,12 +433,12 @@ function OrdersPanel({ refreshTrigger }) {
             <input
               type="text"
               placeholder="Buscar orden, cliente, rep..."
-              value={invoiceSearch}
-              onChange={(e) => { setInvoiceSearch(e.target.value); setCurrentPage(0); }}
+              value={invoiceSearchInput}
+              onChange={(e) => setInvoiceSearchInput(e.target.value)}
             />
-            {invoiceSearch && (
+            {invoiceSearchInput && (
               <button
-                onClick={() => setInvoiceSearch('')}
+                onClick={() => { setInvoiceSearchInput(''); setInvoiceSearch(''); setCurrentPage(0); }}
                 style={{
                   background: 'none',
                   border: 'none',

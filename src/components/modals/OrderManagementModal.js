@@ -250,7 +250,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         Detalle de Orden #{order.invoiceNumber || (order.id || order.orderId)?.substring(0, 8)}
                     </h3>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {isOwner && (
+                        {(isOwner || isAdmin) && (
                             <button
                                 className="btn-edit-invoice"
                                 onClick={() => setShowEditHistoryModal(true)}
