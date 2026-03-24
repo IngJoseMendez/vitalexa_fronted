@@ -40,14 +40,15 @@ function OwnerDashboard() {
     try {
       setLoading(true);
 
-      const [ordersRes, productsRes] = await Promise.all([
+      const [ordersRes, productsRes, salesRes] = await Promise.all([
         client.get('/admin/orders'),
-        client.get('/admin/products')
+        client.get('/admin/products'),
+        client.get('/owner/reports/sales')
       ]);
 
       setOrders(ordersRes.data);
       setProducts(productsRes.data);
-      calculateStats(ordersRes.data, productsRes.data);
+      calculateStats(productsRes.data, salesRes.data);
 
       const tagsRes = await tagService.getAll();
       setTags(tagsRes.data);
@@ -93,19 +94,15 @@ function OwnerDashboard() {
 
 
 
-  const calculateStats = (ordersData, productsData) => {
-    const completedOrders = ordersData.filter(o => o.estado === 'COMPLETADO');
-    const pendingOrders = ordersData.filter(o => o.estado === 'PENDIENTE' || o.estado === 'CONFIRMADO');
-
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + parseFloat(o.total), 0);
+  const calculateStats = (productsData, salesReport) => {
     const activeProducts = productsData.filter(p => p.active).length;
     const lowStockProducts = productsData.filter(p => p.stock < 10 && p.active).length;
 
     setStats({
-      totalOrders: ordersData.length,
-      completedOrders: completedOrders.length,
-      pendingOrders: pendingOrders.length,
-      totalRevenue: totalRevenue,
+      totalOrders: salesReport?.totalOrders ?? 0,
+      completedOrders: salesReport?.completedOrders ?? 0,
+      pendingOrders: salesReport?.pendingOrders ?? 0,
+      totalRevenue: salesReport?.totalRevenue ?? 0,
       activeProducts: activeProducts,
       totalProducts: productsData.length,
       lowStockProducts: lowStockProducts
