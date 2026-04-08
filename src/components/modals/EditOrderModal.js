@@ -724,7 +724,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
 
         setFormData(prev => {
             // Remove promotion ID from list (one instance)
-            const promoIdToRemove = firstItem.promotionId;
+            const promoIdToRemove = firstItem.promotionId || firstItem.specialPromotionId;
             const newPromoIds = [...(prev.promotionIds || [])];
 
             // Logic: remove ONE occurrence of this promotion UUID
