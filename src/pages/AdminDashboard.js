@@ -1193,7 +1193,8 @@ function AdminNuevaVentaPanel() {
           nombre: product.nombre,
           precio: 0, // Always 0 for bonified
           cantidad: 1,
-          isBonified: true
+          isBonified: true,
+          isSpecialProduct: product.isSpecialProduct || false
         }]);
       }
     } else {
@@ -1377,7 +1378,8 @@ function AdminNuevaVentaPanel() {
           }))
         ],
         bonifiedItems: bonifiedCart.map(item => ({
-          productId: item.productId,
+          productId: item.isSpecialProduct ? null : item.productId,
+          specialProductId: item.isSpecialProduct ? item.productId : null,
           cantidad: item.cantidad
         })),
         promotionIds: promotionsCart.map(p => p.id),

@@ -246,7 +246,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
           precio: 0, // Price 0
           cantidad: quantity,
           stockDisponible: product.stock,
-          allowOutOfStock: true // Usually gifts can be OOS if authorized? Or assume stock check needed? Let's assume standard stock check but price 0.
+          allowOutOfStock: true,
+          isSpecialProduct: product.isSpecialProduct || false
         }]);
       }
       toast.success(`Agregado (+${quantity}) como Bonificado 🎁`);
@@ -445,7 +446,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
           }))
         ],
         bonifiedItems: bonifiedCart.map(item => ({
-          productId: item.productId,
+          productId: item.isSpecialProduct ? null : item.productId,
+          specialProductId: item.isSpecialProduct ? item.productId : null,
           cantidad: item.cantidad
         })),
         promotionIds: promotionsCart.map(p => p.id),
