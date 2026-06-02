@@ -31,8 +31,13 @@ export default function InventoryHistoryPanel() {
         { value: 'SALE', label: 'Venta' },
         { value: 'RESTOCK', label: 'Reabastecimiento' },
         { value: 'DELETION', label: 'Eliminación' },
-        { value: 'RETURN', label: 'Devolución' }
+        { value: 'RETURN', label: 'Devolución' },
+        { value: 'ORDER_ITEM_REMOVAL', label: 'Eliminación de Item' },
+        { value: 'ORDER_EDIT_RESTORE', label: 'Restauración por Edición' }
     ];
+
+    // Tipos que SUMAN stock (entrada) → se muestran con "+" y en verde.
+    const positiveTypes = ['CREATION', 'RESTOCK', 'RETURN', 'ORDER_ITEM_REMOVAL', 'ORDER_EDIT_RESTORE'];
 
     const fetchHistory = useCallback(async () => {
         setLoading(true);
@@ -307,8 +312,8 @@ export default function InventoryHistoryPanel() {
                                     <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{item.reason || '-'}</td>
                                     <td style={{ padding: '1rem' }}>{item.username}</td>
                                     <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.previousStock}</td>
-                                    <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: ['CREATION', 'RESTOCK', 'RETURN'].includes(item.type) ? '#10b981' : '#ef4444' }}>
-                                        {['CREATION', 'RESTOCK', 'RETURN'].includes(item.type) ? '+' : '-'}{item.quantity}
+                                    <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: positiveTypes.includes(item.type) ? '#10b981' : '#ef4444' }}>
+                                        {positiveTypes.includes(item.type) ? '+' : '-'}{item.quantity}
                                     </td>
                                     <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.newStock}</td>
                                     <td style={{ padding: '1rem', textAlign: 'center' }}>

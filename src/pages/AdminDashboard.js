@@ -10,6 +10,7 @@ import ProductsPanel from '../components/ProductsPanel';
 import SpecialProductsPanel from '../components/SpecialProductsPanel';
 import SpecialPromotionsPanel from '../components/SpecialPromotionsPanel';
 import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
+import SalesHistoryPanel from '../components/SalesHistoryPanel';
 import StockReportPanel from '../components/StockReportPanel';
 import AdminDiscountSection from '../components/AdminDiscountSection';
 import PayrollPanel from '../components/PayrollPanel';
@@ -61,6 +62,7 @@ function AdminDashboard() {
             { key: 'special-products', icon: 'star', label: 'Especiales' },
             { key: 'special-promotions', icon: 'stars', label: 'Prom. Especiales' },
             { key: 'promotions', icon: 'card_giftcard', label: 'Promociones' },
+            { key: 'sales-history', icon: 'receipt_long', label: 'Historial Ventas' },
             { key: 'inventory-history', icon: 'history', label: 'Historial Inv.' },
             { key: 'stock-report', icon: 'warehouse', label: 'Stock Real' },
             { key: 'clients', icon: 'people', label: 'Clientes' },
@@ -106,6 +108,7 @@ function AdminDashboard() {
       <main className="admin-main">
         <div className="dashboard-content">
           {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'sales-history' && <SalesHistoryPanel />}
           {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
           {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
           {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}

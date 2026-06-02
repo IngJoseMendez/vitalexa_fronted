@@ -17,6 +17,10 @@ const orderService = {
   // ✅ Get order by ID
   getOrderById: (id) => apiClient.get(`/admin/orders/${id}`),
 
+  // ✅ Historial de ventas (facturas completadas) paginado y con detalle resumido
+  // params: { page, size, search, startDate, endDate } — fechas en formato YYYY-MM-DD
+  getSalesHistory: (params = {}) => apiClient.get('/admin/orders/sales-history', { params }),
+
   // ✅ Change order status
   changeStatus: (id, status) => apiClient.patch(`/admin/orders/${id}/status`, { status }, { params: { status } }),
 
