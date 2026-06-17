@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import apiClient from '../api/client';
 import { useToast } from './ToastContainer';
@@ -135,7 +135,7 @@ function AdminClientsPanel({ refreshTrigger }) {
     };
 
     // Filter clients by search term AND vendor
-    const filteredClients = clients.filter(c => {
+    const filteredClients = useMemo(() => clients.filter(c => {
         // Vendor filter
         if (selectedVendedor && c.vendedorAsignadoNombre !== selectedVendedor) {
             return false;
@@ -164,7 +164,7 @@ function AdminClientsPanel({ refreshTrigger }) {
         return sortOrder === 'asc'
             ? nameA.localeCompare(nameB)
             : nameB.localeCompare(nameA);
-    });
+    }), [clients, selectedVendedor, searchTerm, sortOrder]);
 
     if (loading) {
         return <div className="loading">Cargando clientes...</div>;

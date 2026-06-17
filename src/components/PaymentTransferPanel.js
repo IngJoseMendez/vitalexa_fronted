@@ -334,6 +334,7 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
     const [loadingOrders, setLoadingOrders] = useState(false);
 
     const [selectedOrderId, setSelectedOrderId] = useState('');
+    const [orderSearch, setOrderSearch] = useState(''); // buscador de factura (client-side)
     const [payments, setPayments] = useState([]);
     const [loadingPayments, setLoadingPayments] = useState(false);
     const [selectedPayment, setSelectedPayment] = useState(null);
@@ -353,6 +354,7 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
         setLoadingOrders(true);
         setOriginOrders([]);
         setSelectedOrderId('');
+        setOrderSearch('');
         setPayments([]);
         setSelectedPayment(null);
         setAvailableAmount(null);
@@ -431,6 +433,17 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
             setSubmitting(false);
         }
     };
+
+    // Filtro client-side de las órdenes por número de factura, valor o cliente.
+    // No toca la carga ni la selección: solo reduce las opciones mostradas en el select.
+    const orderQuery = orderSearch.trim().toLowerCase();
+    const filteredOriginOrders = !orderQuery ? originOrders : originOrders.filter(o => {
+        const inv = o.invoiceNumber != null ? String(o.invoiceNumber) : '';
+        const total = o.total != null ? String(o.total) : '';
+        const cli = (o.cliente || '').toLowerCase();
+        const idShort = (o.id || '').slice(0, 8).toLowerCase();
+        return inv.includes(orderQuery) || total.includes(orderQuery) || cli.includes(orderQuery) || idShort.includes(orderQuery);
+    });
 
     const steps = ['Vendedor Origen', 'Seleccionar Pago', 'Configurar'];
 
@@ -521,14 +534,25 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
 
                         {!loadingOrders && originOrders.length > 0 && (
                             <div>
-                                <label className="pt-field-label">Orden</label>
+                                <label className="pt-field-label">Buscar factura</label>
+                                <input
+                                    className="pt-input"
+                                    type="text"
+                                    placeholder="N° de factura, valor o cliente…"
+                                    value={orderSearch}
+                                    onChange={e => setOrderSearch(e.target.value)}
+                                    style={{ marginBottom: 10 }}
+                                />
+                                <label className="pt-field-label">
+                                    Orden{orderQuery ? ` (${filteredOriginOrders.length} de ${originOrders.length})` : ''}
+                                </label>
                                 <select
                                     className="pt-select-lg"
                                     value={selectedOrderId}
                                     onChange={e => { setSelectedOrderId(e.target.value); if (e.target.value) loadPayments(e.target.value); }}
                                 >
                                     <option value="">— Selecciona una orden —</option>
-                                    {originOrders.map(o => (
+                                    {filteredOriginOrders.map(o => (
                                         <option key={o.id} value={o.id}>
                                             {o.invoiceNumber ? `Factura #${o.invoiceNumber}` : `#${o.id.slice(0, 8)}`}
                                             {' — '}{o.cliente || '(sin cliente)'}
@@ -536,6 +560,9 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
                                         </option>
                                     ))}
                                 </select>
+                                {orderQuery && filteredOriginOrders.length === 0 && (
+                                    <p className="pt-step-hint" style={{ marginTop: 8 }}>Sin coincidencias para “{orderSearch}”.</p>
+                                )}
                             </div>
                         )}
 

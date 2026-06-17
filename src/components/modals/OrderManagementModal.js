@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import paymentService from '../../api/paymentService';
 import discountService from '../../api/discountService';
 import { useToast } from '../ToastContainer';
+import { useConfirm } from '../ConfirmDialog';
 import AssortmentSelectionModal from './AssortmentSelectionModal';
 import OrderAnnulationModal from './OrderAnnulationModal';
 import orderService from '../../api/orderService';
@@ -28,6 +29,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const [showAnnulationModal, setShowAnnulationModal] = useState(false);
     const [annulationLoading, setAnnulationLoading] = useState(false);
     const toast = useToast();
+    const confirm = useConfirm();
 
     const [currentOrder, setCurrentOrder] = useState(order);
     const [loadingOrder, setLoadingOrder] = useState(false); // New loading state for order details
@@ -102,7 +104,12 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
     // Cancel a payment
     const handleCancelPayment = async (paymentId) => {
-        const confirmed = window.confirm('¿Está seguro de anular este pago?');
+        const confirmed = await confirm({
+            title: '¿Anular este pago?',
+            message: 'El pago quedará anulado. Podrás restaurarlo después si fue un error.',
+            confirmText: 'Anular pago',
+            cancelText: 'Cancelar'
+        });
         if (!confirmed) return;
 
         try {
@@ -131,7 +138,13 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
     // Revoke a discount
     const handleRevokeDiscount = async (discountId) => {
-        if (!window.confirm('¿Está seguro de revocar este descuento?')) return;
+        const confirmed = await confirm({
+            title: '¿Revocar este descuento?',
+            message: 'El descuento se revocará y el total de la orden se recalculará.',
+            confirmText: 'Revocar',
+            cancelText: 'Cancelar'
+        });
+        if (!confirmed) return;
 
         try {
             await discountService.revokeDiscount(discountId);
@@ -749,7 +762,7 @@ const PAYMENT_METHODS = [
     { value: 'OTRO', label: 'Otro', icon: '🔖' }
 ];
 
-export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSuccess }) {
+export function PaymentFormModal({ orderId, orderTotal, totalPaid, availableCredit = 0, onClose, onSuccess }) {
     const [formData, setFormData] = useState({
         amount: '',
         paymentMethod: 'EFECTIVO',
@@ -758,10 +771,16 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSu
         notes: ''
     });
     const [saving, setSaving] = useState(false);
+    const [applyingCredit, setApplyingCredit] = useState(false);
+    // Saldo a favor aplicado en esta sesión y crédito restante (estado local)
+    const [extraPaid, setExtraPaid] = useState(0);
+    const [creditLeft, setCreditLeft] = useState(Number(availableCredit) || 0);
     const toast = useToast();
+    const confirm = useConfirm();
 
-    // Calculate pending balance first
-    const pendingBalance = orderTotal - totalPaid;
+    // Saldo pendiente considerando el crédito aplicado en esta sesión
+    const effectiveTotalPaid = (Number(totalPaid) || 0) + extraPaid;
+    const pendingBalance = (Number(orderTotal) || 0) - effectiveTotalPaid;
 
     // Dynamic calculation of context values
     const finalPaymentAmount = parseFloat(formData.amount || 0);
@@ -770,10 +789,36 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSu
     // Current Pending - Payment Amount
     const effectivePendingAfter = Math.max(0, pendingBalance - finalPaymentAmount);
 
+    // Usar saldo a favor del cliente para abonar a la factura (aplica min(crédito, pendiente)).
+    const handleUseCredit = async () => {
+        if (creditLeft <= 0 || pendingBalance <= 0.005 || applyingCredit) return;
+        try {
+            setApplyingCredit(true);
+            const res = await paymentService.useBalanceToPay(orderId); // sin amount → máximo posible
+            const applied = Number(res.data?.amount) || 0;
+            const newPending = Math.max(0, pendingBalance - applied);
+            setExtraPaid(p => p + applied);
+            setCreditLeft(c => Math.max(0, c - applied));
+            toast.success(
+                `Se aplicaron $${formatCurrency(applied)} de saldo a favor.` +
+                (newPending > 0.005 ? ` Falta $${formatCurrency(newPending)} por pagar.` : ' Factura saldada.')
+            );
+            if (newPending <= 0.005) {
+                onSuccess(); // ya quedó pagada → refrescar y cerrar
+            }
+        } catch (error) {
+            console.error('Error using balance:', error);
+            toast.error('Error al usar saldo a favor: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setApplyingCredit(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!formData.amount || parseFloat(formData.amount) <= 0) {
+        const amt = parseFloat(formData.amount);
+        if (!formData.amount || isNaN(amt) || amt <= 0) {
             toast.warning('Ingrese un monto válido');
             return;
         }
@@ -783,17 +828,33 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSu
             return;
         }
 
+        // Si el monto supera el pendiente, ofrecer enviar el sobrante a saldo a favor.
+        let surplusToCredit = false;
+        if (amt > pendingBalance + 0.005) {
+            const surplus = amt - pendingBalance;
+            const ok = await confirm({
+                title: '¿Registrar sobrante como saldo a favor?',
+                message: `El monto ingresado ($${formatCurrency(amt)}) supera el saldo pendiente ($${formatCurrency(Math.max(0, pendingBalance))}). ` +
+                    `El sobrante de $${formatCurrency(surplus)} se agregará como saldo a favor del cliente.`,
+                confirmText: 'Sí, agregar a saldo a favor',
+                cancelText: 'Cancelar'
+            });
+            if (!ok) return; // el usuario corrige el monto
+            surplusToCredit = true;
+        }
+
         try {
             setSaving(true);
             await paymentService.createPayment({
                 orderId,
-                amount: parseFloat(formData.amount),
+                amount: amt,
                 paymentMethod: formData.paymentMethod,
                 actualPaymentDate: formData.actualPaymentDate || null,
                 withinDeadline: formData.withinDeadline,
-                notes: formData.notes || null
+                notes: formData.notes || null,
+                surplusToCredit
             });
-            toast.success('Pago registrado correctamente');
+            toast.success(surplusToCredit ? 'Pago registrado y sobrante agregado a saldo a favor' : 'Pago registrado correctamente');
             onSuccess();
         } catch (error) {
             console.error('Error creating payment:', error);
@@ -808,7 +869,7 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSu
             <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <h3><span className="material-icons-round">payments</span> Registrar Pago</h3>
-                    <button className="btn-close" onClick={onClose}>
+                    <button className="btn-close" onClick={() => (extraPaid > 0 ? onSuccess() : onClose())}>
                         <span className="material-icons-round">close</span>
                     </button>
                 </div>
@@ -820,13 +881,37 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSu
                     </div>
                     <div className="context-item">
                         <span>Ya Pagado</span>
-                        <strong>${formatCurrency(totalPaid)}</strong>
+                        <strong>${formatCurrency(effectiveTotalPaid)}</strong>
                     </div>
                     <div className="context-item highlight">
                         <span>Saldo Pendiente</span>
-                        <strong className="warning">${formatCurrency(pendingBalance)}</strong>
+                        <strong className="warning">${formatCurrency(Math.max(0, pendingBalance))}</strong>
                     </div>
                 </div>
+
+                {/* Saldo a favor del cliente: aplicar a esta factura */}
+                {creditLeft > 0 && pendingBalance > 0.005 && (
+                    <div className="payment-credit-box" style={{
+                        margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '10px',
+                        background: '#ecfdf5', border: '1px solid #a7f3d0',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap'
+                    }}>
+                        <div style={{ fontSize: '0.9rem', color: '#065f46' }}>
+                            <span className="material-icons-round" style={{ verticalAlign: 'middle', fontSize: '1.1rem', marginRight: 4 }}>savings</span>
+                            Saldo a favor disponible: <strong>${formatCurrency(creditLeft)}</strong>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleUseCredit}
+                            disabled={applyingCredit || saving}
+                            className="btn-primary btn-sm"
+                            style={{ background: '#059669', whiteSpace: 'nowrap' }}
+                            title="Aplicar el saldo a favor a esta factura"
+                        >
+                            {applyingCredit ? 'Aplicando…' : 'Usar saldo a favor'}
+                        </button>
+                    </div>
+                )}
 
                 {/* Dynamic Preview Line */}
                 {finalPaymentAmount > 0 && (
@@ -924,8 +1009,8 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, onClose, onSu
                     </div>
 
                     <div className="form-actions">
-                        <button type="button" className="btn-cancel" onClick={onClose}>Cancelar</button>
-                        <button type="submit" className="btn-save" disabled={saving}>
+                        <button type="button" className="btn-cancel" onClick={() => (extraPaid > 0 ? onSuccess() : onClose())}>Cancelar</button>
+                        <button type="submit" className="btn-save" disabled={saving || applyingCredit}>
                             {saving ? 'Guardando...' : 'Registrar Pago'}
                         </button>
                     </div>

@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency, formatDateISO } from '../utils/formatters';
 import balanceService from '../api/balanceService';
 import clientApi from '../api/client';
@@ -78,7 +78,7 @@ function BalancesPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // Run once on mount
 
-    const filteredBalances = balances.filter(b => {
+    const filteredBalances = useMemo(() => balances.filter(b => {
         // Text Search
         const matchesSearch = b.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             b.clientPhone?.includes(searchTerm) ||
@@ -99,7 +99,11 @@ function BalancesPage() {
         return sortOrder === 'asc'
             ? nameA.localeCompare(nameB)
             : nameB.localeCompare(nameA);
-    });
+    }), [balances, searchTerm, filterStatus, sortOrder]);
+
+    // Totales memoizados (solo dependen de balances, no de búsqueda/orden)
+    const totalPending = useMemo(() => balances.reduce((sum, b) => sum + (b.pendingBalance || 0), 0), [balances]);
+    const totalPaidAll = useMemo(() => balances.reduce((sum, b) => sum + (b.totalPaid || 0), 0), [balances]);
 
     // Export to Excel function
     const handleExportExcel = async () => {
@@ -309,7 +313,7 @@ function BalancesPage() {
                     </span>
                     <div className="stat-content">
                         <span className="stat-value">
-                            ${formatCurrency(balances.reduce((sum, b) => sum + (b.pendingBalance || 0), 0))}
+                            ${formatCurrency(totalPending)}
                         </span>
                         <span className="stat-label">Total Pendiente</span>
                     </div>
@@ -320,7 +324,7 @@ function BalancesPage() {
                     </span>
                     <div className="stat-content">
                         <span className="stat-value">
-                            ${formatCurrency(balances.reduce((sum, b) => sum + (b.totalPaid || 0), 0))}
+                            ${formatCurrency(totalPaidAll)}
                         </span>
                         <span className="stat-label">Total Pagado</span>
                     </div>
@@ -1071,6 +1075,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                     orderId={selectedOrderForPayment.orderId || selectedOrderForPayment.id}
                     orderTotal={selectedOrderForPayment.discountedTotal || selectedOrderForPayment.total || 0}
                     totalPaid={selectedOrderForPayment.paidAmount || 0}
+                    availableCredit={clientDetail?.balanceFavor || 0}
                     onClose={handleClosePaymentForm}
                     onSuccess={() => {
                         handleClosePaymentForm();

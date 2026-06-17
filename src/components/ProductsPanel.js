@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import client from '../api/client';
 import { useToast } from './ToastContainer';
 import { tagService } from '../api/tagService';
@@ -198,6 +198,24 @@ export default function ProductsPanel({ refreshTrigger }) {
         setSelectedProductForStock(product);
         setStockModalOpen(true);
     };
+
+    // Filtro + orden memoizados (evita re-filtrar/re-ordenar en cada render/tecla).
+    // Mismo resultado que antes; solo se recalcula si cambian products/statusFilter/sortOption.
+    const displayProducts = useMemo(() => {
+        let dp = [...products];
+        if (statusFilter === 'active') dp = dp.filter(p => p.active);
+        if (statusFilter === 'inactive') dp = dp.filter(p => !p.active);
+        dp.sort((a, b) => {
+            if (sortOption === 'name_asc') return a.nombre.localeCompare(b.nombre);
+            if (sortOption === 'name_desc') return b.nombre.localeCompare(a.nombre);
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            if (sortOption === 'date_desc') return dateB - dateA;
+            if (sortOption === 'date_asc') return dateA - dateB;
+            return 0;
+        });
+        return dp;
+    }, [products, statusFilter, sortOption]);
 
     return (
         <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -530,26 +548,7 @@ export default function ProductsPanel({ refreshTrigger }) {
                 />
             ) :
                 (() => {
-                    // Apply Filters & Sort
-                    let displayProducts = [...products];
-
-                    // 1. Status Filter
-                    if (statusFilter === 'active') displayProducts = displayProducts.filter(p => p.active);
-                    if (statusFilter === 'inactive') displayProducts = displayProducts.filter(p => !p.active);
-
-                    // 2. Sorting
-                    displayProducts.sort((a, b) => {
-                        if (sortOption === 'name_asc') return a.nombre.localeCompare(b.nombre);
-                        if (sortOption === 'name_desc') return b.nombre.localeCompare(a.nombre);
-                        // Assuming created_at or updated_at exists, or fallback to id? 
-                        // Most entities have createdAt. If not, fallback to 0.
-                        const dateA = new Date(a.createdAt || 0).getTime();
-                        const dateB = new Date(b.createdAt || 0).getTime();
-                        if (sortOption === 'date_desc') return dateB - dateA;
-                        if (sortOption === 'date_asc') return dateA - dateB;
-                        return 0;
-                    });
-
+                    // displayProducts ya viene filtrado y ordenado (memoizado arriba)
                     if (loading) return (
                         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                             <div className="loading">Cargando productos...</div>

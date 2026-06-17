@@ -1,16 +1,19 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
-import VendedorDashboard from './pages/VendedorDashboard';
-import OwnerDashboard from './pages/OwnerDashboard';
-import EmpacadorDashboard from './pages/EmpacadorDashboard';
-import ClientDashboard from './pages/ClientDashboard';
-import BalancesPage from './pages/BalancesPage';
 import NotificationCenter from './components/NotificationCenter';
 import { ToastProvider } from './components/ToastContainer';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import './App.css';
+
+// Code-splitting: cada dashboard se carga bajo demanda (reduce el bundle inicial).
+// Login queda eager (es la primera pantalla). No cambia routing ni lógica.
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
+const VendedorDashboard = React.lazy(() => import('./pages/VendedorDashboard'));
+const OwnerDashboard = React.lazy(() => import('./pages/OwnerDashboard'));
+const EmpacadorDashboard = React.lazy(() => import('./pages/EmpacadorDashboard'));
+const ClientDashboard = React.lazy(() => import('./pages/ClientDashboard'));
+const BalancesPage = React.lazy(() => import('./pages/BalancesPage'));
 
 function App() {
   const getRole = () => localStorage.getItem('role');
@@ -116,6 +119,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
 
       {/* Contenido principal */}
       <main className="app-main">
+        <React.Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', color: 'var(--text-secondary)', fontWeight: 600 }}>Cargando…</div>}>
         <Routes>
           <Route path="/login" element={<Login />} />
 
@@ -176,6 +180,7 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
 
           <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
+        </React.Suspense>
       </main>
     </div>
   );

@@ -34,19 +34,24 @@
   --text-muted: #94a3b8;
 
   --border: #e2e8f0;
+  --border-strong: #cbd5e1;
   --border-focus: #6366f1;
+
+  /* Anillo de foco accesible (consistente en toda la app) */
+  --ring: 0 0 0 3px rgba(99, 102, 241, 0.28);
+  --surface-hover: #f8fafc;
 
   /* GLASSMORPHISM */
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.3);
   --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
 
-  /* SOMBRAS PREMIUM */
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  --shadow-primary: 0 10px 15px -3px rgba(99, 102, 241, 0.3);
+  /* SOMBRAS PREMIUM (slate-tinted, más suaves y difusas = más modernas) */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 2px 4px -1px rgba(15, 23, 42, 0.06), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 4px 6px -2px rgba(15, 23, 42, 0.05), 0 12px 24px -4px rgba(15, 23, 42, 0.10);
+  --shadow-xl: 0 8px 12px -4px rgba(15, 23, 42, 0.06), 0 24px 40px -8px rgba(15, 23, 42, 0.14);
+  --shadow-primary: 0 6px 16px -4px rgba(99, 102, 241, 0.45);
 
   /* BORDES URBANO-MODERNOS */
   --radius-sm: 0.5rem;
@@ -447,5 +452,132 @@ button {
 
   100% {
     box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* =========================================
+   SISTEMA DE BOTONES GLOBAL (unificado)
+   Las páginas que ya definen .btn-* mantienen su estilo (cargan después);
+   esto da un estilo coherente a las que no lo definían.
+   ========================================= */
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+    background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), filter var(--transition-fast);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-primary);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #fff;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--surface-hover);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-danger:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--primary-light);
+  color: var(--primary-hover);
+}
+
+.btn-primary:active,
+.btn-secondary:active,
+.btn-danger:active,
+.btn-ghost:active {
+  transform: translateY(1px);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled,
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-sm {
+  min-height: 32px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* =========================================
+   ACCESIBILIDAD & BASE (responsive-friendly)
+   ========================================= */
+/* Foco visible y consistente solo con teclado (no molesta al hacer clic) */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Evitar desbordes horizontales por imágenes en móvil */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Respeta usuarios que prefieren menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -4,6 +4,7 @@
 
 .notification-center {
   position: relative;
+  overflow: visible;
 }
 
 .notification-bell {
@@ -31,13 +32,17 @@
 
 .notification-bell .badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
+  top: -4px;
+  right: -4px;
   background: var(--danger);
   color: white;
-  border-radius: 50%;
+  border-radius: 999px;
+  /* pill: maneja 1 y 2 dígitos sin deformarse (antes 50% = elipse aplastada) */
   min-width: 18px;
   height: 18px;
+  box-sizing: border-box;
+  /* el borde no agranda el alto */
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;

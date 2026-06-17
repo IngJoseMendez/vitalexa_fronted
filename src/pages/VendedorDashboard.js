@@ -20,9 +20,23 @@ import '../styles/VendedorDashboard.css';
 
 const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
+// Pestañas del panel de vendedor. Mismo orden y comportamiento que antes;
+// se define como dato para renderizar el nav (escritorio) y el menú lateral (móvil) sin duplicar markup.
+const NAV_TABS = [
+  { id: 'nueva-venta', label: 'Nueva Venta', icon: 'add_shopping_cart' },
+  { id: 'mis-ventas', label: 'Mis Ventas', icon: 'receipt_long' },
+  { id: 'ventas-completadas', label: 'Completadas', icon: 'check_circle' },
+  { id: 'mis-metas', label: 'Mis Metas', icon: 'show_chart' },
+  { id: 'clientes', label: 'Clientes', icon: 'people' },
+  { id: 'productos', label: 'Productos', icon: 'inventory_2' },
+  { id: 'special-products', label: 'Especiales', icon: 'star' },
+  { id: 'mi-nomina', label: 'Mi Nómina', icon: 'payments' },
+];
+
 function VendedorDashboard() {
   const [activeTab, setActiveTab] = useState('nueva-venta');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     // Connect with role 'vendedor'
@@ -38,64 +52,87 @@ function VendedorDashboard() {
     };
   }, []);
 
+  // Menú lateral (móvil): cerrar con Escape y bloquear el scroll del fondo mientras está abierto.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.body.classList.add('vendedor-nav-open');
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.classList.remove('vendedor-nav-open');
+    };
+  }, [menuOpen]);
+
+  const activeMeta = NAV_TABS.find(t => t.id === activeTab);
+
+  // Cambiar de pestaña también cierra el menú lateral en móvil.
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    setMenuOpen(false);
+  };
+
   return (
     <div className="vendedor-dashboard">
-      <nav className="dashboard-nav">
+      {/* Barra superior móvil: hamburguesa + sección actual + refrescar (solo visible en móvil) */}
+      <div className="vendedor-mobile-bar">
         <button
-          className={activeTab === 'nueva-venta' ? 'active' : ''}
-          onClick={() => setActiveTab('nueva-venta')}
+          className="vendedor-hamburger"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Abrir menú"
+          aria-expanded={menuOpen}
         >
-          <span className="material-icons-round">add_shopping_cart</span> Nueva Venta
+          <span className="material-icons-round">menu</span>
         </button>
+        <span className="vendedor-mobile-title">
+          {activeMeta && <span className="material-icons-round">{activeMeta.icon}</span>}
+          {activeMeta ? activeMeta.label : 'Menú'}
+        </span>
         <button
-          className={activeTab === 'mis-ventas' ? 'active' : ''}
-          onClick={() => setActiveTab('mis-ventas')}
+          className="btn-refresh-dashboard vendedor-mobile-refresh"
+          onClick={() => setRefreshTrigger(Date.now())}
+          aria-label="Actualizar datos"
         >
-          <span className="material-icons-round">receipt_long</span> Mis Ventas
+          <span className="material-icons-round">sync</span>
         </button>
-        <button
-          className={activeTab === 'ventas-completadas' ? 'active' : ''}
-          onClick={() => setActiveTab('ventas-completadas')}
-        >
-          <span className="material-icons-round">check_circle</span> Completadas
-        </button>
-        <button
-          className={activeTab === 'mis-metas' ? 'active' : ''}
-          onClick={() => setActiveTab('mis-metas')}
-        >
-          <span className="material-icons-round">show_chart</span> Mis Metas
-        </button>
-        <button
-          className={activeTab === 'clientes' ? 'active' : ''}
-          onClick={() => setActiveTab('clientes')}
-        >
-          <span className="material-icons-round">people</span> Clientes
-        </button>
-        <button
-          className={activeTab === 'productos' ? 'active' : ''}
-          onClick={() => setActiveTab('productos')}
-        >
-          <span className="material-icons-round">inventory_2</span> Productos
-        </button>
-        <button
-          className={activeTab === 'special-products' ? 'active' : ''}
-          onClick={() => setActiveTab('special-products')}
-        >
-          <span className="material-icons-round">star</span> Especiales
-        </button>
-        <button
-          className={activeTab === 'mi-nomina' ? 'active' : ''}
-          onClick={() => setActiveTab('mi-nomina')}
-        >
-          <span className="material-icons-round">payments</span> Mi Nómina
-        </button>
+      </div>
+
+      {/* Velo detrás del menú lateral (móvil) */}
+      <div
+        className={`vendedor-nav-scrim ${menuOpen ? 'open' : ''}`}
+        onClick={() => setMenuOpen(false)}
+        aria-hidden="true"
+      />
+
+      <nav className={`dashboard-nav ${menuOpen ? 'open' : ''}`}>
+        {/* Cabecera del drawer — solo visible en móvil */}
+        <div className="vendedor-nav-head">
+          <span>Menú</span>
+          <button
+            className="vendedor-nav-close"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Cerrar menú"
+          >
+            <span className="material-icons-round">close</span>
+          </button>
+        </div>
+
+        {NAV_TABS.map(tab => (
+          <button
+            key={tab.id}
+            className={activeTab === tab.id ? 'active' : ''}
+            onClick={() => selectTab(tab.id)}
+          >
+            <span className="material-icons-round">{tab.icon}</span> {tab.label}
+          </button>
+        ))}
         <button
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
         >
           <span className="material-icons-round">account_balance_wallet</span> Saldos
         </button>
-        <button className="btn-refresh-dashboard" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+        <button className="btn-refresh-dashboard vendedor-nav-refresh" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
           <span className="material-icons-round">sync</span>
         </button>
       </nav>
@@ -1224,6 +1261,7 @@ function VentasCompletadasPanel() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateSort, setDateSort] = useState('desc');
+  const [filterDate, setFilterDate] = useState(''); // fecha exacta de completado (yyyy-MM-dd)
 
   // ── PAGINACIÓN ──
   const [currentPage, setCurrentPage] = useState(0);
@@ -1231,11 +1269,12 @@ function VentasCompletadasPanel() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  const fetchCompletedOrders = useCallback(async (page = 0, size = 20, search = "") => {
+  const fetchCompletedOrders = useCallback(async (page = 0, size = 20, search = "", completedDate = "") => {
     setLoading(true);
     try {
       const p = { statusGroup: 'completed', page, size };
       if (search && search.trim() !== '') p.search = search.trim();
+      if (completedDate) p.completedDate = completedDate; // filtro por fecha exacta de completado
       const response = await apiClient.get('/vendedor/orders/my/paginated', {
         params: p
       });
@@ -1253,12 +1292,12 @@ function VentasCompletadasPanel() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchCompletedOrders(currentPage, pageSize, searchTerm);
+      fetchCompletedOrders(currentPage, pageSize, searchTerm, filterDate);
     }, 400);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize, searchTerm, fetchCompletedOrders]);
+  }, [currentPage, pageSize, searchTerm, filterDate, fetchCompletedOrders]);
 
   const filteredAndSortedOrders = [...orders]
     .sort((a, b) => {
@@ -1291,6 +1330,22 @@ function VentasCompletadasPanel() {
             </button>
           )}
         </div>
+        <div className="ventas-date-container" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }} title="Filtrar por fecha de completado">event</span>
+          <input
+            type="date"
+            className="ventas-date-input"
+            value={filterDate}
+            onChange={e => { setFilterDate(e.target.value); setCurrentPage(0); }}
+            title="Mostrar solo ventas completadas en esta fecha exacta"
+            style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '0.9rem' }}
+          />
+          {filterDate && (
+            <button className="ventas-search-clear" onClick={() => { setFilterDate(''); setCurrentPage(0); }} title="Limpiar fecha">
+              <span className="material-icons-round">close</span>
+            </button>
+          )}
+        </div>
         <div className="ventas-sort-container">
           <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }}>sort</span>
           <select
@@ -1306,7 +1361,7 @@ function VentasCompletadasPanel() {
 
       {filteredAndSortedOrders.length === 0 ? (
         <div className="empty-state">
-          <p>{searchTerm ? 'No se encontraron ventas con esa búsqueda' : 'No tienes ventas completadas aún'}</p>
+          <p>{(searchTerm || filterDate) ? 'No se encontraron ventas con esos filtros' : 'No tienes ventas completadas aún'}</p>
         </div>
       ) : (
         <div className="ventas-list">

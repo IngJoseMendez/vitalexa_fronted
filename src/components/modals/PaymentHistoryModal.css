@@ -52,7 +52,7 @@
     flex-shrink: 0;
 }
 
-.payment-history-modal .toggle-switch {
+.payment-history-modal .phm-toggle {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -60,11 +60,11 @@
     user-select: none;
 }
 
-.payment-history-modal .toggle-switch input[type="checkbox"] {
+.payment-history-modal .phm-toggle input[type="checkbox"] {
     display: none;
 }
 
-.payment-history-modal .toggle-slider {
+.payment-history-modal .phm-toggle-slider {
     position: relative;
     width: 44px;
     min-width: 44px;
@@ -75,7 +75,7 @@
     flex-shrink: 0;
 }
 
-.payment-history-modal .toggle-slider::before {
+.payment-history-modal .phm-toggle-slider::before {
     content: '';
     position: absolute;
     top: 2px;
@@ -88,15 +88,15 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-.payment-history-modal .toggle-switch input[type="checkbox"]:checked+.toggle-slider {
+.payment-history-modal .phm-toggle input[type="checkbox"]:checked+.phm-toggle-slider {
     background: var(--primary-color, #6366f1);
 }
 
-.payment-history-modal .toggle-switch input[type="checkbox"]:checked+.toggle-slider::before {
+.payment-history-modal .phm-toggle input[type="checkbox"]:checked+.phm-toggle-slider::before {
     transform: translateX(20px);
 }
 
-.payment-history-modal .toggle-label {
+.payment-history-modal .phm-toggle-label {
     font-size: 0.9rem;
     color: #374151;
     font-weight: 500;

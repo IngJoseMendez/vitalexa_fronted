@@ -340,7 +340,7 @@
 }
 
 .client-product-card:hover {
-    transform: translateY(-8px);
+    transform: translateY(-6px);
     box-shadow: var(--shadow-xl);
     border-color: rgba(99, 102, 241, 0.3);
 }

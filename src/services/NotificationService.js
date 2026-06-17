@@ -36,8 +36,11 @@ class NotificationService {
       }
     };
 
+    // Adjuntamos el JWT al frame STOMP CONNECT (por si el WS se asegura en el futuro).
+    // Hoy el endpoint /ws es público, así que es inofensivo si va vacío.
+    const token = localStorage.getItem('token');
     this.stompClient.connect(
-      {},
+      token ? { Authorization: `Bearer ${token}` } : {},
       (frame) => {
         console.log('✅ WebSocket conectado exitosamente');
         this.connected = true;

@@ -117,14 +117,14 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
                 </div>
 
                 <div className="modal-filters">
-                    <label className="toggle-switch">
+                    <label className="phm-toggle">
                         <input
                             type="checkbox"
                             checked={showCancelled}
                             onChange={(e) => setShowCancelled(e.target.checked)}
                         />
-                        <span className="toggle-slider"></span>
-                        <span className="toggle-label">Mostrar pagos anulados</span>
+                        <span className="phm-toggle-slider"></span>
+                        <span className="phm-toggle-label">Mostrar pagos anulados</span>
                     </label>
                 </div>
 
