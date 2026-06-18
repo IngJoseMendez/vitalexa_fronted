@@ -795,7 +795,7 @@ function OrdersPanel({ refreshTrigger }) {
                     <ul>
                       {order.items.map((item, idx) => (
                         <li key={idx}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flexWrap: 'wrap' }}>
                               <span className="item-name">{item.productName}</span>
                               {item.isFreeItem && (
@@ -842,12 +842,14 @@ function OrdersPanel({ refreshTrigger }) {
                               </span>
                             )}
                           </div>
-                          <span className="item-qty">
-                            {item.cantidad} x ${item.isFreeItem ? '0.00' : formatCurrency(item.precioUnitario || 0)}
-                          </span>
-                          <span className="item-subtotal" style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
-                            ${formatCurrency(item.subtotal || 0)}
-                          </span>
+                          <div className="item-price-row">
+                            <span className="item-qty">
+                              {item.cantidad} x ${item.isFreeItem ? '0.00' : formatCurrency(item.precioUnitario || 0)}
+                            </span>
+                            <span className="item-subtotal" style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                              ${formatCurrency(item.subtotal || 0)}
+                            </span>
+                          </div>
                         </li>
                       ))}
                     </ul>
