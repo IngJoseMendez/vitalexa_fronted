@@ -37,11 +37,11 @@ function InvoiceRow({ sale }) {
             <button
                 onClick={() => setExpanded(e => !e)}
                 style={{
-                    width: '100%', background: expanded ? '#f9fafb' : 'white', border: 'none',
+                    width: '100%', background: expanded ? '#eef1fd' : 'white', border: 'none',
                     cursor: 'pointer', padding: '0.9rem 1rem', display: 'flex', alignItems: 'center',
-                    gap: '1rem', textAlign: 'left'
+                    gap: '1rem', textAlign: 'left', transition: 'background 0.15s ease'
                 }}
-                onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = '#fafafa'; }}
+                onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = '#f5f5fe'; }}
                 onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = 'white'; }}
             >
                 <span className="material-icons-round" style={{ color: 'var(--text-secondary)', transition: 'transform 0.15s', transform: expanded ? 'rotate(90deg)' : 'none' }}>
@@ -50,9 +50,10 @@ function InvoiceRow({ sale }) {
 
                 {/* Número de factura */}
                 <span style={{
-                    fontWeight: 700, fontFamily: 'monospace', fontSize: '1rem',
-                    background: 'var(--primary-light, #eef2ff)', color: 'var(--primary)',
-                    padding: '0.2rem 0.6rem', borderRadius: '8px', minWidth: '70px', textAlign: 'center'
+                    fontWeight: 700, fontFamily: 'monospace', fontSize: '0.95rem',
+                    background: 'var(--primary)', color: '#fff',
+                    padding: '0.25rem 0.65rem', borderRadius: '8px', minWidth: '70px', textAlign: 'center',
+                    boxShadow: '0 1px 3px rgba(99, 102, 241, 0.3)', letterSpacing: '0.02em'
                 }}>
                     #{sale.invoiceNumber ?? '—'}
                 </span>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import client from '../api/client';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 import { tagService } from '../api/tagService';
 import { TagBadge, TagFilterBar } from './TagComponents';
 import productService from '../api/productService';
@@ -38,6 +39,7 @@ export default function ProductsPanel({ refreshTrigger }) {
     // const [bulkUpdateProducts, setBulkUpdateProducts] = useState([]);
 
     const toast = useToast();
+    const askConfirm = useConfirm();
 
     const fetchTags = async () => {
         try {
@@ -113,7 +115,8 @@ export default function ProductsPanel({ refreshTrigger }) {
     // --- Actions ---
 
     const handleDelete = async (id) => {
-        if (!window.confirm('¿Confirmar eliminación? Esta acción ' + (true ? 'inhabilitará' : 'borrará') + ' el producto.')) return;
+        const ok = await askConfirm({ title: 'Eliminar producto', message: 'Confirmar eliminación? Esta acción ' + (true ? 'inhabilitará' : 'borrará') + ' el producto.', confirmText: 'Eliminar', cancelText: 'Cancelar' });
+        if (!ok) return;
         try {
             const response = await productService.deleteProduct(id);
             // Handle Blob Download
@@ -747,6 +750,7 @@ export default function ProductsPanel({ refreshTrigger }) {
 // ============================================
 function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
     const toast = useToast();
+    const askConfirm = useConfirm();
     const [searchTerm, setSearchTerm] = useState('');
     // Initialize editable rows with products. We only track changes.
     // However, to make it editable effectively, we map products to rows.
@@ -815,7 +819,8 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
             };
         });
 
-        if (!window.confirm(`¿Guardar cambios para ${productIds.length} productos?`)) return;
+        const ok = await askConfirm({ title: 'Guardar cambios', message: `Guardar cambios para ${productIds.length} productos?`, confirmText: 'Guardar', cancelText: 'Cancelar' });
+        if (!ok) return;
 
         setLoading(true);
         try {

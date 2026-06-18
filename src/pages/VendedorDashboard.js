@@ -182,6 +182,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [assignedVendor, setAssignedVendor] = useState('');
   const [userRole] = useState(localStorage.getItem('role'));
   const [showMobileCart, setShowMobileCart] = useState(false); // Mobile cart modal
+  const [catalogView, setCatalogView] = useState('productos'); // 'productos' | 'promociones'
   const toast = useToast();
 
   const [tags, setTags] = useState([]);
@@ -318,6 +319,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
         isSpecialProduct: product.isSpecialProduct
       }]);
     }
+    // Feedback al agregar (igual que bonificados y promociones, que sí avisaban)
+    toast.success(`Agregado: ${product.nombre}${quantity > 1 ? ` (x${quantity})` : ''}`);
   };
 
   const addPromotionToCart = (promotion) => {
@@ -543,6 +546,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
     return matchesSearch && matchesTag;
   });
 
+  // Número de promociones disponibles (para el badge del selector Productos | Promociones)
+  const promoCount = (initPromociones || []).length;
+
   return (
     <div className="nueva-venta-panel">
       <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>add_shopping_cart</span> Nueva Venta</h2>
@@ -552,66 +558,107 @@ function NuevaVentaPanel({ refreshTrigger }) {
         {/* ✅ SECCIÓN IZQUIERDA - PRODUCTOS CON IMÁGENES CORREGIDAS */}
         <div className="productos-section">
           <div className="products-header">
-            <h3>Productos Disponibles</h3>
+            {/* Selector segmentado: por defecto "Productos" (se ven de inmediato) y las
+                "Promociones" a un toque, para que NO empujen los productos hacia abajo. */}
+            <div className="catalog-switch" role="tablist" aria-label="Catálogo">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={catalogView === 'productos'}
+                className={`catalog-switch-btn ${catalogView === 'productos' ? 'active' : ''}`}
+                onClick={() => setCatalogView('productos')}
+              >
+                <span className="material-icons-round">inventory_2</span>
+                Productos
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={catalogView === 'promociones'}
+                className={`catalog-switch-btn ${catalogView === 'promociones' ? 'active' : ''}`}
+                onClick={() => setCatalogView('promociones')}
+              >
+                <span className="material-icons-round">local_offer</span>
+                Promociones
+                {promoCount > 0 && <span className="catalog-switch-badge">{promoCount}</span>}
+              </button>
+            </div>
             <div className="products-header-toolbar">
-              {/* ✅ Grid columns selector */}
-              <div className="grid-columns-selector">
-                {[1, 2, 3].map(cols => (
-                  <button
-                    key={cols}
-                    className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
-                    onClick={() => setGridColumns(cols)}
-                    title={`${cols} columnas`}
-                  >
-                    <span className="material-icons-round">dashboard</span>
-                    {cols}
-                  </button>
-                ))}
-              </div>
+              {/* Selector de columnas (solo aplica a la vista de productos) */}
+              {catalogView === 'productos' && (
+                <div className="grid-columns-selector">
+                  {[1, 2, 3].map(cols => (
+                    <button
+                      key={cols}
+                      className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                      onClick={() => setGridColumns(cols)}
+                      title={`${cols} columnas`}
+                    >
+                      <span className="material-icons-round">dashboard</span>
+                      {cols}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* CATALOGO DE PROMOCIONES */}
-          <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} initLoading={promosLoading} />
-
-          {/* Buscador de Productos movido abajo de promociones */}
-          <div className="search-container search-container-sm">
-            <span className="material-icons-round search-icon">search</span>
-            <input
-              type="text"
-              placeholder="Buscar productos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input search-input-sm"
-            />
-          </div>
-
-          <TagFilterBar
-            tags={tags}
-            activeTagId={activeTagId}
-            onSelectTag={setActiveTagId}
-            onClear={() => setActiveTagId(null)}
-          />
-
-          <div className="productos-grid" style={{
-            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
-          }}>
-            {filteredProducts.length === 0 ? (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>inventory_2</span>
-                <p style={{ marginTop: '1rem', fontSize: '0.95rem' }}>No se encontraron productos</p>
-              </div>
-            ) : (
-              filteredProducts.map(product => (
-                <VendorProductCard
-                  key={product.id}
-                  product={product}
-                  cartItem={cart.find(item => item.productId === product.id)}
-                  onAddToCart={addToCart}
+          {catalogView === 'promociones' ? (
+            /* CATALOGO DE PROMOCIONES */
+            <VendedorPromotionsCatalog onAddToCart={addPromotionToCart} initialPromotions={initPromociones} initLoading={promosLoading} />
+          ) : (
+            <>
+              {/* Buscador de Productos con botón limpiar */}
+              <div className="search-container search-container-sm">
+                <span className="material-icons-round search-icon">search</span>
+                <input
+                  type="text"
+                  placeholder="Buscar productos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input search-input-sm"
                 />
-              ))
-            )}
-          </div>
+                {searchTerm && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={() => setSearchTerm('')}
+                    title="Limpiar búsqueda"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <span className="material-icons-round">close</span>
+                  </button>
+                )}
+              </div>
+
+              <TagFilterBar
+                tags={tags}
+                activeTagId={activeTagId}
+                onSelectTag={setActiveTagId}
+                onClear={() => setActiveTagId(null)}
+              />
+
+              <div className="productos-grid" style={{
+                gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
+              }}>
+                {filteredProducts.length === 0 ? (
+                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                    <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>inventory_2</span>
+                    <p style={{ marginTop: '1rem', fontSize: '0.95rem' }}>No se encontraron productos</p>
+                  </div>
+                ) : (
+                  filteredProducts.map(product => (
+                    <VendorProductCard
+                      key={product.id}
+                      product={product}
+                      cartItem={cart.find(item => item.productId === product.id)}
+                      onAddToCart={addToCart}
+                    />
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* SECCIÓN DERECHA - CARRITO */}
@@ -872,6 +919,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
                   return (
                     <div key={item.productId} className={`cart-item ${isOutOfStock ? 'has-warning' : ''}`}>
+                      <div className="cart-item-avatar" aria-hidden="true">
+                        {(item.nombre || '?').trim().charAt(0).toUpperCase()}
+                      </div>
                       <div className="cart-item-info">
                         <h4>{item.nombre}</h4>
                         <p>${formatCurrency(item.precio)} c/u</p>
@@ -913,17 +963,17 @@ function NuevaVentaPanel({ refreshTrigger }) {
                           />
                           <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)} title="Aumentar cantidad">+</button>
                         </div>
-                        <button
-                          className="btn-remove"
-                          onClick={() => removeFromCart(item.productId)}
-                          title="Eliminar del carrito"
-                        >
-                          <span className="material-icons-round">delete_outline</span>
-                        </button>
                       </div>
                       <div className="cart-item-subtotal">
                         ${formatCurrency(item.precio * item.cantidad)}
                       </div>
+                      <button
+                        className="btn-remove"
+                        onClick={() => removeFromCart(item.productId)}
+                        title="Eliminar del carrito"
+                      >
+                        <span className="material-icons-round">delete_outline</span>
+                      </button>
                     </div>
                   );
                 })}
@@ -1051,10 +1101,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                     onChange={(e) => setClientSearchTerm(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '0.6rem 0.6rem 0.6rem 2.2rem',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      fontSize: '0.9rem'
+                      padding: '0.6rem 0.6rem 0.6rem 2.2rem'
                     }}
                   />
                 </div>
@@ -1155,9 +1202,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
                     {/* Regular Items */}
                     {cart.map(item => (
                       <div key={item.productId} className="cart-item">
+                        <div className="cart-item-avatar" aria-hidden="true">
+                          {(item.nombre || '?').trim().charAt(0).toUpperCase()}
+                        </div>
                         <div className="cart-item-info">
                           <h5>{item.nombre}</h5>
-                          <p>${formatCurrency((parseFloat(item.precio) * (parseFloat(item.cantidad) || 0)))}</p>
+                          <p>${formatCurrency(item.precio)} c/u</p>
                         </div>
                         <div className="cart-item-controls">
                           <div>
@@ -1171,10 +1221,13 @@ function NuevaVentaPanel({ refreshTrigger }) {
                             />
                             <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)}>+</button>
                           </div>
-                          <button className="btn-remove" onClick={() => removeFromCart(item.productId)}>
-                            <span className="material-icons-round">delete_outline</span>
-                          </button>
                         </div>
+                        <div className="cart-item-subtotal">
+                          ${formatCurrency((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0))}
+                        </div>
+                        <button className="btn-remove" onClick={() => removeFromCart(item.productId)}>
+                          <span className="material-icons-round">delete_outline</span>
+                        </button>
                       </div>
                     ))}
 
@@ -1225,26 +1278,28 @@ function NuevaVentaPanel({ refreshTrigger }) {
                 )}
               </div>
 
-              <div className="cart-total">
-                Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${formatCurrency(calculateTotal())}</span>
-              </div>
+              <div className="mobile-cart-actions">
+                <div className="cart-total">
+                  Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${formatCurrency(calculateTotal())}</span>
+                </div>
 
-              <button
-                className="btn-finalizar-venta"
-                onClick={() => {
-                  handleSubmitOrder();
-                  setShowMobileCart(false);
-                }}
-                disabled={
-                  (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
-                  (!selectedClient && !allowNoClient) ||
-                  cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
-                  cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
-                }
-              >
-                <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
-                Finalizar Venta
-              </button>
+                <button
+                  className="btn-finalizar-venta"
+                  onClick={() => {
+                    handleSubmitOrder();
+                    setShowMobileCart(false);
+                  }}
+                  disabled={
+                    (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
+                    (!selectedClient && !allowNoClient) ||
+                    cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
+                    cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
+                  }
+                >
+                  <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
+                  Finalizar Venta
+                </button>
+              </div>
             </div>
           </div>
         </div>

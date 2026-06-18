@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import paymentTransferService from '../api/paymentTransferService';
 import paymentService from '../api/paymentService';
 import apiClient from '../api/client';
+import { useToast } from './ToastContainer';
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ const fmtDate = (dt) => {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 export default function PaymentTransferPanel({ vendedores = [] }) {
+    const toast = useToast();
     const [view, setView] = useState('history'); // 'history' | 'create'
     const [transfers, setTransfers] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export default function PaymentTransferPanel({ vendedores = [] }) {
     useEffect(() => { loadTransfers(); }, [loadTransfers]);
 
     const handleRevoke = async (transferId) => {
-        if (!revokeReason.trim()) { alert('Debes ingresar el motivo de revocación'); return; }
+        if (!revokeReason.trim()) { toast.warning('Debes ingresar el motivo de revocación'); return; }
         setRevokeLoading(true);
         try {
             await paymentTransferService.revokeTransfer(transferId, revokeReason.trim());

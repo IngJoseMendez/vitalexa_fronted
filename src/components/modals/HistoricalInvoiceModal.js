@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
+import { useConfirm } from '../ConfirmDialog';
 import './HistoricalInvoiceModal.css'; // Importing the new premium styles
 
 export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrder = null }) {
@@ -9,6 +10,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
     const [fetchingClients, setFetchingClients] = useState(true);
     const [isRegisteredClient, setIsRegisteredClient] = useState(true);
     const toast = useToast();
+    const askConfirm = useConfirm();
 
     // Edit Mode Flag
     const isEditMode = !!initialOrder;
@@ -157,13 +159,17 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
         }
 
         if (isEditMode) {
-            const confirmed = window.confirm(
-                "⚠️ ADVERTENCIA DE EDICIÓN ⚠️\n\n" +
-                "Al guardar estos cambios:\n" +
-                "1. Los pagos existentes se ELIMINARÁN y se creará uno nuevo con el 'Monto Pagado' ingresado.\n" +
-                "2. Los datos de la factura se actualizarán permanentemente.\n\n" +
-                "¿Está seguro de continuar?"
-            );
+            const confirmed = await askConfirm({
+                title: 'Advertencia de edición',
+                message:
+                    "⚠️ ADVERTENCIA DE EDICIÓN ⚠️\n\n" +
+                    "Al guardar estos cambios:\n" +
+                    "1. Los pagos existentes se ELIMINARÁN y se creará uno nuevo con el 'Monto Pagado' ingresado.\n" +
+                    "2. Los datos de la factura se actualizarán permanentemente.\n\n" +
+                    "¿Está seguro de continuar?",
+                confirmText: 'Guardar',
+                cancelText: 'Cancelar'
+            });
             if (!confirmed) return;
         }
 

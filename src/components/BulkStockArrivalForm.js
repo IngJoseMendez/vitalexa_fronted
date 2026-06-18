@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 import productService from '../api/productService';
 
 export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
     const toast = useToast();
+    const askConfirm = useConfirm();
 
     const [reason, setReason] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -39,7 +41,8 @@ export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
             return;
         }
 
-        if (!window.confirm(`¿Confirmar llegada de stock para ${items.length} productos?`)) return;
+        const ok = await askConfirm({ title: 'Confirmar llegada de stock', message: `¿Confirmar llegada de stock para ${items.length} productos?`, confirmText: 'Confirmar', cancelText: 'Cancelar' });
+        if (!ok) return;
 
         setLoading(true);
         try {

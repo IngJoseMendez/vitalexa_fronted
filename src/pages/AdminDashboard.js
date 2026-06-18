@@ -1123,6 +1123,7 @@ function AdminNuevaVentaPanel() {
   const [loading, setLoading] = useState(true);
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
+  const [catalogView, setCatalogView] = useState('productos'); // 'productos' | 'promociones'
 
 
   // Assortment Selection State
@@ -1469,45 +1470,70 @@ function AdminNuevaVentaPanel() {
 
         {/* PRODUCTS LIST */}
         <div className="sales-products-list">
-          {/* CATALOGO DE PROMOCIONES - ADMIN */}
-          <div style={{ marginBottom: '1rem' }}>
-            <AdminPromotionsCatalog onAddToCart={addPromotionToCart} />
+          {/* Selector segmentado: Productos (por defecto) | Promociones, para que las
+              promociones no empujen el catálogo y la admin no tenga que scrollear. */}
+          <div className="catalog-switch" role="tablist" aria-label="Catálogo">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={catalogView === 'productos'}
+              className={`catalog-switch-btn ${catalogView === 'productos' ? 'active' : ''}`}
+              onClick={() => setCatalogView('productos')}
+            >
+              <span className="material-icons-round">inventory_2</span> Productos
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={catalogView === 'promociones'}
+              className={`catalog-switch-btn ${catalogView === 'promociones' ? 'active' : ''}`}
+              onClick={() => setCatalogView('promociones')}
+            >
+              <span className="material-icons-round">local_offer</span> Promociones
+            </button>
           </div>
 
-          <h4 style={{ margin: '0.5rem 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>Catálogo de Productos</h4>
+          {catalogView === 'promociones' ? (
+            /* CATALOGO DE PROMOCIONES - ADMIN */
+            <AdminPromotionsCatalog onAddToCart={addPromotionToCart} />
+          ) : (
+            <>
+              <h4 style={{ margin: '0.5rem 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>Catálogo de Productos</h4>
 
-          {filteredProducts.map(product => (
-            <div
-              key={product.id}
-              className={`sales-product-item ${isBonifiedMode ? 'bonified-mode' : ''}`}
-              onClick={() => addToCart(product)}
-            >
-              {/* Image Placeholder or Actual Image if available */}
-              <div className="product-item-image">
-                <span className="material-icons-round" style={{ fontSize: '24px', color: '#cbd5e1' }}>image</span>
-              </div>
+              {filteredProducts.map(product => (
+                <div
+                  key={product.id}
+                  className={`sales-product-item ${isBonifiedMode ? 'bonified-mode' : ''}`}
+                  onClick={() => addToCart(product)}
+                >
+                  {/* Image Placeholder or Actual Image if available */}
+                  <div className="product-item-image">
+                    <span className="material-icons-round" style={{ fontSize: '24px', color: '#cbd5e1' }}>image</span>
+                  </div>
 
-              <div className="product-item-info">
-                <div className="product-item-name">{product.nombre}</div>
-                {product.isSpecialProduct && (
-                  <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #8b5cf6, #d946ef)', color: 'white', padding: '1px 4px', borderRadius: '3px', width: 'fit-content' }}>ESPECIAL</span>
-                )}
-              </div>
+                  <div className="product-item-info">
+                    <div className="product-item-name">{product.nombre}</div>
+                    {product.isSpecialProduct && (
+                      <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #8b5cf6, #d946ef)', color: 'white', padding: '1px 4px', borderRadius: '3px', width: 'fit-content' }}>ESPECIAL</span>
+                    )}
+                  </div>
 
-              <div className={`product-item-stock ${product.stock < 10 ? 'low' : ''}`}>
-                <span className="material-icons-round" style={{ fontSize: '12px' }}>inventory_2</span>
-                {product.stock}
-              </div>
+                  <div className={`product-item-stock ${product.stock < 10 ? 'low' : ''}`}>
+                    <span className="material-icons-round" style={{ fontSize: '12px' }}>inventory_2</span>
+                    {product.stock}
+                  </div>
 
-              <div className={`product-item-price ${isBonifiedMode ? 'free' : ''}`}>
-                {isBonifiedMode ? 'FREE' : `$${formatCurrency(product.precio)}`}
-              </div>
+                  <div className={`product-item-price ${isBonifiedMode ? 'free' : ''}`}>
+                    {isBonifiedMode ? 'FREE' : `$${formatCurrency(product.precio)}`}
+                  </div>
 
-              <button className="btn-add-circle">
-                <span className="material-icons-round" style={{ fontSize: '20px' }}>add</span>
-              </button>
-            </div>
-          ))}
+                  <button className="btn-add-circle">
+                    <span className="material-icons-round" style={{ fontSize: '20px' }}>add</span>
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { formatCurrency } from '../../utils/formatters';
 import { PromotionType } from '../../utils/types';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
+import { useConfirm } from '../ConfirmDialog';
 import PromotionBlockWrapper from '../orders/PromotionBlock';
 import './EditOrderModal.css';
 
@@ -47,6 +48,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [promoQueue, setPromoQueue] = useState([]); // [{ id, nombre, qty }]
     const [addingPromos, setAddingPromos] = useState(false);
     const toast = useToast();
+    const askConfirm = useConfirm();
 
     useEffect(() => {
         fetchData();
@@ -670,9 +672,13 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
 
     // New Delete Handler for Promotion Instances
     const handleDeletePromotionInstance = async (promotionInstanceId) => {
-        if (!window.confirm('¿Estás seguro de que deseas eliminar esta promoción?')) {
-            return;
-        }
+        const ok = await askConfirm({
+            title: 'Eliminar promoción',
+            message: '¿Estás seguro de que deseas eliminar esta promoción?',
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar'
+        });
+        if (!ok) return;
 
         // Check if we are in "Create Mode" or "Edit Mode" (do we have an endpoint?)
         // The prompt suggests: DELETE /api/orders/{orderId}/items/{itemId} 

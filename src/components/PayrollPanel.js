@@ -16,6 +16,7 @@ import {
   exportVendorPayrollPdf,
 } from '../api/payrollService';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 
 // ─── Helpers ───────────────────────────────────────────────
 const MESES = [
@@ -53,6 +54,7 @@ function downloadBlob(response, fallbackName) {
 export default function PayrollPanel({ vendedores = [] }) {
   const [activeTab, setActiveTab] = useState('nominas'); // 'nominas' | 'config'
   const toast = useToast();
+  const askConfirm = useConfirm();
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -89,14 +91,14 @@ export default function PayrollPanel({ vendedores = [] }) {
         ))}
       </div>
 
-      {activeTab === 'nominas' && <NominasTab toast={toast} />}
+      {activeTab === 'nominas' && <NominasTab toast={toast} askConfirm={askConfirm} />}
       {activeTab === 'config' && <ConfigTab vendedores={vendedores} toast={toast} />}
     </div>
   );
 }
 
 // ─── Tab Nóminas ────────────────────────────────────────────
-function NominasTab({ toast }) {
+function NominasTab({ toast, askConfirm }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -130,7 +132,13 @@ function NominasTab({ toast }) {
   useEffect(() => { fetchNominas(); }, [fetchNominas]);
 
   const handleCalculateAll = async () => {
-    if (!window.confirm(`¿Calcular nómina de TODOS los vendedores para ${MESES[month - 1]} ${year}? Esto sobreescribirá nóminas existentes.`)) return;
+    const ok = await askConfirm({
+      title: 'Calcular nómina de todos',
+      message: `Se calculará la nómina de TODOS los vendedores para ${MESES[month - 1]} ${year}. Esto sobreescribirá las nóminas existentes de ese mes. ¿Continuar?`,
+      confirmText: 'Calcular',
+      cancelText: 'Cancelar'
+    });
+    if (!ok) return;
     setCalculating(true);
     try {
       const threshold = generalCommissionThreshold !== '' ? parseFloat(generalCommissionThreshold) : null;
@@ -145,7 +153,13 @@ function NominasTab({ toast }) {
   };
 
   const handleCalculateOne = async (vendedorId, vendedorUsername) => {
-    if (!window.confirm(`¿Recalcular nómina de ${vendedorUsername} para ${MESES[month - 1]} ${year}?`)) return;
+    const ok = await askConfirm({
+      title: 'Recalcular nómina',
+      message: `¿Recalcular la nómina de ${vendedorUsername} para ${MESES[month - 1]} ${year}?`,
+      confirmText: 'Recalcular',
+      cancelText: 'Cancelar'
+    });
+    if (!ok) return;
     try {
       const res = await calculatePayroll({
         vendedorId,

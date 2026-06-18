@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
+import { useConfirm } from '../components/ConfirmDialog';
 import NotificationService from '../services/NotificationService';
 import { tagService } from '../api/tagService'; // Added Tag Service
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
@@ -1606,6 +1607,7 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
   const [recalcMonth, setRecalcMonth] = useState(new Date().getMonth() + 1);
   const [recalcYear, setRecalcYear] = useState(new Date().getFullYear());
   const [recalculating, setRecalculating] = useState(false);
+  const askConfirm = useConfirm();
 
   const handleCreateGoal = (vendedor) => {
     setSelectedVendedor(vendedor);
@@ -1613,7 +1615,8 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
   };
 
   const handleDeleteGoal = async (goalId) => {
-    if (!window.confirm('¿Estás seguro de eliminar esta meta?')) return;
+    const ok = await askConfirm({ title: 'Eliminar meta', message: '¿Estás seguro de eliminar esta meta?', confirmText: 'Eliminar', cancelText: 'Cancelar' });
+    if (!ok) return;
 
     try {
       await client.delete(`/admin/sale-goals/${goalId}`);
@@ -1626,7 +1629,8 @@ function SaleGoalsTab({ vendedores, onUpdate, toast }) {
   };
 
   const handleRecalculate = async () => {
-    if (!window.confirm(`¿Recalcular metas de ${getMonthName(recalcMonth)} ${recalcYear}? Esto actualizará el progreso de todos los vendedores.`)) return;
+    const ok = await askConfirm({ title: 'Recalcular metas', message: `¿Recalcular metas de ${getMonthName(recalcMonth)} ${recalcYear}? Esto actualizará el progreso de todos los vendedores.`, confirmText: 'Recalcular', cancelText: 'Cancelar' });
+    if (!ok) return;
     try {
       setRecalculating(true);
       await client.post(`/owner/sale-goals/recalculate?month=${recalcMonth}&year=${recalcYear}`);

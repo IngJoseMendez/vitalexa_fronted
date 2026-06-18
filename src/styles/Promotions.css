@@ -27,14 +27,14 @@
 /* Promotions Grid/List */
 .promotions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
 }
 
 .promotion-card {
     background: white;
-    border-radius: 1rem;
-    padding: 1.5rem;
+    border-radius: 0.85rem;
+    padding: 1rem;
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border);
     transition: all 0.2s;
@@ -574,7 +574,9 @@
 }
 
 .promotion-card.compact {
-    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    padding: 0.85rem;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     background: white;
@@ -622,9 +624,16 @@
 
 .promotion-footer-compact {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
     margin-top: auto;
+}
+
+/* La fila cantidad + botón "Agregar" ocupa el ancho completo de la tarjeta
+   (evita que el botón con flex:1 se desborde fuera de la card). */
+.promotion-footer-compact > div {
+    width: 100%;
 }
 
 .promotion-price-tag {

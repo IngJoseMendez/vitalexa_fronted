@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 import specialPromotionService from '../api/specialPromotionService';
 import SpecialPromotionFormModal from './modals/SpecialPromotionFormModal';
 import { getPromotionTypeLabel } from '../utils/types';
@@ -18,6 +19,7 @@ export default function SpecialPromotionsPanel() {
     const [editingPromotion, setEditingPromotion] = useState(null);
 
     const toast = useToast();
+    const askConfirm = useConfirm();
 
     const fetchPromotions = useCallback(async () => {
         setLoading(true);
@@ -64,7 +66,8 @@ export default function SpecialPromotionsPanel() {
     };
 
     const handleDelete = async (promotion) => {
-        if (!window.confirm(`¿Eliminar "${promotion.nombre}"?`)) return;
+        const ok = await askConfirm({ title: 'Eliminar promoción', message: `¿Eliminar "${promotion.nombre}"?`, confirmText: 'Eliminar', cancelText: 'Cancelar' });
+        if (!ok) return;
         try {
             await specialPromotionService.remove(promotion.id);
             toast.success('Promoción eliminada');

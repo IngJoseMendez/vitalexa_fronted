@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import '../styles/Dashboard.css';
 import { formatCurrency } from '../utils/formatters';
+import { useConfirm } from '../components/ConfirmDialog';
 
 export default function Dashboard() {
   const [username, setUsername] = useState('');
@@ -20,6 +21,7 @@ export default function Dashboard() {
   const [message, setMessage] = useState('');
   const [role, setRole] = useState('');
   const navigate = useNavigate();
+  const askConfirm = useConfirm();
 
   useEffect(() => {
     const user = localStorage.getItem('username');
@@ -158,7 +160,8 @@ export default function Dashboard() {
   };
 
   const handleEliminarProducto = async (id) => {
-    if (window.confirm('¿Eliminar producto?')) {
+    const ok = await askConfirm({ title: 'Eliminar producto', message: '¿Eliminar producto?', confirmText: 'Eliminar', cancelText: 'Cancelar' });
+    if (ok) {
       try {
         setLoading(true);
         const hard = (role === 'ADMIN' || role === 'OWNER');

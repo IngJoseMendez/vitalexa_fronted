@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import client from '../api/client';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 
 /**
  * Sección de descuentos para admins.
@@ -16,6 +17,7 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
     const [customPercent, setCustomPercent] = useState('');
     const [customReason, setCustomReason] = useState('');
     const toast = useToast();
+    const confirm = useConfirm();
 
     // Si la orden está completada, el admin no puede revocar descuentos
     const canRevoke = orderStatus !== 'COMPLETADO';
@@ -76,7 +78,13 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
     };
 
     const revokeDiscount = async (discountId) => {
-        if (!window.confirm('¿Revocar este descuento? El total de la orden se recalculará.')) return;
+        const ok = await confirm({
+            title: 'Revocar descuento',
+            message: 'El total de la orden se recalculará. ¿Deseas revocar este descuento?',
+            confirmText: 'Revocar',
+            cancelText: 'Cancelar'
+        });
+        if (!ok) return;
         setRevoking(discountId);
         try {
             await client.delete(`/admin/discounts/${discountId}`);
@@ -92,59 +100,35 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
     };
 
     return (
-        <div style={{ marginTop: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-            <h4 style={{ margin: '0 0 1rem 0', color: '#475569', fontSize: '0.95rem' }}>Gestión de Descuentos (Admin)</h4>
+        <div className="discount-section">
+            <h4 className="discount-section-title">
+                <span className="material-icons-round">sell</span>
+                Gestión de Descuentos (Admin)
+            </h4>
 
             {/* Lista de descuentos aplicados */}
             {discounts.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.5rem' }}>Descuentos Aplicados:</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div className="discount-applied">
+                    <p className="discount-applied-label">Descuentos aplicados</p>
+                    <div className="discount-chips">
                         {discounts.map(d => {
                             const isRevoked = d.status === 'REVOKED';
                             const isBeingRevoked = revoking === d.id;
                             return (
-                                <span
-                                    key={d.id}
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.35rem',
-                                        background: isRevoked ? '#fee2e2' : '#dbeafe',
-                                        color: isRevoked ? '#991b1b' : '#1e40af',
-                                        padding: '0.3rem 0.5rem',
-                                        borderRadius: '4px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 600,
-                                        border: `1px solid ${isRevoked ? '#fecaca' : '#bfdbfe'}`,
-                                        textDecoration: isRevoked ? 'line-through' : 'none',
-                                        opacity: isRevoked ? 0.75 : 1,
-                                    }}
-                                >
-                                    {d.type === 'CUSTOM' ? `Custom: ${d.percentage}%` : `${d.percentage}%`}
-                                    {d.reason ? ` - ${d.reason}` : ''}
-                                    {isRevoked && <span style={{ fontSize: '0.7rem', fontWeight: 400 }}>(revocado)</span>}
+                                <span key={d.id} className={`discount-chip ${isRevoked ? 'revoked' : ''}`}>
+                                    <span className="discount-chip-pct">
+                                        {d.type === 'CUSTOM' ? `Custom ${d.percentage}%` : `${d.percentage}%`}
+                                    </span>
+                                    {d.reason ? <span className="discount-chip-reason">{d.reason}</span> : null}
+                                    {isRevoked && <span className="discount-chip-tag">(revocado)</span>}
 
                                     {/* Botón revocar: solo si la orden no está completada y el descuento no está ya revocado */}
                                     {canRevoke && !isRevoked && (
                                         <button
+                                            className="discount-chip-remove"
                                             onClick={() => revokeDiscount(d.id)}
                                             disabled={isBeingRevoked || loading}
                                             title="Revocar descuento"
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                background: 'none',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                color: '#dc2626',
-                                                fontSize: '14px',
-                                                lineHeight: 1,
-                                                padding: '0 2px',
-                                                opacity: isBeingRevoked ? 0.5 : 1,
-                                                fontWeight: 700,
-                                            }}
                                         >
                                             {isBeingRevoked ? '…' : '×'}
                                         </button>
@@ -158,38 +142,36 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
 
             {/* Formulario de aplicar descuento — oculto si la orden está completada */}
             {canRevoke && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {/* Presets */}
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Presets:</span>
-                        <button onClick={() => applyPreset(10)} disabled={loading}
-                            style={{ padding: '0.4rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', background: 'white' }}>10%</button>
-                        <button onClick={() => applyPreset(12)} disabled={loading}
-                            style={{ padding: '0.4rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', background: 'white' }}>12%</button>
-                        <button onClick={() => applyPreset(15)} disabled={loading}
-                            style={{ padding: '0.4rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', background: 'white' }}>15%</button>
+                <div className="discount-controls">
+                    {/* Atajos rápidos */}
+                    <div className="discount-presets">
+                        {[10, 12, 15].map(pct => (
+                            <button
+                                key={pct}
+                                className="discount-preset-btn"
+                                onClick={() => applyPreset(pct)}
+                                disabled={loading}
+                            >
+                                {pct}%
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Custom */}
-                    <form onSubmit={applyCustom} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Custom:</span>
+                    {/* Personalizado: %, motivo opcional y aplicar en una sola fila compacta */}
+                    <form className="discount-custom-form" onSubmit={applyCustom}>
                         <input
                             type="number" step="0.01" placeholder="%" value={customPercent}
                             onChange={e => setCustomPercent(e.target.value)}
-                            style={{ width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            className="discount-input discount-input-pct"
                             disabled={loading} min="0" max="100" onWheel={(e) => e.target.blur()}
                         />
                         <input
-                            type="text" placeholder="Razón / Motivo" value={customReason}
+                            type="text" placeholder="Motivo (opcional)" value={customReason}
                             onChange={e => setCustomReason(e.target.value)}
-                            style={{ flex: 1, minWidth: '150px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            className="discount-input discount-input-reason"
                             disabled={loading}
                         />
-                        <button type="submit" disabled={loading || !customPercent}
-                            style={{
-                                padding: '0.4rem 1rem', background: '#3b82f6', color: 'white', border: 'none',
-                                borderRadius: '4px', cursor: 'pointer', fontWeight: 600, opacity: loading ? 0.7 : 1
-                            }}>
+                        <button type="submit" className="discount-apply-btn" disabled={loading || !customPercent}>
                             Aplicar
                         </button>
                     </form>
@@ -198,14 +180,10 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
 
             {/* Mensaje informativo cuando la orden ya está completada */}
             {!canRevoke && discounts.length === 0 && (
-                <p style={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                    Sin descuentos aplicados.
-                </p>
+                <p className="discount-empty-note">Sin descuentos aplicados.</p>
             )}
             {!canRevoke && discounts.length > 0 && (
-                <p style={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic', marginTop: '0.5rem' }}>
-                    La orden está completada. Solo el Owner puede modificar descuentos.
-                </p>
+                <p className="discount-empty-note">La orden está completada. Solo el Owner puede modificar descuentos.</p>
             )}
         </div>
     );

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 import specialProductService from '../api/specialProductService';
 import { tagService } from '../api/tagService';
 import { TagBadge } from './TagComponents';
@@ -24,6 +25,7 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
     const [editingProduct, setEditingProduct] = useState(null);
 
     const toast = useToast();
+    const askConfirm = useConfirm();
 
     const fetchTags = async () => {
         try {
@@ -88,7 +90,13 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
     };
 
     const handleDelete = async (product) => {
-        if (!window.confirm(`¿Eliminar "${product.nombre}"? Esta acción es un soft-delete.`)) return;
+        const ok = await askConfirm({
+            title: 'Eliminar producto',
+            message: `¿Eliminar "${product.nombre}"? Esta acción es un soft-delete.`,
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar'
+        });
+        if (!ok) return;
         try {
             await specialProductService.remove(product.id);
             toast.success('Producto eliminado');
