@@ -796,7 +796,7 @@ function OrdersPanel({ refreshTrigger }) {
                       {order.items.map((item, idx) => (
                         <li key={idx}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flexWrap: 'wrap' }}>
                               <span className="item-name">{item.productName}</span>
                               {item.isFreeItem && (
                                 <span style={{
