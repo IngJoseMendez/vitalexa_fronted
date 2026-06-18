@@ -153,6 +153,7 @@ function OrdersPanel({ refreshTrigger }) {
   // ── PAGINACIÓN ──
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
+  const [ordersColumns, setOrdersColumns] = useState(() => localStorage.getItem('adminOrdersColumns') || 'auto');
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
@@ -675,6 +676,22 @@ function OrdersPanel({ refreshTrigger }) {
           </select>
           por página
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+          <span className="material-icons-round" style={{ fontSize: '16px' }}>view_column</span>
+          Columnas
+          <select
+            value={ordersColumns}
+            onChange={(e) => { const v = e.target.value; setOrdersColumns(v); localStorage.setItem('adminOrdersColumns', v); }}
+            style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.85rem' }}
+            title="Tarjetas por fila"
+          >
+            <option value="auto">Auto</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </div>
         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
           {totalElements > 0 && `${totalElements} órdenes totales`}
         </span>
@@ -692,7 +709,7 @@ function OrdersPanel({ refreshTrigger }) {
           <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>inbox</span><br />No se encontraron órdenes en esta categoría</p>
         </div>
       ) : (
-        <div className="orders-grid">
+        <div className="orders-grid" style={ordersColumns === 'auto' ? undefined : { gridTemplateColumns: `repeat(${ordersColumns}, minmax(0, 1fr))` }}>
           {filteredOrders.map(order => {
             // Determine payment status class
             const paymentStatusClass = order.paymentStatus
@@ -776,7 +793,7 @@ function OrdersPanel({ refreshTrigger }) {
                     <ul>
                       {order.items.map((item, idx) => (
                         <li key={idx}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <span className="item-name">{item.productName}</span>
                               {item.isFreeItem && (

@@ -1018,11 +1018,15 @@
 .order-details .item-qty {
   color: var(--text-secondary);
   font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .order-details .item-subtotal {
   font-weight: 700;
   color: var(--text-main);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .order-actions {

@@ -98,22 +98,42 @@
 }
 
 /* Content Layout */
-.order-detail-enhanced {
-    max-width: 800px;
+/* Especificidad 0,2,0 para ganarle a .modal-content-large (max-width:600px)
+   definido en AdminDashboard.css y al .order-detail-enhanced de OwnerDashboard.css. */
+.modal-content-large.order-detail-enhanced {
+    max-width: 1040px;
+    width: 100%;
 }
 
 .order-detail-content {
     padding: 1.5rem;
     overflow-y: auto;
     flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.1rem;
+    align-items: start;
 }
 
 .order-detail-content .detail-section {
     background: #f8fafc;
     border-radius: 1rem;
     padding: 1.25rem;
-    margin-bottom: 1.25rem;
+    margin-bottom: 0;
     border: 1px solid #e2e8f0;
+}
+
+/* Información General y Productos ocupan todo el ancho; Descuentos y Pagos van
+   lado a lado en 2 columnas para aprovechar el espacio del modal ancho. */
+.order-detail-content > .order-summary-section,
+.order-detail-content > .detail-section:not(.order-summary-section):not(.discounts-section):not(.payments-section) {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+    .order-detail-content {
+        grid-template-columns: 1fr;
+    }
 }
 
 .order-detail-content .detail-section h4 {
