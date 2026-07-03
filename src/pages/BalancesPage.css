@@ -739,6 +739,11 @@
     font-family: monospace;
 }
 
+/* Número de factura en la lista de facturas pendientes del cliente: un poco más grande */
+.order-invoice-info .order-id {
+    font-size: 1.1rem;
+}
+
 .order-date {
     font-size: 0.8rem;
     color: var(--text-secondary);
@@ -1098,8 +1103,8 @@
         font-size: 1rem;
     }
 
-    .order-id {
-        font-size: 0.9rem;
+    .order-invoice-info .order-id {
+        font-size: 1rem;
     }
 
     .amount-row span,

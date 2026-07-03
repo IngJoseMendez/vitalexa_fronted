@@ -6,7 +6,7 @@ import specialPromotionService from '../api/specialPromotionService';
 import { useToast } from './ToastContainer';
 import '../styles/Promotions.css';
 
-function AdminPromotionsCatalog({ onAddToCart }) {
+function AdminPromotionsCatalog({ onAddToCart, searchTerm = '' }) {
     const [promotions, setPromotions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [quantities, setQuantities] = useState({});
@@ -81,6 +81,15 @@ function AdminPromotionsCatalog({ onAddToCart }) {
         );
     }
 
+    // Filtrar por el término de búsqueda compartido con el catálogo de productos
+    const term = (searchTerm || '').toLowerCase().trim();
+    const filteredPromotions = term
+        ? promotions.filter(p =>
+            (p.nombre || '').toLowerCase().includes(term) ||
+            (p.mainProduct?.nombre || '').toLowerCase().includes(term)
+          )
+        : promotions;
+
     return (
         <div className="promotions-catalog" style={{ background: '#f0f9ff', borderColor: '#bae6fd' }}>
             <h3>
@@ -88,8 +97,14 @@ function AdminPromotionsCatalog({ onAddToCart }) {
                 Promociones Disponibles
             </h3>
 
+            {filteredPromotions.length === 0 ? (
+                <div className="empty-state-promotions">
+                    <span className="material-icons-round" style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>search_off</span>
+                    <p>No se encontraron promociones</p>
+                </div>
+            ) : (
             <div className="promotions-grid-compact">
-                {promotions.map(promotion => (
+                {filteredPromotions.map(promotion => (
                     <div key={promotion.id} className="promotion-card compact">
                         <div className="promotion-header-compact">
                             <h4 className="promotion-title">{promotion.nombre}</h4>
@@ -179,6 +194,7 @@ function AdminPromotionsCatalog({ onAddToCart }) {
                     </div>
                 ))}
             </div>
+            )}
         </div>
     );
 }

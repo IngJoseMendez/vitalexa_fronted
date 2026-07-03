@@ -1471,7 +1471,7 @@ function AdminNuevaVentaPanel() {
             <input
               type="text"
               className="sales-search-input"
-              placeholder="Buscar producto..."
+              placeholder="Buscar producto o promoción..."
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
             />
@@ -1516,7 +1516,7 @@ function AdminNuevaVentaPanel() {
 
           {catalogView === 'promociones' ? (
             /* CATALOGO DE PROMOCIONES - ADMIN */
-            <AdminPromotionsCatalog onAddToCart={addPromotionToCart} />
+            <AdminPromotionsCatalog onAddToCart={addPromotionToCart} searchTerm={productSearch} />
           ) : (
             <>
               <h4 style={{ margin: '0.5rem 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>Catálogo de Productos</h4>

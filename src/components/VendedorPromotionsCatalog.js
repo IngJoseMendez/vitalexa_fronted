@@ -20,6 +20,7 @@ import '../styles/Promotions.css';
 function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading }) {
     const [promotions, setPromotions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
     const toast = useToast();
 
     useEffect(() => {
@@ -66,6 +67,15 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
         );
     }
 
+    // Filtrar promociones por nombre o producto principal
+    const term = searchTerm.trim().toLowerCase();
+    const filteredPromotions = term
+        ? promotions.filter(p =>
+            (p.nombre && p.nombre.toLowerCase().includes(term)) ||
+            (p.mainProduct?.nombre && p.mainProduct.nombre.toLowerCase().includes(term))
+          )
+        : promotions;
+
     return (
         <div className="promotions-catalog">
             <h3>
@@ -73,8 +83,37 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
                 Promociones Disponibles
             </h3>
 
+            {/* Buscador de Promociones con botón limpiar */}
+            <div className="search-container search-container-sm">
+                <span className="material-icons-round search-icon">search</span>
+                <input
+                    type="text"
+                    placeholder="Buscar promociones..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="search-input search-input-sm"
+                />
+                {searchTerm && (
+                    <button
+                        type="button"
+                        className="search-clear-btn"
+                        onClick={() => setSearchTerm('')}
+                        title="Limpiar búsqueda"
+                        aria-label="Limpiar búsqueda"
+                    >
+                        <span className="material-icons-round">close</span>
+                    </button>
+                )}
+            </div>
+
+            {filteredPromotions.length === 0 ? (
+                <div className="empty-state-promotions">
+                    <span className="material-icons-round" style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>search_off</span>
+                    <p>No se encontraron promociones</p>
+                </div>
+            ) : (
             <div className="promotions-grid-compact">
-                {promotions.map(promotion => (
+                {filteredPromotions.map(promotion => (
                     <div key={promotion.id} className="promotion-card compact">
                         <div className="promotion-header-compact">
                             <h4 className="promotion-title">{promotion.nombre}</h4>
@@ -129,6 +168,7 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
                     </div>
                 ))}
             </div>
+            )}
         </div>
     );
 }
