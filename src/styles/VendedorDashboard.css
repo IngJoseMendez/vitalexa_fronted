@@ -1114,6 +1114,7 @@
 }
 
 .form-group select,
+.form-group input,
 .form-group textarea {
   width: 100%;
   padding: 0.85rem 1rem;
@@ -1127,6 +1128,7 @@
 }
 
 .form-group select:focus,
+.form-group input:focus,
 .form-group textarea:focus {
   outline: none;
   border-color: var(--primary);
@@ -2565,6 +2567,147 @@
   .motivation-message p {
     font-size: 0.8rem;
   }
+}
+
+/* ============================================
+   MODAL (base) — RESTAURADO
+   El commit 839be05 ("llevando a produccion") eliminó estas reglas base
+   de VendedorDashboard.css, dejando los modales de crear/editar cliente
+   sin estilos: el formulario "desaparecía" y en móvil solo quedaban los
+   botones fijos (.form-actions position:fixed) visibles. El chunk del
+   vendedor NO carga AdminDashboard.css (code-splitting con React.lazy),
+   así que estas reglas deben vivir aquí. Se restauran tal cual estaban,
+   con nombres de animación propios para no chocar con los @keyframes
+   fadeIn/slideUp definidos más abajo. Debe ir ANTES del bloque
+   @media (max-width:480px) para que ese override móvil siga aplicando.
+   ============================================ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: vendModalFadeIn 0.3s;
+}
+
+@keyframes vendModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: vendModalSlideUp 0.3s;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes vendModalSlideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 2px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.3s;
+}
+
+.btn-close:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.client-form {
+  padding: 25px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 25px;
+}
+
+.btn-cancel {
+  flex: 1;
+  padding: 12px;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.btn-save {
+  flex: 1;
+  padding: 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
+  box-shadow: 0 2px 5px rgba(102, 126, 234, 0.3);
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #5568d3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.4);
+}
+
+.btn-save:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* ============================================
