@@ -170,7 +170,7 @@ function BalancesPage() {
     }
 
     return (
-        <div className="balances-page">
+        <div className={`balances-page ${selectedClient ? 'detail-open' : ''}`}>
             {/* Header */}
             <div className="balances-header">
                 <div className="header-breadcrumbs">
@@ -194,48 +194,51 @@ function BalancesPage() {
                     </h1>
                     <span className="role-badge">{getRoleLabel()}</span>
                 </div>
-                <div className="header-actions">
-                    <div className="search-box">
-                        <span className="material-icons-round">search</span>
-                        <input
-                            type="text"
-                            placeholder="Buscar cliente..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
+            </div>
 
-                    {/* Status Filter */}
-                    <div className="status-filter" style={{ marginLeft: '0.5rem' }}>
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            style={{
-                                padding: '0.6rem 2.5rem 0.6rem 1rem',
-                                borderRadius: '8px',
-                                border: '1px solid #e2e8f0',
-                                background: 'white',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.9rem',
-                                outline: 'none',
-                                appearance: 'none',
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' viewBox='0 0 24 24' width='24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
-                                backgroundRepeat: 'no-repeat',
-                                backgroundPosition: 'right 8px center',
-                                minWidth: '140px',
-                                cursor: 'pointer',
-                                height: '42px'
-                            }}
-                        >
-                            <option value="all">Todos los estados</option>
-                            <option value="owing">Que deben</option>
-                            <option value="up_to_date">Al día</option>
-                        </select>
-                    </div>
+            {/* Toolbar: búsqueda + filtros + acciones (sticky en móvil) */}
+            <div className="balances-toolbar">
+                <div className="search-box">
+                    <span className="material-icons-round">search</span>
+                    <input
+                        type="text"
+                        placeholder="Buscar cliente..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
 
+                {/* Filtro de Estado — segmentado */}
+                <div className="status-pills" role="group" aria-label="Filtrar por estado">
+                    <button
+                        type="button"
+                        className={filterStatus === 'all' ? 'active' : ''}
+                        onClick={() => setFilterStatus('all')}
+                    >
+                        Todos
+                    </button>
+                    <button
+                        type="button"
+                        className={`owing ${filterStatus === 'owing' ? 'active' : ''}`}
+                        onClick={() => setFilterStatus('owing')}
+                    >
+                        <span className="material-icons-round">error_outline</span>
+                        Deben
+                    </button>
+                    <button
+                        type="button"
+                        className={`up_to_date ${filterStatus === 'up_to_date' ? 'active' : ''}`}
+                        onClick={() => setFilterStatus('up_to_date')}
+                    >
+                        <span className="material-icons-round">check_circle</span>
+                        Al día
+                    </button>
+                </div>
+
+                <div className="toolbar-actions">
                     {/* Filter by Vendor (Only if Admin/Owner) */}
                     {(userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER') && (
-                        <div className="vendor-filter" style={{ marginLeft: '0.5rem' }}>
+                        <div className="vendor-filter">
                             <select
                                 value={selectedVendedor}
                                 onChange={async (e) => {
@@ -417,6 +420,7 @@ function BalancesPage() {
                                             </>
                                         )}
                                     </div>
+                                    <span className="material-icons-round client-chevron">chevron_right</span>
                                 </div>
                             ))}
                         </div>
@@ -425,6 +429,13 @@ function BalancesPage() {
 
                 {/* Client Detail Panel */}
                 <div className="client-detail-panel">
+                    <button
+                        className="btn-back-to-list"
+                        onClick={() => setSelectedClient(null)}
+                    >
+                        <span className="material-icons-round">arrow_back</span>
+                        Volver a clientes
+                    </button>
                     {selectedClient ? (
                         <ClientDetailView
                             client={selectedClient}
@@ -890,6 +901,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    <div className="filters-row">
                     <button
                         className="btn-sort"
                         onClick={() => setSortBy(prev => prev === 'invoice' ? 'date' : 'invoice')}
@@ -912,6 +924,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         </span>
                         {sortOrder === 'asc' ? 'Asc' : 'Desc'}
                     </button>
+                    </div>
                 </div>
                 {clientDetail?.pendingOrders?.length > 0 ? (
                     <div className="orders-list">

@@ -1,0 +1,362 @@
+/* ============================================
+   MI NÓMINA — MOBILE-FIRST 2026
+   Clases prefijadas `mn-` para aislar el chunk.
+   Paleta unificada al design system (índigo).
+   ============================================ */
+
+.mn-panel {
+    --mn-primary: #6366f1;
+    --mn-primary-dark: #4f46e5;
+    --mn-success: #10b981;
+    --mn-success-dark: #059669;
+    --mn-warning: #f59e0b;
+    --mn-warning-dark: #d97706;
+    --mn-text: #0f172a;
+    --mn-text-2: #475569;
+    --mn-muted: #94a3b8;
+    --mn-border: #e5e7eb;
+    --mn-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
+
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1rem;
+    box-sizing: border-box;
+    color: var(--mn-text);
+}
+
+/* ---------- Header ---------- */
+.mn-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.1rem;
+}
+
+.mn-header-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+    color: var(--mn-primary);
+}
+
+.mn-header-icon .material-icons-round { font-size: 26px; }
+
+.mn-header h2 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.mn-header p {
+    margin: 0.1rem 0 0;
+    color: var(--mn-text-2);
+    font-size: 0.85rem;
+}
+
+/* ---------- Barra de período ---------- */
+.mn-period {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-bottom: 1.1rem;
+    padding: 0.85rem;
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid var(--mn-border);
+    box-shadow: var(--mn-card-shadow);
+}
+
+.mn-period-selectors {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mn-period-selectors > .material-icons-round {
+    color: var(--mn-primary);
+    flex-shrink: 0;
+}
+
+.mn-select {
+    flex: 1;
+    min-width: 0;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--mn-border);
+    border-radius: 0.65rem;
+    font-size: 0.95rem;
+    background: white;
+    color: var(--mn-text);
+    cursor: pointer;
+}
+
+.mn-select:focus {
+    outline: none;
+    border-color: var(--mn-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+.mn-period-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.mn-btn {
+    flex: 1 1 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.6rem 0.85rem;
+    border: none;
+    border-radius: 0.65rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s, background 0.2s, opacity 0.2s;
+    white-space: nowrap;
+}
+
+.mn-btn .material-icons-round { font-size: 17px; }
+.mn-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.mn-btn:not(:disabled):active { transform: translateY(1px); }
+
+.mn-btn-excel { background: var(--mn-success); color: white; }
+.mn-btn-excel:not(:disabled):hover { background: var(--mn-success-dark); }
+
+.mn-btn-pdf { background: #ef4444; color: white; }
+.mn-btn-pdf:not(:disabled):hover { background: #dc2626; }
+
+.mn-btn-history {
+    background: #f1f5f9;
+    color: var(--mn-text-2);
+}
+.mn-btn-history:hover { background: #e2e8f0; }
+.mn-btn-history.active {
+    background: var(--mn-primary);
+    color: white;
+}
+
+/* ---------- Historial ---------- */
+.mn-history {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid var(--mn-border);
+    padding: 1.1rem;
+    margin-bottom: 1.1rem;
+    box-shadow: var(--mn-card-shadow);
+}
+
+.mn-history h3 {
+    margin: 0 0 0.9rem;
+    font-size: 0.98rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.mn-history h3 .material-icons-round { font-size: 20px; color: var(--mn-primary); }
+
+.mn-history-empty {
+    color: var(--mn-muted);
+    text-align: center;
+    margin: 0.5rem 0;
+}
+
+.mn-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.mn-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.7rem;
+    background: #f8fafc;
+    border: 1px solid var(--mn-border);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.mn-history-item:hover { background: #eef2ff; border-color: #c7d2fe; }
+
+.mn-history-item .mn-hi-label { font-weight: 600; }
+.mn-history-item .mn-hi-note { font-size: 0.8rem; color: var(--mn-muted); margin-left: 0.4rem; }
+.mn-history-item .mn-hi-amount { font-weight: 700; color: var(--mn-primary); font-size: 1rem; white-space: nowrap; }
+
+/* ---------- Estados ---------- */
+.mn-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: var(--mn-muted);
+}
+
+.mn-state.card {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid var(--mn-border);
+    color: var(--mn-text-2);
+}
+
+.mn-state .material-icons-round { font-size: 56px; display: block; margin: 0 auto 0.75rem; color: #cbd5e1; }
+.mn-state h3 { font-weight: 700; color: var(--mn-text); margin: 0 0 0.4rem; }
+.mn-state p { margin: 0.25rem 0; }
+
+/* ---------- Vista de nómina ---------- */
+.mn-nomina { display: flex; flex-direction: column; gap: 0.9rem; }
+
+/* Tarjeta hero del total */
+.mn-total {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    border-radius: 1.25rem;
+    padding: 1.5rem 1.25rem;
+    color: white;
+    text-align: center;
+    box-shadow: 0 10px 28px -8px rgba(99, 102, 241, 0.5);
+}
+
+.mn-total-period { margin: 0; opacity: 0.85; font-size: 0.85rem; }
+.mn-total-amount { font-size: clamp(2rem, 9vw, 2.6rem); font-weight: 800; margin: 0.15rem 0; line-height: 1.05; }
+.mn-total-caption { margin: 0; opacity: 0.85; font-size: 0.85rem; }
+
+.mn-total-split {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.mn-total-split > div { min-width: 0; }
+.mn-total-split .mn-split-label { opacity: 0.8; font-size: 0.78rem; }
+.mn-total-split .mn-split-value { font-weight: 700; font-size: 1.05rem; }
+
+/* Tarjetas de comisión */
+.mn-card {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid var(--mn-border);
+    overflow: hidden;
+    box-shadow: var(--mn-card-shadow);
+}
+
+.mn-card.met { border-color: rgba(16, 185, 129, 0.28); }
+.mn-card.unmet { border-color: rgba(245, 158, 11, 0.28); }
+
+.mn-card-head {
+    padding: 0.95rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+}
+
+.mn-card.met .mn-card-head { background: #f0fdf4; }
+.mn-card.unmet .mn-card-head { background: #fffbeb; }
+
+.mn-card-head-left { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.mn-card-head-left > .material-icons-round { font-size: 22px; flex-shrink: 0; }
+.mn-card.met .mn-card-head-left > .material-icons-round { color: var(--mn-success); }
+.mn-card.unmet .mn-card-head-left > .material-icons-round { color: var(--mn-warning); }
+
+.mn-card-title { font-weight: 700; font-size: 0.92rem; color: #111827; }
+.mn-card-status { font-size: 0.78rem; display: flex; align-items: center; gap: 0.2rem; }
+.mn-card-status .material-icons-round { font-size: 13px; }
+.mn-card.met .mn-card-status { color: var(--mn-success); }
+.mn-card.unmet .mn-card-status { color: var(--mn-warning); }
+
+.mn-card-head-right { text-align: right; flex-shrink: 0; }
+.mn-card-amount { font-weight: 800; font-size: 1.05rem; }
+.mn-card.met .mn-card-amount { color: var(--mn-success-dark); }
+.mn-card.unmet .mn-card-amount { color: var(--mn-warning-dark); }
+.mn-card-chevron { font-size: 18px; color: var(--mn-muted); }
+
+.mn-card-body { padding: 0.95rem; border-top: 1px solid var(--mn-border); }
+
+.mn-card-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.86rem;
+    margin-bottom: 0.35rem;
+}
+
+.mn-card-row .mn-row-label { color: var(--mn-text-2); }
+.mn-card-row .mn-row-value { font-weight: 600; color: #374151; text-align: right; }
+
+.mn-card-detail {
+    font-size: 0.82rem;
+    color: var(--mn-text-2);
+    margin: 0.75rem 0 0;
+    padding: 0.6rem 0.7rem;
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    line-height: 1.45;
+}
+
+/* Comisión general deshabilitada */
+.mn-disabled {
+    background: #f8fafc;
+    border-radius: 0.85rem;
+    padding: 0.9rem;
+    border: 1px solid var(--mn-border);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--mn-muted);
+    font-size: 0.9rem;
+}
+
+.mn-disabled .material-icons-round { font-size: 22px; }
+
+/* Notas */
+.mn-notes {
+    background: #eff6ff;
+    border-radius: 0.85rem;
+    padding: 0.9rem;
+    border: 1px solid #bfdbfe;
+    font-size: 0.88rem;
+    color: #1e40af;
+    line-height: 1.45;
+}
+
+.mn-timestamp { font-size: 0.75rem; color: var(--mn-muted); text-align: center; margin: 0.25rem 0 0; }
+
+/* Pantallas chicas: aflojar el wrap del título dando más ancho al encabezado */
+@media (max-width: 480px) {
+    .mn-card-head { align-items: flex-start; }
+    .mn-card-title { font-size: 0.9rem; }
+    .mn-card-amount { font-size: 1rem; }
+    .mn-card-head-left { flex: 1 1 auto; }
+    .mn-card-head-right { padding-top: 0.05rem; }
+}
+
+/* ---------- Desktop ---------- */
+@media (min-width: 600px) {
+    .mn-panel { padding: 1.5rem; }
+
+    .mn-period {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .mn-period-selectors { flex: 0 0 auto; }
+    .mn-select { flex: 0 0 auto; min-width: 130px; }
+    .mn-period-actions { flex: 1 1 auto; justify-content: flex-end; }
+    .mn-btn { flex: 0 0 auto; }
+    .mn-btn-history { margin-left: auto; }
+}
