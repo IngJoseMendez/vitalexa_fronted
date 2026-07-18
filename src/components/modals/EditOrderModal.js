@@ -31,7 +31,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         clientId: null,
         items: [], // Regular items
         bonifiedItems: [], // ✅ Separate bonified items
-        promotionIds: order.promotionIds || [], // ✅ Initialize with order promotions
+        promotionIds: order.promotionIds || [], // ✅ Initialize with order promotions (pagadas)
+        bonifiedPromotionIds: [], // ✅ Promociones bonificadas (regalo), se reconstruye al cargar
         notas: order.notas || '',
         includeFreight: order.includeFreight || false,
         isFreightBonified: order.isFreightBonified || false,
@@ -45,8 +46,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     // ── Agregar promociones a orden de promoción ──────────────────
     const [availablePromotions, setAvailablePromotions] = useState([]);
     const [promoSearch, setPromoSearch] = useState('');
-    const [promoQueue, setPromoQueue] = useState([]); // [{ id, nombre, qty }]
+    const [promoQueue, setPromoQueue] = useState([]); // [{ id, nombre, qty, bonified }]
     const [addingPromos, setAddingPromos] = useState(false);
+    const [addAsBonified, setAddAsBonified] = useState(false); // Agregar promos como regalo (bonificadas)
     const toast = useToast();
     const askConfirm = useConfirm();
 
@@ -157,10 +159,18 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         // ✅ Capture Special Product & Promotion IDs
                         specialProductId: item.specialProductId || null,
                         specialPromotionId: item.specialPromotionId || null,
-                        isSpecialProduct: !!item.specialProductId
+                        isSpecialProduct: !!item.specialProductId,
+                        // ✅ Rastrear estado bonificado (regalo) e ítem-de-promoción
+                        isBonified: item.isBonified || false,
+                        isPromotionItem: item.isPromotionItem || false
                     };
 
-                    if (item.isBonified) {
+                    // ✅ Solo los bonificados PUROS (producto regalo suelto) van a la lista de
+                    // bonificados. Un ítem de promoción bonificada (isBonified && es de promo) va
+                    // a `items` para agruparse por su promoción y NO duplicarse como bonificado suelto.
+                    const isPromoItem = item.isPromotionItem || item.promotionId || item.promotionInstanceId
+                        || item.specialPromotionId || item.relatedPromotionId;
+                    if (item.isBonified && !isPromoItem) {
                         bonified.push({
                             ...mappedItem,
                             precioUnitario: 0
@@ -170,6 +180,31 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     }
                 });
             }
+
+            // ✅ Reconstruir promociones PAGADAS vs BONIFICADAS desde los items (fuente de
+            // verdad), agrupando por instancia. Una instancia es bonificada si sus items
+            // llevan isBonified. Esto permite preservar el estado al guardar.
+            const reconstructedBonifiedPromotionIds = [];
+            if (order.items) {
+                const promoInstances = new Map(); // key: instanceId -> { promoId, bonified }
+                order.items.forEach(item => {
+                    const promoId = item.specialPromotionId || item.promotionId;
+                    const isPromoItem = item.isPromotionItem || item.promotionInstanceId || promoId;
+                    if (!isPromoItem || !promoId) return;
+                    const key = item.promotionInstanceId || `legacy-${promoId}`;
+                    if (!promoInstances.has(key)) promoInstances.set(key, { promoId, bonified: false });
+                    if (item.isBonified) promoInstances.get(key).bonified = true;
+                });
+                promoInstances.forEach(({ promoId, bonified }) => {
+                    if (bonified) reconstructedBonifiedPromotionIds.push(promoId);
+                });
+            }
+            // promotionIds pagadas = order.promotionIds menos una ocurrencia por bonificada
+            const paidPromotionIds = order.promotionIds ? [...order.promotionIds] : [];
+            reconstructedBonifiedPromotionIds.forEach(bid => {
+                const idx = paidPromotionIds.indexOf(bid);
+                if (idx > -1) paidPromotionIds.splice(idx, 1);
+            });
 
             let currentClientId = null;
             if (order.cliente && order.cliente !== 'Sin cliente') {
@@ -185,7 +220,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 clientId: currentClientId,
                 items: regularItems,
                 bonifiedItems: bonified,
-                promotionIds: order.promotionIds ? [...order.promotionIds] : [], // ✅ Track promotion IDs in state
+                promotionIds: paidPromotionIds, // ✅ Solo promociones PAGADAS
+                bonifiedPromotionIds: reconstructedBonifiedPromotionIds, // ✅ Promociones BONIFICADAS (regalo)
                 notas: order.notas || '',
                 includeFreight: order.includeFreight || false,
                 isFreightBonified: order.isFreightBonified || false,
@@ -384,7 +420,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 clientId: formData.clientId || null,
                 items: [],
                 bonifiedItems: [],
-                promotionIds: formData.promotionIds || [], // ✅ Use state promotions instead of original order props
+                promotionIds: formData.promotionIds || [], // ✅ Promociones pagadas
+                bonifiedPromotionIds: formData.bonifiedPromotionIds || [], // ✅ Promociones bonificadas (regalo)
                 notas: formData.notas || null,
 
                 includeFreight: formData.includeFreight,
@@ -653,12 +690,19 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             toast.warning('Agrega al menos una promoción a la cola');
             return;
         }
-        // Construir lista de IDs con repeticiones según cantidad
-        const ids = promoQueue.flatMap(p => Array(p.qty).fill(p.id));
+        // Construir listas de IDs con repeticiones según cantidad, separando
+        // promociones pagadas de bonificadas (regalo).
+        const paidIds = promoQueue.filter(p => !p.bonified).flatMap(p => Array(p.qty).fill(p.id));
+        const bonifiedIds = promoQueue.filter(p => p.bonified).flatMap(p => Array(p.qty).fill(p.id));
         setAddingPromos(true);
         try {
-            await client.post(`/admin/orders/${order.id}/promotions/add`, ids);
-            toast.success(`${ids.length} instancia(s) de promoción agregada(s) correctamente`);
+            if (paidIds.length > 0) {
+                await client.post(`/admin/orders/${order.id}/promotions/add`, paidIds);
+            }
+            if (bonifiedIds.length > 0) {
+                await client.post(`/admin/orders/${order.id}/promotions/add-bonified`, bonifiedIds);
+            }
+            toast.success(`${paidIds.length + bonifiedIds.length} instancia(s) de promoción agregada(s) correctamente`);
             setPromoQueue([]);
             if (onSuccess) onSuccess();
             onClose();
@@ -728,16 +772,21 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         // We defer the actual backend update to "Guardar Cambios" (PUT)
         setHasChanges(true);
 
+        // ✅ ¿La instancia eliminada es bonificada (regalo)? Se quita de la lista correcta.
+        const isInstanceBonified = itemsToDelete.some(i => i.isBonified);
+
         setFormData(prev => {
             // Remove promotion ID from list (one instance)
-            const promoIdToRemove = firstItem.promotionId || firstItem.specialPromotionId;
+            const promoIdToRemove = firstItem.specialPromotionId || firstItem.promotionId;
             const newPromoIds = [...(prev.promotionIds || [])];
+            const newBonifiedPromoIds = [...(prev.bonifiedPromotionIds || [])];
 
-            // Logic: remove ONE occurrence of this promotion UUID
-            // This handles multiple instances of same promotion type correctly
-            const indexToRemove = newPromoIds.indexOf(promoIdToRemove);
+            // Logic: remove ONE occurrence of this promotion UUID de la lista que corresponda
+            // (maneja correctamente múltiples instancias de la misma promoción)
+            const targetList = isInstanceBonified ? newBonifiedPromoIds : newPromoIds;
+            const indexToRemove = targetList.indexOf(promoIdToRemove);
             if (indexToRemove > -1) {
-                newPromoIds.splice(indexToRemove, 1);
+                targetList.splice(indexToRemove, 1);
             }
 
             // Remove items associated with this promotion instance
@@ -748,7 +797,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             return {
                 ...prev,
                 items: newItems,
-                promotionIds: newPromoIds
+                promotionIds: newPromoIds,
+                bonifiedPromotionIds: newBonifiedPromoIds
             };
         });
 
@@ -887,6 +937,17 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                     Los ítems existentes <strong>no se modifican</strong>. Solo se añaden nuevas instancias.
                                 </p>
 
+                                {/* Toggle: agregar como bonificadas (regalo) */}
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: addAsBonified ? '#15803d' : '#6b7280' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={addAsBonified}
+                                        onChange={() => setAddAsBonified(v => !v)}
+                                    />
+                                    <span className="material-icons-round" style={{ fontSize: '18px' }}>card_giftcard</span>
+                                    Agregar como bonificadas (regalo, pack a $0)
+                                </label>
+
                                 {/* Buscador */}
                                 <div className="eo-search-wrapper" style={{ marginBottom: '0.5rem' }}>
                                     <span className="material-icons-round search-icon">search</span>
@@ -915,15 +976,18 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                     key={p.id}
                                                     className="eo-search-item"
                                                     onClick={() => {
+                                                        // Clave compuesta: la MISMA promo puede ir pagada Y bonificada
+                                                        // (dos entradas distintas en la cola).
+                                                        const qKey = `${p.id}|${addAsBonified ? 'bon' : 'paid'}`;
                                                         setPromoQueue(prev => {
-                                                            const existing = prev.find(x => x.id === p.id);
+                                                            const existing = prev.find(x => x.key === qKey);
                                                             if (existing) {
-                                                                return prev.map(x => x.id === p.id ? { ...x, qty: x.qty + 1 } : x);
+                                                                return prev.map(x => x.key === qKey ? { ...x, qty: x.qty + 1 } : x);
                                                             }
-                                                            return [...prev, { id: p.id, nombre: p.nombre, qty: 1 }];
+                                                            return [...prev, { key: qKey, id: p.id, nombre: p.nombre, qty: 1, bonified: addAsBonified }];
                                                         });
                                                         setPromoSearch('');
-                                                        toast.success(`"${p.nombre}" agregada a la cola`);
+                                                        toast.success(`"${p.nombre}" agregada a la cola${addAsBonified ? ' (regalo)' : ''}`);
                                                     }}
                                                 >
                                                     <div className="item-info">
@@ -947,19 +1011,24 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                             Cola ({promoQueue.reduce((s, x) => s + x.qty, 0)} instancia/s):
                                         </p>
                                         {promoQueue.map(p => (
-                                            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                                <span style={{ flex: 1, fontSize: '0.85rem', color: '#374151' }}>{p.nombre}</span>
+                                            <div key={p.key || p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                                <span style={{ flex: 1, fontSize: '0.85rem', color: p.bonified ? '#15803d' : '#374151' }}>
+                                                    {p.nombre}
+                                                    {p.bonified && (
+                                                        <span style={{ marginLeft: '6px', fontSize: '0.62rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', borderRadius: '4px', padding: '1px 5px' }}>REGALO</span>
+                                                    )}
+                                                </span>
                                                 <button
-                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.id === p.id && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
+                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
                                                     style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
                                                 >−</button>
                                                 <span style={{ fontWeight: 700, minWidth: '20px', textAlign: 'center', color: '#7c3aed' }}>{p.qty}</span>
                                                 <button
-                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.id === p.id ? { ...x, qty: x.qty + 1 } : x))}
+                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key ? { ...x, qty: x.qty + 1 } : x))}
                                                     style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
                                                 >+</button>
                                                 <button
-                                                    onClick={() => setPromoQueue(prev => prev.filter(x => x.id !== p.id))}
+                                                    onClick={() => setPromoQueue(prev => prev.filter(x => x.key !== p.key))}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
                                                 ><span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span></button>
                                             </div>
@@ -1002,12 +1071,17 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                         // Prompt example shows item.promotionName
 
                                         const promoDetail = promotionsDetails.find(p => p.id === firstItem.promotionId);
-                                        const name = firstItem.promotionName || (promoDetail ? promoDetail.nombre : 'Promoción');
+                                        const baseName = firstItem.promotionName || (promoDetail ? promoDetail.nombre : 'Promoción');
+                                        // ✅ ¿La instancia es bonificada (regalo)?
+                                        const isInstanceBonified = items.some(i => i.isBonified);
+                                        const name = isInstanceBonified ? `${baseName} (BONIFICADO)` : baseName;
 
-                                        // Determine price to show (Pack Price or Sum?)
-                                        const price = firstItem.promotionPackPrice
-                                            ? firstItem.promotionPackPrice
-                                            : items.reduce((sum, i) => sum + (i.subtotal || i.precioUnitario * i.cantidad), 0);
+                                        // Determine price to show (Pack Price or Sum?). Bonificada = $0.
+                                        const price = isInstanceBonified
+                                            ? 0
+                                            : (firstItem.promotionPackPrice
+                                                ? firstItem.promotionPackPrice
+                                                : items.reduce((sum, i) => sum + (i.subtotal || i.precioUnitario * i.cantidad), 0));
 
                                         return (
                                             <PromotionBlockWrapper

@@ -1248,9 +1248,13 @@ function AdminNuevaVentaPanel() {
 
   // Promotion Logic
   const addPromotionToCart = (promotion, qty = 1) => {
+    // ✅ Si el modo Regalo (bonificado) está activo, la promoción se aplica como
+    // bonificada: pack a $0 (el inventario se descuenta igual en el backend).
+    const bonified = isBonifiedMode;
+
     // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
     if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
-      setSelectedPromotion(promotion);
+      setSelectedPromotion({ ...promotion, isBonified: bonified });
       setShowAssortmentModal(true);
       return;
     }
@@ -1261,11 +1265,16 @@ function AdminNuevaVentaPanel() {
       ...promotion,
       cartId: `promo-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
       // ✅ Capture Special Promotion ID if present
-      specialPromotionId: promotion.isSpecial ? promotion.id : null
+      specialPromotionId: promotion.isSpecial ? promotion.id : null,
+      isBonified: bonified
     }));
 
     setPromotionsCart(prev => [...prev, ...newInstances]);
-    if (quantity > 1) {
+    if (bonified) {
+      toast.success(quantity > 1
+        ? `${quantity} promociones bonificadas agregadas (regalo)`
+        : 'Promoción bonificada agregada (regalo)');
+    } else if (quantity > 1) {
       toast.success(`${quantity} promociones agregadas al carrito`);
     } else {
       toast.success('Promoción agregada');
@@ -1273,30 +1282,53 @@ function AdminNuevaVentaPanel() {
   };
 
   const handleAssortmentConfirmation = (items) => {
-    // Process items to match cart structure
-    const newCartItems = [...cart];
+    // ✅ ¿La promoción surtida se agregó en modo Regalo (bonificado)?
+    const bonified = !!selectedPromotion?.isBonified;
 
-    items.forEach(item => {
-      const existingItemIndex = newCartItems.findIndex(cartItem => cartItem.productId === item.productId);
+    if (bonified) {
+      // Promo surtida BONIFICADA: los productos elegidos también son regalo ($0).
+      // Van al carrito de bonificados (el inventario se descuenta igual en el backend).
+      const newBonified = [...bonifiedCart];
+      items.forEach(item => {
+        const idx = newBonified.findIndex(b => b.productId === item.productId);
+        if (idx >= 0) {
+          newBonified[idx].cantidad += item.cantidad;
+        } else {
+          newBonified.push({
+            productId: item.productId,
+            nombre: item.nombre,
+            precio: 0,
+            cantidad: item.cantidad,
+            isBonified: true,
+            isSpecialProduct: false
+          });
+        }
+      });
+      setBonifiedCart(newBonified);
+    } else {
+      // Process items to match cart structure (precio normal)
+      const newCartItems = [...cart];
+      items.forEach(item => {
+        const existingItemIndex = newCartItems.findIndex(cartItem => cartItem.productId === item.productId);
 
-      if (existingItemIndex >= 0) {
-        newCartItems[existingItemIndex].cantidad += item.cantidad;
-      } else {
-        newCartItems.push({
-          productId: item.productId,
-          nombre: item.nombre,
-          precio: item.precio, // NORMAL PRICE (These are the buy items)
-          cantidad: item.cantidad,
-          stockDisponible: item.stock || 9999,
-          allowOutOfStock: true,
-          promotionId: item.promotionId,
-          // ✅ Pass down specialPromotionId from the selected promotion
-          specialPromotionId: selectedPromotion?.isSpecial ? selectedPromotion.id : null
-        });
-      }
-    });
-
-    setCart(newCartItems);
+        if (existingItemIndex >= 0) {
+          newCartItems[existingItemIndex].cantidad += item.cantidad;
+        } else {
+          newCartItems.push({
+            productId: item.productId,
+            nombre: item.nombre,
+            precio: item.precio, // NORMAL PRICE (These are the buy items)
+            cantidad: item.cantidad,
+            stockDisponible: item.stock || 9999,
+            allowOutOfStock: true,
+            promotionId: item.promotionId,
+            // ✅ Pass down specialPromotionId from the selected promotion
+            specialPromotionId: selectedPromotion?.isSpecial ? selectedPromotion.id : null
+          });
+        }
+      });
+      setCart(newCartItems);
+    }
 
     // Add the promotion itself to track it (for the ID)
     if (selectedPromotion) {
@@ -1304,14 +1336,17 @@ function AdminNuevaVentaPanel() {
         ...selectedPromotion,
         cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         // ✅ Capture Special Promotion ID
-        specialPromotionId: selectedPromotion.isSpecial ? selectedPromotion.id : null
+        specialPromotionId: selectedPromotion.isSpecial ? selectedPromotion.id : null,
+        isBonified: bonified
       };
       setPromotionsCart([...promotionsCart, promoInstance]);
     }
 
     setShowAssortmentModal(false);
     setSelectedPromotion(null);
-    toast.success('Productos de la promoción agregados al carrito');
+    toast.success(bonified
+      ? 'Promoción bonificada agregada (regalo)'
+      : 'Productos de la promoción agregados al carrito');
   };
 
   const removePromotionFromCart = (cartId) => {
@@ -1365,7 +1400,8 @@ function AdminNuevaVentaPanel() {
       if (item.isBonified) return sum;
       return sum + (item.precio * item.cantidad);
     }, 0);
-    const promotionsTotal = promotionsCart.reduce((sum, item) => sum + (item.packPrice || 0), 0);
+    // Las promociones bonificadas (regalo) no suman al total
+    const promotionsTotal = promotionsCart.reduce((sum, item) => item.isBonified ? sum : sum + (item.packPrice || 0), 0);
     return formatCurrency(productsTotal + promotionsTotal);
   };
 
@@ -1407,7 +1443,8 @@ function AdminNuevaVentaPanel() {
           specialProductId: item.isSpecialProduct ? item.productId : null,
           cantidad: item.cantidad
         })),
-        promotionIds: promotionsCart.map(p => p.id),
+        promotionIds: promotionsCart.filter(p => !p.isBonified).map(p => p.id),
+        bonifiedPromotionIds: promotionsCart.filter(p => p.isBonified).map(p => p.id),
         notas: notas.trim() || null,
         includeFreight: false,
         isFreightBonified: false,
@@ -1516,7 +1553,15 @@ function AdminNuevaVentaPanel() {
 
           {catalogView === 'promociones' ? (
             /* CATALOGO DE PROMOCIONES - ADMIN */
-            <AdminPromotionsCatalog onAddToCart={addPromotionToCart} searchTerm={productSearch} />
+            <>
+              {isBonifiedMode && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.25rem 0 0.75rem', padding: '6px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', color: '#15803d', fontSize: '0.8rem', fontWeight: 600 }}>
+                  <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
+                  Modo Regalo activo: las promociones que agregues se aplicarán como bonificadas (pack a $0).
+                </div>
+              )}
+              <AdminPromotionsCatalog onAddToCart={addPromotionToCart} searchTerm={productSearch} />
+            </>
           ) : (
             <>
               <h4 style={{ margin: '0.5rem 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>Catálogo de Productos</h4>
@@ -1648,12 +1693,19 @@ function AdminNuevaVentaPanel() {
                 Promociones
               </div>
               {promotionsCart.map((promo) => (
-                <div key={promo.cartId} className="cart-item">
+                <div key={promo.cartId} className="cart-item" style={promo.isBonified ? { background: '#f0fdf4' } : undefined}>
                   <div className="cart-item-info">
-                    <div className="cart-item-name" style={{ color: '#0369a1' }}>{promo.nombre}</div>
-                    {promo.packPrice && (
+                    <div className="cart-item-name" style={{ color: promo.isBonified ? '#166534' : '#0369a1' }}>
+                      {promo.nombre}
+                      {promo.isBonified && (
+                        <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', borderRadius: '4px', padding: '1px 5px', verticalAlign: 'middle' }}>REGALO</span>
+                      )}
+                    </div>
+                    {promo.isBonified ? (
+                      <div className="cart-item-price" style={{ color: '#15803d', fontWeight: 700 }}>GRATIS</div>
+                    ) : promo.packPrice ? (
                       <div className="cart-item-price" style={{ color: '#0ea5e9', fontWeight: 700 }}>${formatCurrency(promo.packPrice)}</div>
-                    )}
+                    ) : null}
                   </div>
                   <button className="btn-remove-item" onClick={() => removePromotionFromCart(promo.cartId)}>
                     <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
