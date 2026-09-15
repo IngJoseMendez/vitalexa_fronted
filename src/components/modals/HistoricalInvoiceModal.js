@@ -70,8 +70,9 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
             setFormData({
                 invoiceNumber: initialOrder.invoiceNumber || '',
                 fecha: localISOTime,
-                totalValue: initialOrder.total || '',
-                amountPaid: initialOrder.totalPaid || '', // Pre-fill with current paid amount?
+                // ?? (no ||) para que una factura en $0 se prellene con 0 y no quede vacía
+                totalValue: initialOrder.total ?? '',
+                amountPaid: initialOrder.totalPaid ?? '', // Pre-fill with current paid amount?
                 clientId: matchedClient ? matchedClient.id : '', // If matched, use ID
                 clientName: initialOrder.cliente || '',
                 clientPhone: initialOrder.clientePhone || '',

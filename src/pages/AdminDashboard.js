@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 import client from '../api/client';
+import { idempotencyKeyFor } from '../utils/idempotency';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import TagsPanel from '../components/TagsPanel';
@@ -1145,6 +1146,10 @@ function AdminNuevaVentaPanel() {
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
   const [catalogView, setCatalogView] = useState('productos'); // 'productos' | 'promociones'
+  // Envío de la venta en curso (evita doble clic) y clave de idempotencia del intento actual
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const idempotencyRef = useRef(null);
 
 
   // Assortment Selection State
@@ -1406,6 +1411,9 @@ function AdminNuevaVentaPanel() {
   };
 
   const handleSubmitOrder = async () => {
+    // Ya hay un envío en curso (doble clic): no mandar otra venta
+    if (submittingRef.current) return;
+
     // ✅ ACTUALIZADO: Permite órdenes solo con bonificados
     if (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0) {
       toast.warning('Agrega productos, promociones o bonificados al carrito');
@@ -1421,6 +1429,9 @@ function AdminNuevaVentaPanel() {
       toast.warning('Selecciona un cliente o marca la casilla');
       return;
     }
+
+    submittingRef.current = true;
+    setSubmitting(true);
 
     try {
       const orderData = {
@@ -1453,7 +1464,12 @@ function AdminNuevaVentaPanel() {
         sellerId: selectedVendedor
       };
 
-      await client.post('/admin/orders', orderData);
+      // La clave se conserva tras un envío sin confirmar: el reintento no duplica la venta
+      await client.post('/admin/orders', orderData, {
+        timeout: 45000,
+        headers: { 'Idempotency-Key': idempotencyKeyFor(idempotencyRef) }
+      });
+      idempotencyRef.current = null;
       toast.success('¡Venta registrada exitosamente!');
 
       setNotas('');
@@ -1465,7 +1481,19 @@ function AdminNuevaVentaPanel() {
       setIsBonifiedMode(false);
     } catch (error) {
       console.error('Error al crear orden:', error);
-      toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
+      const status = error.response?.status;
+      if (status >= 400 && status < 500) {
+        // Rechazo definitivo: no se creó nada, el próximo intento usa otra clave
+        idempotencyRef.current = null;
+      }
+      if (!error.response) {
+        toast.error('No se pudo confirmar la venta por la conexión. Revisa las órdenes o vuelve a intentar: no se duplicará.');
+      } else {
+        toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
+      }
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -1800,10 +1828,10 @@ function AdminNuevaVentaPanel() {
           <button
             className="btn-checkout"
             onClick={handleSubmitOrder}
-            disabled={cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0}
+            disabled={submitting || (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0)}
           >
             <span className="material-icons-round">check_circle</span>
-            Finalizar Venta
+            {submitting ? 'Registrando…' : 'Finalizar Venta'}
           </button>
         </div>
       </div>

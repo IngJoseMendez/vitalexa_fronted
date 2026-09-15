@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency } from '../utils/formatters';
+import { idempotencyKeyFor } from '../utils/idempotency';
 import apiClient from '../api/client';
 import { tagService } from '../api/tagService';
 import { useToast } from '../components/ToastContainer';
@@ -182,6 +183,11 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [assignedVendor, setAssignedVendor] = useState('');
   const [userRole] = useState(localStorage.getItem('role'));
   const [showMobileCart, setShowMobileCart] = useState(false); // Mobile cart modal
+  // Envío de la venta en curso: el ref bloquea de forma síncrona (doble toque) y el
+  // estado deshabilita los botones. idempotencyRef guarda la clave del intento actual.
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const idempotencyRef = useRef(null);
   const [catalogView, setCatalogView] = useState('productos'); // 'productos' | 'promociones'
   const toast = useToast();
 
@@ -449,23 +455,30 @@ function NuevaVentaPanel({ refreshTrigger }) {
     return productsTotal + promotionsTotal;
   };
 
+  // Devuelve true solo si la venta quedó registrada
   const handleSubmitOrder = async () => {
+    // Ya hay un envío en curso (doble toque / doble clic): no mandar otra venta
+    if (submittingRef.current) return false;
+
     // ✅ ACTUALIZADO: Permite órdenes solo con bonificados
     if (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0) {
       toast.warning('Agrega productos, promociones o bonificados al carrito');
-      return;
+      return false;
     }
 
     if (!selectedClient && !allowNoClient) {
       toast.warning('Selecciona un cliente o marca la casilla para confirmar venta sin cliente');
-      return;
+      return false;
     }
 
     // If Admin/Owner and trying to create order, vendor must be assigned
     if (isAdminOrOwner && !assignedVendor) {
       toast.warning('Debe asignar un vendedor para crear esta orden');
-      return;
+      return false;
     }
+
+    submittingRef.current = true;
+    setSubmitting(true);
 
     try {
       const orderData = {
@@ -501,11 +514,17 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
 
       const endpoint = isAdminOrOwner ? '/admin/orders' : '/vendedor/orders';
-      const res = await apiClient.post(endpoint, orderData);
+      // La clave se conserva tras un envío sin confirmar (timeout/red): el reintento no
+      // duplica la venta. Timeout amplio solo en esta llamada.
+      const res = await apiClient.post(endpoint, orderData, {
+        timeout: 45000,
+        headers: { 'Idempotency-Key': idempotencyKeyFor(idempotencyRef) }
+      });
+      idempotencyRef.current = null;
 
-      // Check if it was a split order (2 orders created)
-      if (res.data && res.data.createdOrders && res.data.createdOrders.length > 1) {
-        toast.info('Se detectaron productos S/R: se generaron 2 órdenes con facturas consecutivas.', { duration: 6000 });
+      // Venta dividida: el backend devuelve { orders, wasSplit, message }
+      if (res.data?.orders?.length > 1) {
+        toast.info(`Venta registrada: se generaron ${res.data.orders.length} órdenes (S/R o promociones van por separado).`, 6000);
       } else {
         toast.success('¡Venta registrada exitosamente!');
       }
@@ -525,13 +544,26 @@ function NuevaVentaPanel({ refreshTrigger }) {
       // ✅ Invalidar caché del init porque el stock cambió al crear el pedido
       vendedorInitService.invalidarCache();
       fetchInitData();
+      return true;
     } catch (error) {
       console.error('Error al crear orden:', error);
-      if (error.response?.status === 403 && error.response?.data?.message?.includes('Límite de crédito')) {
+      const status = error.response?.status;
+      if (status >= 400 && status < 500) {
+        // Rechazo definitivo (validación, crédito...): no se creó nada, el próximo intento usa otra clave
+        idempotencyRef.current = null;
+      }
+      if (status === 403 && error.response?.data?.message?.includes('Límite de crédito')) {
         toast.error('⛔ ' + error.response.data.message);
+      } else if (!error.response) {
+        // Timeout o sin conexión: la venta pudo quedar registrada; reintentar el mismo carrito no la duplica
+        toast.error('No se pudo confirmar la venta por la conexión. Revisa "Mis Ventas" o vuelve a intentar: no se duplicará.');
       } else {
         toast.error('Error al registrar la venta: ' + (error.response?.data?.message || 'Error desconocido'));
       }
+      return false;
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -1024,15 +1056,15 @@ function NuevaVentaPanel({ refreshTrigger }) {
             className="btn-finalizar-venta"
             onClick={handleSubmitOrder}
             disabled={
+              submitting ||
               (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
-              (!selectedClient && !allowNoClient) ||
               (!selectedClient && !allowNoClient) ||
               cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
               cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
             }
           >
             <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
-            Finalizar Venta
+            {submitting ? 'Registrando…' : 'Finalizar Venta'}
           </button>
         </div>
       </div>
@@ -1065,14 +1097,15 @@ function NuevaVentaPanel({ refreshTrigger }) {
       </div>
 
       {/* Mobile Cart Modal */}
-      <div className={`mobile-cart-modal-overlay ${!showMobileCart ? 'hidden' : ''}`} onClick={() => setShowMobileCart(false)}>
+      {/* Mientras se registra la venta el carrito no se cierra (evita reabrirlo y reenviar) */}
+      <div className={`mobile-cart-modal-overlay ${!showMobileCart ? 'hidden' : ''}`} onClick={() => { if (!submitting) setShowMobileCart(false); }}>
         <div className="mobile-cart-modal" onClick={(e) => e.stopPropagation()}>
           <div className="modal-header">
             <h3>
               <span className="material-icons-round">shopping_cart</span>
               Carrito
             </h3>
-            <button className="modal-close" onClick={() => setShowMobileCart(false)}>
+            <button className="modal-close" onClick={() => setShowMobileCart(false)} disabled={submitting}>
               <span className="material-icons-round">close</span>
             </button>
           </div>
@@ -1285,11 +1318,13 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
                 <button
                   className="btn-finalizar-venta"
-                  onClick={() => {
-                    handleSubmitOrder();
-                    setShowMobileCart(false);
+                  onClick={async () => {
+                    // El carrito se cierra solo cuando la venta quedó registrada; mientras tanto
+                    // el botón queda deshabilitado mostrando "Registrando…"
+                    if (await handleSubmitOrder()) setShowMobileCart(false);
                   }}
                   disabled={
+                    submitting ||
                     (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
                     (!selectedClient && !allowNoClient) ||
                     cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
@@ -1297,7 +1332,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                   }
                 >
                   <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
-                  Finalizar Venta
+                  {submitting ? 'Registrando…' : 'Finalizar Venta'}
                 </button>
               </div>
             </div>
