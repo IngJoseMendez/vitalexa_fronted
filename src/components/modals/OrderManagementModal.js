@@ -5,11 +5,12 @@ import { useToast } from '../ToastContainer';
 import { useConfirm } from '../ConfirmDialog';
 import AssortmentSelectionModal from './AssortmentSelectionModal';
 import OrderAnnulationModal from './OrderAnnulationModal';
+import OrderRevertAnnulmentModal from './OrderRevertAnnulmentModal';
 import orderService from '../../api/orderService';
 import client from '../../api/client';
-import { OrdenStatus, PromotionType } from '../../utils/types';
+import { OrdenStatus, PromotionType, getStatusLabel } from '../../utils/types';
 import HistoricalInvoiceModal from './HistoricalInvoiceModal'; // Import for editing
-import { formatCurrency, formatDateISO } from '../../utils/formatters';
+import { formatCurrency, formatDateISO, formatDateTime } from '../../utils/formatters';
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -28,6 +29,9 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const [etaForm, setEtaForm] = useState({ date: '', note: '' });
     const [showAnnulationModal, setShowAnnulationModal] = useState(false);
     const [annulationLoading, setAnnulationLoading] = useState(false);
+    const [showRevertModal, setShowRevertModal] = useState(false);
+    const [revertLoading, setRevertLoading] = useState(false);
+    const [annulmentHistory, setAnnulmentHistory] = useState([]);
     const toast = useToast();
     const confirm = useConfirm();
 
@@ -96,11 +100,25 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
         }
     }, [order.id, order.orderId, toast]);
 
+    // Historial de anulaciones / reversiones (más reciente primero)
+    const fetchAnnulmentHistory = useCallback(async () => {
+        const orderId = order.id || order.orderId;
+        if (!orderId) return;
+        try {
+            const response = await orderService.getAnnulmentHistory(orderId);
+            setAnnulmentHistory(response.data || []);
+        } catch (error) {
+            console.error('Error fetching annulment history:', error);
+            setAnnulmentHistory([]);
+        }
+    }, [order.id, order.orderId]);
+
     useEffect(() => {
         fetchOrderDetails();
         fetchPayments();
         fetchDiscounts();
-    }, [fetchOrderDetails, fetchPayments, fetchDiscounts]);
+        fetchAnnulmentHistory();
+    }, [fetchOrderDetails, fetchPayments, fetchDiscounts, fetchAnnulmentHistory]);
 
     // Cancel a payment
     const handleCancelPayment = async (paymentId) => {
@@ -132,7 +150,7 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
             if (onRefresh) onRefresh();
         } catch (error) {
             console.error('Error restoring payment:', error);
-            toast.error('Error al restaurar el pago');
+            toast.error('Error al restaurar el pago: ' + (error.response?.data?.message || error.message));
         }
     };
 
@@ -195,6 +213,39 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
         } finally {
             setAnnulationLoading(false);
         }
+    };
+
+    // Revertir la anulación: el modal queda abierto con la orden actualizada
+    // (siguiente paso habitual: restaurar los pagos que se anularon antes)
+    const handleConfirmRevert = async (reason) => {
+        try {
+            setRevertLoading(true);
+            const response = await orderService.revertAnnulment(order.id || order.orderId, reason);
+            toast.success(`Anulación revertida. La venta quedó en estado ${getStatusLabel(response.data?.estado)}`);
+            setShowRevertModal(false);
+            if (response.data) setCurrentOrder(response.data);
+            fetchAnnulmentHistory();
+            fetchPayments();
+            if (onRefresh) onRefresh();
+        } catch (error) {
+            console.error("Error reverting annulment:", error);
+            toast.error("Error al revertir la anulación: " + (error.response?.data?.message || error.message));
+        } finally {
+            setRevertLoading(false);
+        }
+    };
+
+    const isAnnulled = currentOrder.estado === OrdenStatus.ANULADA;
+    // El registro más reciente es la anulación vigente si la orden está anulada
+    const currentAnnulment = isAnnulled && annulmentHistory[0]?.action === 'ANNULMENT'
+        ? annulmentHistory[0]
+        : null;
+
+    const describeAnnulmentStock = (event) => {
+        if (event.action === 'ANNULMENT') {
+            return event.stockAdjusted ? 'stock devuelto al inventario' : 'sin devolver stock';
+        }
+        return event.stockAdjusted ? 'stock descontado de nuevo' : 'sin mover stock';
     };
 
     const openAssortmentModal = (promotionId) => {
@@ -263,7 +314,8 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         Detalle de Orden #{order.invoiceNumber || (order.id || order.orderId)?.substring(0, 8)}
                     </h3>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {(isOwner || isAdmin) && (
+                        {/* Editar deja la factura COMPLETADO: en una venta anulada primero hay que revertir */}
+                        {(isOwner || isAdmin) && !isAnnulled && (
                             <button
                                 className="btn-edit-invoice"
                                 onClick={() => setShowEditHistoryModal(true)}
@@ -296,6 +348,17 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                             >
                                 <span className="material-icons-round" style={{ fontSize: '16px' }}>block</span>
                                 Anular Venta
+                            </button>
+                        )}
+                        {/* Revertir: los mismos roles que pueden anular */}
+                        {(isOwner || isAdmin) && isAnnulled && (
+                            <button
+                                className="btn-revert-annulment"
+                                onClick={() => setShowRevertModal(true)}
+                                title="Revertir la anulación de esta venta"
+                            >
+                                <span className="material-icons-round" style={{ fontSize: '16px' }}>settings_backup_restore</span>
+                                Revertir Anulación
                             </button>
                         )}
                         <button className="btn-close" onClick={onClose}>
@@ -342,10 +405,55 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                             )}
                         </div>
 
+                        {isAnnulled && (
+                            <div className="annulled-banner">
+                                <span className="material-icons-round annulled-banner-icon">block</span>
+                                <div>
+                                    <strong>Venta anulada</strong>
+                                    <p>Motivo: {currentOrder.cancellationReason || 'Sin motivo registrado'}</p>
+                                    {currentAnnulment && (
+                                        <small>
+                                            Por {currentAnnulment.username} el {formatDateTime(currentAnnulment.createdAt)}
+                                        </small>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {currentOrder.notas && (
                             <div className="notes-box">
                                 <strong><span className="material-icons-round">note</span> Notas:</strong>
                                 <p>{currentOrder.notas}</p>
+                            </div>
+                        )}
+
+                        {annulmentHistory.length > 0 && (
+                            <div className="annulment-history">
+                                <strong className="annulment-history-title">
+                                    <span className="material-icons-round">history</span> Historial de anulación
+                                </strong>
+                                <ul>
+                                    {annulmentHistory.map(event => (
+                                        <li
+                                            key={event.id}
+                                            className={`annulment-event ${event.action === 'ANNULMENT' ? 'is-annulment' : 'is-reversal'}`}
+                                        >
+                                            <div className="annulment-event-head">
+                                                <span className="material-icons-round">
+                                                    {event.action === 'ANNULMENT' ? 'block' : 'settings_backup_restore'}
+                                                </span>
+                                                <strong>{event.action === 'ANNULMENT' ? 'Anulada' : 'Anulación revertida'}</strong>
+                                                <span className="annulment-event-meta">
+                                                    {formatDateTime(event.createdAt)} · {event.username}
+                                                </span>
+                                            </div>
+                                            <p className="annulment-event-reason">{event.reason}</p>
+                                            <small className="annulment-event-detail">
+                                                {getStatusLabel(event.previousStatus)} → {getStatusLabel(event.newStatus)} · {describeAnnulmentStock(event)}
+                                            </small>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         )}
 
@@ -665,7 +773,8 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                     <span className="material-icons-round">delete_outline</span>
                                                 </button>
                                             )}
-                                            {canManagePayments && payment.isCancelled && (
+                                            {/* En una venta anulada primero se revierte la anulación */}
+                                            {canManagePayments && payment.isCancelled && !isAnnulled && (
                                                 <button
                                                     className="btn-restore-payment"
                                                     onClick={() => handleRestorePayment(payment.id)}
@@ -731,6 +840,16 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         onClose={() => setShowAnnulationModal(false)}
                         onConfirm={handleConfirmAnnulation}
                         isLoading={annulationLoading}
+                    />
+                )}
+
+                {/* Revert Annulment Modal */}
+                {showRevertModal && (
+                    <OrderRevertAnnulmentModal
+                        targetStatus={currentAnnulment?.previousStatus}
+                        onClose={() => setShowRevertModal(false)}
+                        onConfirm={handleConfirmRevert}
+                        isLoading={revertLoading}
                     />
                 )}
 

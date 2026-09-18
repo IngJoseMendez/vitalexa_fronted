@@ -222,6 +222,135 @@
     font-size: 0.9rem;
 }
 
+/* Revertir anulación (header) */
+.btn-revert-annulment {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.4rem 0.8rem;
+    background: #059669;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-revert-annulment:hover {
+    background: #047857;
+}
+
+/* Venta anulada: motivo vigente */
+.annulled-banner {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #fef2f2;
+    border-radius: 0.75rem;
+    border-left: 4px solid #ef4444;
+}
+
+.annulled-banner-icon {
+    color: #dc2626;
+    flex-shrink: 0;
+}
+
+.annulled-banner strong {
+    color: #b91c1c;
+    font-size: 0.9rem;
+}
+
+.annulled-banner p {
+    margin: 0.35rem 0 0 0;
+    color: #7f1d1d;
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+}
+
+.annulled-banner small {
+    display: block;
+    margin-top: 0.35rem;
+    color: #991b1b;
+    font-size: 0.78rem;
+}
+
+/* Historial de anulación / reversión */
+.annulment-history {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+}
+
+.annulment-history-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.annulment-history ul {
+    list-style: none;
+    margin: 0.75rem 0 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.annulment-event {
+    padding: 0.6rem 0.75rem;
+    background: white;
+    border-radius: 0.5rem;
+    border-left: 3px solid #ef4444;
+}
+
+.annulment-event.is-reversal {
+    border-left-color: #10b981;
+}
+
+.annulment-event-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+}
+
+.annulment-event-head .material-icons-round {
+    font-size: 1rem;
+    color: #dc2626;
+}
+
+.annulment-event.is-reversal .annulment-event-head .material-icons-round {
+    color: #059669;
+}
+
+.annulment-event-meta {
+    margin-left: auto;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.annulment-event-reason {
+    margin: 0.35rem 0 0 0;
+    color: var(--text-main);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.annulment-event-detail {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
 /* Products Table */
 .products-table-wrapper {
     overflow-x: auto;

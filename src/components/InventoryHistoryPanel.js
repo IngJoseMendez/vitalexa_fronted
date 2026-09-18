@@ -33,7 +33,8 @@ export default function InventoryHistoryPanel() {
         { value: 'DELETION', label: 'Eliminación' },
         { value: 'RETURN', label: 'Devolución' },
         { value: 'ORDER_ITEM_REMOVAL', label: 'Eliminación de Item' },
-        { value: 'ORDER_EDIT_RESTORE', label: 'Restauración por Edición' }
+        { value: 'ORDER_EDIT_RESTORE', label: 'Restauración por Edición' },
+        { value: 'ANNULMENT_REVERSAL', label: 'Reversión de Anulación' }
     ];
 
     // Tipos que SUMAN stock (entrada) → se muestran con "+" y en verde.

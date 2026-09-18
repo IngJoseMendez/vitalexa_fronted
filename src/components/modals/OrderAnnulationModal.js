@@ -38,7 +38,7 @@ function OrderAnnulationModal({ onClose, onConfirm, isLoading = false }) {
             <span className="material-icons-round warning-icon">warning</span>
             <p className="warning-text">
               Al anular esta orden, se restaurará el stock y se registrará como anulada.
-              Esta acción no puede ser revertida.
+              Si fue un error, podrás revertir la anulación indicando un motivo.
             </p>
           </div>
 
