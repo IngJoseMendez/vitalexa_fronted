@@ -390,9 +390,16 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 <span>{currentOrder.cliente}</span>
                             </div>
                             <div className="info-item">
-                                <span className="label">Fecha:</span>
+                                <span className="label">{currentOrder.completedAt ? 'Fecha pedido:' : 'Fecha:'}</span>
                                 <span>{new Date(currentOrder.fecha).toLocaleString()}</span>
                             </div>
+                            {/* La fecha de la factura (tarjeta, PDF, reportes) es completedAt, no la del pedido */}
+                            {currentOrder.completedAt && (
+                                <div className="info-item">
+                                    <span className="label">Fecha factura:</span>
+                                    <span>{new Date(currentOrder.completedAt).toLocaleDateString('es-ES')}</span>
+                                </div>
+                            )}
                             <div className="info-item highlight">
                                 <span className="label">Total Original:</span>
                                 <span className="value">${formatCurrency(currentOrder.total)}</span>

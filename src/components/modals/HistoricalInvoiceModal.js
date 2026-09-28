@@ -4,6 +4,15 @@ import { useToast } from '../ToastContainer';
 import { useConfirm } from '../ConfirmDialog';
 import './HistoricalInvoiceModal.css'; // Importing the new premium styles
 
+// El backend guarda las fechas en hora de Colombia, sin zona: se editan y envían tal cual.
+// Pasarlas por toISOString() las convertía a UTC y cada guardado corría la fecha +5 horas.
+const toDateTimeLocal = (value) => {
+    if (typeof value === 'string') return value.slice(0, 16); // "2026-09-23T00:00:00" → "2026-09-23T00:00"
+    const date = value instanceof Date ? value : new Date();
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date - tzOffset).toISOString().slice(0, 16);
+};
+
 export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrder = null }) {
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -22,7 +31,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
     // Form State
     const [formData, setFormData] = useState({
         invoiceNumber: '',
-        fecha: new Date().toISOString().slice(0, 16),
+        fecha: toDateTimeLocal(new Date()),
         totalValue: '',
         amountPaid: '',
         clientId: '',
@@ -57,19 +66,16 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
             // For now, simple name match logic or default to registered if we find a match
             // Assuming initialOrder has: invoiceNumber, fecha, total, (payments sum?), cliente (name)
 
-            // Format date for datetime-local input
-            const dateObj = new Date(initialOrder.fecha);
-            // safe format: YYYY-MM-DDTHH:mm
-            // Adjust for timezone offset to show local time correctly in input
-            const tzOffset = dateObj.getTimezoneOffset() * 60000; // in ms
-            const localISOTime = (new Date(dateObj - tzOffset)).toISOString().slice(0, 16);
+            // Fecha de la factura: completedAt (la que muestran la tarjeta y el PDF);
+            // las históricas no tienen completedAt y su fecha es la de la factura
+            const invoiceDate = toDateTimeLocal(initialOrder.completedAt ?? initialOrder.fecha);
 
             // Find client if possible
             const matchedClient = clients.find(c => c.nombre === initialOrder.cliente);
 
             setFormData({
                 invoiceNumber: initialOrder.invoiceNumber || '',
-                fecha: localISOTime,
+                fecha: invoiceDate,
                 // ?? (no ||) para que una factura en $0 se prellene con 0 y no quede vacía
                 totalValue: initialOrder.total ?? '',
                 amountPaid: initialOrder.totalPaid ?? '', // Pre-fill with current paid amount?
@@ -179,12 +185,14 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
         try {
             const payload = {
                 invoiceNumber: parseInt(formData.invoiceNumber),
-                fecha: new Date(formData.fecha).toISOString(),
+                fecha: formData.fecha,
                 totalValue: parseFloat(formData.totalValue),
                 amountPaid: parseFloat(formData.amountPaid),
                 invoiceType: formData.invoiceType,
                 notes: formData.notes
             };
+            // Le indica al backend que la fecha editada es la de la factura (completedAt)
+            if (isEditMode) payload.invoiceDate = formData.fecha;
 
             if (isRegisteredClient) {
                 if (!formData.clientId) {
@@ -443,7 +451,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                                     </select>
                                 </div>
                                 <div className="hm-form-group">
-                                    <label className="hm-label">Fecha Emisión <span className="required">*</span></label>
+                                    <label className="hm-label">Fecha Factura <span className="required">*</span></label>
                                     <input
                                         type="datetime-local" name="fecha" className="hm-input"
                                         value={formData.fecha} onChange={handleChange} required
