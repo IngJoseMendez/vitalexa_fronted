@@ -4,6 +4,10 @@ import axios from 'axios';
 // Configuración base
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
 
+// Generar un archivo (reportes Excel/PDF, facturas) tarda más que una consulta normal: con 10 s
+// se cortaba el Excel de varios meses. Las descargas (responseType 'blob') esperan hasta 2 min.
+export const DOWNLOAD_TIMEOUT_MS = 120000;
+
 // Cliente HTTP
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -20,6 +24,10 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // timeout 0 = sin límite: se respeta
+    if (config.responseType === 'blob' && config.timeout && config.timeout < DOWNLOAD_TIMEOUT_MS) {
+      config.timeout = DOWNLOAD_TIMEOUT_MS;
     }
     return config;
   },
