@@ -6,10 +6,26 @@ import { PromotionType, getPromotionTypeLabel } from '../../utils/types';
 import { formatCurrency } from '../../utils/formatters';
 import { getParentBlockReason, normalizeSearchText } from '../../utils/promotionFilters';
 import VendorMultiSelect from '../VendorMultiSelect';
+import SearchableSelect from '../SearchableSelect';
 import '../../styles/SpecialProducts.css'; // Reusing special product styles for vendor chips/mode toggle
 import '../../styles/Promotions.css';
 
 const newTempId = () => Math.random().toString(36).substr(2, 9);
+
+// Segunda línea de cada producto en los selectores con buscador: precio, stock y etiqueta
+// distinguen nombres parecidos (también se puede buscar por la etiqueta)
+const productDescription = (product) => [
+    product.precio != null && product.precio !== '' ? `$${formatCurrency(product.precio)}` : null,
+    product.stock != null ? `Stock: ${product.stock}` : null,
+    product.tagName || null,
+    product.active === false ? 'Inactivo' : null,
+].filter(Boolean).join(' · ');
+
+const toProductOption = (product) => ({
+    value: product.id,
+    label: product.nombre,
+    description: productDescription(product),
+});
 
 const formatDateTime = (value) => {
     if (!value) return null;
@@ -57,6 +73,9 @@ function SpecialPromotionFormModal({ promotion, onClose, onSuccess }) {
     // como funcionaron siempre las especiales.
     const [visibleToAll, setVisibleToAll] = useState(isEdit ? promotion?.visibleToAll === true : true);
     const visibilityName = useId();
+    // Ids para asociar cada etiqueta con su campo (solo presentación)
+    const uid = useId();
+    const fieldId = (name) => `${uid}-${name}`;
 
     // Vendor Selection (la lista de vendedoras la carga VendorMultiSelect)
     const [selectedVendorIds, setSelectedVendorIds] = useState(promotion?.allowedVendorIds || []);
@@ -330,8 +349,13 @@ function SpecialPromotionFormModal({ promotion, onClose, onSuccess }) {
     const parentUntil = formatDateTime(parentPromotion?.validUntil);
 
     const renderLinkedSummary = () => (
-        <div className="sp-form-section spf-section">
-            <h4 className="spf-section-title">Configuración de la venta (promoción base)</h4>
+        <section className="ui-section spf-section">
+            <div className="ui-section-head">
+                <span className="ui-step" aria-hidden="true">4</span>
+                <div>
+                    <h4 className="ui-section-title spf-section-title">Configuración de la venta (promoción base)</h4>
+                </div>
+            </div>
             {!parentPromotionId ? (
                 <p className="spf-note">Selecciona la promoción base para ver qué se vende.</p>
             ) : (
@@ -365,7 +389,7 @@ function SpecialPromotionFormModal({ promotion, onClose, onSuccess }) {
                         )}
                     </dl>
                     {parentReason && (
-                        <p className="promo-sp-warning spf-block">
+                        <p className="ui-alert ui-alert--danger spf-block">
                             <span className="material-icons-round" aria-hidden="true">block</span>
                             {parentReason}
                         </p>
@@ -376,70 +400,94 @@ function SpecialPromotionFormModal({ promotion, onClose, onSuccess }) {
                     </p>
                 </>
             )}
-        </div>
+        </section>
     );
 
     const renderStandaloneConfig = () => (
-        <div className="sp-form-section spf-section">
-            <h4 className="spf-section-title">Configuración</h4>
-            <div className="sp-form-row">
-                <div className="sp-form-group">
-                    <label>Tipo</label>
-                    <select value={formData.type} onChange={e => handleChange('type', e.target.value)}>
+        <section className="ui-section spf-section">
+            <div className="ui-section-head">
+                <span className="ui-step" aria-hidden="true">4</span>
+                <div>
+                    <h4 className="ui-section-title spf-section-title">Configuración</h4>
+                    <p className="ui-section-desc">Tipo, producto principal y regalos de esta especial.</p>
+                </div>
+            </div>
+            <div className="ui-grid">
+                <div className="ui-field">
+                    <label className="ui-label" htmlFor={fieldId('type')}>Tipo</label>
+                    <select id={fieldId('type')} className="ui-select" value={formData.type} onChange={e => handleChange('type', e.target.value)}>
                         <option value={PromotionType.PACK}>Fija (Pack)</option>
                         <option value={PromotionType.BUY_GET_FREE}>Surtido</option>
                     </select>
                 </div>
-                <div className="sp-form-group">
-                    <label>Producto Principal</label>
+                <div className="ui-field">
+                    <label className="ui-label" htmlFor={fieldId('mainProduct')}>Producto Principal</label>
                     {loadingProducts ? (
-                        <div style={{ padding: '10px', color: '#666', fontSize: '0.9rem' }}>Cargando productos...</div>
+                        <div className="pmf-skeleton">
+                            <span className="ui-spinner ui-spinner--sm" aria-hidden="true" />
+                            Cargando productos...
+                        </div>
                     ) : (
-                        <select value={formData.mainProductId} onChange={e => handleChange('mainProductId', e.target.value)} required>
-                            <option value="">Seleccionar...</option>
-                            {products.filter(p => p.active || p.id === formData.mainProductId).map(p => (
-                                <option key={p.id} value={p.id}>{p.nombre}</option>
-                            ))}
-                        </select>
+                        <SearchableSelect
+                            id={fieldId('mainProduct')}
+                            value={formData.mainProductId}
+                            onChange={e => handleChange('mainProductId', e.target.value)}
+                            options={products.filter(p => p.active || p.id === formData.mainProductId).map(toProductOption)}
+                            placeholder="Seleccionar..."
+                            searchPlaceholder="Escribe el nombre del producto…"
+                            noResultsText="Ningún producto coincide"
+                            required
+                        />
                     )}
                 </div>
-            </div>
-            <div className="sp-form-row">
-                <div className="sp-form-group">
-                    <label>Cant. Compra</label>
-                    <input type="number" value={formData.buyQuantity} onChange={e => handleChange('buyQuantity', e.target.value)} onWheel={(e) => e.target.blur()} />
+                <div className="ui-field">
+                    <label className="ui-label" htmlFor={fieldId('buyQuantity')}>Cant. Compra</label>
+                    <input id={fieldId('buyQuantity')} className="ui-input" type="number" inputMode="numeric" value={formData.buyQuantity} onChange={e => handleChange('buyQuantity', e.target.value)} onWheel={(e) => e.target.blur()} />
                 </div>
                 {formData.type !== PromotionType.PACK && (
-                    <div className="sp-form-group">
-                        <label>Cantidad a Bonificar (Surtido)</label>
-                        <input type="number" value={formData.freeQuantity} onChange={e => handleChange('freeQuantity', e.target.value)} onWheel={(e) => e.target.blur()} />
+                    <div className="ui-field">
+                        <label className="ui-label" htmlFor={fieldId('freeQuantity')}>Cantidad a Bonificar (Surtido)</label>
+                        <input id={fieldId('freeQuantity')} className="ui-input" type="number" inputMode="numeric" value={formData.freeQuantity} onChange={e => handleChange('freeQuantity', e.target.value)} onWheel={(e) => e.target.blur()} />
                     </div>
                 )}
             </div>
 
             {/* Rewards */}
             {formData.type === PromotionType.PACK && (
-                <div className="sp-form-group">
-                    <label>Regalos (Fijo)</label>
-                    <div style={{ background: '#f9fafb', padding: '0.5rem', borderRadius: '6px' }}>
-                        {formData.giftItems.map(item => (
-                            <div key={item.tempId} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                <span>{item.quantity}x {productName(item.productId)}</span>
-                                <button type="button" className="spf-link-danger" onClick={() => handleRemoveGift(item.tempId)} aria-label="Quitar regalo">&times;</button>
-                            </div>
-                        ))}
-                        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                            <select value={newGift.productId} onChange={e => setNewGift(prev => ({ ...prev, productId: e.target.value }))} style={{ flex: 1 }}>
-                                <option value="">Añadir producto...</option>
-                                {products.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                            </select>
-                            <input type="number" value={newGift.quantity} onChange={e => setNewGift(prev => ({ ...prev, quantity: e.target.value }))} style={{ width: '70px' }} />
-                            <button type="button" onClick={handleAddGift} className="sp-btn-secondary" style={{ padding: '0 0.75rem' }}>+</button>
+                <div className="ui-field spf-gifts">
+                    <label className="ui-label" htmlFor={fieldId('giftProduct')}>Regalos (Fijo)</label>
+                    <div className="pmf-gifts">
+                        <ul className="pmf-gift-list">
+                            {formData.giftItems.map(item => (
+                                <li key={item.tempId} className="pmf-gift-item">
+                                    <span className="ui-badge ui-badge--primary pmf-gift-qty">{item.quantity}x</span>
+                                    <span className="pmf-gift-name">{productName(item.productId)}</span>
+                                    <button type="button" className="ui-icon-btn ui-icon-btn--danger" onClick={() => handleRemoveGift(item.tempId)} title="Quitar regalo" aria-label="Quitar regalo">
+                                        <span className="material-icons-round" aria-hidden="true">delete_outline</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="pmf-add-gift">
+                            <SearchableSelect
+                                id={fieldId('giftProduct')}
+                                value={newGift.productId}
+                                onChange={e => setNewGift(prev => ({ ...prev, productId: e.target.value }))}
+                                options={products.filter(p => p.active).map(toProductOption)}
+                                placeholder="Añadir producto..."
+                                searchPlaceholder="Escribe el nombre del producto…"
+                                noResultsText="Ningún producto coincide"
+                            />
+                            <input className="ui-input" type="number" inputMode="numeric" aria-label="Cantidad del regalo" value={newGift.quantity} onChange={e => setNewGift(prev => ({ ...prev, quantity: e.target.value }))} />
+                            <button type="button" onClick={handleAddGift} className="ui-btn ui-btn--secondary pmf-add-gift-btn">
+                                <span className="material-icons-round" aria-hidden="true">add</span>
+                                Agregar
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+        </section>
     );
 
     const packPriceHelp = isLinked
@@ -449,177 +497,249 @@ function SpecialPromotionFormModal({ promotion, onClose, onSuccess }) {
         : null;
 
     return (
-        <div className="sp-modal-overlay" onClick={onClose}>
-            <div className="sp-modal spf-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '760px', width: '95%' }}>
-                <div className="sp-modal-header">
-                    <h3>
+        <div className="ui-modal-overlay" onClick={onClose}>
+            <div
+                className="ui-modal ui-modal--lg spf-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={fieldId('title')}
+                onClick={e => e.stopPropagation()}
+            >
+                <header className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
                         <span className="material-icons-round">local_offer</span>
-                        {isEdit ? 'Editar Promoción Especial' : 'Nueva Promoción Especial'}
-                    </h3>
-                    <button type="button" className="sp-modal-close" onClick={onClose} aria-label="Cerrar">
-                        <span className="material-icons-round">close</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id={fieldId('title')} className="ui-modal-title">
+                            {isEdit ? 'Editar Promoción Especial' : 'Nueva Promoción Especial'}
+                        </h3>
+                        <p className="ui-modal-subtitle">Precio propio y vendedoras que la pueden vender.</p>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
-                </div>
+                </header>
 
-                <form className="sp-modal-body" onSubmit={handleSubmit}>
+                <form className="ui-modal-body" onSubmit={handleSubmit}>
 
-                    {/* Mode Selection */}
-                    {!isEdit && (
-                        <div className="sp-mode-toggle">
-                            <button type="button" className={`sp-mode-btn ${mode === 'linked' ? 'active' : ''}`}
-                                onClick={() => setMode('linked')}>
-                                <span className="material-icons-round">link</span>
-                                Vinculada
-                            </button>
-                            <button type="button" className={`sp-mode-btn ${mode === 'standalone' ? 'active' : ''}`}
-                                onClick={() => { setMode('standalone'); removeParent(); }}>
-                                <span className="material-icons-round">add_circle</span>
-                                Standalone
-                            </button>
+                    {/* 1. Tipo: vinculada a una promoción base o standalone */}
+                    <section className="ui-section">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">1</span>
+                            <div>
+                                <h4 className="ui-section-title">Tipo de promoción especial</h4>
+                                <p className="ui-section-desc">De dónde salen el tipo, los productos y los regalos.</p>
+                            </div>
                         </div>
-                    )}
 
-                    {/* Edit Mode Badge */}
-                    {isEdit && (
-                        <div style={{ marginBottom: '1rem' }}>
-                            <span className={`sp-type-badge ${promotion.parentPromotionId ? 'linked' : 'standalone'}`} style={{ position: 'static', display: 'inline-flex' }}>
-                                <span className="material-icons-round" style={{ fontSize: '13px' }}>
-                                    {promotion.parentPromotionId ? 'link' : 'add_circle'}
-                                </span>
-                                {promotion.parentPromotionId ? `Vinculada a: ${promotion.parentPromotionName}` : 'Standalone'}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Las standalone no se pueden vender: OrderServiceImpl rechaza la venta */}
-                    {!isLinked && (
-                        <div className="spf-alert" role="alert">
-                            <span className="material-icons-round" aria-hidden="true">warning_amber</span>
-                            <p>
-                                Las promociones especiales <strong>Standalone no se pueden vender</strong>: al crear la venta
-                                el sistema la rechaza. Usa <strong>Vinculada</strong> para que las vendedoras asignadas puedan venderla.
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Parent Search */}
-                    {!isEdit && isLinked && (
-                        <div className="sp-form-group">
-                            <label>Promoción Base *</label>
-                            {parentPromotionId ? (
-                                <div className="sp-parent-selected">
-                                    <div className="info">
-                                        <div className="name">{parentPromotionName}</div>
-                                        <div className="detail">Promoción base seleccionada</div>
-                                    </div>
-                                    <button type="button" onClick={removeParent} aria-label="Quitar promoción base">
-                                        <span className="material-icons-round">close</span>
+                        <div className="spf-stack">
+                            {/* Mode Selection */}
+                            {!isEdit && (
+                                <div className="ui-choice-grid" role="group" aria-label="Tipo de promoción especial">
+                                    <button
+                                        type="button"
+                                        aria-pressed={mode === 'linked'}
+                                        className={`ui-choice ui-choice--compact spf-choice-btn${mode === 'linked' ? ' is-selected' : ''}`}
+                                        onClick={() => setMode('linked')}
+                                    >
+                                        <span className="material-icons-round ui-choice-icon" aria-hidden="true">link</span>
+                                        <span className="ui-choice-text">
+                                            <span className="ui-choice-title">Vinculada</span>
+                                            <span className="ui-choice-desc">Toma tipo, productos y regalos de una promoción base.</span>
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-pressed={mode === 'standalone'}
+                                        className={`ui-choice ui-choice--compact spf-choice-btn${mode === 'standalone' ? ' is-selected' : ''}`}
+                                        onClick={() => { setMode('standalone'); removeParent(); }}
+                                    >
+                                        <span className="material-icons-round ui-choice-icon" aria-hidden="true">add_circle</span>
+                                        <span className="ui-choice-text">
+                                            <span className="ui-choice-title">Standalone</span>
+                                            <span className="ui-choice-desc">Configuración propia; no se puede vender.</span>
+                                        </span>
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="sp-parent-search">
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar promoción base..."
-                                        value={parentSearch}
-                                        onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
-                                        onFocus={() => setShowParentDropdown(true)}
-                                    />
-                                    {showParentDropdown && parentResults.length > 0 && (
-                                        <div className="sp-parent-dropdown">
-                                            {parentResults.map(p => (
-                                                <div key={p.id} className="sp-parent-option" onClick={() => handleSelectParent(p)}>
-                                                    <div className="info">
-                                                        <div className="name">{p.nombre}</div>
-                                                        <div className="detail">
-                                                            {p.mainProduct?.nombre} (x{p.buyQuantity})
-                                                            {getParentBlockReason(p) ? ` · ${getParentBlockReason(p)}` : ''}
+                            )}
+
+                            {/* Edit Mode Badge */}
+                            {isEdit && (
+                                <div className="spf-kind">
+                                    <span className="ui-badge ui-badge--neutral spf-kind-badge">
+                                        <span className="material-icons-round" aria-hidden="true">
+                                            {promotion.parentPromotionId ? 'link' : 'add_circle'}
+                                        </span>
+                                        {promotion.parentPromotionId ? `Vinculada a: ${promotion.parentPromotionName}` : 'Standalone'}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Las standalone no se pueden vender: OrderServiceImpl rechaza la venta */}
+                            {!isLinked && (
+                                <div className="ui-alert ui-alert--warning" role="alert">
+                                    <span className="material-icons-round" aria-hidden="true">warning_amber</span>
+                                    <p>
+                                        Las promociones especiales <strong>Standalone no se pueden vender</strong>: al crear la venta
+                                        el sistema la rechaza. Usa <strong>Vinculada</strong> para que las vendedoras asignadas puedan venderla.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Parent Search */}
+                            {!isEdit && isLinked && (
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor={fieldId('parentSearch')}>Promoción Base <span className="ui-required">*</span></label>
+                                    {parentPromotionId ? (
+                                        <div className="sp-parent-selected">
+                                            <span className="sp-parent-selected-icon" aria-hidden="true">
+                                                <span className="material-icons-round">link</span>
+                                            </span>
+                                            <div className="info">
+                                                <div className="name">{parentPromotionName}</div>
+                                                <div className="detail">Promoción base seleccionada</div>
+                                            </div>
+                                            <button type="button" className="ui-icon-btn" onClick={removeParent} aria-label="Quitar promoción base">
+                                                <span className="material-icons-round" aria-hidden="true">close</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="sp-parent-search">
+                                            <div className="ui-input-group">
+                                                <span className="material-icons-round ui-input-icon" aria-hidden="true">search</span>
+                                                <input
+                                                    id={fieldId('parentSearch')}
+                                                    className="ui-input"
+                                                    type="text"
+                                                    autoComplete="off"
+                                                    placeholder="Buscar promoción base..."
+                                                    value={parentSearch}
+                                                    onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
+                                                    onFocus={() => setShowParentDropdown(true)}
+                                                />
+                                            </div>
+                                            {showParentDropdown && parentResults.length > 0 && (
+                                                <div className="sp-parent-dropdown">
+                                                    {parentResults.map(p => (
+                                                        <div key={p.id} className="sp-parent-option" onClick={() => handleSelectParent(p)}>
+                                                            <div className="info">
+                                                                <div className="name">{p.nombre}</div>
+                                                                <div className="detail">
+                                                                    {p.mainProduct?.nombre} (x{p.buyQuantity})
+                                                                    {getParentBlockReason(p) ? ` · ${getParentBlockReason(p)}` : ''}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
-                    )}
+                    </section>
 
-                    {/* Basic Info */}
-                    <div className="sp-form-group">
-                        <label>Nombre *</label>
-                        <input type="text" value={formData.nombre} onChange={e => handleChange('nombre', e.target.value)} required />
-                    </div>
-                    <div className="sp-form-group">
-                        <label>Descripción</label>
-                        <textarea rows="2" value={formData.descripcion} onChange={e => handleChange('descripcion', e.target.value)} />
-                    </div>
-
-                    <div className="sp-form-row">
-                        <div className="sp-form-group">
-                            <label>Precio del paquete {isLinked ? '' : '(Opcional)'}</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder={isLinked ? 'Precio de la base' : 'Calculado'}
-                                value={formData.packPrice ?? ''}
-                                onChange={e => handleChange('packPrice', e.target.value)}
-                                onWheel={(e) => e.target.blur()}
-                            />
-                            {(packPriceHelp || (formData.packPrice !== '' && formData.packPrice !== null)) && (
-                                <small className="spf-help">
-                                    {packPriceHelp}
-                                    {formData.packPrice !== '' && formData.packPrice !== null && !isNaN(parseFloat(formData.packPrice)) && (
-                                        <strong> ${formatCurrency(formData.packPrice)}</strong>
-                                    )}
-                                </small>
+                    {/* 2. Basic Info */}
+                    <section className="ui-section">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">2</span>
+                            <div>
+                                <h4 className="ui-section-title">Información básica</h4>
+                                <p className="ui-section-desc">Nombre y precio con los que la verán las vendedoras.</p>
+                            </div>
+                        </div>
+                        <div className="ui-grid">
+                            <div className="ui-field ui-span-full">
+                                <label className="ui-label" htmlFor={fieldId('nombre')}>Nombre <span className="ui-required">*</span></label>
+                                <input id={fieldId('nombre')} className="ui-input" type="text" value={formData.nombre} onChange={e => handleChange('nombre', e.target.value)} required />
+                            </div>
+                            <div className="ui-field ui-span-full">
+                                <label className="ui-label" htmlFor={fieldId('descripcion')}>Descripción</label>
+                                <textarea id={fieldId('descripcion')} className="ui-textarea" rows="2" value={formData.descripcion} onChange={e => handleChange('descripcion', e.target.value)} />
+                            </div>
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('packPrice')}>
+                                    Precio del paquete {isLinked ? '' : <span className="ui-optional">(Opcional)</span>}
+                                </label>
+                                <div className="ui-input-group">
+                                    <span className="ui-input-prefix" aria-hidden="true">$</span>
+                                    <input
+                                        id={fieldId('packPrice')}
+                                        className="ui-input"
+                                        type="number"
+                                        inputMode="decimal"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder={isLinked ? 'Precio de la base' : 'Calculado'}
+                                        value={formData.packPrice ?? ''}
+                                        onChange={e => handleChange('packPrice', e.target.value)}
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                                {(packPriceHelp || (formData.packPrice !== '' && formData.packPrice !== null)) && (
+                                    <small className="ui-help">
+                                        {packPriceHelp}
+                                        {formData.packPrice !== '' && formData.packPrice !== null && !isNaN(parseFloat(formData.packPrice)) && (
+                                            <strong className="pmf-price-preview"> ${formatCurrency(formData.packPrice)}</strong>
+                                        )}
+                                    </small>
+                                )}
+                            </div>
+                            {isEdit && (
+                                <div className="ui-field">
+                                    <label className="ui-label">Estado</label>
+                                    <label className="ui-switch">
+                                        <input type="checkbox" checked={formData.active} onChange={e => handleChange('active', e.target.checked)} />
+                                        <span className="ui-switch-track" aria-hidden="true"><span className="ui-switch-thumb" /></span>
+                                        <span className="ui-switch-text">
+                                            <span className="ui-switch-title">Promoción Activa</span>
+                                        </span>
+                                    </label>
+                                </div>
                             )}
                         </div>
-                        {isEdit && (
-                            <div className="sp-form-group">
-                                <label>Estado</label>
-                                <label className="spf-checkbox">
-                                    <input type="checkbox" checked={formData.active} onChange={e => handleChange('active', e.target.checked)} style={{ accentColor: 'var(--primary)' }} />
-                                    Promoción Activa
-                                </label>
-                            </div>
-                        )}
-                    </div>
+                    </section>
 
-                    {/* ¿Quién la ve? Misma opción que las promociones normales */}
-                    <div className="spf-section spf-visibility">
-                        <h4 className="spf-section-title">¿Quién ve esta promoción especial?</h4>
-                        <div className="pmf-choice-grid" role="radiogroup" aria-label="¿Quién ve esta promoción especial?">
-                            <label className={`pmf-choice compact ${visibleToAll ? 'is-selected' : ''}`}>
+                    {/* 3. ¿Quién la ve? Misma opción que las promociones normales */}
+                    <section className="ui-section spf-visibility">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">3</span>
+                            <div>
+                                <h4 className="ui-section-title spf-section-title">¿Quién ve esta promoción especial?</h4>
+                                <p className="ui-section-desc spf-visibility-note">Admin y owner siempre la pueden usar.</p>
+                            </div>
+                        </div>
+                        <div className="ui-choice-grid" role="radiogroup" aria-label="¿Quién ve esta promoción especial?">
+                            <label className={`ui-choice ui-choice--compact${visibleToAll ? ' is-selected' : ''}`}>
                                 <input
                                     type="radio"
                                     name={visibilityName}
                                     checked={visibleToAll}
                                     onChange={() => setVisibleToAll(true)}
                                 />
-                                <span className="material-icons-round pmf-choice-icon" aria-hidden="true">groups</span>
-                                <span className="pmf-choice-text">
-                                    <span className="pmf-choice-title">Todas las vendedoras</span>
-                                    <span className="pmf-choice-desc">Cualquier vendedora la ve y la puede vender, también las nuevas.</span>
+                                <span className="material-icons-round ui-choice-icon" aria-hidden="true">groups</span>
+                                <span className="ui-choice-text">
+                                    <span className="ui-choice-title">Todas las vendedoras</span>
+                                    <span className="ui-choice-desc">Cualquier vendedora la ve y la puede vender, también las nuevas.</span>
                                 </span>
                             </label>
-                            <label className={`pmf-choice compact ${!visibleToAll ? 'is-selected' : ''}`}>
+                            <label className={`ui-choice ui-choice--compact${!visibleToAll ? ' is-selected' : ''}`}>
                                 <input
                                     type="radio"
                                     name={visibilityName}
                                     checked={!visibleToAll}
                                     onChange={() => setVisibleToAll(false)}
                                 />
-                                <span className="material-icons-round pmf-choice-icon" aria-hidden="true">person_search</span>
-                                <span className="pmf-choice-text">
-                                    <span className="pmf-choice-title">Solo las seleccionadas</span>
-                                    <span className="pmf-choice-desc">Solo las vendedoras que elijas abajo.</span>
+                                <span className="material-icons-round ui-choice-icon" aria-hidden="true">person_search</span>
+                                <span className="ui-choice-text">
+                                    <span className="ui-choice-title">Solo las seleccionadas</span>
+                                    <span className="ui-choice-desc">Solo las vendedoras que elijas abajo.</span>
                                 </span>
                             </label>
                         </div>
                         {!visibleToAll && (
-                            <div className="sp-form-group pmf-vendors">
+                            <div className="pmf-vendors">
                                 <VendorMultiSelect
                                     label="Vendedoras asignadas"
                                     selectedIds={selectedVendorIds}
@@ -630,20 +750,22 @@ function SpecialPromotionFormModal({ promotion, onClose, onSuccess }) {
                                 />
                             </div>
                         )}
-                        <p className="spf-note spf-visibility-note">Admin y owner siempre la pueden usar.</p>
-                    </div>
+                    </section>
 
-                    {/* Configuración: de la base (solo lectura) o propia (standalone) */}
+                    {/* 4. Configuración: de la base (solo lectura) o propia (standalone) */}
                     {isLinked ? renderLinkedSummary() : renderStandaloneConfig()}
 
                 </form>
 
-                <div className="sp-modal-footer">
-                    <button type="button" className="sp-btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
-                    <button type="button" className="sp-btn-primary" onClick={handleSubmit} disabled={saving}>
+                <footer className="ui-modal-footer">
+                    <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose} disabled={saving}>Cancelar</button>
+                    <button type="button" className="ui-btn ui-btn--primary" onClick={handleSubmit} disabled={saving}>
+                        {saving
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round" aria-hidden="true">save</span>}
                         {saving ? 'Guardando...' : (isEdit ? 'Actualizar' : 'Guardar')}
                     </button>
-                </div>
+                </footer>
             </div>
         </div>
     );

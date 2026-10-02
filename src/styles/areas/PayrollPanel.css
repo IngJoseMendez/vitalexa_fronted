@@ -1,0 +1,564 @@
+/* ==========================================================================
+   PayrollPanel — Nómina mensual (Owner / Admin)
+   Raíz .prl (prefijo prl-). Encabezado, pestañas, modales, campos y badges
+   vienen de las primitivas .ui-*; aquí solo la composición propia.
+   Los modales (.prl-modal) se renderizan dentro de .prl.
+   ========================================================================== */
+
+.prl {
+  color: var(--color-text);
+}
+
+.prl .prl-tabs {
+  margin-bottom: var(--space-5);
+}
+
+.prl .prl-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ---------- Barra de período y acciones ---------- */
+.prl .prl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.prl .prl-period {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* El icono del período va en una baldosa azul (.ui-icon-tile--primary) */
+.prl .prl-period-icon {
+  flex-shrink: 0;
+}
+
+.prl .prl-select {
+  width: auto;
+  min-width: 120px;
+}
+
+.prl .prl-notes-input {
+  flex: 1 1 200px;
+  width: auto;
+  min-width: 0;
+}
+
+.prl .prl-threshold-input {
+  flex: 0 1 280px;
+  width: auto;
+  min-width: 0;
+}
+
+.prl .prl-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prl .prl-state p {
+  margin: 0;
+}
+
+/* Carga: "Cargando nóminas..." arriba y esqueletos con la forma de las tarjetas */
+.prl .prl-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.prl .prl-loading .prl-state {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.prl .prl-card--skeleton .prl-card-body {
+  gap: var(--space-3);
+}
+
+.prl .prl-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.prl .prl-skeleton-heading {
+  flex: 1;
+}
+
+.prl .prl-skeleton-title {
+  width: 60%;
+}
+
+.prl .prl-skeleton-sub {
+  width: 40%;
+}
+
+.prl .prl-skeleton-total {
+  width: 96px;
+  height: 28px;
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Rejilla de tarjetas ---------- */
+.prl .prl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-4);
+}
+
+.prl .prl-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* En tarjetas angostas (celular) el total baja a su propia línea, alineado a la derecha */
+.prl .prl-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+/* Identidad: avatar de color (tono por nombre) + nombre y período */
+.prl .prl-card-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 170px;
+  min-width: 0;
+}
+
+.prl .prl-card-heading {
+  min-width: 0;
+}
+
+.prl .prl-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.prl .prl-card-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.prl .prl-card-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  margin-left: auto;
+  text-align: right;
+}
+
+.prl .prl-card-total-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Total a pagar: el número que manda, en verde (dinero que recibe la vendedora) */
+.prl .prl-card-total-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-success-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.prl .prl-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.prl .prl-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+/* Dato con baldosa de color: salario base (azul) y comisiones (verde) */
+.prl .prl-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.prl .prl-info-text {
+  min-width: 0;
+}
+
+.prl .prl-info-label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.prl .prl-info-value {
+  font-size: var(--text-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.prl .prl-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prl .prl-card-notes {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.prl .prl-card-notes .material-icons-round {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 1px;
+}
+
+.prl .prl-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.prl .prl-card-actions-spacer {
+  flex: 1;
+}
+
+/* ---------- Configuración ---------- */
+.prl .prl-intro {
+  margin: 0;
+  max-width: 720px;
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+}
+
+.prl .prl-inline-state {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.prl .prl-config-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.prl .prl-config-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.prl .prl-config-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.prl .prl-config-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* ---------- Filas etiqueta / valor (detalle y configuración) ---------- */
+.prl .prl-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prl .prl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 24px;
+  font-size: var(--text-sm);
+}
+
+.prl .prl-row-label {
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+
+.prl .prl-row-value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.prl .prl-row-value.is-highlight {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.prl .prl-row-value.is-muted {
+  color: var(--color-text-muted);
+}
+
+/* Comisión que sí aplica: monto ganado en verde */
+.prl .prl-row-value.is-positive {
+  color: var(--color-success-text);
+}
+
+/* ---------- Modales ---------- */
+.prl-modal .prl-detail-section {
+  padding: var(--space-4);
+}
+
+.prl-modal .prl-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.prl-modal .prl-detail-section .prl-section-title {
+  margin-bottom: var(--space-3);
+}
+
+/* Los iconos de los títulos van en baldosas de color (.ui-icon-tile--sm + tono) */
+
+/* Totales: el número es lo que manda. Franja verde a la izquierda y el total a pagar
+   en una banda verde suave */
+.prl-modal .prl-totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-lg);
+  box-shadow: inset 4px 0 0 var(--color-success), var(--shadow-card);
+}
+
+.prl-modal .prl-totals-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.prl-modal .prl-totals-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.prl-modal .prl-totals-value {
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.prl-modal .prl-totals-row.is-grand {
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+}
+
+.prl-modal .prl-totals-row.is-grand .prl-totals-label {
+  color: var(--color-success-text);
+}
+
+.prl-modal .prl-totals-row.is-grand .prl-totals-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-success-text);
+}
+
+.prl-modal .prl-notes {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.prl-modal .prl-notes .material-icons-round {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--color-text-muted);
+}
+
+.prl-modal .prl-timestamp {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Historial */
+.prl-modal .prl-modal-state {
+  margin: 0;
+  padding: var(--space-6) 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.prl-modal .prl-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prl-modal .prl-history-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease);
+}
+
+.prl-modal .prl-history-item:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-strong);
+}
+
+.prl-modal .prl-history-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.prl-modal .prl-history-period {
+  font-weight: 600;
+}
+
+/* Total pagado de ese mes en verde (.ui-text-success) */
+.prl-modal .prl-history-amount {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.prl-modal .prl-history-notes {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Formulario de configuración: el <form> envuelve cuerpo + pie */
+.prl-modal .prl-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.prl-modal .prl-stack {
+  gap: var(--space-3);
+}
+
+.prl-modal .prl-mode-label {
+  margin: 0;
+}
+
+.prl-modal .prl-field-spaced {
+  margin-top: var(--space-2);
+}
+
+/* ---------- Móvil ---------- */
+@media (max-width: 640px) {
+  .prl .prl-toolbar {
+    padding: var(--space-3);
+  }
+
+  .prl .prl-period,
+  .prl .prl-notes-input,
+  .prl .prl-threshold-input,
+  .prl .prl-toolbar-actions {
+    flex: 1 1 100%;
+  }
+
+  .prl .prl-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .prl .prl-toolbar-actions .ui-btn {
+    flex: 1 1 auto;
+  }
+
+  .prl .prl-card-actions .ui-btn {
+    flex: 1 1 auto;
+  }
+
+  .prl-modal .prl-row {
+    align-items: flex-start;
+  }
+}

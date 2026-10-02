@@ -56,14 +56,19 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
     }, [initialPromotions, initLoading, toast]);
 
     if (loading) {
-        return <div className="loading-inline">Cargando promociones...</div>;
+        return (
+            <div className="ui-loading">
+                <span className="ui-spinner" aria-hidden="true" />
+                Cargando promociones...
+            </div>
+        );
     }
 
     if (promotions.length === 0) {
         return (
-            <div className="empty-state-promotions">
-                <span className="material-icons-round" style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>local_offer</span>
-                <p>No hay promociones disponibles en este momento</p>
+            <div className="ui-empty promo-catalog-empty">
+                <span className="material-icons-round ui-empty-icon" aria-hidden="true">local_offer</span>
+                <p className="ui-empty-text">No hay promociones disponibles en este momento</p>
             </div>
         );
     }
@@ -79,51 +84,52 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
 
     return (
         <div className="promotions-catalog">
-            <h3>
-                <span className="material-icons-round" style={{ color: '#e11d48' }}>local_offer</span>
+            <h3 className="promo-catalog-title">
+                <span className="material-icons-round" aria-hidden="true">local_offer</span>
                 Promociones Disponibles
             </h3>
 
             {/* Buscador de Promociones con botón limpiar */}
-            <div className="search-container search-container-sm">
-                <span className="material-icons-round search-icon">search</span>
+            <div className="ui-search promo-catalog-search">
+                <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                 <input
                     type="text"
                     placeholder="Buscar promociones..."
+                    aria-label="Buscar promociones"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="search-input search-input-sm"
+                    className="ui-input"
                 />
                 {searchTerm && (
                     <button
                         type="button"
-                        className="search-clear-btn"
+                        className="ui-icon-btn ui-search-clear"
                         onClick={() => setSearchTerm('')}
                         title="Limpiar búsqueda"
                         aria-label="Limpiar búsqueda"
                     >
-                        <span className="material-icons-round">close</span>
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 )}
             </div>
 
             {filteredPromotions.length === 0 ? (
-                <div className="empty-state-promotions">
-                    <span className="material-icons-round" style={{ fontSize: '2rem', color: 'var(--text-muted)' }}>search_off</span>
-                    <p>No se encontraron promociones</p>
+                <div className="ui-empty promo-catalog-empty">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                    <p className="ui-empty-text">No se encontraron promociones</p>
                 </div>
             ) : (
             <div className="promotions-grid-compact">
                 {filteredPromotions.map(promotion => (
-                    <div key={promotion.id} className="promotion-card compact">
+                    <article key={promotion.id} className="ui-card promotion-card promo-catalog-card">
                         <div className="promotion-header-compact">
                             <h4 className="promotion-title">{promotion.nombre}</h4>
-                            <span className={`promotion-badge type-${(promotion.type || '').toLowerCase().replace('_', '-')}`}>
+                            <span className="ui-badge ui-badge--neutral">
                                 {getPromotionTypeLabel(promotion.type)}
                             </span>
                             {/* Especial asignada a esta vendedora (precio propio, reglas de su promoción base) */}
                             {promotion.isSpecial && (
-                                <span className="promotion-badge" style={{ background: '#7c3aed', color: 'white', marginLeft: '5px' }}>
+                                <span className="ui-badge ui-badge--primary">
                                     ESPECIAL
                                 </span>
                             )}
@@ -132,17 +138,17 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
                         <div className="promotion-desc-compact">
                             {isAssortmentPromotion(promotion) ? (
                                 // Surtido = paquete: el principal va incluido y se escogen los gratis
-                                <div style={{ color: getAssortmentFreeLimit(promotion) != null ? 'var(--success)' : 'var(--text-muted)', fontWeight: 'bold' }}>
+                                <div className={`promo-catalog-free${getAssortmentFreeLimit(promotion) != null ? '' : ' is-unknown'}`}>
                                     {describeAssortment(promotion)}
                                 </div>
                             ) : (
                                 <>
-                                    <div style={{ marginBottom: '4px' }}>Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}</div>
-                                    <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
+                                    <div className="promo-catalog-line">Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}</div>
+                                    <div className="promo-catalog-free">
                                         Recibe Gratis:
                                         {promotion.type === PromotionType.PACK ? (
                                             promotion.giftItems && promotion.giftItems.length > 0 ? (
-                                                <ul style={{ margin: '4px 0 0 0', paddingLeft: '1.2rem', fontSize: '0.8rem' }}>
+                                                <ul className="promo-catalog-gifts">
                                                     {promotion.giftItems.map((gift, idx) => (
                                                         <li key={idx}>
                                                             {gift.quantity}x {gift.product ? gift.product.nombre : 'Producto'}
@@ -150,7 +156,7 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
                                                     ))}
                                                 </ul>
                                             ) : (
-                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}> Sin regalos definidos</span>
+                                                <span className="promo-catalog-none"> Sin regalos definidos</span>
                                             )
                                         ) : (
                                             <span> {promotion.freeQuantity} Unidades a Elección</span>
@@ -163,7 +169,7 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
                         {promotion.mainProduct && (
                             <div className="promotion-product-compact">
                                 {promotion.mainProduct.imageUrl && (
-                                    <img src={promotion.mainProduct.imageUrl} alt="" className="product-thumb" onError={(e) => e.target.style.display = 'none'} />
+                                    <img src={promotion.mainProduct.imageUrl} alt="" className="product-thumb" width="32" height="32" loading="lazy" decoding="async" onError={(e) => e.target.style.display = 'none'} />
                                 )}
                                 <span>{promotion.mainProduct.nombre}</span>
                             </div>
@@ -174,14 +180,15 @@ function VendedorPromotionsCatalog({ onAddToCart, initialPromotions, initLoading
                                 <span className="promotion-price-tag">${formatCurrency(promotion.packPrice)}</span>
                             )}
                             <button
-                                className="btn-add-promo"
+                                type="button"
+                                className="ui-btn ui-btn--primary ui-btn--block promo-add-btn"
                                 onClick={() => onAddToCart(promotion)}
                             >
-                                <span className="material-icons-round">add_shopping_cart</span>
+                                <span className="material-icons-round" aria-hidden="true">add_shopping_cart</span>
                                 Agregar
                             </button>
                         </div>
-                    </div>
+                    </article>
                 ))}
             </div>
             )}

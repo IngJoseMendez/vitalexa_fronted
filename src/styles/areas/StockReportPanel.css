@@ -1,0 +1,325 @@
+/* =========================================================================
+   REPORTE DE STOCK REAL (StockReportPanel) — se abre en Admin y en Owner.
+   Hoja propia con prefijo isr- (inventario / stock real): no depende de las hojas
+   de Admin ni de Owner. Usa tokens y primitivas .ui-*.
+   Orden de carga: StockReportPanel importa PhysicalCountModal ANTES que esta hoja
+   (mismo orden en los dos chunks; evita el aviso "Conflicting order" del build).
+   ========================================================================= */
+
+.isr-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.isr-page > .ui-page-header {
+  margin-bottom: var(--space-2);
+}
+
+.isr-desc strong {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* Cada término de la descripción en el color de su columna (bodega verde, pedidos azul) */
+.isr-desc .isr-key--success { color: var(--color-success-text); }
+.isr-desc .isr-key--primary { color: var(--color-primary-text); }
+.isr-desc .isr-key:not(.isr-key--success):not(.isr-key--primary) { color: var(--color-text); }
+
+/* Iconos con tinte (botón Actualizar, vacío, Conteo físico = ajuste en ámbar) */
+.isr-icon--primary.material-icons-round { color: var(--color-primary); }
+.isr-icon--success.material-icons-round { color: var(--color-success); }
+.isr-icon--warning.material-icons-round { color: var(--color-warning); }
+
+/* Tarjetas de resumen: blancas con borde fino + sombra suave de tarjeta */
+.isr-stat {
+  box-shadow: var(--shadow-card);
+}
+
+/* ---------- Pestañas de vista: el icono lleva el tono del estado ---------- */
+.isr-tab-icon--warning.material-icons-round { color: var(--color-warning-text); }
+.isr-tab-icon--danger.material-icons-round { color: var(--color-danger-text); }
+.isr-tab-icon--primary.material-icons-round { color: var(--color-primary-text); }
+
+/* ---------- Tabla ---------- */
+.isr-th-help {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: help;
+}
+
+.isr-th-help .material-icons-round {
+  font-size: 14px;
+  color: var(--color-primary);
+}
+
+.isr-table th.isr-col-product {
+  min-width: 200px;
+}
+
+.isr-table th.isr-col-action,
+.isr-table td.isr-col-action {
+  text-align: right;
+}
+
+/* Producto: baldosa con el color de su estado + nombre */
+.isr-product {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.isr-product-text {
+  min-width: 0;
+}
+
+.isr-product-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.isr-product-id {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.isr-qty {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.isr-qty--primary {
+  color: var(--color-primary-text);
+}
+
+/* En Bodega: con unidades = verde; en 0 = ámbar (agotado físicamente) */
+.isr-qty--success {
+  color: var(--color-success-text);
+}
+
+.isr-qty--warning {
+  color: var(--color-warning-text);
+}
+
+.isr-qty--muted {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.isr-missing {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-warning-text);
+  white-space: nowrap;
+}
+
+/* Columna Sistema: punto de color + número */
+.isr-sistema {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.isr-sistema--danger { color: var(--color-danger-text); }
+.isr-sistema--warning { color: var(--color-warning-text); }
+.isr-sistema--muted { color: var(--color-text-muted); }
+
+.isr-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.isr-dot--danger { background: var(--color-danger); }
+.isr-dot--warning { background: var(--color-warning); }
+.isr-dot--success { background: var(--color-success); }
+
+.isr-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.isr-badges .ui-badge {
+  white-space: nowrap;
+}
+
+/* Filas con unidades por registrar */
+.isr-table tbody tr.is-missing td {
+  background: var(--color-warning-soft);
+}
+
+/* ---------- Esqueleto de carga (filas con la forma de la tabla) ---------- */
+.isr-skeleton {
+  display: flex;
+  flex-direction: column;
+}
+
+.isr-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 60px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.isr-skeleton-row + .isr-skeleton-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.ui-skeleton.isr-skeleton-tile {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+.isr-skeleton-grow {
+  flex: 1 1 auto;
+}
+
+.ui-skeleton.isr-skeleton-short {
+  width: 30%;
+}
+
+.ui-skeleton.isr-skeleton-qty {
+  flex: 0 0 48px;
+}
+
+/* ---------- Leyenda ---------- */
+.isr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.isr-legend-title {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.isr-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.isr-legend-note {
+  margin-left: auto;
+  font-style: italic;
+}
+
+/* ---------- Teléfonos: cada producto como tarjeta ---------- */
+@media (max-width: 640px) {
+  .isr-page {
+    gap: var(--space-3);
+  }
+
+  .isr-page > .ui-page-header {
+    margin-bottom: var(--space-1);
+  }
+
+  .isr-page .ui-page-actions > .ui-btn {
+    flex: 1 1 auto;
+  }
+
+  .isr-table,
+  .isr-table tbody,
+  .isr-table tr,
+  .isr-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .isr-table thead {
+    display: none;
+  }
+
+  .isr-table tbody tr {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .isr-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  /* La fila es la tarjeta (con padding propio): el tono ámbar va en la fila
+     entera, no solo en las celdas, para que no queden franjas blancas. */
+  .isr-table tbody tr.is-missing {
+    background: var(--color-warning-soft);
+  }
+
+  .isr-table tbody tr.is-missing td {
+    background: transparent;
+  }
+
+  .isr-page .isr-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    height: auto;
+    padding: var(--space-1) var(--space-4);
+    border-bottom: 0;
+    text-align: right;
+  }
+
+  .isr-table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-align: left;
+  }
+
+  /* Nombre del producto como título de la tarjeta */
+  .isr-page .isr-table td.isr-col-product {
+    display: block;
+    padding-bottom: var(--space-2);
+    text-align: left;
+  }
+
+  /* "faltan N por registrar" debajo del número */
+  .isr-cell-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .isr-badges {
+    justify-content: flex-end;
+  }
+
+  .isr-page .isr-table td.isr-col-action {
+    padding-top: var(--space-2);
+  }
+
+  .isr-page .isr-table td.isr-col-action .ui-btn {
+    width: 100%;
+  }
+
+  .isr-legend-note {
+    margin-left: 0;
+  }
+}

@@ -6,13 +6,14 @@ import { useToast } from '../ToastContainer';
 import { formatCurrency, formatDateISO, formatOrderLabel } from '../../utils/formatters';
 import './EnhancedPaymentFormModal.css';
 
+// `icon` = nombre de icono Material (antes emoji); el <option> muestra solo la etiqueta
 const PAYMENT_METHODS = [
-    { value: 'EFECTIVO', label: 'Efectivo', icon: '💵' },
-    { value: 'TRANSFERENCIA', label: 'Transferencia Bancaria', icon: '🏦' },
-    { value: 'CHEQUE', label: 'Cheque', icon: '📝' },
-    { value: 'TARJETA', label: 'Tarjeta de Crédito/Débito', icon: '💳' },
-    { value: 'CREDITO', label: 'Crédito', icon: '📊' },
-    { value: 'OTRO', label: 'Otro', icon: '🔖' }
+    { value: 'EFECTIVO', label: 'Efectivo', icon: 'payments' },
+    { value: 'TRANSFERENCIA', label: 'Transferencia Bancaria', icon: 'account_balance' },
+    { value: 'CHEQUE', label: 'Cheque', icon: 'request_quote' },
+    { value: 'TARJETA', label: 'Tarjeta de Crédito/Débito', icon: 'credit_card' },
+    { value: 'CREDITO', label: 'Crédito', icon: 'account_balance_wallet' },
+    { value: 'OTRO', label: 'Otro', icon: 'sell' }
 ];
 
 export function EnhancedPaymentFormModal({
@@ -132,151 +133,177 @@ export function EnhancedPaymentFormModal({
     if (!isOpen) return null;
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-container enhanced-payment-form-modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>
+        <div className="ui-modal-overlay" onClick={onClose}>
+            <div
+                className="ui-modal ui-modal--sm enhanced-payment-form-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="epf-title"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon ui-modal-icon--success" aria-hidden="true">
                         <span className="material-icons-round">payments</span>
-                        Registrar Pago
-                    </h2>
-                    <button className="btn-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h2 id="epf-title" className="ui-modal-title">
+                            Registrar Pago
+                        </h2>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit}>
-                    <div className="modal-body">
+                <form onSubmit={handleSubmit} className="epf-form">
+                    <div className="ui-modal-body">
                         {/* Order Info */}
-                        <div className="order-info-card">
-                            <div className="info-row">
-                                <span className="label">Orden:</span>
-                                <span className="value">{formatOrderLabel(order)}</span>
+                        <section className={`ui-section ui-stripe ${(order?.pendingAmount || 0) > 0 ? 'ui-stripe--warning' : 'ui-stripe--success'} epf-summary`}>
+                            <dl className="ui-meta">
+                                {/* Referencia en azul; saldo pendiente en ámbar (verde si ya no debe) */}
+                                <div className="ui-meta-row">
+                                    <dt>Orden:</dt>
+                                    <dd className="epf-ref">{formatOrderLabel(order)}</dd>
+                                </div>
+                                <div className="ui-meta-row">
+                                    <dt>Cliente:</dt>
+                                    <dd>{order?.clientName || 'N/A'}</dd>
+                                </div>
+                                <div className={`ui-meta-row epf-pending${(order?.pendingAmount || 0) > 0 ? '' : ' is-settled'}`}>
+                                    <dt>Saldo Pendiente:</dt>
+                                    <dd>${formatCurrency(order?.pendingAmount || 0)}</dd>
+                                </div>
+                            </dl>
+                        </section>
+
+                        <section className="ui-section">
+                            <div className="ui-grid">
+                                {/* Payment Amount */}
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="amount">
+                                        Monto del Pago <span className="ui-required">*</span>
+                                    </label>
+                                    <div className="ui-input-group">
+                                        <span className="ui-input-prefix" aria-hidden="true">$</span>
+                                        <input
+                                            className="ui-input"
+                                            type="number"
+                                            id="amount"
+                                            value={formData.amount}
+                                            onChange={(e) => handleChange('amount', e.target.value)}
+                                            placeholder="0.00"
+                                            step="0.01"
+                                            min="0"
+                                            max={order?.pendingAmount}
+                                            aria-invalid={!!errors.amount}
+                                            required
+                                        />
+                                    </div>
+                                    {errors.amount && <span className="ui-error">{errors.amount}</span>}
+                                </div>
+
+                                {/* Payment Method */}
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="paymentMethod">
+                                        Método de Pago <span className="ui-required">*</span>
+                                    </label>
+                                    <select
+                                        className="ui-select"
+                                        id="paymentMethod"
+                                        value={formData.paymentMethod}
+                                        onChange={(e) => handleChange('paymentMethod', e.target.value)}
+                                        aria-invalid={!!errors.paymentMethod}
+                                        required
+                                    >
+                                        {PAYMENT_METHODS.map(method => (
+                                            <option key={method.value} value={method.value}>
+                                                {method.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {errors.paymentMethod && <span className="ui-error">{errors.paymentMethod}</span>}
+                                </div>
+
+                                {/* Payment Date */}
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="actualPaymentDate">
+                                        Fecha del Pago <span className="ui-required">*</span>
+                                    </label>
+                                    <input
+                                        className="ui-input"
+                                        type="date"
+                                        id="actualPaymentDate"
+                                        value={formData.actualPaymentDate}
+                                        onChange={(e) => handleChange('actualPaymentDate', e.target.value)}
+                                        max={formatDateISO(new Date())}
+                                        aria-invalid={!!errors.actualPaymentDate}
+                                        required
+                                    />
+                                    <span className="ui-help">Fecha real en que se realizó el pago</span>
+                                    {errors.actualPaymentDate && <span className="ui-error">{errors.actualPaymentDate}</span>}
+                                </div>
+
+                                {/* Within Deadline */}
+                                <div className="ui-field epf-deadline">
+                                    <label className="ui-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.withinDeadline}
+                                            onChange={(e) => handleChange('withinDeadline', e.target.checked)}
+                                        />
+                                        <span>Pago dentro del plazo</span>
+                                    </label>
+                                </div>
+
+                                {/* Discount Applied */}
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="discountApplied">Descuento Aplicado</label>
+                                    <div className="ui-input-group">
+                                        <span className="ui-input-prefix" aria-hidden="true">$</span>
+                                        <input
+                                            className="ui-input"
+                                            type="number"
+                                            id="discountApplied"
+                                            value={formData.discountApplied}
+                                            onChange={(e) => handleChange('discountApplied', e.target.value)}
+                                            placeholder="0.00"
+                                            step="0.01"
+                                            min="0"
+                                            aria-invalid={!!errors.discountApplied}
+                                        />
+                                    </div>
+                                    {errors.discountApplied && <span className="ui-error">{errors.discountApplied}</span>}
+                                </div>
+
+                                {/* Notes */}
+                                <div className="ui-field ui-span-full">
+                                    <label className="ui-label" htmlFor="notes">Notas</label>
+                                    <textarea
+                                        className="ui-textarea"
+                                        id="notes"
+                                        value={formData.notes}
+                                        onChange={(e) => handleChange('notes', e.target.value)}
+                                        placeholder="Ej: Transferencia Bancolombia, Cuenta ***123"
+                                        rows={3}
+                                    />
+                                </div>
                             </div>
-                            <div className="info-row">
-                                <span className="label">Cliente:</span>
-                                <span className="value">{order?.clientName || 'N/A'}</span>
-                            </div>
-                            <div className="info-row">
-                                <span className="label">Saldo Pendiente:</span>
-                                <span className="value highlight">${formatCurrency(order?.pendingAmount || 0)}</span>
-                            </div>
-                        </div>
-
-                        {/* Payment Amount */}
-                        <div className={`form-group ${errors.amount ? 'has-error' : ''}`}>
-                            <label htmlFor="amount">
-                                Monto del Pago <span className="required">*</span>
-                            </label>
-                            <div className="input-with-icon">
-                                <span className="input-icon">$</span>
-                                <input
-                                    type="number"
-                                    id="amount"
-                                    value={formData.amount}
-                                    onChange={(e) => handleChange('amount', e.target.value)}
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    min="0"
-                                    max={order?.pendingAmount}
-                                    required
-                                />
-                            </div>
-                            {errors.amount && <span className="error-message">{errors.amount}</span>}
-                        </div>
-
-                        {/* Payment Method */}
-                        <div className={`form-group ${errors.paymentMethod ? 'has-error' : ''}`}>
-                            <label htmlFor="paymentMethod">
-                                Método de Pago <span className="required">*</span>
-                            </label>
-                            <select
-                                id="paymentMethod"
-                                value={formData.paymentMethod}
-                                onChange={(e) => handleChange('paymentMethod', e.target.value)}
-                                required
-                            >
-                                {PAYMENT_METHODS.map(method => (
-                                    <option key={method.value} value={method.value}>
-                                        {method.icon} {method.label}
-                                    </option>
-                                ))}
-                            </select>
-                            {errors.paymentMethod && <span className="error-message">{errors.paymentMethod}</span>}
-                        </div>
-
-                        {/* Payment Date */}
-                        <div className={`form-group ${errors.actualPaymentDate ? 'has-error' : ''}`}>
-                            <label htmlFor="actualPaymentDate">
-                                Fecha del Pago <span className="required">*</span>
-                            </label>
-                            <input
-                                type="date"
-                                id="actualPaymentDate"
-                                value={formData.actualPaymentDate}
-                                onChange={(e) => handleChange('actualPaymentDate', e.target.value)}
-                                max={formatDateISO(new Date())}
-                                required
-                            />
-                            <span className="help-text">Fecha real en que se realizó el pago</span>
-                            {errors.actualPaymentDate && <span className="error-message">{errors.actualPaymentDate}</span>}
-                        </div>
-
-                        {/* Within Deadline */}
-                        <div className="form-group">
-                            <label className="checkbox-label">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.withinDeadline}
-                                    onChange={(e) => handleChange('withinDeadline', e.target.checked)}
-                                />
-                                <span>Pago dentro del plazo</span>
-                            </label>
-                        </div>
-
-                        {/* Discount Applied */}
-                        <div className={`form-group ${errors.discountApplied ? 'has-error' : ''}`}>
-                            <label htmlFor="discountApplied">Descuento Aplicado</label>
-                            <div className="input-with-icon">
-                                <span className="input-icon">$</span>
-                                <input
-                                    type="number"
-                                    id="discountApplied"
-                                    value={formData.discountApplied}
-                                    onChange={(e) => handleChange('discountApplied', e.target.value)}
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    min="0"
-                                />
-                            </div>
-                            {errors.discountApplied && <span className="error-message">{errors.discountApplied}</span>}
-                        </div>
-
-                        {/* Notes */}
-                        <div className="form-group">
-                            <label htmlFor="notes">Notas</label>
-                            <textarea
-                                id="notes"
-                                value={formData.notes}
-                                onChange={(e) => handleChange('notes', e.target.value)}
-                                placeholder="Ej: Transferencia Bancolombia, Cuenta ***123"
-                                rows={3}
-                            />
-                        </div>
+                        </section>
                     </div>
 
-                    <div className="modal-footer">
-                        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
+                    <div className="ui-modal-footer">
+                        <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose} disabled={saving}>
                             Cancelar
                         </button>
-                        <button type="submit" className="btn btn-primary" disabled={saving}>
+                        <button type="submit" className="ui-btn ui-btn--primary" disabled={saving}>
                             {saving ? (
                                 <>
-                                    <span className="material-icons-round spin">sync</span>
+                                    <span className="ui-spinner" aria-hidden="true"></span>
                                     Registrando...
                                 </>
                             ) : (
                                 <>
-                                    <span className="material-icons-round">check</span>
+                                    <span className="material-icons-round" aria-hidden="true">check</span>
                                     Registrar Pago
                                 </>
                             )}
@@ -289,4 +316,3 @@ export function EnhancedPaymentFormModal({
 }
 
 export default EnhancedPaymentFormModal;
-

@@ -7,12 +7,16 @@ import { TagBadge, TagFilterBar } from './TagComponents';
 import productService from '../api/productService';
 import ProductFormModal from './modals/ProductFormModal';
 import { formatCurrency } from '../utils/formatters';
+import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
 import StockArrivalModal from './modals/StockArrivalModal';
 import PhysicalCountModal from './modals/PhysicalCountModal';
 import BulkStockArrivalForm from './BulkStockArrivalForm';
+import SearchableSelect from './SearchableSelect';
+import '../styles/areas/Inventory.css';
 
-// Placeholder for missing images
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
+// Icono de cada opción del selector de columnas (antes las 4 mostraban el mismo icono)
+const GRID_COLUMN_ICONS = { 1: 'view_agenda', 2: 'grid_view', 3: 'view_module', 4: 'view_comfy' };
+
 
 export default function ProductsPanel({ refreshTrigger }) {
     const [products, setProducts] = useState([]);
@@ -36,6 +40,14 @@ export default function ProductsPanel({ refreshTrigger }) {
     // Bulk Mode State
     // 'none', 'create', 'update'
     const [bulkMode, setBulkMode] = useState('none');
+
+    // Descarga del inventario en curso (solo presentación: spinner y "Exportando..." en el
+    // botón pulsado; los demás quedan deshabilitados mientras tanto). Patrón exportingKey:
+    // el boolean dice SI se exporta y la clave QUÉ botón lo inició ('excel' | 'pdf').
+    const [exporting, setExporting] = useState(false);
+    const [exportingKey, setExportingKey] = useState(null);
+    useEffect(() => { if (!exporting) setExportingKey(null); }, [exporting]);
+    const exportBusy = (key) => exporting && exportingKey === key;
 
     // For Bulk Update
     // const [bulkUpdateProducts, setBulkUpdateProducts] = useState([]);
@@ -154,6 +166,7 @@ export default function ProductsPanel({ refreshTrigger }) {
     };
 
     const handleDownloadExcel = async () => {
+        setExporting(true);
         try {
             toast.info('Generando Excel...');
             const response = await productService.exportInventoryExcel();
@@ -168,10 +181,13 @@ export default function ProductsPanel({ refreshTrigger }) {
         } catch (error) {
             console.error('Download Excel error:', error);
             toast.error('Error al descargar Excel');
+        } finally {
+            setExporting(false);
         }
     };
 
     const handleDownloadPDF = async () => {
+        setExporting(true);
         try {
             toast.info('Generando PDF...');
             const response = await productService.exportInventoryPDF();
@@ -186,6 +202,8 @@ export default function ProductsPanel({ refreshTrigger }) {
         } catch (error) {
             console.error('Download PDF error:', error);
             toast.error('Error al descargar PDF');
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -223,135 +241,85 @@ export default function ProductsPanel({ refreshTrigger }) {
     }, [products, statusFilter, sortOption]);
 
     return (
-        <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div className="inv-page inv-products">
 
             {/* HEADER */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                        <span className="material-icons-round" style={{ color: 'var(--primary)' }}>inventory_2</span>
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">inventory_2</span>
                         Gestión de Productos
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem', display: 'flex', gap: '1rem' }}>
-                        <span>Total: <b>{products.length}</b></span>
-                        <span style={{ color: '#16a34a' }}>Activos: <b>{products.filter(p => p.active).length}</b></span>
-                        <span style={{ color: '#dc2626' }}>Inactivos: <b>{products.filter(p => !p.active).length}</b></span>
+                    <p className="inv-counts">
+                        <span className="inv-count inv-count--primary">Total: <b>{products.length}</b></span>
+                        <span className="inv-count inv-count--success">Activos: <b>{products.filter(p => p.active).length}</b></span>
+                        <span className="inv-count inv-count--neutral">Inactivos: <b>{products.filter(p => !p.active).length}</b></span>
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <div style={{ position: 'relative' }}>
-                        <span className="material-icons-round" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', fontSize: '18px' }}>search</span>
+                <div className="ui-page-actions inv-header-actions">
+                    <div className="ui-search inv-header-search">
+                        <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                         <input
                             type="text"
+                            className="ui-input"
+                            aria-label="Buscar productos"
                             placeholder={activeTagId ? "Buscar en etiqueta..." : "Buscar global..."}
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            style={{
-                                padding: '0.6rem 1rem 0.6rem 2.2rem',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border)',
-                                width: '250px'
-                            }}
                         />
                     </div>
 
                     {bulkMode !== 'none' ? (
                         <button
+                            type="button"
+                            className="ui-btn ui-btn--secondary"
                             onClick={() => setBulkMode('none')}
-                            style={{
-                                background: 'white',
-                                color: 'var(--text-secondary)',
-                                border: '1px solid var(--border)',
-                                padding: '0.6rem 1.2rem',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                fontWeight: 600
-                            }}
                         >
-                            <span className="material-icons-round">arrow_back</span>
+                            <span className="material-icons-round inv-icon--primary" aria-hidden="true">arrow_back</span>
                             Volver a Lista
                         </button>
                     ) : (
                         <>
                             <button
+                                type="button"
+                                className="ui-btn ui-btn--secondary"
                                 onClick={() => {
                                     setActiveTagId(null);
                                     setSearchTerm('');
                                     setBulkMode('update');
                                 }}
-                                style={{
-                                    background: 'white',
-                                    color: 'var(--primary)',
-                                    border: '1px solid var(--primary)',
-                                    padding: '0.6rem 1.2rem',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    fontWeight: 600
-                                }}
                             >
-                                <span className="material-icons-round">edit_note</span>
+                                <span className="material-icons-round inv-icon--primary" aria-hidden="true">edit_note</span>
                                 Edición Masiva
                             </button>
                             <button
+                                type="button"
+                                className="ui-btn ui-btn--secondary"
                                 onClick={() => setBulkMode('create')}
-                                style={{
-                                    background: 'white',
-                                    color: 'var(--text-primary)',
-                                    border: '1px solid var(--border)',
-                                    padding: '0.6rem 1.2rem',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    fontWeight: 600
-                                }}
                             >
-                                <span className="material-icons-round">playlist_add</span>
+                                <span className="material-icons-round inv-icon--primary" aria-hidden="true">playlist_add</span>
                                 Carga Masiva
                             </button>
                             <button
+                                type="button"
+                                className="ui-btn ui-btn--primary"
                                 onClick={openCreateModal}
-                                style={{
-                                    background: 'var(--primary)',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '0.6rem 1.2rem',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    fontWeight: 600,
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                }}
                             >
-                                <span className="material-icons-round">add</span>
+                                <span className="material-icons-round" aria-hidden="true">add</span>
                                 Nuevo Producto
                             </button>
 
-                            {/* Dropdown for Inventory Download */}
-                            <div className="dropdown" style={{ position: 'relative', display: 'inline-block' }}>
+                            {/* Dropdown for Inventory Download.
+                                Mientras se descarga, este botón (siempre visible: el menú se cierra
+                                solo al perder el foco) muestra el spinner y "Exportando...". */}
+                            <div className="inv-dropdown">
                                 <button
-                                    style={{
-                                        background: 'white',
-                                        color: 'var(--text-secondary)',
-                                        border: '1px solid var(--border)',
-                                        padding: '0.6rem 1.2rem',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        fontWeight: 600
-                                    }}
+                                    type="button"
+                                    className={`ui-btn ui-btn--secondary inv-dropdown-trigger${exporting ? ' is-loading' : ''}${exporting && exportingKey ? ` inv-dropdown-trigger--${exportingKey}` : ''}`}
+                                    aria-haspopup="true"
+                                    aria-busy={exporting || undefined}
+                                    disabled={exporting}
                                     onClick={(e) => {
                                         const menu = e.currentTarget.nextElementSibling;
                                         menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
@@ -362,48 +330,48 @@ export default function ProductsPanel({ refreshTrigger }) {
                                         setTimeout(() => { menu.style.display = 'none'; }, 200);
                                     }}
                                 >
-                                    <span className="material-icons-round">download</span>
-                                    Descargar Inventario
-                                    <span className="material-icons-round" style={{ fontSize: '18px' }}>arrow_drop_down</span>
+                                    {exporting
+                                        ? <span className="ui-spinner" aria-hidden="true" />
+                                        : <span className="material-icons-round inv-icon--primary" aria-hidden="true">download</span>}
+                                    {/* La etiqueta normal queda invisible en la misma celda mientras
+                                        carga: el botón no cambia de ancho */}
+                                    <span className="ui-btn-label">
+                                        {exporting && <span className="ui-btn-label-sizer" aria-hidden="true">Descargar Inventario</span>}
+                                        <span>{exporting ? 'Exportando...' : 'Descargar Inventario'}</span>
+                                    </span>
+                                    <span className="material-icons-round inv-dropdown-caret" aria-hidden="true">arrow_drop_down</span>
                                 </button>
-                                <div style={{
-                                    display: 'none',
-                                    position: 'absolute',
-                                    right: 0,
-                                    top: '100%',
-                                    marginTop: '5px',
-                                    background: 'white',
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                                    borderRadius: '8px',
-                                    zIndex: 10,
-                                    minWidth: '160px',
-                                    overflow: 'hidden',
-                                    border: '1px solid var(--border)'
-                                }}>
+                                <div className="inv-dropdown-menu">
+                                    {/* Formato con identidad de color: Excel verde, PDF rojo */}
                                     <button
+                                        type="button"
+                                        className={`ui-btn ui-btn--excel inv-dropdown-item${exportBusy('excel') ? ' is-loading' : ''}`}
+                                        aria-busy={exportBusy('excel') || undefined}
+                                        disabled={exporting}
+                                        onClickCapture={() => setExportingKey('excel')}
                                         onClick={handleDownloadExcel}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '8px',
-                                            padding: '10px 16px', width: '100%', border: 'none', background: 'white',
-                                            textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-primary)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-success-soft-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                     >
-                                        <span className="material-icons-round" style={{ color: '#10b981' }}>table_view</span> Excel (.xlsx)
+                                        {exportBusy('excel')
+                                            ? <span className="ui-spinner" aria-hidden="true" />
+                                            : <span className="material-icons-round" aria-hidden="true">table_view</span>}
+                                        {exportBusy('excel') ? 'Exportando...' : 'Excel (.xlsx)'}
                                     </button>
                                     <button
+                                        type="button"
+                                        className={`ui-btn ui-btn--pdf inv-dropdown-item${exportBusy('pdf') ? ' is-loading' : ''}`}
+                                        aria-busy={exportBusy('pdf') || undefined}
+                                        disabled={exporting}
+                                        onClickCapture={() => setExportingKey('pdf')}
                                         onClick={handleDownloadPDF}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '8px',
-                                            padding: '10px 16px', width: '100%', border: 'none', background: 'white',
-                                            textAlign: 'left', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-primary)',
-                                            borderTop: '1px solid var(--border)'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-danger-soft-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                     >
-                                        <span className="material-icons-round" style={{ color: '#ef4444' }}>picture_as_pdf</span> PDF (.pdf)
+                                        {exportBusy('pdf')
+                                            ? <span className="ui-spinner" aria-hidden="true" />
+                                            : <span className="material-icons-round" aria-hidden="true">picture_as_pdf</span>}
+                                        {exportBusy('pdf') ? 'Exportando...' : 'PDF (.pdf)'}
                                     </button>
                                 </div>
                             </div>
@@ -411,36 +379,25 @@ export default function ProductsPanel({ refreshTrigger }) {
                     )}
                     {bulkMode === 'none' && (
                         <button
+                            type="button"
+                            className="ui-btn ui-btn--secondary"
                             onClick={() => {
                                 setActiveTagId(null);
                                 setSearchTerm('');
                                 setBulkMode('stock');
                             }}
-                            style={{
-                                background: '#3b82f6',
-                                color: 'white',
-                                border: 'none',
-                                padding: '0.6rem 1.2rem',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                fontWeight: 600,
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                            }}
                         >
-                            <span className="material-icons-round">inventory</span>
+                            <span className="material-icons-round inv-icon--success" aria-hidden="true">inventory</span>
                             Carga Masiva Stock
                         </button>
                     )}
                 </div>
-            </div>
+            </header>
 
             {/* FILTER BAR - Hide in Bulk Mode */}
             {bulkMode === 'none' && (
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Filtrar por Categoría:</h4>
+                <div className="inv-filter-block">
+                    <h4 className="inv-filter-label">Filtrar por Categoría:</h4>
                     <TagFilterBar
                         tags={tags}
                         activeTagId={activeTagId}
@@ -452,8 +409,8 @@ export default function ProductsPanel({ refreshTrigger }) {
 
             {/* CONTROLS: Status Filter & Sorting - Hide in Bulk Mode */}
             {bulkMode === 'none' && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="inv-controls">
+                    <div className="ui-tabs" role="group" aria-label="Estado de los productos">
                         {[
                             { id: 'all', label: 'Todos' },
                             { id: 'active', label: 'Activos' },
@@ -461,34 +418,22 @@ export default function ProductsPanel({ refreshTrigger }) {
                         ].map(opt => (
                             <button
                                 key={opt.id}
+                                type="button"
+                                className={`ui-tab${statusFilter === opt.id ? ' is-active' : ''}`}
+                                aria-pressed={statusFilter === opt.id}
                                 onClick={() => setStatusFilter(opt.id)}
-                                style={{
-                                    padding: '0.4rem 1rem',
-                                    borderRadius: '20px',
-                                    border: statusFilter === opt.id ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                    background: statusFilter === opt.id ? '#f0fdf4' : 'white',
-                                    color: statusFilter === opt.id ? 'var(--primary)' : 'var(--text-secondary)',
-                                    fontWeight: statusFilter === opt.id ? 600 : 400,
-                                    cursor: 'pointer',
-                                    fontSize: '0.85rem'
-                                }}
                             >
                                 {opt.label}
                             </button>
                         ))}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div className="inv-controls-end">
                         <select
+                            className="ui-select inv-sort"
+                            aria-label="Ordenar productos"
                             value={sortOption}
                             onChange={e => setSortOption(e.target.value)}
-                            style={{
-                                padding: '0.4rem 0.8rem',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border)',
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.9rem'
-                            }}
                         >
                             <option value="name_asc">Nombre (A-Z)</option>
                             <option value="name_desc">Nombre (Z-A)</option>
@@ -497,23 +442,17 @@ export default function ProductsPanel({ refreshTrigger }) {
                         </select>
 
                         {/* Column Toggle */}
-                        <div style={{ display: 'flex' }}>
+                        <div className="inv-cols" role="group" aria-label="Columnas de la grilla">
                             {[1, 2, 3, 4].map(c => (
                                 <button
                                     key={c}
+                                    type="button"
+                                    className={`ui-icon-btn${gridColumns === c ? ' is-active' : ''}`}
+                                    aria-pressed={gridColumns === c}
                                     onClick={() => { setGridColumns(c); localStorage.setItem('adminGridCols', c); }}
-                                    style={{
-                                        padding: '0.4rem',
-                                        background: gridColumns === c ? '#e5e7eb' : 'transparent',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        marginLeft: '0.25rem'
-                                    }}
                                     title={`${c} Columna(s)`}
                                 >
-                                    <span className="material-icons-round" style={{ fontSize: '18px', color: gridColumns === c ? 'black' : '#9ca3af' }}>grid_view</span>
+                                    <span className="material-icons-round" aria-hidden="true">{GRID_COLUMN_ICONS[c]}</span>
                                 </button>
                             ))}
                         </div>
@@ -554,145 +493,121 @@ export default function ProductsPanel({ refreshTrigger }) {
             ) :
                 (() => {
                     // displayProducts ya viene filtrado y ordenado (memoizado arriba)
+                    // Carga: tarjetas de esqueleto con la forma de la grilla (el texto queda
+                    // para lectores de pantalla)
                     if (loading) return (
-                        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <div className="loading">Cargando productos...</div>
+                        <div className={`inv-grid inv-grid--cols-${gridColumns}`} role="status" aria-busy="true">
+                            <span className="ui-sr-only">Cargando productos...</span>
+                            {[0, 1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className="inv-product-card inv-product-card--skeleton" aria-hidden="true">
+                                    <span className="ui-skeleton inv-skeleton-media" />
+                                    <div className="inv-product-body">
+                                        <span className="ui-skeleton ui-skeleton--title" />
+                                        <span className="ui-skeleton ui-skeleton--text" />
+                                        <span className="ui-skeleton ui-skeleton--text inv-skeleton-short" />
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     );
 
                     if (displayProducts.length === 0) return (
-                        <div style={{ flex: 1, textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                            <span className="material-icons-round" style={{ fontSize: '48px', marginBottom: '1rem' }}>search_off</span>
-                            <p>No se encontraron productos.</p>
+                        <div className="ui-empty">
+                            <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                            <p className="ui-empty-title">No se encontraron productos.</p>
                         </div>
                     );
 
                     return (
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-                            gap: '1.5rem',
-                            overflowY: 'auto',
-                            paddingBottom: '2rem'
-                        }}>
+                        <div className={`inv-grid inv-grid--cols-${gridColumns} ui-stagger`}>
                             {displayProducts.map(product => {
                                 // ... Render ...
                                 const isLowStock = product.stock < (product.reorderPoint || 10);
                                 return (
-                                    <div key={product.id} className="product-card" style={{
-                                        background: 'white',
-                                        borderRadius: '12px',
-                                        border: `1px solid ${isLowStock ? '#fca5a5' : '#e5e7eb'}`,
-                                        overflow: 'hidden',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        position: 'relative'
-                                    }}>
-                                        {/* Copied rest of card from original map func logic above for context, but usually better to extract Card */}
-                                        {/* Re-implementing Card Body to ensure safe rendering inside this IIFE */}
-
+                                    <article key={product.id} className={`inv-product-card${isLowStock ? ' is-low' : ''}`}>
                                         {isLowStock && product.active && (
-                                            <div style={{
-                                                position: 'absolute', top: '10px', left: '10px', background: '#ef4444', color: 'white',
-                                                fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '12px', fontWeight: 'bold', zIndex: 2,
-                                                display: 'flex', alignItems: 'center', gap: '4px'
-                                            }}>
-                                                <span className="material-icons-round" style={{ fontSize: '12px' }}>warning</span>
+                                            <span className="ui-badge ui-badge--warning inv-product-flag inv-product-flag--start">
+                                                <span className="material-icons-round" aria-hidden="true">warning</span>
                                                 Stock Bajo
-                                            </div>
+                                            </span>
                                         )}
 
                                         {product.linkedSpecialCount > 0 && (
-                                            <div style={{
-                                                position: 'absolute', top: '10px', right: '10px',
-                                                background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: 'white',
-                                                fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '12px',
-                                                fontWeight: 700, zIndex: 2, display: 'flex', alignItems: 'center', gap: '4px'
-                                            }}>
-                                                <span className="material-icons-round" style={{ fontSize: '12px' }}>star</span>
+                                            <span className="ui-badge ui-badge--primary inv-product-flag inv-product-flag--end">
+                                                <span className="material-icons-round" aria-hidden="true">star</span>
                                                 {product.linkedSpecialCount} especial{product.linkedSpecialCount > 1 ? 'es' : ''}
-                                            </div>
+                                            </span>
                                         )}
 
-                                        <div style={{ height: '180px', overflow: 'hidden', background: '#f9fafb', position: 'relative' }}>
+                                        <div className={`inv-product-media${!product.active ? ' is-inactive' : ''}`}>
                                             <img
                                                 src={product.imageUrl || PLACEHOLDER_IMAGE}
                                                 alt={product.nombre}
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                loading="lazy"
+                                                decoding="async"
                                                 onError={e => e.target.src = PLACEHOLDER_IMAGE}
                                             />
                                             {!product.active && (
-                                                <div style={{
-                                                    position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(2px)'
-                                                }}>
-                                                    <span style={{ background: '#9ca3af', color: 'white', padding: '0.3rem 0.8rem', borderRadius: '4px', fontWeight: 'bold' }}>INACTIVO</span>
+                                                <div className="inv-product-inactive">
+                                                    <span className="ui-badge ui-badge--neutral">INACTIVO</span>
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div style={{ padding: '1rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                                                <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, lineHeight: 1.3 }}>{product.nombre}</h3>
-                                                <label className="switch" title={product.active ? "Desactivar" : "Activar"} onClick={e => e.stopPropagation()}>
+                                        <div className="inv-product-body">
+                                            <div className="inv-product-head">
+                                                <h3 className="inv-product-name">{product.nombre}</h3>
+                                                <label className="ui-switch ui-switch--plain inv-switch" title={product.active ? "Desactivar" : "Activar"} onClick={e => e.stopPropagation()}>
                                                     <input
                                                         type="checkbox"
+                                                        aria-label={product.active ? 'Desactivar' : 'Activar'}
                                                         checked={product.active}
                                                         onChange={() => handleToggleStatus(product)}
                                                     />
-                                                    <span className="slider round"></span>
+                                                    <span className="ui-switch-track"><span className="ui-switch-thumb" /></span>
                                                 </label>
                                             </div>
 
-                                            <div style={{ marginBottom: '0.5rem' }}>
+                                            <div className="inv-product-tag">
                                                 {product.tagName && <TagBadge tagName={product.tagName} />}
                                             </div>
 
-                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 'auto', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                            <p className="inv-product-desc">
                                                 {product.descripcion || 'Sin descripción'}
                                             </p>
 
-                                            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f3f4f6', paddingTop: '0.75rem' }}>
+                                            <div className="inv-product-figures">
                                                 <div>
-                                                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Precio Unitario</span>
-                                                    <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>${formatCurrency(product.precio)}</span>
+                                                    <span className="inv-figure-label">
+                                                        <span className="material-icons-round inv-icon--success" aria-hidden="true">sell</span>
+                                                        Precio Unitario
+                                                    </span>
+                                                    <span className="inv-figure-value inv-figure-value--price">${formatCurrency(product.precio)}</span>
                                                 </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Stock Actual</span>
-                                                    <span style={{ fontSize: '1rem', fontWeight: 600, color: product.stock < 0 ? '#ef4444' : (isLowStock ? '#f59e0b' : 'var(--text-primary)') }}>
+                                                <div className="inv-figure--end">
+                                                    <span className="inv-figure-label">
+                                                        <span className={`material-icons-round ${product.stock < 0 ? 'inv-icon--danger' : (isLowStock ? 'inv-icon--warning' : 'inv-icon--primary')}`} aria-hidden="true">inventory_2</span>
+                                                        Stock Actual
+                                                    </span>
+                                                    <span className={`inv-figure-value${product.stock < 0 ? ' is-negative' : (isLowStock ? ' is-low' : '')}`}>
                                                         {product.stock}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div style={{ padding: '0.75rem', background: '#f8fafc', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                            <button onClick={() => openStockModal(product)} style={{
-                                                flex: 1,
-                                                padding: '0.5rem',
-                                                border: '1px solid #d1d5db',
-                                                borderRadius: '6px',
-                                                cursor: 'pointer',
-                                                background: 'white',
-                                                display: 'flex',
-                                                justifyContent: 'center',
-                                                gap: '0.3rem',
-                                                alignItems: 'center',
-                                                fontSize: '0.8rem',
-                                                color: '#059669',
-                                                borderColor: '#a7f3d0',
-                                                backgroundColor: '#ecfdf5'
-                                            }} title="Sumar Stock (Llegada)">
-                                                <span className="material-icons-round" style={{ fontSize: '16px' }}>add_box</span> Llegada
+                                        <div className="inv-product-actions">
+                                            <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => openStockModal(product)} title="Sumar Stock (Llegada)">
+                                                <span className="material-icons-round inv-icon--success" aria-hidden="true">add_box</span> Llegada
                                             </button>
-                                            <button onClick={() => openEditModal(product)} style={{ flex: 1, padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', background: 'white', display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem' }}>
-                                                <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span> Editar
+                                            <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => openEditModal(product)}>
+                                                <span className="material-icons-round inv-icon--primary" aria-hidden="true">edit</span> Editar
                                             </button>
-                                            <button onClick={() => handleDelete(product.id)} style={{ width: '36px', padding: '0.5rem', border: '1px solid #fee2e2', borderRadius: '6px', cursor: 'pointer', background: '#fef2f2', color: '#ef4444', display: 'flex', justifyContent: 'center' }} title="Eliminar">
-                                                <span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span>
+                                            <button type="button" className="ui-icon-btn ui-icon-btn--bordered ui-icon-btn--danger" onClick={() => handleDelete(product.id)} title="Eliminar" aria-label="Eliminar">
+                                                <span className="material-icons-round" aria-hidden="true">delete</span>
                                             </button>
                                         </div>
-                                    </div>
+                                    </article>
                                 );
                             })}
                         </div>
@@ -738,20 +653,7 @@ export default function ProductsPanel({ refreshTrigger }) {
             }
 
             {/* BULK STOCK MODAL REMOVED */}
-
-            {/* Inline Styles for Toggle Switch if not globally present */}
-            <style>{`
-        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; -webkit-transition: .4s; transition: .4s; }
-        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px; background-color: white; -webkit-transition: .4s; transition: .4s; }
-        input:checked + .slider { background-color: var(--primary); }
-        input:focus + .slider { box-shadow: 0 0 1px var(--primary); }
-        input:checked + .slider:before { -webkit-transform: translateX(16px); -ms-transform: translateX(16px); transform: translateX(16px); }
-        .slider.round { border-radius: 34px; }
-        .slider.round:before { border-radius: 50%; }
-      `}</style>
-        </div >
+        </div>
     );
 }
 
@@ -773,6 +675,8 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
     // We'll filter products locally here for display.
     const [editedRows, setEditedRows] = useState({}); // Map of id -> { field: value }
     const [loading, setLoading] = useState(false);
+    // Opciones del selector de etiqueta (una lista para todas las filas)
+    const tagOptions = useMemo(() => (tags || []).map(t => ({ value: t.id, label: t.name })), [tags]);
 
     // Filter products for display
     const displayedProducts = products.filter(p =>
@@ -862,47 +766,49 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
     };
 
     return (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>edit_note</span>
+        <section className="inv-bulk">
+            <div className="inv-bulk-head">
+                <h3 className="inv-bulk-title">
+                    <span className="material-icons-round" aria-hidden="true">edit_note</span>
                     Edición Masiva
                 </h3>
 
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div className="inv-bulk-tools">
                     <input
                         type="text"
+                        className="ui-input inv-bulk-filter"
+                        aria-label="Filtrar productos"
                         placeholder="Filtrar productos..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
                     />
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={onCancel} className="btn-secondary" disabled={loading}>
-                            Cancelar
-                        </button>
-                        <button
-                            onClick={handleSubmit}
-                            className="btn-primary"
-                            disabled={loading}
-                        >
-                            {loading ? 'Guardando...' : `Guardar Cambios (${Object.keys(editedRows).length})`}
-                        </button>
-                    </div>
+                    <button type="button" onClick={onCancel} className="ui-btn ui-btn--secondary" disabled={loading}>
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        className={`ui-btn ui-btn--primary${loading ? ' is-loading' : ''}`}
+                        aria-busy={loading || undefined}
+                        disabled={loading}
+                    >
+                        {loading && <span className="ui-spinner" aria-hidden="true" />}
+                        {loading ? 'Guardando...' : `Guardar Cambios (${Object.keys(editedRows).length})`}
+                    </button>
                 </div>
             </div>
 
-            <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
-                    <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div className="ui-table-wrap">
+                <table className="ui-table inv-table-wide">
+                    <thead>
                         <tr>
-                            <th style={{ padding: '0.8rem', textAlign: 'left' }}>Producto</th>
-                            <th style={{ padding: '0.8rem', width: '120px' }}>Precio</th>
-                            <th style={{ padding: '0.8rem', width: '100px' }}>Stock</th>
-                            <th style={{ padding: '0.8rem', width: '100px' }}>Reorder</th>
-                            <th style={{ padding: '0.8rem', width: '150px' }}>Estado</th>
-                            <th style={{ padding: '0.8rem', width: '200px' }}>Etiqueta</th>
-                            <th style={{ padding: '0.8rem', width: '200px' }}>Imagen (Actualizar)</th>
+                            <th>Producto</th>
+                            <th className="inv-w-md">Precio</th>
+                            <th className="inv-w-sm ui-num">Stock</th>
+                            <th className="inv-w-sm">Reorder</th>
+                            <th className="inv-w-lg">Estado</th>
+                            <th className="inv-w-xl">Etiqueta</th>
+                            <th className="inv-w-xl">Imagen (Actualizar)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -912,72 +818,74 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                             const finalPrice = changes.precio !== undefined ? changes.precio : p.precio;
 
                             return (
-                                <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6', background: editedRows[p.id] ? '#fefffa' : 'white' }}>
-                                    <td style={{ padding: '0.5rem' }}>
-                                        <div style={{ fontWeight: 500 }}>{p.nombre}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>ID: {p.id.substring(0, 8)}...</div>
+                                <tr key={p.id} className={editedRows[p.id] ? 'is-edited' : undefined}>
+                                    <td>
+                                        <div className="inv-cell-name">{p.nombre}</div>
+                                        <div className="inv-id">ID: {p.id.substring(0, 8)}...</div>
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
+                                    <td>
                                         <input
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            className="form-input"
+                                            className={`ui-input inv-cell-input${changes.precio ? ' is-changed' : ''}`}
+                                            aria-label={`Precio de ${p.nombre}`}
                                             value={finalPrice}
                                             onChange={e => handleCellChange(p.id, 'precio', e.target.value)}
                                             onWheel={(e) => e.target.blur()}
-                                            style={{ borderColor: changes.precio ? '#f59e0b' : '' }}
                                         />
                                     </td>
-                                    <td style={{ padding: '0.5rem', textAlign: 'center' }}
+                                    <td className="ui-num"
                                         title="El stock se cambia con Llegada o Conteo físico (no aquí)">
-                                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: p.stock < 0 ? '#ef4444' : 'inherit' }}>
+                                        <span className={`inv-stock-value${p.stock < 0 ? ' is-negative' : ''}`}>
                                             {p.stock}
                                         </span>
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
+                                    <td>
                                         <input
                                             type="number"
                                             min="0"
-                                            className="form-input"
+                                            className={`ui-input inv-cell-input${changes.reorderPoint ? ' is-changed' : ''}`}
+                                            aria-label={`Punto de reorden de ${p.nombre}`}
                                             value={changes.reorderPoint !== undefined ? changes.reorderPoint : (p.reorderPoint || 10)}
                                             onChange={e => handleCellChange(p.id, 'reorderPoint', e.target.value)}
                                             onWheel={(e) => e.target.blur()}
-                                            style={{ borderColor: changes.reorderPoint ? '#f59e0b' : '' }}
                                         />
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
+                                    <td>
                                         <select
-                                            className="form-input"
+                                            className={`ui-select inv-cell-input${changes.active !== undefined ? ' is-changed' : ''}`}
+                                            aria-label={`Estado de ${p.nombre}`}
                                             value={changes.active !== undefined ? changes.active : p.active}
                                             onChange={e => handleCellChange(p.id, 'active', e.target.value === 'true')}
-                                            style={{ borderColor: changes.active !== undefined ? '#f59e0b' : '' }}
                                         >
                                             <option value="true">Activo</option>
                                             <option value="false">Inactivo</option>
                                         </select>
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
-                                        <select
-                                            className="form-input"
+                                    <td>
+                                        <SearchableSelect
+                                            className="inv-cell-combobox"
+                                            inputClassName={`inv-cell-input${changes.tagId !== undefined ? ' is-changed' : ''}`}
+                                            aria-label={`Etiqueta de ${p.nombre}`}
                                             value={changes.tagId !== undefined ? changes.tagId : (p.tagId || '')}
                                             onChange={e => handleCellChange(p.id, 'tagId', e.target.value)}
-                                            style={{ borderColor: changes.tagId !== undefined ? '#f59e0b' : '' }}
-                                        >
-                                            <option value="">--</option>
-                                            {tags.map(t => (
-                                                <option key={t.id} value={t.id}>{t.name}</option>
-                                            ))}
-                                        </select>
+                                            options={tagOptions}
+                                            emptyOption={{ label: '--' }}
+                                            placeholder="--"
+                                            searchPlaceholder="Buscar etiqueta…"
+                                            noResultsText="Ninguna etiqueta coincide"
+                                        />
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
+                                    <td>
                                         <input
                                             type="file"
                                             accept="image/*"
+                                            className="inv-file-input"
+                                            aria-label={`Imagen de ${p.nombre}`}
                                             onChange={e => handleImageChange(p.id, e)}
-                                            style={{ fontSize: '0.8rem', maxWidth: '180px' }}
                                         />
-                                        {changes.imageBase64 && <span style={{ fontSize: '0.7rem', color: 'green', display: 'block' }}>Imagen lista</span>}
+                                        {changes.imageBase64 && <span className="inv-file-ready">Imagen lista</span>}
                                     </td>
                                 </tr>
                             );
@@ -985,7 +893,7 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
     );
 }
 
@@ -998,6 +906,8 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
         { id: 1, nombre: '', descripcion: '', precio: '', stock: '', reorderPoint: 10, tagId: '', imageUrl: '', imageFile: null }
     ]);
     const [loading, setLoading] = useState(false);
+    // Opciones del selector de etiqueta (una lista para todas las filas)
+    const tagOptions = useMemo(() => (tags || []).map(t => ({ value: t.id, label: t.name })), [tags]);
 
     // ... (rest of logic similar, just need to update submit to handle base64)
 
@@ -1092,67 +1002,73 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
     };
 
     return (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>playlist_add</span>
+        <section className="inv-bulk">
+            <div className="inv-bulk-head">
+                <h3 className="inv-bulk-title inv-bulk-title--success">
+                    <span className="material-icons-round" aria-hidden="true">playlist_add</span>
                     Carga Masiva de Productos
                 </h3>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={onCancel} className="btn-secondary" disabled={loading}>
+                <div className="inv-bulk-tools">
+                    <button type="button" onClick={onCancel} className="ui-btn ui-btn--secondary" disabled={loading}>
                         Cancelar
                     </button>
                     <button
+                        type="button"
                         onClick={handleSubmit}
-                        className="btn-primary"
+                        className={`ui-btn ui-btn--primary${loading ? ' is-loading' : ''}`}
+                        aria-busy={loading || undefined}
                         disabled={loading}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     >
                         {loading ? 'Procesando...' : 'Cargar Productos'}
-                        <span className="material-icons-round" style={{ fontSize: '18px' }}>save_alt</span>
+                        {loading
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round" aria-hidden="true">save_alt</span>}
                     </button>
                 </div>
             </div>
 
-            <div style={{ overflowX: 'auto', flex: 1 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1000px' }}>
+            <div className="ui-table-wrap">
+                <table className="ui-table inv-table-wide">
                     <thead>
-                        <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
-                            <th style={{ padding: '0.8rem', width: '20%' }}>Nombre *</th>
-                            <th style={{ padding: '0.8rem', width: '20%' }}>Descripción</th>
-                            <th style={{ padding: '0.8rem', width: '10%' }}>Precio *</th>
-                            <th style={{ padding: '0.8rem', width: '8%' }}>Stock *</th>
-                            <th style={{ padding: '0.8rem', width: '8%' }}>Reorder</th>
-                            <th style={{ padding: '0.8rem', width: '15%' }}>Etiqueta</th>
-                            <th style={{ padding: '0.8rem', width: '15%' }}>Imagen</th>
-                            <th style={{ padding: '0.8rem', width: '50px' }}></th>
+                        <tr>
+                            <th className="inv-w-20p">Nombre *</th>
+                            <th className="inv-w-20p">Descripción</th>
+                            <th className="inv-w-10p">Precio *</th>
+                            <th className="inv-w-8p">Stock *</th>
+                            <th className="inv-w-8p">Reorder</th>
+                            <th className="inv-w-15p">Etiqueta</th>
+                            <th className="inv-w-15p">Imagen</th>
+                            <th className="inv-w-xs"><span className="ui-sr-only">Acciones</span></th>
                         </tr>
                     </thead>
                     <tbody>
                         {rows.map((row, index) => (
-                            <tr key={row.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                <td style={{ padding: '0.5rem' }}>
+                            <tr key={row.id}>
+                                <td>
                                     <input
                                         type="text"
-                                        className="form-input"
+                                        className="ui-input inv-cell-input"
+                                        aria-label={`Nombre (fila ${index + 1})`}
                                         placeholder="Nombre..."
                                         value={row.nombre}
                                         onChange={e => handleRowChange(row.id, 'nombre', e.target.value)}
                                     />
                                 </td>
-                                <td style={{ padding: '0.5rem' }}>
+                                <td>
                                     <input
                                         type="text"
-                                        className="form-input"
+                                        className="ui-input inv-cell-input"
+                                        aria-label={`Descripción (fila ${index + 1})`}
                                         placeholder="Descripción"
                                         value={row.descripcion}
                                         onChange={e => handleRowChange(row.id, 'descripcion', e.target.value)}
                                     />
                                 </td>
-                                <td style={{ padding: '0.5rem' }}>
+                                <td>
                                     <input
                                         type="number"
-                                        className="form-input"
+                                        className="ui-input inv-cell-input"
+                                        aria-label={`Precio (fila ${index + 1})`}
                                         placeholder="0.00"
                                         min="0"
                                         value={row.precio}
@@ -1160,10 +1076,11 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
                                         onChange={e => handleRowChange(row.id, 'precio', e.target.value)}
                                     />
                                 </td>
-                                <td style={{ padding: '0.5rem' }}>
+                                <td>
                                     <input
                                         type="number"
-                                        className="form-input"
+                                        className="ui-input inv-cell-input"
+                                        aria-label={`Stock (fila ${index + 1})`}
                                         placeholder="0"
                                         min="0"
                                         value={row.stock}
@@ -1171,44 +1088,50 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
                                         onChange={e => handleRowChange(row.id, 'stock', e.target.value)}
                                     />
                                 </td>
-                                <td style={{ padding: '0.5rem' }}>
+                                <td>
                                     <input
                                         type="number"
-                                        className="form-input"
+                                        className="ui-input inv-cell-input"
+                                        aria-label={`Punto de reorden (fila ${index + 1})`}
                                         placeholder="10"
                                         value={row.reorderPoint}
                                         onWheel={(e) => e.target.blur()}
                                         onChange={e => handleRowChange(row.id, 'reorderPoint', e.target.value)}
                                     />
                                 </td>
-                                <td style={{ padding: '0.5rem' }}>
-                                    <select
-                                        className="form-input"
+                                <td>
+                                    <SearchableSelect
+                                        className="inv-cell-combobox"
+                                        inputClassName="inv-cell-input"
+                                        aria-label={`Etiqueta (fila ${index + 1})`}
                                         value={row.tagId}
                                         onChange={e => handleRowChange(row.id, 'tagId', e.target.value)}
-                                    >
-                                        <option value="">--</option>
-                                        {tags.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
+                                        options={tagOptions}
+                                        emptyOption={{ label: '--' }}
+                                        placeholder="--"
+                                        searchPlaceholder="Buscar etiqueta…"
+                                        noResultsText="Ninguna etiqueta coincide"
+                                    />
                                 </td>
-                                <td style={{ padding: '0.5rem' }}>
+                                <td>
                                     <input
                                         type="file"
                                         accept="image/*"
+                                        className="inv-file-input inv-file-input--sm"
+                                        aria-label={`Imagen (fila ${index + 1})`}
                                         onChange={e => handleImageFileChange(row.id, e)}
-                                        style={{ fontSize: '0.8rem', maxWidth: '150px' }}
                                     />
                                 </td>
-                                <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                <td className="inv-cell-center">
                                     {rows.length > 1 && (
                                         <button
+                                            type="button"
+                                            className="ui-icon-btn ui-icon-btn--danger"
                                             onClick={() => removeRow(row.id)}
-                                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
                                             title="Eliminar fila"
+                                            aria-label="Eliminar fila"
                                         >
-                                            <span className="material-icons-round">delete</span>
+                                            <span className="material-icons-round" aria-hidden="true">delete</span>
                                         </button>
                                     )}
                                 </td>
@@ -1216,31 +1139,22 @@ function BulkProductForm({ tags, onSuccess, onCancel }) {
                         ))}
                     </tbody>
                 </table>
-                <div style={{ padding: '1rem', textAlign: 'center' }}>
-                    <button
-                        onClick={addRow}
-                        style={{
-                            background: '#f3f4f6',
-                            border: '1px dashed #d1d5db',
-                            padding: '0.5rem 2rem',
-                            borderRadius: '6px',
-                            color: 'var(--text-secondary)',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
-                        }}
-                    >
-                        <span className="material-icons-round">add</span>
-                        Agregar Fila
-                    </button>
-                    <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: '0.5rem' }}>
-                        Llene los datos. Las filas sin nombre serán ignoradas.
-                    </p>
-                </div>
             </div>
-        </div>
+
+            <div className="inv-bulk-foot">
+                <button
+                    type="button"
+                    className="ui-btn ui-btn--secondary"
+                    onClick={addRow}
+                >
+                    <span className="material-icons-round inv-icon--primary" aria-hidden="true">add</span>
+                    Agregar Fila
+                </button>
+                <p className="inv-bulk-hint">
+                    Llene los datos. Las filas sin nombre serán ignoradas.
+                </p>
+            </div>
+        </section>
     );
 }
 

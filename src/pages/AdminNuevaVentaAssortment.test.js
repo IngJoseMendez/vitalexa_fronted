@@ -74,6 +74,13 @@ const openPromotions = async () => {
     return (await screen.findByText('Surtido Nina')).closest('.promotion-card');
 };
 
+// Opción de un selector con buscador por su texto (lo escrito va resaltado con <mark>)
+const chooseOption = (label) => {
+    const option = screen.getAllByRole('option').find((o) => o.textContent === label);
+    expect(option).toBeDefined();
+    fireEvent.click(option);
+};
+
 const pickFree = (name) => {
     fireEvent.change(screen.getByLabelText('Buscar Producto'), { target: { value: name.slice(0, 3) } });
     const fila = screen.getByText(name, { selector: '.product-search-item div' }).closest('.product-search-item');
@@ -126,16 +133,23 @@ test('cantidad 2 en un surtido: se arman 2 paquetes, cada uno con sus gratis, y 
     expect(within(cartGroup).getByText(/Bálsamo × 1/)).toBeInTheDocument();
     expect(screen.getByText('Total').nextSibling).toHaveTextContent('180.000,00');
 
-    // Vender
-    const [vendorSelect] = screen.getAllByRole('combobox');
-    fireEvent.change(vendorSelect, { target: { value: 'v1' } });
-    await screen.findByText('Cliente Uno');
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'c1' } });
+    // Vender: vendedor y cliente se eligen escribiendo en sus selectores con buscador
+    const vendorSelect = screen.getByLabelText(/^Vendedor/);
+    fireEvent.change(vendorSelect, { target: { value: 'nina' } });
+    chooseOption('NinaTorres');
+    expect(vendorSelect).toHaveValue('NinaTorres');
+    expect(await screen.findByText('1 clientes encontrados')).toBeInTheDocument();
+    const clientSelect = screen.getByLabelText('Cliente');
+    fireEvent.change(clientSelect, { target: { value: 'uno' } });
+    chooseOption('Cliente Uno');
+    expect(clientSelect).toHaveValue('Cliente Uno');
     fireEvent.click(screen.getByRole('button', { name: /Finalizar Venta/ }));
 
     await waitFor(() => expect(client.post).toHaveBeenCalled());
     const [url, body] = client.post.mock.calls[0];
     expect(url).toBe('/admin/orders');
+    expect(body.sellerId).toBe('v1');
+    expect(body.clientId).toBe('c1');
     expect(body.promotionIds).toEqual(['sp-1', 'sp-1']);
     expect(body.bonifiedPromotionIds).toEqual([]);
     expect(body.items).toEqual([]);
@@ -160,4 +174,56 @@ test('cancelar a mitad: quedan los paquetes ya confirmados y avisa cuántos se a
     expect(mockToast.info).toHaveBeenCalledWith('Se agregaron 1 de 3 paquetes surtidos');
     const cartGroup = screen.getByText('Promociones', { selector: '.cart-group-header' }).closest('.cart-group');
     expect(within(cartGroup).getAllByText('Surtido Nina')).toHaveLength(1);
+});
+
+const optionLabels = () => screen.queryAllByRole('option')
+    .map((o) => o.querySelector('.ui-combobox-option-label').textContent);
+
+test('vendedor y cliente se buscan escribiendo; el contador de clientes sigue la búsqueda y A-Z invierte el orden', async () => {
+    client.get.mockImplementation((url) => {
+        if (url === '/admin/clients/vendedores') {
+            return Promise.resolve({ data: [{ id: 'v1', username: 'NinaTorres' }, { id: 'v2', username: 'YicelaSandoval' }] });
+        }
+        if (url === '/admin/products') return Promise.resolve({ data: productos });
+        if (url === '/admin/clients/seller/v1') {
+            return Promise.resolve({ data: [
+                { id: 'c2', nombre: 'Botica Central', telefono: '3110000000' },
+                { id: 'c1', nombre: 'Aroma Natural', nit: '900555' },
+                { id: 'c3', nombre: 'Clínica Sur', direccion: 'Calle 5' },
+            ] });
+        }
+        return Promise.reject(new Error(`GET inesperado ${url}`));
+    });
+    render(<AdminNuevaVentaPanel />);
+
+    const vendedor = await screen.findByLabelText(/^Vendedor/);
+    fireEvent.change(vendedor, { target: { value: 'yic' } });
+    expect(optionLabels()).toEqual(['YicelaSandoval']);
+    fireEvent.change(vendedor, { target: { value: 'nina' } });
+    chooseOption('NinaTorres');
+    expect(client.get).toHaveBeenCalledWith('/admin/clients/seller/v1');
+
+    // Un solo campo para el cliente (ya no hay buscador + lista aparte), en orden A-Z
+    expect(await screen.findByText('3 clientes encontrados')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Filtrar cliente...')).not.toBeInTheDocument();
+    const cliente = screen.getByLabelText('Cliente');
+    fireEvent.focus(cliente);
+    expect(optionLabels()).toEqual(['Aroma Natural', 'Botica Central', 'Clínica Sur']);
+
+    // Busca también por NIT y teléfono; el contador cuenta lo que se ve
+    fireEvent.change(cliente, { target: { value: '900555' } });
+    expect(screen.getByText('1 clientes encontrados')).toBeInTheDocument();
+    expect(optionLabels()).toEqual(['Aroma Natural']);
+    fireEvent.change(cliente, { target: { value: '311' } });
+    expect(optionLabels()).toEqual(['Botica Central']);
+
+    // Escape cancela la búsqueda: sin cliente elegido y el contador vuelve al total
+    fireEvent.keyDown(cliente, { key: 'Escape' });
+    expect(cliente).toHaveValue('');
+    expect(screen.getByText('3 clientes encontrados')).toBeInTheDocument();
+
+    // A-Z alterna el orden de la lista
+    fireEvent.click(screen.getByRole('button', { name: 'Ordenar A-Z' }));
+    fireEvent.focus(cliente);
+    expect(optionLabels()).toEqual(['Clínica Sur', 'Botica Central', 'Aroma Natural']);
 });

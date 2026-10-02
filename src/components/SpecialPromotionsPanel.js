@@ -134,38 +134,38 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
         const vendorNames = Array.isArray(promo.allowedVendorNames) ? promo.allowedVendorNames : [];
 
         return (
-            <div key={promo.id} className="sp-card">
+            <article key={promo.id} className="ui-card sp-card promo-sp-card">
                 {/* Badge */}
-                <span className={`sp-type-badge ${isLinked ? 'linked' : 'standalone'}`}>
-                    <span className="material-icons-round" style={{ fontSize: '12px' }}>
+                <span className="ui-badge ui-badge--neutral promo-sp-kind">
+                    <span className="material-icons-round" aria-hidden="true">
                         {isLinked ? 'link' : 'add_circle'}
                     </span>
                     {isLinked ? 'Vinculada' : 'Standalone'}
                 </span>
 
-                <div className="sp-card-body" style={{ marginTop: '2rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                        <h3>{promo.nombre}</h3>
-                        <label className="switch" onClick={e => e.stopPropagation()} title={promo.active ? 'Desactivar' : 'Activar'}>
+                <div className="promo-sp-body">
+                    <div className="promo-sp-title-row">
+                        <h3 className="ui-card-title">{promo.nombre}</h3>
+                        <label className="ui-switch ui-switch--plain sp-switch" onClick={e => e.stopPropagation()} title={promo.active ? 'Desactivar' : 'Activar'}>
                             <input
                                 type="checkbox"
                                 checked={!!promo.active}
                                 onChange={() => handleToggleStatus(promo)}
                                 aria-label={`${promo.active ? 'Desactivar' : 'Activar'} ${promo.nombre}`}
                             />
-                            <span className="slider round"></span>
+                            <span className="ui-switch-track" aria-hidden="true"><span className="ui-switch-thumb" /></span>
                         </label>
                     </div>
 
                     {isLinked && (
-                        <div className="sp-card-parent" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                            <span className="material-icons-round" style={{ fontSize: '14px', marginRight: '4px' }}>subdirectory_arrow_right</span>
+                        <div className="sp-card-parent">
+                            <span className="material-icons-round" aria-hidden="true">subdirectory_arrow_right</span>
                             Base: {promo.parentPromotionName}
                         </div>
                     )}
 
                     <div className="promo-sp-meta">
-                        <span style={{ fontWeight: 600 }}>{getPromotionTypeLabel(type)}</span>
+                        <span className="promo-sp-type">{getPromotionTypeLabel(type)}</span>
                         {' • '}Compra {buyQuantity} {mainProductName}
                         {type === PromotionType.BUY_GET_FREE && parent?.freeQuantity != null && (
                             <> + hasta {parent.freeQuantity} gratis</>
@@ -179,19 +179,19 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
                     {(parentReason || !isLinked || dateLabel) && (
                         <div className="promo-sp-badges">
                             {parentReason && (
-                                <span className="promo-sp-warning">
+                                <span className="ui-badge ui-badge--danger">
                                     <span className="material-icons-round" aria-hidden="true">block</span>
                                     {parentReason}
                                 </span>
                             )}
                             {!isLinked && (
-                                <span className="promo-sp-warning">
+                                <span className="ui-badge ui-badge--danger">
                                     <span className="material-icons-round" aria-hidden="true">block</span>
                                     Standalone: no se puede vender
                                 </span>
                             )}
                             {dateLabel && (
-                                <span className={`promotion-badge date-${dateLabel === 'Vencida' ? 'expired' : 'scheduled'}`}>
+                                <span className={`ui-badge ${dateLabel === 'Vencida' ? 'ui-badge--danger' : 'ui-badge--warning'}`}>
                                     {dateLabel}
                                 </span>
                             )}
@@ -199,51 +199,51 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
                     )}
 
                     {/* Vendors */}
-                    <div className="sp-card-vendors" style={{ marginTop: '1rem' }}>
+                    <div className="sp-card-vendors">
                         {isSpecialVisibleToAll(promo) ? (
-                            <span className="promo-chip all">Todas las vendedoras</span>
+                            <span className="ui-badge ui-badge--success">Todas las vendedoras</span>
                         ) : vendorNames.length > 0 ? (
                             vendorNames.map((name, i) => (
-                                <span key={`${name}-${i}`} className="sp-vendor-chip">{name}</span>
+                                <span key={`${name}-${i}`} className="ui-badge ui-badge--neutral">{name}</span>
                             ))
                         ) : (
-                            <span className="promo-chip none">Sin vendedoras</span>
+                            <span className="ui-badge ui-badge--warning">Sin vendedoras</span>
                         )}
                     </div>
                 </div>
 
-                <div className="sp-card-actions">
-                    <button type="button" onClick={() => openEdit(promo)}>
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span> Editar
+                <div className="ui-card-footer sp-card-actions">
+                    <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => openEdit(promo)}>
+                        <span className="material-icons-round" aria-hidden="true">edit</span> Editar
                     </button>
-                    <button type="button" className="btn-delete" onClick={() => handleDelete(promo)} title="Eliminar" aria-label={`Eliminar ${promo.nombre}`}>
-                        <span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span>
+                    <button type="button" className="ui-icon-btn ui-icon-btn--bordered ui-icon-btn--danger" onClick={() => handleDelete(promo)} title="Eliminar" aria-label={`Eliminar ${promo.nombre}`}>
+                        <span className="material-icons-round" aria-hidden="true">delete</span>
                     </button>
                 </div>
-            </div>
+            </article>
         );
     };
 
     return (
         <div className="special-products-panel">
             {/* Header */}
-            <div className="sp-header">
-                <div>
-                    <h2>
-                        <span className="material-icons-round">local_offer</span>
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">local_offer</span>
                         Promociones Especiales
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                    <p className="ui-page-desc">
                         Promociones exclusivas para vendedores específicos
                     </p>
                 </div>
-                <div className="sp-header-actions">
-                    <button className="sp-btn-create" onClick={openCreate}>
-                        <span className="material-icons-round">add</span>
+                <div className="ui-page-actions">
+                    <button type="button" className="ui-btn ui-btn--primary" onClick={openCreate}>
+                        <span className="material-icons-round" aria-hidden="true">add</span>
                         Nueva Promoción
                     </button>
                 </div>
-            </div>
+            </header>
 
             {!loading && promotions.length > 0 && (
                 <PromotionListToolbar
@@ -259,33 +259,36 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
 
             {/* Grid */}
             {loading ? (
-                <div className="loading">Cargando...</div>
+                <div className="ui-loading">
+                    <span className="ui-spinner" aria-hidden="true" />
+                    Cargando...
+                </div>
             ) : promotions.length === 0 ? (
-                <div className="sp-empty">
-                    <span className="material-icons-round">search_off</span>
-                    <p>No hay promociones especiales creadas.</p>
+                <div className="ui-empty">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                    <p className="ui-empty-text">No hay promociones especiales creadas.</p>
                 </div>
             ) : visiblePromotions.length === 0 ? (
-                <div className="promo-no-results">
-                    <span className="material-icons-round" aria-hidden="true">search_off</span>
-                    <p>
+                <div className="ui-empty promo-no-results">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                    <p className="ui-empty-text">
                         {searchTerm.trim()
                             ? `No hay promociones especiales ${statusTab === PROMO_TABS.ACTIVE ? 'activas ' : statusTab === PROMO_TABS.INACTIVE ? 'inactivas ' : ''}que coincidan con "${searchTerm.trim()}".`
                             : statusTab === PROMO_TABS.ACTIVE ? 'No hay promociones especiales activas.' : 'No hay promociones especiales inactivas.'}
                     </p>
                     {statusTab !== PROMO_TABS.ALL && tabCounts.all > 0 && (
-                        <button type="button" className="promo-link-btn" onClick={() => setStatusTab(PROMO_TABS.ALL)}>
+                        <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm ui-empty-action" onClick={() => setStatusTab(PROMO_TABS.ALL)}>
                             Ver en Todas ({tabCounts.all})
                         </button>
                     )}
                     {searchTerm && (statusTab === PROMO_TABS.ALL || tabCounts.all === 0) && (
-                        <button type="button" className="promo-link-btn" onClick={() => setSearchTerm('')}>
+                        <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm ui-empty-action" onClick={() => setSearchTerm('')}>
                             Limpiar búsqueda
                         </button>
                     )}
                 </div>
             ) : (
-                <div className="sp-grid promo-sp-grid">
+                <div className="promo-sp-grid">
                     {visiblePromotions.map(renderCard)}
                 </div>
             )}

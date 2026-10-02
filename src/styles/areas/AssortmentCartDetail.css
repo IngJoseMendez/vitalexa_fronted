@@ -1,0 +1,28 @@
+/* ==========================================================================
+   AssortmentCartDetail — detalle de un paquete surtido dentro de un carrito.
+   Se usa en la Nueva Venta de la vendedora, la del admin y en EditOrderModal,
+   así que todo va con prefijo propio (.assortment-cart-detail*) y solo tokens.
+   ========================================================================== */
+
+.assortment-cart-detail {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.assortment-cart-detail-empty {
+  color: var(--color-text-muted);
+}
+
+.assortment-cart-detail-list {
+  margin: 2px 0 0;
+  padding-left: var(--space-4);
+}
+
+.assortment-cart-detail-free {
+  color: var(--color-success-text);
+  font-weight: 700;
+  white-space: nowrap;
+}

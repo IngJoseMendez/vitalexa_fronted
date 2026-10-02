@@ -42,7 +42,7 @@ export function ToastProvider({ children }) {
     return (
         <ToastContext.Provider value={toast}>
             {children}
-            <div className="toast-container">
+            <div className="toast-container" aria-live="polite">
                 {toasts.map((toast) => (
                     <Toast key={toast.id} {...toast} onClose={() => removeToast(toast.id)} />
                 ))}
@@ -51,22 +51,38 @@ export function ToastProvider({ children }) {
     );
 }
 
-function Toast({ message, type, onClose }) {
+function Toast({ message, type, duration, onClose }) {
+    // Icono Material según el tipo (antes eran caracteres ✓ ✕ ⚠ ⓘ)
     const getIcon = () => {
         switch (type) {
-            case 'success': return '✓';
-            case 'error': return '✕';
-            case 'warning': return '⚠';
-            case 'info': return 'ⓘ';
-            default: return 'ⓘ';
+            case 'success': return 'check_circle';
+            case 'error': return 'error';
+            case 'warning': return 'warning';
+            case 'info': return 'info';
+            default: return 'info';
         }
     };
 
+    // Barra fina con el tiempo restante: se vacía en la misma duración con la que addToast
+    // programa el cierre (solo presentación; el cierre sigue siendo ese setTimeout)
+    const showProgress = Number.isFinite(duration) && duration > 0;
+
     return (
-        <div className={`toast toast-${type}`} onClick={onClose}>
-            <div className="toast-icon">{getIcon()}</div>
+        <div className={`toast toast-${type}`} onClick={onClose} role={type === 'error' ? 'alert' : 'status'}>
+            <div className="toast-icon">
+                <span className="material-icons-round" aria-hidden="true">{getIcon()}</span>
+            </div>
             <div className="toast-message">{message}</div>
-            <button className="toast-close" onClick={onClose}>×</button>
+            <button type="button" className="toast-close" onClick={onClose} aria-label="Cerrar">
+                <span className="material-icons-round" aria-hidden="true">close</span>
+            </button>
+            {showProgress && (
+                <span
+                    className="toast-progress"
+                    style={{ '--toast-duration': `${duration}ms` }}
+                    aria-hidden="true"
+                />
+            )}
         </div>
     );
 }

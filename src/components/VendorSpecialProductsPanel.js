@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { formatCurrency } from '../utils/formatters';
+import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
 import { useToast } from './ToastContainer';
 import specialProductService from '../api/specialProductService';
 import '../styles/SpecialProducts.css';
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial,sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 export default function VendorSpecialProductsPanel({ refreshTrigger }) {
     const [products, setProducts] = useState([]);
@@ -44,12 +44,17 @@ export default function VendorSpecialProductsPanel({ refreshTrigger }) {
     if (loading) {
         return (
             <div className="vendor-sp-panel">
-                <h2>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>star</span>
-                    Mis Productos Especiales
-                </h2>
-                <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <div className="loading">Cargando...</div>
+                <header className="ui-page-header">
+                    <div className="ui-page-heading">
+                        <h2 className="ui-page-title">
+                            <span className="material-icons-round" aria-hidden="true">star</span>
+                            Mis Productos Especiales
+                        </h2>
+                    </div>
+                </header>
+                <div className="ui-loading">
+                    <span className="ui-spinner" aria-hidden="true" />
+                    Cargando...
                 </div>
             </div>
         );
@@ -57,56 +62,57 @@ export default function VendorSpecialProductsPanel({ refreshTrigger }) {
 
     return (
         <div className="vendor-sp-panel">
-            <h2>
-                <span className="material-icons-round" style={{ color: 'var(--primary)' }}>star</span>
-                Mis Productos Especiales
-            </h2>
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">star</span>
+                        Mis Productos Especiales
+                    </h2>
+                </div>
+            </header>
 
             {products.length === 0 ? (
-                <div className="sp-empty">
-                    <span className="material-icons-round">search_off</span>
-                    <p>No tienes productos especiales asignados.</p>
+                <div className="ui-empty">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                    <p className="ui-empty-text">No tienes productos especiales asignados.</p>
                 </div>
             ) : (
                 <div className="vendor-sp-grid">
                     {products.map(product => (
-                        <div key={product.id} className="vendor-sp-card">
+                        <article key={product.id} className="ui-card ui-card--flush vendor-sp-card">
                             <div className="vendor-sp-card-img">
-                                <img src={product.imageUrl || PLACEHOLDER_IMAGE} alt={product.nombre}
+                                <img src={product.imageUrl || PLACEHOLDER_IMAGE} alt={product.nombre} loading="lazy" decoding="async"
                                     onError={e => e.target.src = PLACEHOLDER_IMAGE} />
                             </div>
                             <div className="vendor-sp-card-body">
-                                <h4>{product.nombre}</h4>
+                                <h4 className="ui-card-title">{product.nombre}</h4>
                                 {product.descripcion && (
-                                    <p style={{
-                                        color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.5rem',
-                                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
-                                    }}>
+                                    <p className="vendor-sp-desc">
                                         {product.descripcion}
                                     </p>
                                 )}
-                                <div className="price">${formatCurrency(parseFloat(product.precio))}</div>
-                                <div className="stock-info">
-                                    <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>inventory</span>
+                                <div className="vendor-sp-price">${formatCurrency(parseFloat(product.precio))}</div>
+                                <div className="vendor-sp-stock">
+                                    <span className="material-icons-round" aria-hidden="true">inventory</span>
                                     {' '}Stock: {product.stock}
                                 </div>
                             </div>
-                        </div>
+                        </article>
                     ))}
                 </div>
             )}
 
             {/* Pagination */}
             {totalPages > 1 && (
-                <div className="sp-pagination">
-                    <button disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-                        <span className="material-icons-round" style={{ fontSize: '18px' }}>chevron_left</span>
+                <nav className="sp-pagination" aria-label="Paginación">
+                    <button type="button" className="ui-icon-btn ui-icon-btn--bordered" disabled={page === 0} onClick={() => setPage(p => p - 1)} aria-label="Página anterior">
+                        <span className="material-icons-round" aria-hidden="true">chevron_left</span>
                     </button>
-                    <span>Página {page + 1} de {totalPages}</span>
-                    <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-                        <span className="material-icons-round" style={{ fontSize: '18px' }}>chevron_right</span>
+                    <span className="sp-pagination-label">Página {page + 1} de {totalPages}</span>
+                    <button type="button" className="ui-icon-btn ui-icon-btn--bordered" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} aria-label="Página siguiente">
+                        <span className="material-icons-round" aria-hidden="true">chevron_right</span>
                     </button>
-                </div>
+                </nav>
             )}
         </div>
     );

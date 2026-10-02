@@ -13,6 +13,17 @@ import HistoricalInvoiceModal from './HistoricalInvoiceModal'; // Import for edi
 import { formatCurrency, formatDateISO, formatDateTime, formatOrderLabel } from '../../utils/formatters';
 import './OrderManagementModal.css';
 
+// Tono del badge de estado (solo presentación, según el sistema de diseño):
+// PENDIENTE=warning, CONFIRMADO=primary, COMPLETADO=success, ANULADA/CANCELADO=danger, otros=neutral
+const STATUS_BADGE_TONE = {
+    [OrdenStatus.PENDIENTE]: 'warning',
+    [OrdenStatus.CONFIRMADO]: 'primary',
+    [OrdenStatus.COMPLETADO]: 'success',
+    [OrdenStatus.ANULADA]: 'danger',
+    [OrdenStatus.CANCELADO]: 'danger'
+};
+const statusBadgeClass = (estado) => `ui-badge ui-badge--${STATUS_BADGE_TONE[estado] || 'neutral'}`;
+
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
 export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const [payments, setPayments] = useState([]);
@@ -305,124 +316,93 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     // Also use currentOrder.discountedTotal if available and consistent
     const hasDiscounts = activeDiscounts.length > 0;
 
+    // Solo presentación: barra de lo pagado sobre el total vigente (los mismos valores del
+    // resumen; saldada = llena, como el saldo en verde). Protegida contra división por cero.
+    const paidPct = pendingBalance <= 0.01
+        ? 100
+        : (effectiveTotal > 0 ? Math.min(100, Math.max(0, (totalPaid / effectiveTotal) * 100)) : 0);
+
     return (
-        <div className="modal-overlay">
-            <div className="modal-content-large order-detail-enhanced" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>
+        <div className="ui-modal-overlay omm-overlay">
+            <div
+                className="ui-modal ui-modal--xl omm-detail"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="omm-detail-title"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
                         <span className="material-icons-round">receipt_long</span>
-                        {/* currentOrder: la versión recargada (refleja una factura recién editada) */}
-                        Detalle de {formatOrderLabel({ ...order, ...currentOrder })}
-                    </h3>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {/* Editar deja la factura COMPLETADO: en una venta anulada primero hay que revertir.
-                            Un pedido CANCELADO ya devolvió su stock: facturarlo sería una venta sin
-                            salida de inventario (el backend también lo rechaza) */}
-                        {(isOwner || isAdmin) && !isAnnulled && currentOrder.estado !== OrdenStatus.CANCELADO && (
-                            <button
-                                className="btn-edit-invoice"
-                                onClick={() => setShowEditHistoryModal(true)}
-                                style={{
-                                    background: '#f59e0b',
-                                    color: '#fff',
-                                    border: 'none',
-                                    padding: '0.4rem 0.8rem',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.85rem'
-                                }}
-                                title="Editar Factura Histórica (Sobreescribir)"
-                            >
-                                <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
-                                Editar Factura
-                            </button>
-                        )}
-                        {/* Anular: OWNER y ADMIN pueden anular cualquier orden (incluyendo COMPLETADAS) */}
-                        {(isOwner || isAdmin) &&
-                          currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
-                            <button
-                                className="btn-cancel"
-                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                onClick={handleAnnulOrder}
-                            >
-                                <span className="material-icons-round" style={{ fontSize: '16px' }}>block</span>
-                                Anular Venta
-                            </button>
-                        )}
-                        {/* Revertir: los mismos roles que pueden anular */}
-                        {(isOwner || isAdmin) && isAnnulled && (
-                            <button
-                                className="btn-revert-annulment"
-                                onClick={() => setShowRevertModal(true)}
-                                title="Revertir la anulación de esta venta"
-                            >
-                                <span className="material-icons-round" style={{ fontSize: '16px' }}>settings_backup_restore</span>
-                                Revertir Anulación
-                            </button>
-                        )}
-                        <button className="btn-close" onClick={onClose}>
-                            <span className="material-icons-round">close</span>
-                        </button>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="omm-detail-title" className="ui-modal-title">
+                            {/* currentOrder: la versión recargada (refleja una factura recién editada) */}
+                            Detalle de {formatOrderLabel({ ...order, ...currentOrder })}
+                        </h3>
                     </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
+                    </button>
                 </div>
 
-                <div className="order-detail-content">
+                <div className="ui-modal-body omm-detail-body">
                     {loadingOrder && (
-                        <div className="loading-overlay-inline">
-                            <span className="material-icons-round spin">sync</span> Cargando detalles actualizados...
+                        <div className="loading-overlay-inline omm-detail-loading" role="status">
+                            <span className="ui-spinner ui-spinner--sm" aria-hidden="true" /> Cargando detalles actualizados...
                         </div>
                     )}
                     {/* Order Info Section */}
-                    <div className="detail-section order-summary-section">
-                        <h4><span className="material-icons-round">info</span> Información General</h4>
-                        <div className="info-grid">
-                            <div className="info-item">
-                                <span className="label">Estado:</span>
-                                <span className={`badge status-${currentOrder.estado?.toLowerCase()}`}>{currentOrder.estado}</span>
+                    <section className="ui-section omm-span-full">
+                        <div className="ui-section-head">
+                            <h4 className="ui-section-title omm-section-title"><span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true">info</span> Información General</h4>
+                        </div>
+                        <div className="omm-info-grid">
+                            <div className="omm-info-item">
+                                <span className="omm-info-label">Estado:</span>
+                                <span className="omm-info-value">
+                                    <span className={statusBadgeClass(currentOrder.estado)}>{currentOrder.estado}</span>
+                                </span>
                             </div>
-                            <div className="info-item">
-                                <span className="label">Vendedor:</span>
-                                <span>{currentOrder.vendedor}</span>
+                            <div className="omm-info-item">
+                                <span className="omm-info-label">Vendedor:</span>
+                                <span className="omm-info-value">{currentOrder.vendedor}</span>
                             </div>
-                            <div className="info-item">
-                                <span className="label">Cliente:</span>
-                                <span>{currentOrder.cliente}</span>
+                            <div className="omm-info-item">
+                                <span className="omm-info-label">Cliente:</span>
+                                <span className="omm-info-value">{currentOrder.cliente}</span>
                             </div>
-                            <div className="info-item">
-                                <span className="label">{currentOrder.completedAt ? 'Fecha pedido:' : 'Fecha:'}</span>
-                                <span>{new Date(currentOrder.fecha).toLocaleString()}</span>
+                            <div className="omm-info-item">
+                                <span className="omm-info-label">{currentOrder.completedAt ? 'Fecha pedido:' : 'Fecha:'}</span>
+                                <span className="omm-info-value">{new Date(currentOrder.fecha).toLocaleString()}</span>
                             </div>
                             {/* La fecha de la factura (tarjeta, PDF, reportes) es completedAt, no la del pedido */}
                             {currentOrder.completedAt && (
-                                <div className="info-item">
-                                    <span className="label">Fecha factura:</span>
-                                    <span>{new Date(currentOrder.completedAt).toLocaleDateString('es-ES')}</span>
+                                <div className="omm-info-item">
+                                    <span className="omm-info-label">Fecha factura:</span>
+                                    <span className="omm-info-value">{new Date(currentOrder.completedAt).toLocaleDateString('es-ES')}</span>
                                 </div>
                             )}
-                            <div className="info-item highlight">
-                                <span className="label">Total Original:</span>
-                                <span className="value">${formatCurrency(currentOrder.total)}</span>
+                            <div className="omm-info-item omm-info-item--amount">
+                                <span className="omm-info-label">Total Original:</span>
+                                <span className="omm-info-value">${formatCurrency(currentOrder.total)}</span>
                             </div>
                             {currentOrder.discountedTotal && currentOrder.discountedTotal !== currentOrder.total && (
-                                <div className="info-item highlight success">
-                                    <span className="label">Total con Descuento:</span>
-                                    <span className="value">${formatCurrency(currentOrder.discountedTotal)}</span>
+                                <div className="omm-info-item omm-info-item--amount omm-info-item--success">
+                                    <span className="omm-info-label">Total con Descuento:</span>
+                                    <span className="omm-info-value">${formatCurrency(currentOrder.discountedTotal)}</span>
                                 </div>
                             )}
                         </div>
 
                         {isAnnulled && (
-                            <div className="annulled-banner">
-                                <span className="material-icons-round annulled-banner-icon">block</span>
+                            <div className="ui-alert ui-alert--danger omm-callout">
+                                <span className="material-icons-round" aria-hidden="true">block</span>
                                 <div>
-                                    <strong>Venta anulada</strong>
-                                    <p>Motivo: {currentOrder.cancellationReason || 'Sin motivo registrado'}</p>
+                                    <strong className="ui-alert-title">Venta anulada</strong>
+                                    <p className="omm-annulled-reason">Motivo: {currentOrder.cancellationReason || 'Sin motivo registrado'}</p>
                                     {currentAnnulment && (
-                                        <small>
+                                        <small className="omm-annulled-meta">
                                             Por {currentAnnulment.username} el {formatDateTime(currentAnnulment.createdAt)}
                                         </small>
                                     )}
@@ -431,34 +411,34 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                         )}
 
                         {currentOrder.notas && (
-                            <div className="notes-box">
-                                <strong><span className="material-icons-round">note</span> Notas:</strong>
+                            <div className="omm-notes omm-callout">
+                                <strong className="omm-notes-title"><span className="material-icons-round" aria-hidden="true">note</span> Notas:</strong>
                                 <p>{currentOrder.notas}</p>
                             </div>
                         )}
 
                         {annulmentHistory.length > 0 && (
-                            <div className="annulment-history">
-                                <strong className="annulment-history-title">
-                                    <span className="material-icons-round">history</span> Historial de anulación
+                            <div className="omm-history omm-callout">
+                                <strong className="omm-history-title">
+                                    <span className="material-icons-round" aria-hidden="true">history</span> Historial de anulación
                                 </strong>
-                                <ul>
+                                <ul className="omm-history-list">
                                     {annulmentHistory.map(event => (
                                         <li
                                             key={event.id}
-                                            className={`annulment-event ${event.action === 'ANNULMENT' ? 'is-annulment' : 'is-reversal'}`}
+                                            className={`omm-history-event ${event.action === 'ANNULMENT' ? 'is-annulment' : 'is-reversal'}`}
                                         >
-                                            <div className="annulment-event-head">
-                                                <span className="material-icons-round">
+                                            <div className="omm-history-head">
+                                                <span className="material-icons-round omm-history-icon" aria-hidden="true">
                                                     {event.action === 'ANNULMENT' ? 'block' : 'settings_backup_restore'}
                                                 </span>
                                                 <strong>{event.action === 'ANNULMENT' ? 'Anulada' : 'Anulación revertida'}</strong>
-                                                <span className="annulment-event-meta">
+                                                <span className="omm-history-meta">
                                                     {formatDateTime(event.createdAt)} · {event.username}
                                                 </span>
                                             </div>
-                                            <p className="annulment-event-reason">{event.reason}</p>
-                                            <small className="annulment-event-detail">
+                                            <p className="omm-history-reason">{event.reason}</p>
+                                            <small className="omm-history-detail">
                                                 {getStatusLabel(event.previousStatus)} → {getStatusLabel(event.newStatus)} · {describeAnnulmentStock(event)}
                                             </small>
                                         </li>
@@ -470,74 +450,79 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
                         {/* PENDING PROMOTION ALERT */}
                         {currentOrder.estado === OrdenStatus.PENDING_PROMOTION_COMPLETION && isAdmin && (
-                            <div className="pending-promotion-alert">
-                                <h4>
-                                    <span className="material-icons-round">warning</span>
-                                    Acción Requerida: Completar Promoción
-                                </h4>
-                                <p>Esta orden contiene promociones que requieren selección de productos surtidos.</p>
-                                {currentOrder.items?.filter(i =>
-                                    i.isPromotionItem &&
-                                    i.promotion?.requiresAssortmentSelection &&
-                                    !i.assortmentCompleted &&
-                                    (i.promotion.type === PromotionType.BUY_GET_FREE || i.promotion.type === 'ASSORTMENT_PROMOTION')
-                                ).map(item => (
-                                    <div key={item.promotion.id} style={{ marginTop: '1rem' }}>
-                                        <button
-                                            className="btn-select-assortment"
-                                            onClick={() => openAssortmentModal(item.promotion.id)}
-                                        >
-                                            Seleccionar Surtidos para {item.promotion.nombre}
-                                        </button>
-                                    </div>
-                                ))}
-                                {(!currentOrder.items?.some(i =>
-                                    i.isPromotionItem &&
-                                    i.promotion?.requiresAssortmentSelection &&
-                                    !i.assortmentCompleted &&
-                                    (i.promotion.type === PromotionType.BUY_GET_FREE || i.promotion.type === 'ASSORTMENT_PROMOTION')
-                                )) && (
-                                        <p><em>No se detectaron promociones pendientes específicas en los ítems, pero el estado es PENDIENTE_PROMOCION.</em></p>
-                                    )}
+                            <div className="ui-alert ui-alert--warning omm-callout omm-pending-promo">
+                                <span className="material-icons-round" aria-hidden="true">warning</span>
+                                <div className="omm-pending-promo-body">
+                                    <h4 className="ui-alert-title omm-pending-promo-title">
+                                        Acción Requerida: Completar Promoción
+                                    </h4>
+                                    <p>Esta orden contiene promociones que requieren selección de productos surtidos.</p>
+                                    {currentOrder.items?.filter(i =>
+                                        i.isPromotionItem &&
+                                        i.promotion?.requiresAssortmentSelection &&
+                                        !i.assortmentCompleted &&
+                                        (i.promotion.type === PromotionType.BUY_GET_FREE || i.promotion.type === 'ASSORTMENT_PROMOTION')
+                                    ).map(item => (
+                                        <div key={item.promotion.id} className="omm-pending-promo-action">
+                                            <button
+                                                type="button"
+                                                className="ui-btn ui-btn--primary ui-btn--sm"
+                                                onClick={() => openAssortmentModal(item.promotion.id)}
+                                            >
+                                                Seleccionar Surtidos para {item.promotion.nombre}
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {(!currentOrder.items?.some(i =>
+                                        i.isPromotionItem &&
+                                        i.promotion?.requiresAssortmentSelection &&
+                                        !i.assortmentCompleted &&
+                                        (i.promotion.type === PromotionType.BUY_GET_FREE || i.promotion.type === 'ASSORTMENT_PROMOTION')
+                                    )) && (
+                                            <p className="omm-pending-promo-note"><em>No se detectaron promociones pendientes específicas en los ítems, pero el estado es PENDIENTE_PROMOCION.</em></p>
+                                        )}
+                                </div>
                             </div>
                         )}
-                    </div>
+                    </section>
 
                     {/* Products Section */}
-                    <div className="detail-section">
-                        <h4><span className="material-icons-round">inventory_2</span> Productos ({currentOrder.items?.length || 0})</h4>
-                        <div className="products-table-wrapper">
-                            <table className="items-table">
+                    <section className="ui-section omm-span-full">
+                        <div className="ui-section-head">
+                            <h4 className="ui-section-title omm-section-title"><span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--sky" aria-hidden="true">inventory_2</span> Productos ({currentOrder.items?.length || 0})</h4>
+                        </div>
+                        <div className="ui-table-wrap omm-items-wrap">
+                            <table className="ui-table ui-table--compact omm-items-table">
                                 <thead>
                                     <tr>
                                         <th>Producto</th>
-                                        <th>Cantidad</th>
-                                        <th>Estado</th>
-                                        <th>Precio Unit.</th>
-                                        <th>Subtotal</th>
+                                        <th className="ui-num">Cantidad</th>
+                                        <th className="omm-col-status">Estado</th>
+                                        <th className="ui-num">Precio Unit.</th>
+                                        <th className="ui-num">Subtotal</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {currentOrder.items?.map((item, idx) => (
-                                        <tr key={idx} className={item.outOfStock ? 'row-warning' : ''}>
-                                            <td>
-                                                <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                                                <div className="order-item-badges">
+                                        <tr key={idx} className={item.outOfStock ? 'omm-row-warning' : ''}>
+                                            <td className="omm-col-product">
+                                                <div className="omm-item-name">{item.productName}</div>
+                                                <div className="omm-item-badges">
                                                     {item.outOfStock && (
-                                                        <span className="order-item-badge out-of-stock">
-                                                            <span className="material-icons-round" style={{ fontSize: '12px' }}>event_busy</span>
+                                                        <span className="ui-badge ui-badge--warning">
+                                                            <span className="material-icons-round" aria-hidden="true">event_busy</span>
                                                             Sin Stock
                                                         </span>
                                                     )}
                                                     {item.isPromotionItem && (
-                                                        <span className="order-item-badge promotion">
-                                                            <span className="material-icons-round" style={{ fontSize: '12px' }}>local_offer</span>
+                                                        <span className="ui-badge ui-badge--primary">
+                                                            <span className="material-icons-round" aria-hidden="true">local_offer</span>
                                                             Promoción
                                                         </span>
                                                     )}
                                                     {item.isFreeItem && (
-                                                        <span className="order-item-badge free-item">
-                                                            <span className="material-icons-round" style={{ fontSize: '12px' }}>card_giftcard</span>
+                                                        <span className="ui-badge ui-badge--success">
+                                                            <span className="material-icons-round" aria-hidden="true">card_giftcard</span>
                                                             Bonificado
                                                         </span>
                                                     )}
@@ -545,14 +530,15 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
                                                 {/* ETA Display/Edit for Admins */}
                                                 {item.outOfStock && (
-                                                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                                                    <div className="omm-eta">
                                                         {item.estimatedArrivalDate ? (
-                                                            <div style={{ color: '#d97706' }}>
+                                                            <div className="omm-eta-info">
                                                                 <strong>ETA:</strong> {new Date(item.estimatedArrivalDate).toLocaleDateString()}
                                                                 {item.estimatedArrivalNote && <span> ({item.estimatedArrivalNote})</span>}
                                                                 {isAdmin && (
                                                                     <button
-                                                                        className="btn-link"
+                                                                        type="button"
+                                                                        className="ui-btn ui-btn--ghost ui-btn--sm omm-eta-edit"
                                                                         onClick={() => {
                                                                             const idToUse = item.id || item.orderItemId;
                                                                             setEditingItemEta(idToUse);
@@ -561,7 +547,6 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                                                 note: item.estimatedArrivalNote || ''
                                                                             });
                                                                         }}
-                                                                        style={{ marginLeft: '0.5rem', fontSize: '0.8rem' }}
                                                                     >
                                                                         Editar
                                                                     </button>
@@ -570,13 +555,13 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                         ) : (
                                                             isAdmin && (
                                                                 <button
-                                                                    className="btn-link warning"
+                                                                    type="button"
+                                                                    className="ui-btn ui-btn--secondary ui-btn--sm"
                                                                     onClick={() => {
                                                                         const idToUse = item.id || item.orderItemId;
                                                                         setEditingItemEta(idToUse);
                                                                         setEtaForm({ date: '', note: '' });
                                                                     }}
-                                                                    style={{ fontSize: '0.8rem' }}
                                                                 >
                                                                     + Agregar Estimación de Llegada
                                                                 </button>
@@ -585,24 +570,35 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
                                                         {/* ETA Edit Form */}
                                                         {editingItemEta === (item.id || item.orderItemId) && (
-                                                            <div className="eta-form">
-                                                                <h5>Definir Estimación de Llegada</h5>
-                                                                <div className="form-group">
+                                                            <div className="omm-eta-form">
+                                                                <h5 className="omm-eta-title">Definir Estimación de Llegada</h5>
+                                                                <div className="omm-eta-fields">
                                                                     <input
                                                                         type="date"
+                                                                        className="ui-input"
+                                                                        aria-label="Fecha estimada de llegada"
                                                                         value={etaForm.date}
                                                                         onChange={(e) => setEtaForm({ ...etaForm, date: e.target.value })}
-                                                                        style={{ width: '100%', marginBottom: '0.5rem' }}
                                                                     />
                                                                     <input
                                                                         type="text"
+                                                                        className="ui-input"
+                                                                        aria-label="Nota de la estimación de llegada"
                                                                         placeholder="Nota (ej: Llega el martes)"
                                                                         value={etaForm.note}
                                                                         onChange={(e) => setEtaForm({ ...etaForm, note: e.target.value })}
-                                                                        style={{ width: '100%', marginBottom: '0.5rem' }}
                                                                     />
-                                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                                    {/* Secundaria y luego primaria: el orden del DOM (tabulador) coincide con el visual */}
+                                                                    <div className="omm-eta-actions">
                                                                         <button
+                                                                            type="button"
+                                                                            onClick={() => setEditingItemEta(null)}
+                                                                            className="ui-btn ui-btn--secondary ui-btn--sm"
+                                                                        >
+                                                                            Cancelar
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
                                                                             onClick={() => {
                                                                                 const idToUse = item.id || item.orderItemId;
                                                                                 if (!idToUse) {
@@ -612,15 +608,9 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                                                 }
                                                                                 handleUpdateEta(idToUse);
                                                                             }}
-                                                                            className="btn-save small"
+                                                                            className="ui-btn ui-btn--primary ui-btn--sm"
                                                                         >
                                                                             Guardar
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => setEditingItemEta(null)}
-                                                                            className="btn-cancel small"
-                                                                        >
-                                                                            Cancelar
                                                                         </button>
                                                                     </div>
                                                                 </div>
@@ -629,14 +619,14 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td>{item.cantidad}</td>
-                                            <td>
+                                            <td className="ui-num" data-label="Cantidad">{item.cantidad}</td>
+                                            <td className="omm-col-status">
                                                 {/* Status column content if needed, basically covered by badges */}
                                             </td>
-                                            <td style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                                            <td className={`ui-num${item.isFreeItem ? ' omm-free' : ''}`} data-label="Precio Unit.">
                                                 ${item.isFreeItem ? '0.00' : formatCurrency(item.precioUnitario || 0)}
                                             </td>
-                                            <td style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                                            <td className={`ui-num${item.isFreeItem ? ' omm-free' : ''}`} data-label="Subtotal">
                                                 ${formatCurrency(item.subtotal || 0)}
                                             </td>
                                         </tr>
@@ -644,39 +634,43 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </section>
 
                     {/* Discounts Section */}
-                    <div className="detail-section discounts-section">
-                        <div className="section-header">
-                            <h4><span className="material-icons-round">discount</span> Descuentos</h4>
+                    <section className="ui-section omm-discounts">
+                        <div className="ui-section-head omm-section-head">
+                            <h4 className="ui-section-title omm-section-title"><span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--teal" aria-hidden="true">discount</span> Descuentos</h4>
                             {canManageDiscounts && (
                                 <button
-                                    className="btn-add-small"
+                                    type="button"
+                                    className="ui-btn ui-btn--secondary ui-btn--sm"
                                     onClick={() => setShowDiscountForm(true)}
                                 >
-                                    <span className="material-icons-round">add</span> Añadir
+                                    <span className="material-icons-round" aria-hidden="true">add</span> Añadir
                                 </button>
                             )}
                         </div>
 
                         {loadingDiscounts ? (
-                            <div className="loading-inline">Cargando descuentos...</div>
+                            <div className="ui-loading omm-inline-loading">
+                                <span className="ui-spinner ui-spinner--sm" aria-hidden="true" />
+                                Cargando descuentos...
+                            </div>
                         ) : discounts.length === 0 ? (
-                            <div className="empty-inline">
-                                <span className="material-icons-round">info</span>
+                            <div className="omm-empty">
+                                <span className="material-icons-round" aria-hidden="true">info</span>
                                 No hay descuentos aplicados
                             </div>
                         ) : (
-                            <div className="discounts-list">
+                            <div className="omm-list ui-stagger">
                                 {discounts.map(discount => (
-                                    <div key={discount.id} className={`discount-item ${discount.status?.toLowerCase()}`}>
-                                        <div className="discount-info">
-                                            <span className="discount-percentage">{discount.percentage}%</span>
-                                            <span className="discount-type">{discount.type}</span>
-                                            <span className="discount-status">{discount.status}</span>
+                                    <div key={discount.id} className={`omm-list-item omm-discount is-${discount.status?.toLowerCase()} ui-stripe ${discount.status === 'APPLIED' ? 'ui-stripe--success' : 'ui-stripe--neutral'}`}>
+                                        <div className="omm-discount-info">
+                                            <span className="omm-discount-pct">{discount.percentage}%</span>
+                                            <span className="ui-badge ui-badge--neutral">{discount.type}</span>
+                                            <span className={`ui-badge ${discount.status === 'APPLIED' ? 'ui-badge--success' : 'ui-badge--neutral'}`}>{discount.status}</span>
                                         </div>
-                                        <div className="discount-meta">
+                                        <div className="omm-meta">
                                             <span>Aplicado por: {discount.appliedByName || 'Sistema'}</span>
                                             {discount.revokedByName && (
                                                 <span>Revocado por: {discount.revokedByName}</span>
@@ -684,113 +678,133 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                         </div>
                                         {discount.status === 'APPLIED' && canManageDiscounts && (
                                             <button
-                                                className="btn-revoke"
+                                                type="button"
+                                                className="ui-btn ui-btn--danger-ghost ui-btn--sm omm-list-action"
                                                 onClick={() => handleRevokeDiscount(discount.id)}
                                             >
-                                                <span className="material-icons-round">block</span> Revocar
+                                                <span className="material-icons-round" aria-hidden="true">block</span> Revocar
                                             </button>
                                         )}
                                     </div>
                                 ))}
                             </div>
                         )}
-                    </div>
+                    </section>
 
                     {/* Payments Section - OWNER ONLY */}
-                    <div className="detail-section payments-section">
-                        <div className="section-header">
-                            <h4><span className="material-icons-round">payments</span> Pagos / Abonos</h4>
+                    <section className="ui-section omm-payments">
+                        <div className="ui-section-head omm-section-head">
+                            <h4 className="ui-section-title omm-section-title"><span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true">payments</span> Pagos / Abonos</h4>
                             {canManagePayments && (
                                 <button
-                                    className="btn-add-small primary"
+                                    type="button"
+                                    className="ui-btn ui-btn--primary ui-btn--sm"
                                     onClick={() => setShowPaymentForm(true)}
                                 >
-                                    <span className="material-icons-round">add</span> Registrar Pago
+                                    <span className="material-icons-round" aria-hidden="true">add</span> Registrar Pago
                                 </button>
                             )}
                         </div>
 
-                        {/* Payment Summary */}
-                        <div className="payment-summary">
-                            <div className="summary-item">
+                        {/* Payment Summary: total en marino, pagado en verde, pendiente en ámbar */}
+                        <div className="omm-summary">
+                            <div className="omm-summary-row">
                                 <span>Total {hasDiscounts ? 'Original' : 'Orden'}:</span>
-                                <strong className={hasDiscounts ? 'strike-through' : ''}>${formatCurrency(originalTotal)}</strong>
+                                <strong className={hasDiscounts ? 'omm-strike' : ''}>${formatCurrency(originalTotal)}</strong>
                             </div>
                             {hasDiscounts && (
-                                <div className="summary-item highlight">
+                                <div className="omm-summary-row">
                                     <span>Total con Descuento:</span>
-                                    <strong className="success">${formatCurrency(effectiveTotal)}</strong>
+                                    <strong className="omm-text-success">${formatCurrency(effectiveTotal)}</strong>
                                 </div>
                             )}
-                            <div className="summary-item paid">
+                            <div className="omm-summary-row">
                                 <span>Total Pagado:</span>
-                                <strong>${formatCurrency(totalPaid)}</strong>
+                                <strong className={totalPaid > 0 ? 'omm-text-success' : ''}>${formatCurrency(totalPaid)}</strong>
                             </div>
-                            <div className={`summary-item ${pendingBalance <= 0.01 ? 'success' : 'warning'}`}>
+                            <div className={`omm-summary-row omm-summary-row--balance ${pendingBalance <= 0.01 ? 'is-success' : 'is-warning'}`}>
                                 <span>Saldo Pendiente:</span>
-                                <strong style={{ fontSize: '1.2rem' }}>${formatCurrency(Math.max(0, pendingBalance))}</strong>
+                                <strong>${formatCurrency(Math.max(0, pendingBalance))}</strong>
+                            </div>
+                            <div
+                                className="ui-progress ui-progress--sm ui-progress--success omm-summary-progress"
+                                style={{ '--value': paidPct }}
+                                role="progressbar"
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={Math.floor(paidPct)}
+                                aria-label="Porcentaje pagado"
+                            >
+                                <span className="ui-progress-bar" />
                             </div>
                         </div>
 
                         {loadingPayments ? (
-                            <div className="loading-inline">Cargando pagos...</div>
+                            <div className="ui-loading omm-inline-loading">
+                                <span className="ui-spinner ui-spinner--sm" aria-hidden="true" />
+                                Cargando pagos...
+                            </div>
                         ) : payments.length === 0 ? (
-                            <div className="empty-inline">
-                                <span className="material-icons-round">info</span>
+                            <div className="omm-empty">
+                                <span className="material-icons-round" aria-hidden="true">info</span>
                                 No hay pagos registrados
                             </div>
                         ) : (
-                            <div className="payments-list">
+                            <div className="omm-list ui-stagger">
                                 {payments.map(payment => (
-                                    <div key={payment.id} className={`payment-item ${payment.isCancelled ? 'cancelled' : ''}`}>
-                                        <div className="payment-main">
-                                            <span className="payment-amount">${formatCurrency(payment.amount)}</span>
-                                            <span className="payment-date">
+                                    <div key={payment.id} className={`omm-list-item omm-payment ${payment.isCancelled ? 'is-cancelled' : ''} ui-stripe ${payment.isCancelled ? 'ui-stripe--danger' : 'ui-stripe--success'}`}>
+                                        <div className="omm-payment-main">
+                                            {/* Monto en verde; anulado en rojo tachado */}
+                                            <span className="omm-payment-amount">${formatCurrency(payment.amount)}</span>
+                                            <span className="omm-payment-date">
+                                                <span className="material-icons-round" aria-hidden="true">event</span>
                                                 {new Date(payment.paymentDate).toLocaleDateString()}
                                             </span>
                                             {payment.isCancelled ? (
-                                                <span className="badge-cancelled">
-                                                    <span className="material-icons-round">cancel</span> ANULADO
+                                                <span className="ui-badge ui-badge--danger">
+                                                    <span className="material-icons-round" aria-hidden="true">cancel</span> ANULADO
                                                 </span>
                                             ) : (
                                                 payment.withinDeadline && (
-                                                    <span className="badge-deadline">
-                                                        <span className="material-icons-round">schedule</span> En plazo
+                                                    <span className="ui-badge ui-badge--success">
+                                                        <span className="material-icons-round" aria-hidden="true">schedule</span> En plazo
                                                     </span>
                                                 )
                                             )}
                                         </div>
-                                        <div className="payment-meta">
+                                        <div className="omm-meta">
                                             {payment.discountApplied > 0 && (
                                                 <span>Descuento: {payment.discountApplied}%</span>
                                             )}
                                             {payment.notes && <span>Notas: {payment.notes}</span>}
                                             <span>Registrado por: {payment.registeredByUsername || payment.registeredByName || 'Sistema'}</span>
                                             {payment.isCancelled && payment.cancelledByUsername && (
-                                                <div className="cancellation-info-mini">
-                                                    Anulado por: {payment.cancelledByUsername} 
+                                                <div className="omm-cancel-info">
+                                                    Anulado por: {payment.cancelledByUsername}
                                                     {payment.cancellationReason && ` (${payment.cancellationReason})`}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="payment-actions">
+                                        <div className="omm-list-action omm-payment-actions">
                                             {canManagePayments && !payment.isCancelled && (
                                                 <button
-                                                    className="btn-cancel-payment"
+                                                    type="button"
+                                                    className="ui-icon-btn ui-icon-btn--bordered ui-icon-btn--danger"
                                                     onClick={() => handleCancelPayment(payment.id)}
                                                     title="Anular Pago"
                                                 >
-                                                    <span className="material-icons-round">delete_outline</span>
+                                                    <span className="material-icons-round" aria-hidden="true">delete_outline</span>
                                                 </button>
                                             )}
                                             {/* En una venta anulada primero se revierte la anulación */}
                                             {canManagePayments && payment.isCancelled && !isAnnulled && (
                                                 <button
-                                                    className="btn-restore-payment"
+                                                    type="button"
+                                                    className="ui-icon-btn ui-icon-btn--bordered"
                                                     onClick={() => handleRestorePayment(payment.id)}
                                                     title="Restaurar Pago"
                                                 >
-                                                    <span className="material-icons-round">restore</span>
+                                                    <span className="material-icons-round" aria-hidden="true">restore</span>
                                                 </button>
                                             )}
                                         </div>
@@ -798,7 +812,50 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                                 ))}
                             </div>
                         )}
-                    </div>
+                    </section>
+                </div>
+
+                {/* Acciones de la venta (se oculta si no hay ninguna visible para el rol / estado).
+                    Destructiva a la izquierda, como indica el sistema de diseño. */}
+                <div className="ui-modal-footer omm-detail-footer">
+                    {/* Anular: OWNER y ADMIN pueden anular cualquier orden (incluyendo COMPLETADAS) */}
+                    {(isOwner || isAdmin) &&
+                      currentOrder.estado !== 'ANULADA' && currentOrder.estado !== 'CANCELADO' && (
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn--danger-ghost omm-footer-start"
+                            onClick={handleAnnulOrder}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">block</span>
+                            Anular Venta
+                        </button>
+                    )}
+                    {/* Revertir: los mismos roles que pueden anular */}
+                    {(isOwner || isAdmin) && isAnnulled && (
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn--primary"
+                            onClick={() => setShowRevertModal(true)}
+                            title="Revertir la anulación de esta venta"
+                        >
+                            <span className="material-icons-round" aria-hidden="true">settings_backup_restore</span>
+                            Revertir Anulación
+                        </button>
+                    )}
+                    {/* Editar deja la factura COMPLETADO: en una venta anulada primero hay que revertir.
+                        Un pedido CANCELADO ya devolvió su stock: facturarlo sería una venta sin
+                        salida de inventario (el backend también lo rechaza) */}
+                    {(isOwner || isAdmin) && !isAnnulled && currentOrder.estado !== OrdenStatus.CANCELADO && (
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn--secondary"
+                            onClick={() => setShowEditHistoryModal(true)}
+                            title="Editar Factura Histórica (Sobreescribir)"
+                        >
+                            <span className="material-icons-round" aria-hidden="true">edit</span>
+                            Editar Factura
+                        </button>
+                    )}
                 </div>
 
                 {/* Payment Form Modal */}
@@ -882,13 +939,14 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
 
 // ===== PAYMENT FORM MODAL (EXTENDED) =====
 // Exported so it can be reused from BalancesPage
+// icon: nombre del icono Material que acompaña al método elegido (antes emojis en el texto)
 const PAYMENT_METHODS = [
-    { value: 'EFECTIVO', label: 'Efectivo', icon: '💵' },
-    { value: 'TRANSFERENCIA', label: 'Transferencia', icon: '🏦' },
-    { value: 'CHEQUE', label: 'Cheque', icon: '📝' },
-    { value: 'TARJETA', label: 'Tarjeta', icon: '💳' },
-    { value: 'CREDITO', label: 'Crédito', icon: '📊' },
-    { value: 'OTRO', label: 'Otro', icon: '🔖' }
+    { value: 'EFECTIVO', label: 'Efectivo', icon: 'payments' },
+    { value: 'TRANSFERENCIA', label: 'Transferencia', icon: 'account_balance' },
+    { value: 'CHEQUE', label: 'Cheque', icon: 'edit_note' },
+    { value: 'TARJETA', label: 'Tarjeta', icon: 'credit_card' },
+    { value: 'CREDITO', label: 'Crédito', icon: 'request_quote' },
+    { value: 'OTRO', label: 'Otro', icon: 'more_horiz' }
 ];
 
 export function PaymentFormModal({ orderId, orderTotal, totalPaid, availableCredit = 0, onClose, onSuccess }) {
@@ -993,153 +1051,184 @@ export function PaymentFormModal({ orderId, orderTotal, totalPaid, availableCred
         }
     };
 
+    // Icono del método elegido (solo presentación)
+    const selectedMethodIcon = (PAYMENT_METHODS.find(m => m.value === formData.paymentMethod) || PAYMENT_METHODS[0]).icon;
+
+    // Solo presentación: barra de lo ya pagado sobre el total (mismos valores del contexto).
+    // Saldada = llena; protegida contra división por cero.
+    const contextTotal = Number(orderTotal) || 0;
+    const paidPct = pendingBalance <= 0.005
+        ? 100
+        : (contextTotal > 0 ? Math.min(100, Math.max(0, (effectiveTotalPaid / contextTotal) * 100)) : 0);
+
     return (
-        <div className="modal-overlay nested">
-            <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3><span className="material-icons-round">payments</span> Registrar Pago</h3>
-                    <button className="btn-close" onClick={() => (extraPaid > 0 ? onSuccess() : onClose())}>
-                        <span className="material-icons-round">close</span>
+        <div className="ui-modal-overlay omm-overlay omm-overlay--nested">
+            <div
+                className="ui-modal ui-modal--sm omm-pay"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="omm-pay-title"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon ui-modal-icon--success" aria-hidden="true">
+                        <span className="material-icons-round">payments</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="omm-pay-title" className="ui-modal-title">Registrar Pago</h3>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={() => (extraPaid > 0 ? onSuccess() : onClose())} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
-                <div className="payment-context">
-                    <div className="context-item">
-                        <span>Total Orden</span>
-                        <strong>${formatCurrency(orderTotal)}</strong>
-                    </div>
-                    <div className="context-item">
-                        <span>Ya Pagado</span>
-                        <strong>${formatCurrency(effectiveTotalPaid)}</strong>
-                    </div>
-                    <div className="context-item highlight">
-                        <span>Saldo Pendiente</span>
-                        <strong className="warning">${formatCurrency(Math.max(0, pendingBalance))}</strong>
-                    </div>
-                </div>
-
-                {/* Saldo a favor del cliente: aplicar a esta factura */}
-                {creditLeft > 0 && pendingBalance > 0.005 && (
-                    <div className="payment-credit-box" style={{
-                        margin: '0.75rem 0', padding: '0.75rem 1rem', borderRadius: '10px',
-                        background: '#ecfdf5', border: '1px solid #a7f3d0',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap'
-                    }}>
-                        <div style={{ fontSize: '0.9rem', color: '#065f46' }}>
-                            <span className="material-icons-round" style={{ verticalAlign: 'middle', fontSize: '1.1rem', marginRight: 4 }}>savings</span>
-                            Saldo a favor disponible: <strong>${formatCurrency(creditLeft)}</strong>
+                {/* El formulario envuelve cuerpo y pie: el pie queda fijo abajo */}
+                <form onSubmit={handleSubmit} className="payment-form omm-form">
+                    <div className="ui-modal-body ui-modal-body--plain">
+                        {/* Contexto con el código de color de la cartera:
+                            total en marino, pagado en verde, pendiente en ámbar */}
+                        <div className="omm-pay-context">
+                            <div className="omm-pay-context-item">
+                                <span>Total Orden</span>
+                                <strong>${formatCurrency(orderTotal)}</strong>
+                            </div>
+                            <div className="omm-pay-context-item is-paid">
+                                <span>Ya Pagado</span>
+                                <strong>${formatCurrency(effectiveTotalPaid)}</strong>
+                            </div>
+                            <div className={`omm-pay-context-item ${pendingBalance > 0.005 ? 'is-pending' : 'is-settled'}`}>
+                                <span>Saldo Pendiente</span>
+                                <strong>${formatCurrency(Math.max(0, pendingBalance))}</strong>
+                            </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleUseCredit}
-                            disabled={applyingCredit || saving}
-                            className="btn-primary btn-sm"
-                            style={{ background: '#059669', whiteSpace: 'nowrap' }}
-                            title="Aplicar el saldo a favor a esta factura"
+                        <div
+                            className="ui-progress ui-progress--success omm-pay-progress"
+                            style={{ '--value': paidPct }}
+                            role="progressbar"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.floor(paidPct)}
+                            aria-label="Porcentaje pagado"
                         >
-                            {applyingCredit ? 'Aplicando…' : 'Usar saldo a favor'}
-                        </button>
-                    </div>
-                )}
-
-                {/* Dynamic Preview Line */}
-                {finalPaymentAmount > 0 && (
-                    <div className="payment-preview-box">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>Saldo Restante (Estimado):</span>
-                            <strong className={effectivePendingAfter <= 0.01 ? 'success' : ''}>
-                                ${formatCurrency(effectivePendingAfter)}
-                            </strong>
+                            <span className="ui-progress-bar" />
                         </div>
-                        {effectivePendingAfter <= 0.01 && (
-                            <div className="paid-badge">
-                                <span className="material-icons-round">check_circle</span>
-                                ¡La orden quedará PAGADA!
+
+                        {/* Saldo a favor del cliente: aplicar a esta factura */}
+                        {creditLeft > 0 && pendingBalance > 0.005 && (
+                            <div className="ui-alert ui-alert--success omm-pay-credit">
+                                <span className="material-icons-round" aria-hidden="true">savings</span>
+                                <div className="omm-pay-credit-text">
+                                    Saldo a favor disponible: <strong>${formatCurrency(creditLeft)}</strong>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleUseCredit}
+                                    disabled={applyingCredit || saving}
+                                    className="ui-btn ui-btn--secondary ui-btn--sm"
+                                    title="Aplicar el saldo a favor a esta factura"
+                                >
+                                    {applyingCredit ? 'Aplicando…' : 'Usar saldo a favor'}
+                                </button>
                             </div>
                         )}
-                    </div>
-                )}
 
-                <form onSubmit={handleSubmit} className="payment-form">
+                        {/* Dynamic Preview Line */}
+                        {finalPaymentAmount > 0 && (
+                            <div className={`omm-pay-preview${effectivePendingAfter <= 0.01 ? ' is-paid' : ' is-pending'}`}>
+                                <div className="omm-pay-preview-row">
+                                    <span>Saldo Restante (Estimado):</span>
+                                    <strong>
+                                        ${formatCurrency(effectivePendingAfter)}
+                                    </strong>
+                                </div>
+                                {effectivePendingAfter <= 0.01 && (
+                                    <div className="omm-pay-paid">
+                                        <span className="material-icons-round" aria-hidden="true">check_circle</span>
+                                        ¡La orden quedará PAGADA!
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                    <div className="form-group">
-                        <label>Monto del Pago *</label>
-                        <div className="input-group-text">
-                            <span className="prefix">$</span>
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="omm-pay-amount">Monto del Pago <span className="ui-required">*</span></label>
+                            <div className="ui-input-group">
+                                <span className="ui-input-prefix">$</span>
+                                <input
+                                    id="omm-pay-amount"
+                                    className="ui-input"
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    value={formData.amount}
+                                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                    placeholder={`Máximo sugerido: ${formatCurrency(pendingBalance)}`}
+                                    required
+                                    onWheel={(e) => e.target.blur()}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="omm-pay-method">Método de Pago <span className="ui-required">*</span></label>
+                            <div className="ui-input-group">
+                                <span className="material-icons-round ui-input-icon" aria-hidden="true">{selectedMethodIcon}</span>
+                                <select
+                                    id="omm-pay-method"
+                                    className="ui-select"
+                                    value={formData.paymentMethod}
+                                    onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                                    required
+                                >
+                                    {PAYMENT_METHODS.map(m => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="omm-pay-date">Fecha del Pago</label>
                             <input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                value={formData.amount}
-                                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                placeholder={`Máximo sugerido: ${formatCurrency(pendingBalance)}`}
-                                required
-                                onWheel={(e) => e.target.blur()}
+                                id="omm-pay-date"
+                                className="ui-input"
+                                type="date"
+                                value={formData.actualPaymentDate}
+                                onChange={(e) => setFormData({ ...formData, actualPaymentDate: e.target.value })}
+                                max={formatDateISO(new Date())}
+                            />
+                            <small className="ui-help">Fecha real en que se realizó el pago</small>
+                        </div>
+
+                        <label className="ui-switch" htmlFor="withinDeadline">
+                            <input
+                                type="checkbox"
+                                id="withinDeadline"
+                                checked={formData.withinDeadline}
+                                onChange={(e) => setFormData({ ...formData, withinDeadline: e.target.checked })}
+                            />
+                            <span className="ui-switch-track" aria-hidden="true"><span className="ui-switch-thumb" /></span>
+                            <span className="ui-switch-text">
+                                <span className="ui-switch-title">Pago dentro del plazo establecido</span>
+                            </span>
+                        </label>
+
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="omm-pay-notes">Notas <small className="ui-optional">- Opcional</small></label>
+                            <textarea
+                                id="omm-pay-notes"
+                                className="ui-textarea"
+                                value={formData.notes}
+                                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                placeholder="Referencia, observaciones..."
+                                rows="2"
                             />
                         </div>
                     </div>
 
-                    <div className="form-group">
-                        <label>Método de Pago *</label>
-                        <select
-                            value={formData.paymentMethod}
-                            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                            required
-                            style={{
-                                width: '100%', padding: '0.6rem 0.8rem',
-                                borderRadius: '8px', border: '1px solid #e2e8f0',
-                                fontSize: '0.9rem', background: 'white',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            {PAYMENT_METHODS.map(m => (
-                                <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Fecha del Pago</label>
-                        <input
-                            type="date"
-                            value={formData.actualPaymentDate}
-                            onChange={(e) => setFormData({ ...formData, actualPaymentDate: e.target.value })}
-                            max={formatDateISO(new Date())}
-                            style={{
-                                width: '100%', padding: '0.6rem 0.8rem',
-                                borderRadius: '8px', border: '1px solid #e2e8f0',
-                                fontSize: '0.9rem'
-                            }}
-                        />
-                        <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Fecha real en que se realizó el pago</small>
-                    </div>
-
-                    <div className="form-group checkbox">
-                        <input
-                            type="checkbox"
-                            id="withinDeadline"
-                            checked={formData.withinDeadline}
-                            onChange={(e) => setFormData({ ...formData, withinDeadline: e.target.checked })}
-                        />
-                        <label htmlFor="withinDeadline">
-                            <span className="material-icons-round">schedule</span>
-                            Pago dentro del plazo establecido
-                        </label>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Notas <small>- Opcional</small></label>
-                        <textarea
-                            value={formData.notes}
-                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                            placeholder="Referencia, observaciones..."
-                            rows="2"
-                        />
-                    </div>
-
-                    <div className="form-actions">
-                        <button type="button" className="btn-cancel" onClick={() => (extraPaid > 0 ? onSuccess() : onClose())}>Cancelar</button>
-                        <button type="submit" className="btn-save" disabled={saving || applyingCredit}>
+                    <div className="ui-modal-footer">
+                        <button type="button" className="ui-btn ui-btn--secondary" onClick={() => (extraPaid > 0 ? onSuccess() : onClose())}>Cancelar</button>
+                        <button type="submit" className="ui-btn ui-btn--primary" disabled={saving || applyingCredit}>
                             {saving ? 'Guardando...' : 'Registrar Pago'}
                         </button>
                     </div>
@@ -1181,36 +1270,52 @@ function OwnerDiscountFormModal({ orderId, onClose, onSuccess }) {
     };
 
     return (
-        <div className="modal-overlay nested" onClick={onClose}>
-            <div className="modal-content form-modal small" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3><span className="material-icons-round">discount</span> Añadir Descuento</h3>
-                    <button className="btn-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+        <div className="ui-modal-overlay omm-overlay omm-overlay--nested" onClick={onClose}>
+            <div
+                className="ui-modal ui-modal--sm omm-discount-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="omm-discount-title"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">discount</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="omm-discount-title" className="ui-modal-title">Añadir Descuento</h3>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="discount-form">
-                    <div className="form-group">
-                        <label>Porcentaje de Descuento *</label>
-                        <div className="input-with-suffix">
-                            <input
-                                type="number"
-                                step="0.1"
-                                min="0.1"
-                                max="100"
-                                value={percentage}
-                                onChange={(e) => setPercentage(e.target.value)}
-                                placeholder="Ej: 5"
-                                required
-                            />
-                            <span className="suffix">%</span>
+                {/* El formulario envuelve cuerpo y pie: el pie queda fijo abajo */}
+                <form onSubmit={handleSubmit} className="discount-form omm-form">
+                    <div className="ui-modal-body ui-modal-body--plain">
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="omm-discount-pct">Porcentaje de Descuento <span className="ui-required">*</span></label>
+                            <div className="ui-input-group ui-input-group--suffix">
+                                <input
+                                    id="omm-discount-pct"
+                                    className="ui-input"
+                                    type="number"
+                                    step="0.1"
+                                    min="0.1"
+                                    max="100"
+                                    value={percentage}
+                                    onChange={(e) => setPercentage(e.target.value)}
+                                    placeholder="Ej: 5"
+                                    required
+                                />
+                                <span className="ui-input-suffix">%</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="form-actions">
-                        <button type="button" className="btn-cancel" onClick={onClose}>Cancelar</button>
-                        <button type="submit" className="btn-save" disabled={saving}>
+                    <div className="ui-modal-footer">
+                        <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose}>Cancelar</button>
+                        <button type="submit" className="ui-btn ui-btn--primary" disabled={saving}>
                             {saving ? 'Guardando...' : 'Aplicar Descuento'}
                         </button>
                     </div>

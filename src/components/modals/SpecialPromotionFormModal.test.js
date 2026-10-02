@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import SpecialPromotionFormModal from './SpecialPromotionFormModal';
 import client from '../../api/client';
 import specialPromotionService from '../../api/specialPromotionService';
@@ -183,4 +183,41 @@ test('backend anterior (respuesta sin visibleToAll): avisa que "Todas" todavía 
 
     await waitFor(() => expect(mockToast.warning).toHaveBeenCalledWith(
         expect.stringContaining('todavía no aplica "Todas las vendedoras"')));
+});
+
+test('standalone: producto principal y regalos se eligen escribiendo en el selector con buscador', async () => {
+    client.get.mockImplementation((url) => {
+        if (url === '/admin/clients/vendedores') return Promise.resolve({ data: vendedores });
+        return Promise.resolve({ data: [
+            ...products,
+            { id: 'g1', nombre: 'Omega', precio: 500, stock: 3, active: true },
+            { id: 'x1', nombre: 'Omega Viejo', precio: 400, stock: 0, active: false },
+        ] });
+    });
+    render(<SpecialPromotionFormModal promotion={standalone} onClose={jest.fn()} onSuccess={jest.fn()} />);
+
+    const mainProduct = await screen.findByRole('combobox', { name: /Producto Principal/ });
+    await waitFor(() => expect(mainProduct).toHaveValue('Colágeno'));
+
+    // Cambiar el principal: los inactivos no se ofrecen
+    fireEvent.change(mainProduct, { target: { value: 'omega' } });
+    expect(screen.queryByRole('option', { name: /Omega Viejo/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: /Omega/ }));
+    expect(mainProduct).toHaveValue('Omega');
+
+    // Regalo: se escribe, se elige y se agrega
+    const gift = screen.getByRole('combobox', { name: /Regalos \(Fijo\)/ });
+    fireEvent.change(gift, { target: { value: 'colageno' } });
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('option', { name: /Colágeno/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar' }));
+    expect(gift).toHaveValue('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+    await waitFor(() => expect(specialPromotionService.update).toHaveBeenCalledTimes(1));
+    expect(payloadOf()).toEqual(expect.objectContaining({
+        mainProductId: 'g1',
+        type: 'PACK',
+        giftItems: [{ productId: 'm1', quantity: 1 }],
+    }));
 });

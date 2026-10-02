@@ -1,1236 +1,1086 @@
 /* ============================================
-   PANEL DE SALDOS — MOBILE-FIRST 2026
-   Reescrito: base = móvil · min-width = tablet/desktop
-   Paleta unificada al design system (índigo #6366f1)
-   Escritorio conserva el layout maestro-detalle.
+   PANEL DE SALDOS (cartera) — móvil primero
+   Todo bajo .balances-page con prefijo bp-; solo tokens del sistema
+   (sin variables ni colores propios, sin degradados ni blur).
+   Estructura con primitivas: .ui-page-title, .ui-search, .ui-tabs,
+   .ui-stat, .ui-section, .ui-input-group, .ui-btn, .ui-icon-btn,
+   .ui-badge, .ui-empty y .ui-loading.
+   Pulido premium (cartera con color): .ui-avatar (tono por nombre), .ui-text-* en
+   estadísticas, .ui-amount--* en montos, .ui-stripe--* por estado de factura,
+   .ui-progress (pagado), .ui-icon-tile en títulos, .ui-stagger / .ui-rise-in en
+   listas y detalle, .ui-skeleton en la carga y botón Excel (.ui-btn--excel + .is-loading).
+   Cartera: pagada = success, parcial = primary, pendiente = warning, vencida/mora = danger.
+   Móvil y tablet (< 1024px): lista → detalle a pantalla completa.
+   Escritorio (≥ 1024px): maestro-detalle lado a lado.
    ============================================ */
 
-/* Tokens locales (scoped a la página para NO contaminar :root global) */
 .balances-page {
-    --primary: #6366f1;
-    --primary-dark: #4f46e5;
-    --primary-light: #818cf8;
-    --primary-soft: #eef2ff;
-    --success: #10b981;
-    --success-dark: #059669;
-    --warning: #f59e0b;
-    --warning-dark: #d97706;
-    --danger: #ef4444;
-    --text-main: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
-    --border: #e2e8f0;
-    --border-strong: #cbd5e1;
-
-    --card-radius: 1.25rem;
-    --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
-    --shadow-float: 0 8px 24px -8px rgba(15, 23, 42, 0.18);
-    /* Alto del header global sticky de la app (para posicionar el toolbar) */
-    --app-header-h: 60px;
-
-    min-height: 100vh;
-    background: linear-gradient(180deg, #f8fafc 0%, #eef1f6 100%);
-    padding: 0.75rem;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    color: var(--text-main);
-}
-
-/* ---------- Loading ---------- */
-.loading-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    color: var(--text-secondary);
-    gap: 1rem;
-}
-
-.loading-state .material-icons-round {
-    font-size: 3rem;
-    color: var(--primary);
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.spin { animation: spin 1s linear infinite; }
-
-/* ============================================
-   HEADER (breadcrumb + título)
-   ============================================ */
-.balances-header {
-    background: transparent;
-    margin-bottom: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.header-breadcrumbs {
     width: 100%;
-}
-
-.btn-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 0.25rem 0;
-    transition: color 0.2s;
-}
-
-.btn-back:hover { color: var(--primary); }
-.btn-back .material-icons-round { font-size: 1.2rem; }
-
-.header-title {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-}
-
-.header-title h1 {
-    margin: 0;
-    font-size: 1.35rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--text-main);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.header-title h1 .material-icons-round {
-    font-size: 1.6rem;
-    color: var(--primary);
-}
-
-.role-badge {
-    padding: 0.25rem 0.7rem;
-    background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
-    color: white;
-    border-radius: 99px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    max-width: var(--content-max-w);
+    min-height: calc(100vh - var(--app-header-h));
+    padding: var(--space-4);
+    color: var(--color-text);
 }
 
 /* ============================================
-   TOOLBAR — buscador + filtros + acciones
-   En móvil: STICKY arriba → al buscar, los
-   resultados aparecen justo debajo sin subir.
+   CARGA: esqueletos con la forma del contenido (pulso de opacidad de .ui-skeleton)
    ============================================ */
-.balances-toolbar {
+.balances-page .bp-skeleton,
+.balances-page .bp-detail-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.balances-page .bp-skeleton-title {
+    width: 240px;
+    max-width: 70%;
+    height: 32px;
+    border-radius: var(--radius-md);
+}
+
+.balances-page .bp-skeleton-stats {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+}
+
+.balances-page .bp-skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
+
+.balances-page .bp-skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.balances-page .bp-skeleton-avatar {
+    width: 40px;
+    height: 40px;
+}
+
+.balances-page .bp-skeleton-avatar--lg {
+    width: 56px;
+    height: 56px;
+}
+
+.balances-page .bp-skeleton-lines {
+    flex: 1;
+}
+
+.balances-page .bp-skeleton-short {
+    width: 40%;
+}
+
+/* ============================================
+   ENCABEZADO
+   ============================================ */
+.balances-page .bp-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    margin-bottom: var(--space-4);
+}
+
+.balances-page .bp-back {
+    margin-left: calc(-1 * var(--space-3));
+}
+
+.balances-page .bp-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+}
+
+/* ============================================
+   BARRA: búsqueda + estado (sticky en móvil) y acciones
+   ============================================ */
+/* En móvil el contenedor no genera caja: la búsqueda queda pegada
+   bajo el header mientras las acciones se desplazan con la página. */
+.balances-page .bp-controls {
+    display: contents;
+  box-shadow: var(--shadow-card);
+}
+
+.balances-page .bp-toolbar {
     position: sticky;
     top: var(--app-header-h);
     z-index: 30;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    padding: 0.75rem;
-    margin: 0 -0.75rem 0.75rem;
-    background: rgba(248, 250, 252, 0.92);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid var(--border);
+    gap: var(--space-2);
+    margin: 0 calc(-1 * var(--space-4)) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-canvas);
+    border-bottom: 1px solid var(--color-border);
 }
 
-.search-box {
-    position: relative;
+.balances-page .bp-search {
+    flex: 1 1 auto;
+    max-width: none;
+}
+
+.balances-page .bp-status {
     display: flex;
-    align-items: center;
     width: 100%;
 }
 
-.search-box .material-icons-round {
-    position: absolute;
-    left: 0.85rem;
-    color: var(--text-muted);
-    font-size: 1.25rem;
-    pointer-events: none;
-}
-
-.search-box input {
-    width: 100%;
-    padding: 0.7rem 1rem 0.7rem 2.6rem;
-    border: 1px solid var(--border);
-    border-radius: 99px;
-    font-size: 0.95rem;
-    background: white;
-    color: var(--text-main);
-    transition: box-shadow 0.2s, border-color 0.2s;
-}
-
-.search-box input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
-}
-
-/* Segmentado de Estado (reemplaza el <select>) */
-.status-pills {
-    display: flex;
-    gap: 0.3rem;
-    padding: 0.25rem;
-    background: #eef1f6;
-    border-radius: 99px;
-    border: 1px solid var(--border);
-}
-
-.status-pills button {
+.balances-page .bp-status .ui-tab {
     flex: 1;
-    display: inline-flex;
-    align-items: center;
     justify-content: center;
-    gap: 0.3rem;
-    padding: 0.5rem 0.5rem;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-weight: 600;
-    font-size: 0.82rem;
-    border-radius: 99px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.18s, color 0.18s, box-shadow 0.18s;
 }
 
-.status-pills button .material-icons-round {
-    font-size: 1rem;
+/* El estado activo usa el color de su significado */
+.balances-page .bp-status .bp-status-owing.is-active .material-icons-round {
+    color: var(--color-warning-text);
 }
 
-.status-pills button.active {
-    background: white;
-    color: var(--primary);
-    box-shadow: var(--shadow-card);
+.balances-page .bp-status .bp-status-ok.is-active .material-icons-round {
+    color: var(--color-success-text);
 }
 
-.status-pills button.active.owing { color: var(--warning-dark); }
-.status-pills button.active.up_to_date { color: var(--success-dark); }
-
-/* Fila de acciones secundarias (vendedor + refrescar + exportar) */
-.toolbar-actions {
+.balances-page .bp-toolbar-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
     align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
 }
 
-.vendor-filter {
+.balances-page .bp-vendor-filter {
     flex: 1 1 100%;
-}
-
-.vendor-filter select {
-    width: 100%;
-    cursor: pointer;
-}
-
-.btn-refresh {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    flex: 1;
-    padding: 0.6rem 0.9rem;
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-refresh:hover { border-color: var(--primary); color: var(--primary); }
-.btn-refresh .material-icons-round { font-size: 1.15rem; }
-
-.btn-export-excel {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    flex: 1;
-    padding: 0.6rem 0.9rem;
-    background: linear-gradient(135deg, var(--success) 0%, var(--success-dark) 100%);
-    border: none;
-    border-radius: 0.75rem;
-    color: white;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
-}
-
-.btn-export-excel:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(16, 185, 129, 0.32); }
-.btn-export-excel:active { transform: translateY(0); }
-.btn-export-excel .material-icons-round { font-size: 1.1rem; }
-
-/* ============================================
-   STATS — tira compacta con scroll horizontal
-   ============================================ */
-.balances-stats {
-    display: flex;
-    gap: 0.6rem;
-    margin-bottom: 0.85rem;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.15rem;
-    scrollbar-width: none;
-}
-
-.balances-stats::-webkit-scrollbar { display: none; }
-
-.stat-card {
-    flex: 0 0 auto;
-    min-width: 42%;
-    scroll-snap-align: start;
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.85rem;
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 1rem;
-    box-shadow: var(--shadow-card);
     min-width: 0;
 }
 
-.stat-icon {
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
-    border-radius: 0.7rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.balances-page .bp-refresh,
+.balances-page .bp-export {
+    flex: 1 1 0;
 }
 
-.stat-icon.clients { background: var(--primary-soft); color: var(--primary); }
-.stat-icon.pending { background: #fef3c7; color: var(--warning-dark); }
-.stat-icon.paid { background: #d1fae5; color: var(--success-dark); }
-.stat-icon .material-icons-round { font-size: 1.4rem; }
+/* "Actualizar" con el icono en azul (acción); "Exportar Excel" ya trae su verde de formato */
+.balances-page .bp-refresh .material-icons-round {
+    color: var(--color-primary);
+}
 
-.stat-content {
+/* ============================================
+   ESTADÍSTICAS
+   Móvil: una tarjeta con tres filas (etiqueta a la izquierda, monto a la derecha).
+   ============================================ */
+.balances-page .bp-stats {
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    margin-bottom: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
 }
 
-.stat-value {
-    font-size: 1.15rem;
-    font-weight: 800;
-    color: var(--text-main);
-    line-height: 1.15;
-    white-space: nowrap;
+.balances-page .bp-stats .ui-stat {
+    padding: var(--space-3) var(--space-4);
+    border: 0;
+    border-radius: 0;
 }
 
-.stat-label {
-    font-size: 0.72rem;
-    color: var(--text-secondary);
+.balances-page .bp-stats .ui-stat + .ui-stat {
+    border-top: 1px solid var(--color-border);
+}
+
+.balances-page .bp-stats .ui-stat-icon {
+    width: 32px;
+    height: 32px;
+}
+
+.balances-page .bp-stats .ui-stat-icon .material-icons-round {
+    font-size: 18px;
+}
+
+.balances-page .bp-stats .ui-stat-content {
+    flex: 1;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+/* El monto nunca se parte en dos líneas: si no cabe, baja la etiqueta, no el número */
+.balances-page .bp-stats .ui-stat-value {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    text-align: right;
     white-space: nowrap;
 }
 
 /* ============================================
-   CONTENIDO — Lista / Detalle (drill-down móvil)
+   CONTENIDO — lista / detalle
    ============================================ */
-.balances-content {
+.balances-page .bp-content {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
 }
 
-/* Panel de lista */
-.clients-list-panel {
-    background: white;
-    border-radius: var(--card-radius);
-    padding: 0.9rem;
-    box-shadow: var(--shadow-card);
+/* ---------- Lista de clientes ---------- */
+.balances-page .bp-list-panel {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
 
-.clients-list-panel h2 {
-    margin: 0 0 0.75rem 0;
-    font-size: 0.95rem;
-    font-weight: 700;
+.balances-page .bp-list-head {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    color: var(--text-main);
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
 }
 
-/* Botón de orden A-Z (dentro del panel de lista) */
-.clients-list-panel .btn-sort {
-    flex: 0 0 auto;
-    align-self: flex-end;
-    margin: 0 0 0.75rem 0;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.8rem;
+.balances-page .bp-panel-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
 }
 
-.clients-list {
+.balances-page .bp-clients {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
 }
 
-.client-card {
+.balances-page .bp-client {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
         "main chevron"
         "balance chevron";
-    column-gap: 0.5rem;
-    row-gap: 0.4rem;
     align-items: center;
-    padding: 0.85rem;
-    min-height: 60px;
-    background: #f8fafc;
-    border-radius: 1rem;
-    border: 1px solid transparent;
+    column-gap: var(--space-2);
+    row-gap: var(--space-1);
+    min-height: 64px;
+    /* En la lista con scroll (flex en columna) la fila no se encoge: si no, el saldo,
+       "Pendiente" y la mora se salen por arriba y por abajo */
+    flex-shrink: 0;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
     cursor: pointer;
-    transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.05s;
+    transition: background-color var(--duration-fast) var(--ease);
 }
 
-.client-card:active { transform: scale(0.99); }
-
-.client-card:hover {
-    background: white;
-    border-color: var(--border);
-    box-shadow: var(--shadow-card);
+.balances-page .bp-client:last-child {
+    border-bottom: 0;
 }
 
-.client-card.active {
-    background: var(--primary-soft);
-    border-color: var(--primary-light);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+.balances-page .bp-client:hover {
+    background: var(--color-surface-hover);
 }
 
-.client-main {
+/* Cliente abierto: fondo azul suave + barra izquierda; su avatar lleva el anillo azul
+   (.ui-avatar.is-selected) */
+.balances-page .bp-client.is-active {
+    background: var(--color-primary-soft);
+    box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
+.balances-page .bp-client.is-active .bp-client-name {
+    color: var(--color-primary-text);
+}
+
+/* Avatar de iniciales: .ui-avatar con tono determinista (40px, como el sangrado del saldo) */
+.balances-page .bp-client-main {
     grid-area: main;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: var(--space-3);
     min-width: 0;
 }
 
-.client-avatar {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 800;
-    font-size: 1.15rem;
-}
-
-.client-avatar.large {
-    width: 60px;
-    height: 60px;
-    font-size: 1.5rem;
-}
-
-.client-info {
+.balances-page .bp-client-info {
     display: flex;
     flex-direction: column;
-    min-width: 0;
     gap: 1px;
+    min-width: 0;
 }
 
-.client-name {
-    font-weight: 700;
-    color: var(--text-main);
-    font-size: 0.95rem;
-    white-space: nowrap;
+.balances-page .bp-client-name,
+.balances-page .bp-client-rep,
+.balances-page .bp-client-phone {
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.client-phone {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.client-rep {
-    display: block;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.balances-page .bp-client-name {
+    font-weight: 600;
+    color: var(--color-text);
 }
 
-.client-rep .material-icons-round { vertical-align: middle; }
+.balances-page .bp-client-rep {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--color-text-secondary);
+}
 
-.client-balance {
+.balances-page .bp-client-rep .material-icons-round {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--color-text-muted);
+}
+
+.balances-page .bp-client-phone {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Saldo: en móvil debajo del nombre (pasando el avatar) */
+.balances-page .bp-client-balance {
     grid-area: balance;
     display: flex;
-    flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.3rem 0.5rem;
-    text-align: left;
-    align-self: start;
-    /* Alinea el monto debajo del nombre (pasando el avatar) */
-    padding-left: calc(44px + 0.7rem);
+    gap: var(--space-1) var(--space-2);
+    padding-left: calc(40px + var(--space-3));
 }
 
-.balance-amount {
-    font-size: 1.02rem;
-    font-weight: 800;
+/* El color lo da .ui-amount--warning (pendiente) o --danger (cliente con mora) */
+.balances-page .bp-balance-amount {
+    font-size: var(--text-md);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.balance-amount.warning { color: var(--warning-dark); }
-.balance-amount.success { color: var(--success-dark); }
-
-/* En móvil la etiqueta textual (PENDIENTE/SIN DEUDA) se oculta:
-   el color del monto + el badge de mora ya comunican el estado. */
-.balance-label {
+.balances-page .bp-balance-label {
     display: none;
-    font-size: 0.65rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
 }
 
-/* Chevron indicador de drill-down (solo móvil) */
-.client-chevron {
+/* Cliente abierto (fondo primario suave): muted no llega a 4.5:1 */
+.balances-page .bp-client.is-active .bp-client-phone,
+.balances-page .bp-client.is-active .bp-balance-label {
+    color: var(--color-text-secondary);
+}
+
+.balances-page .bp-chevron {
     grid-area: chevron;
-    align-self: center;
-    color: var(--text-muted);
-    font-size: 1.4rem;
+    font-size: 22px;
+    color: var(--color-text-muted);
 }
 
-/* Estados vacíos */
-.empty-state,
-.no-selection {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2.5rem 1.5rem;
-    color: var(--text-secondary);
-    text-align: center;
-}
-
-.empty-state .material-icons-round,
-.no-selection .material-icons-round {
-    font-size: 3.5rem;
-    color: #cbd5e1;
-    margin-bottom: 0.75rem;
-}
-
-/* ============================================
-   PANEL DE DETALLE
-   ============================================ */
-.client-detail-panel {
-    background: white;
-    border-radius: var(--card-radius);
-    padding: 1rem;
-    box-shadow: var(--shadow-card);
+/* ---------- Panel de detalle ---------- */
+.balances-page .bp-detail-panel {
     min-width: 0;
-    width: 100%;
-    box-sizing: border-box;
-    overflow-x: hidden;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-5);
+  box-shadow: var(--shadow-card);
 }
 
-/* Barra "Volver a clientes" — solo móvil, sticky */
-.btn-back-to-list {
+/* Barra "Volver a clientes": solo en el detalle a pantalla completa */
+.balances-page .bp-back-to-list {
     display: none;
     align-items: center;
-    gap: 0.4rem;
-    position: sticky;
-    top: var(--app-header-h);
-    z-index: 5;
-    margin: 0 -1rem 0.9rem;
-    padding: 0.8rem 1rem;
-    background: white;
-    border: none;
-    border-bottom: 1px solid var(--border);
-    color: var(--primary);
-    font-weight: 700;
-    font-size: 0.9rem;
+    gap: var(--space-2);
+    width: calc(100% + 2 * var(--space-4));
+    min-height: 56px;
+    margin: 0 calc(-1 * var(--space-4)) var(--space-4);
+    padding: 0 var(--space-4);
+    border: 0;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-primary-text);
+    font-family: inherit;
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-align: left;
     cursor: pointer;
 }
 
-.btn-back-to-list .material-icons-round { font-size: 1.25rem; }
-
-.detail-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 3rem;
-    color: var(--text-secondary);
+.balances-page .bp-back-to-list .material-icons-round {
+    font-size: 22px;
 }
 
-.client-detail-content {
+.balances-page .bp-detail {
     display: flex;
     flex-direction: column;
-    gap: 1.1rem;
+    gap: var(--space-5);
     min-width: 0;
-    width: 100%;
 }
 
-.detail-header {
+.balances-page .bp-detail-header {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    padding-bottom: 0.9rem;
-    border-bottom: 1px solid var(--border);
+    gap: var(--space-3);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border);
 }
 
-.client-title h2 {
+.balances-page .bp-detail-title {
+    min-width: 0;
+}
+
+.balances-page .bp-detail-title h2 {
     margin: 0;
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: var(--text-main);
-    word-break: break-word;
+    font-size: var(--text-xl);
+    font-weight: 600;
+    line-height: var(--leading-title);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
 }
 
-.client-title p {
-    margin: 0.2rem 0 0 0;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+/* Teléfono con baldosa verde (contacto); sin teléfono en texto tenue */
+.balances-page .bp-detail-phone {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
 }
 
-/* Resumen de saldos */
-.balance-summary-grid {
+.balances-page .bp-detail-phone.is-empty {
+    color: var(--color-text-muted);
+}
+
+/* Resumen del cliente: cada tarjeta con su baldosa y el número en el color de su significado */
+.balances-page .bp-summary {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.7rem;
-    min-width: 0;
-    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
 }
 
-.summary-card {
+.balances-page .bp-summary-card {
+    padding: var(--space-3) var(--space-4);
+    box-shadow: var(--shadow-card);
+}
+
+.balances-page .bp-summary-card .ui-stat-value {
+    font-size: var(--text-xl);
+    font-weight: 600;
+}
+
+/* Saldo en mora: la tarjeta lo subraya con el borde del tono */
+.balances-page .bp-summary-card--danger {
+    border-color: var(--color-danger-border);
+}
+
+/* Barra "Pagado X %" bajo el resumen */
+.balances-page .bp-paid-progress {
+    min-width: 0;
+}
+
+.balances-page .bp-paid-progress .ui-progress-meta {
+    font-size: var(--text-sm);
+}
+
+.balances-page .bp-paid-pct {
+    font-weight: 600;
+    color: var(--color-success-text);
+}
+
+.balances-page .bp-extra-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.balances-page .bp-extra-info:empty {
+    display: none;
+}
+
+.balances-page .bp-extra-badge {
+    min-height: 28px;
+    padding: 4px var(--space-3);
+    font-size: var(--text-sm);
+}
+
+.balances-page .bp-extra-badge .material-icons-round {
+    font-size: 16px;
+}
+
+/* Controles del Owner */
+.balances-page .bp-owner-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: var(--space-3);
+}
+
+.balances-page .bp-control {
+    padding: var(--space-4);
+}
+
+.balances-page .bp-control.is-readonly {
+    background: var(--color-surface-subtle);
+}
+
+.balances-page .bp-control-title {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.9rem;
-    background: #f8fafc;
-    border-radius: 1rem;
-    border: 1px solid var(--border);
-    min-width: 0;
-    overflow: hidden;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
 }
 
-.summary-card > div {
-    min-width: 0;
+.balances-page .bp-control-desc {
+    margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+}
+
+.balances-page .bp-control-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.balances-page .bp-control-row .ui-input-group {
+    flex: 1 1 160px;
+}
+
+.balances-page .bp-control-info {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.balances-page .bp-control-info strong {
+    color: var(--color-text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.balances-page .bp-control-info.is-success {
+    background: var(--color-success-soft);
+    color: var(--color-success-text);
+}
+
+.balances-page .bp-control-info.is-success strong {
+    color: var(--color-success-text);
+}
+
+/* ---------- Órdenes pendientes ---------- */
+.balances-page .bp-orders {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.balances-page .bp-orders-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.balances-page .bp-orders-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.balances-page .bp-orders-search {
+    flex: 1 1 auto;
+    max-width: none;
+}
+
+.balances-page .bp-sort-row {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.balances-page .bp-sort-row .ui-btn {
     flex: 1;
 }
 
-.summary-card .material-icons-round {
-    flex-shrink: 0;
-    font-size: 1.5rem;
-    color: var(--text-secondary);
+.balances-page .bp-order-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
 }
 
-.summary-card.success { background: #ecfdf5; border-color: #a7f3d0; }
-.summary-card.success .material-icons-round { color: var(--success-dark); }
-.summary-card.warning { background: #fffbeb; border-color: #fcd34d; }
-.summary-card.warning .material-icons-round { color: var(--warning-dark); }
+/* Factura: franja izquierda de 4px por estado (.ui-stripe--success|primary|warning|danger:
+   pagada, parcial, pendiente, vencida) como sombra interior, sumada a la sombra de tarjeta.
+   Al pasar el mouse: sombra un poco mayor y borde un tono más fuerte, sin desplazar. */
+.balances-page .bp-order {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) + 2px);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: inset 4px 0 0 var(--ui-stripe-color, transparent), var(--shadow-card);
+    transition: border-color var(--duration-control) var(--ease),
+        box-shadow var(--duration-control) var(--ease);
+}
 
-.summary-card .value {
-    display: block;
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: var(--text-main);
-    overflow-wrap: break-word;
+.balances-page .bp-order:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: inset 4px 0 0 var(--ui-stripe-color, transparent), var(--shadow-card-hover);
+}
+
+/* Zona clicable (abre el historial de pagos) */
+.balances-page .bp-order-main {
     min-width: 0;
-}
-
-.summary-card .label {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-}
-
-/* Info extra (mora / último pago) — el layout inline viene del JS */
-
-/* ============================================
-   CONTROLES DE OWNER
-   ============================================ */
-.owner-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 0.9rem;
-    padding: 0.9rem;
-    background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
-    border-radius: 1rem;
-    border: 1px solid #e0e7ff;
-}
-
-.control-section {
-    background: white;
-    padding: 0.9rem;
-    border-radius: 0.85rem;
-    border: 1px solid var(--border);
-}
-
-.control-section.readonly { background: #f8fafc; }
-
-.control-section h3 {
-    margin: 0 0 0.7rem 0;
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--text-main);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.control-section h3 .material-icons-round {
-    font-size: 1.1rem;
-    color: var(--primary);
-}
-
-.control-description {
-    margin: 0 0 0.7rem 0;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.control-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    align-items: stretch;
-}
-
-.input-group {
-    flex: 1;
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.input-group .prefix {
-    position: absolute;
-    left: 0.75rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-}
-
-.input-group input {
-    width: 100%;
-    padding: 0.7rem 0.75rem 0.7rem 1.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.6rem;
-    font-size: 0.95rem;
-}
-
-.input-group input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
-}
-
-.btn-save,
-.btn-remove {
-    padding: 0.7rem 1rem;
-    border-radius: 0.6rem;
-    font-weight: 700;
-    font-size: 0.88rem;
+    margin: calc(-1 * var(--space-1));
+    padding: var(--space-1);
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s;
-    border: none;
+    transition: background-color var(--duration-fast) var(--ease);
 }
 
-.btn-save {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
+.balances-page .bp-order-main:hover {
+    background: var(--color-surface-hover);
 }
 
-.btn-save:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.btn-save.primary {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-}
-
-.btn-remove {
-    background: white;
-    border: 1px solid #fca5a5 !important;
-    color: var(--danger);
-}
-
-.btn-remove:hover:not(:disabled) { background: #fef2f2; }
-
-.btn-save:disabled,
-.btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.control-info {
-    margin: 0.7rem 0 0 0;
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    padding: 0.55rem 0.7rem;
-    background: #f8fafc;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-}
-
-.control-info strong { color: var(--primary); }
-
-/* ============================================
-   ÓRDENES PENDIENTES
-   ============================================ */
-.orders-section {
-    padding-top: 0.9rem;
-    border-top: 1px solid var(--border);
-}
-
-.orders-section h3 {
-    margin: 0 0 0.85rem 0;
-    font-size: 0.98rem;
-    font-weight: 700;
+.balances-page .bp-order-ref {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
-    color: var(--text-main);
+    gap: var(--space-1) var(--space-2);
 }
 
-.orders-section h3 .material-icons-round {
-    font-size: 1.2rem;
-    color: var(--primary);
+/* Número de factura / pedido en azul, como enlace visual (abre el historial) */
+.balances-page .bp-order-id {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-primary-text);
+    font-variant-numeric: tabular-nums;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--duration-fast) var(--ease);
 }
 
-.orders-filters {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    margin-bottom: 1rem;
+.balances-page .bp-order-main:hover .bp-order-id {
+    text-decoration-color: currentColor;
 }
 
-.search-input-wrapper {
-    position: relative;
-    flex: 1;
-    display: flex;
-    align-items: center;
-}
-
-.search-input-wrapper .material-icons-round {
-    position: absolute;
-    left: 0.85rem;
-    color: var(--text-muted);
-    font-size: 1.2rem;
-    pointer-events: none;
-}
-
-.search-input-wrapper input {
-    width: 100%;
-    padding: 0.65rem 1rem 0.65rem 2.5rem;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    font-size: 0.9rem;
-    background: white;
-    transition: all 0.2s;
-}
-
-.search-input-wrapper input:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
-}
-
-.orders-filters .filters-row {
-    display: flex;
-    gap: 0.6rem;
-}
-
-.btn-sort {
+.balances-page .bp-order-date {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    flex: 1;
-    padding: 0.6rem 0.9rem;
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 0.85rem;
-    white-space: nowrap;
+    gap: 4px;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
-.btn-sort:hover { border-color: var(--primary); color: var(--primary); background: #f8fafc; }
-.btn-sort .material-icons-round { font-size: 1.1rem; }
+.balances-page .bp-order-date .material-icons-round {
+    font-size: 15px;
+}
 
-.orders-list {
+/* Mini barra de pago de la factura */
+.balances-page .bp-order-progress {
+    max-width: 280px;
+    margin-top: var(--space-2);
+}
+
+.balances-page .bp-order-amounts {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
+    gap: 2px;
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-sm);
 }
 
-.order-item {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.7rem;
-    padding: 0.9rem;
-    background: #f8fafc;
-    border-radius: 0.85rem;
-    border: 1px solid var(--border);
-    transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.order-item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-card); }
-
-.order-main {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    flex: 1;
-}
-
-.order-main.clickable {
-    cursor: pointer;
-    transition: background 0.2s;
-    padding: 0.35rem;
-    margin: -0.35rem;
-    border-radius: 0.5rem;
-}
-
-.order-main.clickable:hover { background: #eef1f6; }
-
-.order-invoice-info {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem 0.5rem;
-}
-
-.order-id {
-    font-weight: 700;
-    color: var(--primary);
-    font-family: 'Roboto Mono', ui-monospace, monospace;
-}
-
-.order-invoice-info .order-id { font-size: 1.05rem; }
-
-.order-date {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-}
-
-.order-amounts {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    font-size: 0.85rem;
-    background: white;
-    border: 1px solid var(--border);
-    border-radius: 0.6rem;
-    padding: 0.55rem 0.7rem;
-}
-
-.amount-row {
+.balances-page .bp-amount-row {
     display: flex;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--space-3);
     min-width: 0;
 }
 
-.amount-row span { color: var(--text-secondary); }
-.amount-row span,
-.amount-row strong { overflow-wrap: anywhere; }
-.amount-row.pending strong { color: var(--warning-dark); }
-.amount-row .paid { color: var(--success-dark); }
+.balances-page .bp-amount-row dt {
+    color: var(--color-text-muted);
+}
 
-.order-actions {
+.balances-page .bp-amount-row dd {
+    margin: 0;
+    color: var(--color-text);
+    font-weight: 500;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+/* Montos: Total en marino, Pagado en verde, Pendiente en ámbar (rojo si la factura está
+   vencida) y en negrita; un cero se ve tenue para que resalten los montos con significado */
+.balances-page .bp-amount-row.is-pending dt {
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.balances-page .bp-amount-row.is-pending dd {
+    font-weight: 700;
+}
+
+.balances-page .bp-amount-row dd.ui-amount--success {
+    color: var(--color-success-text);
+    font-weight: 600;
+}
+
+.balances-page .bp-amount-row dd.ui-amount--warning {
+    color: var(--color-warning-text);
+}
+
+.balances-page .bp-amount-row dd.ui-amount--danger {
+    color: var(--color-danger-text);
+}
+
+.balances-page .bp-amount-row dd.is-zero {
+    color: var(--color-text-muted);
+}
+
+.balances-page .bp-order-actions {
     display: flex;
-    gap: 0.5rem;
     align-items: center;
     justify-content: flex-end;
+    gap: var(--space-2);
 }
 
-.btn-history,
-.btn-manage-order {
-    display: flex;
-    align-items: center;
+/* Historial de pagos: icono azul; al pasar el mouse, tinte azul suave */
+.balances-page .bp-history-btn {
+    color: var(--color-primary);
+}
+
+.balances-page .bp-history-btn:hover:not(:disabled) {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary-border);
+    color: var(--color-primary-text);
+}
+
+.balances-page .bp-history-btn:focus-visible {
+    outline-color: var(--color-primary);
+}
+
+.balances-page .bp-orders-empty {
+    padding: var(--space-6) var(--space-4);
+}
+
+.balances-page .bp-orders-empty .ui-empty-icon {
+    background: var(--color-success-soft);
+    color: var(--color-success-text);
+}
+
+.balances-page .bp-no-selection {
+    min-height: 240px;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: none;
-    border-radius: 0.6rem;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
-    color: white;
 }
 
-.btn-history {
-    background: var(--success-dark);
-    box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+.balances-page .bp-no-selection .ui-empty-icon {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
 }
 
-.btn-history:hover { transform: translateY(-1px); box-shadow: 0 5px 10px rgba(5, 150, 105, 0.32); }
-.btn-history .material-icons-round { font-size: 1.15rem; }
-
-.btn-manage-order {
-    background: var(--primary);
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.28);
+/* Diálogo "Cargando orden..." */
+.balances-page .bp-loading-dialog {
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 200px;
+    padding: var(--space-6) var(--space-8);
+    background: var(--color-surface);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-overlay);
 }
 
-.btn-manage-order:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-1px); }
-.btn-manage-order:disabled { background: #cbd5e1; cursor: not-allowed; box-shadow: none; }
-.btn-manage-order .material-icons-round { font-size: 1.2rem; }
-
-.empty-orders {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
-    padding: 1.75rem 1rem;
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    border-radius: 0.85rem;
-    color: var(--success-dark);
-    font-weight: 600;
-    text-align: center;
+.balances-page .bp-loading-dialog p {
+    margin: 0;
 }
-
-.empty-orders .material-icons-round { font-size: 1.4rem; }
 
 /* ============================================
-   DRILL-DOWN MÓVIL: una vista a la vez
+   MÓVIL Y TABLET (< 1024px): lista → detalle
    ============================================ */
-.btn-back-to-list { display: none; }
-
-@media (max-width: 768px) {
-    /* En la vista de lista: ocultar el panel de detalle */
-    .balances-page:not(.detail-open) .client-detail-panel {
+@media (max-width: 1023px) {
+    .balances-page:not(.detail-open) .bp-detail-panel {
         display: none;
     }
 
-    /* En la vista de detalle: ocultar el resto */
-    .balances-page.detail-open .balances-header,
-    .balances-page.detail-open .balances-toolbar,
-    .balances-page.detail-open .balances-stats,
-    .balances-page.detail-open .clients-list-panel {
+    .balances-page.detail-open .bp-header,
+    .balances-page.detail-open .bp-toolbar,
+    .balances-page.detail-open .bp-toolbar-actions,
+    .balances-page.detail-open .bp-stats,
+    .balances-page.detail-open .bp-list-panel {
         display: none;
     }
 
-    /* El detalle se vuelve un overlay fijo con su PROPIO scroll:
-       así siempre abre desde el encabezado del cliente, sin importar
-       cuánto se haya bajado en la lista. */
-    .balances-page.detail-open .client-detail-panel {
+    /* El detalle es una vista a pantalla completa con su propio scroll (siempre
+       abre desde el encabezado del cliente). Queda por encima del header global
+       para que los modales que abre (historial, pago, orden) no queden tapados. */
+    .balances-page.detail-open .bp-detail-panel {
         position: fixed;
-        top: var(--app-header-h);
-        left: 0;
+        top: 0;
         right: 0;
         bottom: 0;
+        left: 0;
+        z-index: calc(var(--z-header) + 1);
         margin: 0;
+        padding: 0 var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom));
+        border: 0;
         border-radius: 0;
-        padding: 1rem;
-        padding-top: 0;
         overflow-y: auto;
+        overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
-        z-index: 20;
     }
 
-    /* Barra "Volver a clientes" fija arriba del overlay */
-    .balances-page.detail-open .btn-back-to-list {
+    .balances-page.detail-open .bp-back-to-list {
         display: flex;
+        position: sticky;
         top: 0;
-    }
-
-    /* La lista aprovecha toda la altura disponible */
-    .clients-list {
-        max-height: none;
+        z-index: 2;
     }
 }
 
 /* ============================================
-   TABLET / DESKTOP  (>= 769px)
-   Se restaura el layout maestro-detalle clásico.
+   TABLET (≥ 641px)
    ============================================ */
-@media (min-width: 769px) {
+@media (min-width: 641px) {
     .balances-page {
-        padding: 2rem;
+        padding: var(--space-6);
     }
 
-    /* Header como tarjeta ancha */
-    .balances-header {
-        background: white;
-        border-radius: var(--card-radius);
-        box-shadow: var(--shadow-card);
-        padding: 1.25rem 1.75rem;
-        margin-bottom: 1.25rem;
-        gap: 0.5rem;
-    }
-
-    .header-title h1 { font-size: 1.75rem; }
-    .header-title h1 .material-icons-round { font-size: 2rem; }
-    .role-badge { font-size: 0.75rem; padding: 0.35rem 0.85rem; }
-
-    /* Toolbar: fila horizontal (no sticky en desktop) */
-    .balances-toolbar {
-        position: static;
+    .balances-page .bp-toolbar {
+        margin-left: calc(-1 * var(--space-6));
+        margin-right: calc(-1 * var(--space-6));
+        padding-left: var(--space-6);
+        padding-right: var(--space-6);
         flex-direction: row;
+        align-items: center;
+    }
+
+    .balances-page .bp-status {
+        width: auto;
+        flex: 0 0 auto;
+    }
+
+    .balances-page .bp-vendor-filter {
+        flex: 1 1 240px;
+    }
+
+    .balances-page .bp-refresh,
+    .balances-page .bp-export {
+        flex: 0 0 auto;
+    }
+
+    /* Estadísticas en tres tarjetas: el contenedor pasa a ser solo la rejilla (sin fondo, borde
+       ni sombra; si no, quedaría una sombra rectangular alrededor de las tres con los huecos
+       incluidos) y cada tarjeta lleva su propio borde y la sombra de tarjeta, como los paneles. */
+    .balances-page .bp-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-4);
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        overflow: visible;
+        box-shadow: none;
+    }
+
+    .balances-page .bp-stats .ui-stat {
+        padding: var(--space-4);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+    }
+
+    .balances-page .bp-stats .ui-stat-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .balances-page .bp-stats .ui-stat-icon .material-icons-round {
+        font-size: 22px;
+    }
+
+    .balances-page .bp-stats .ui-stat-content {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 2px;
+    }
+
+    .balances-page .bp-stats .ui-stat-value {
+        font-size: var(--text-2xl);
+        font-weight: 700;
+        text-align: left;
+    }
+
+    .balances-page .bp-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .balances-page .bp-skeleton-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-4);
+    }
+
+    .balances-page .bp-orders-filters {
+        flex-direction: row;
+        align-items: center;
+    }
+
+    .balances-page .bp-sort-row .ui-btn {
+        flex: 0 0 auto;
+    }
+
+    .balances-page .bp-order {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-4);
+    }
+
+    .balances-page .bp-order-main {
+        flex: 1 1 auto;
+    }
+
+    .balances-page .bp-order-amounts {
+        flex: 0 0 auto;
+        min-width: 190px;
+        padding: 0;
+        background: transparent;
+    }
+
+    .balances-page .bp-order-actions {
+        flex: 0 0 auto;
+    }
+}
+
+/* ============================================
+   ESCRITORIO (≥ 1024px): maestro-detalle
+   ============================================ */
+@media (min-width: 1024px) {
+    /* Barra única en una tarjeta (sin sticky) */
+    .balances-page .bp-controls {
+        display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 0.75rem;
-        margin: 0 0 1.25rem;
-        padding: 1rem 1.25rem;
-        border-radius: var(--card-radius);
-        border-bottom: none;
-        background: white;
-        box-shadow: var(--shadow-card);
-        backdrop-filter: none;
-        -webkit-backdrop-filter: none;
+        gap: var(--space-3);
+        margin-bottom: var(--space-5);
+        padding: var(--space-3) var(--space-4);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
     }
 
-    .search-box { flex: 2 1 240px; }
-    .status-pills { flex: 0 0 auto; }
-    .status-pills button { flex: 0 0 auto; padding: 0.55rem 0.9rem; }
+    .balances-page .bp-toolbar {
+        position: static;
+        flex: 1 1 520px;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border: 0;
+    }
 
-    .toolbar-actions {
-        flex: 1 1 auto;
+    .balances-page .bp-toolbar-actions {
+        flex: 0 1 auto;
         flex-wrap: nowrap;
-        justify-content: flex-end;
+        margin: 0;
     }
 
-    .vendor-filter { flex: 0 1 190px; }
-    .btn-refresh { flex: 0 0 auto; }
-    .btn-export-excel { flex: 0 0 auto; }
-
-    /* Stats: 3 columnas fijas */
-    .balances-stats {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 1.25rem;
-        margin-bottom: 1.5rem;
-        overflow: visible;
+    /* Selector con buscador (lupa, flecha y x): ancho para "Todos los vendedores" */
+    .balances-page .bp-vendor-filter {
+        flex: 0 1 240px;
     }
 
-    .stat-card { padding: 1.35rem; border-radius: var(--card-radius); }
-    .stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-float); transition: all 0.25s; }
-    .stat-icon { width: 52px; height: 52px; border-radius: 1rem; }
-    .stat-icon .material-icons-round { font-size: 1.65rem; }
-    .stat-value { font-size: 1.45rem; }
-    .stat-label { font-size: 0.82rem; }
+    .balances-page .bp-stats {
+        margin-bottom: var(--space-5);
+    }
 
-    /* Contenido: maestro-detalle lado a lado */
-    .balances-content {
-        grid-template-columns: 380px 1fr;
-        gap: 1.75rem;
+    /* Esqueleto: la lista ocupa el ancho de la columna de clientes */
+    .balances-page .bp-skeleton-list {
+        max-width: 380px;
+    }
+
+    .balances-page .bp-content {
+        grid-template-columns: 380px minmax(0, 1fr);
+        gap: var(--space-5);
         align-items: start;
     }
 
-    .clients-list-panel {
-        padding: 1.35rem;
-        border-radius: var(--card-radius);
-        max-height: calc(100vh - 260px);
-        overflow: hidden;
+    /* Cada panel con su propio scroll dentro de la ventana */
+    .balances-page .bp-list-panel,
+    .balances-page .bp-detail-panel {
+        max-height: calc(100vh - var(--app-header-h) - var(--space-12));
     }
 
-    .clients-list-panel h2 { font-size: 1rem; }
-    .clients-list { flex: 1; }
+    .balances-page .bp-clients {
+        flex: 1 1 auto;
+    }
 
-    /* En desktop el detalle SIEMPRE se muestra (o placeholder) */
-    .client-detail-panel {
-        padding: 1.75rem;
-        max-height: calc(100vh - 260px);
+    .balances-page .bp-detail-panel {
         overflow-y: auto;
+        padding: var(--space-6);
     }
 
-    .client-chevron { display: none; }
-    .balance-amount { font-size: 1.05rem; }
+    .balances-page .bp-chevron {
+        display: none;
+    }
 
-    /* Escritorio: tarjeta de cliente en una sola fila */
-    .client-card {
+    /* Tarjeta de cliente en una sola fila con el saldo a la derecha */
+    .balances-page .bp-client {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: var(--space-3);
     }
-    .client-main { flex: 1; }
-    .client-balance {
+
+    .balances-page .bp-client-main {
+        flex: 1;
+    }
+
+    .balances-page .bp-client-balance {
         flex-direction: column;
         flex-wrap: nowrap;
         align-items: flex-end;
-        text-align: right;
+        gap: 2px;
         padding-left: 0;
-        align-self: center;
-        gap: 0;
-    }
-    .client-balance .balance-label { display: block; }
-
-    .detail-header { gap: 1rem; padding-bottom: 1rem; }
-    .client-title h2 { font-size: 1.5rem; }
-
-    .balance-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-
-    .owner-controls { padding: 1.25rem; gap: 1.1rem; }
-    .control-section { padding: 1rem; }
-
-    /* Controles en fila en desktop */
-    .control-row { flex-direction: row; align-items: center; gap: 0.6rem; }
-    .input-group { width: auto; }
-
-    /* Órdenes: fila horizontal en desktop */
-    .orders-filters { flex-direction: row; align-items: center; gap: 1rem; }
-    .orders-filters .filters-row { flex: 0 0 auto; }
-    .btn-sort { flex: 0 0 auto; }
-
-    .order-item {
-        flex-direction: row;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .order-main { flex: 1 1 auto; }
-    .order-amounts {
-        flex: 0 0 auto;
-        min-width: 150px;
-        background: transparent;
-        border: none;
-        padding: 0;
         text-align: right;
     }
-    .amount-row { justify-content: flex-end; }
-    .order-actions { flex: 0 0 auto; }
+
+    .balances-page .bp-balance-label {
+        display: block;
+    }
+
+    .balances-page .bp-detail-title h2 {
+        font-size: var(--text-2xl);
+    }
 }
 
-/* Pantallas intermedias: resumen en 2 columnas */
-@media (min-width: 600px) and (max-width: 768px) {
-    .balance-summary-grid { grid-template-columns: 1fr 1fr; }
-    .stat-card { min-width: 30%; }
-    .status-pills button { padding: 0.55rem 0.75rem; font-size: 0.85rem; }
-}
-
-/* El header global de la app mide 70px por encima de 640px */
-@media (min-width: 641px) {
-    .balances-page { --app-header-h: 70px; }
-}
-
-/* Desktop amplio */
-@media (min-width: 1200px) {
-    .balances-content { grid-template-columns: 420px 1fr; }
+@media (min-width: 1280px) {
+    .balances-page .bp-content {
+        grid-template-columns: 420px minmax(0, 1fr);
+    }
 }

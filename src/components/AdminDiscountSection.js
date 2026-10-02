@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import client from '../api/client';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
+import '../styles/areas/AdminDiscountSection.css';
 
 /**
  * Sección de descuentos para admins.
@@ -100,37 +101,41 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
     };
 
     return (
-        <div className="discount-section">
-            <h4 className="discount-section-title">
-                <span className="material-icons-round">sell</span>
+        <div className="dsc">
+            <h4 className="dsc-title">
+                <span className="material-icons-round" aria-hidden="true">sell</span>
                 Gestión de Descuentos (Admin)
             </h4>
 
             {/* Lista de descuentos aplicados */}
             {discounts.length > 0 && (
-                <div className="discount-applied">
-                    <p className="discount-applied-label">Descuentos aplicados</p>
-                    <div className="discount-chips">
+                <div className="dsc-applied">
+                    <p className="dsc-applied-label">Descuentos aplicados</p>
+                    <div className="dsc-chips">
                         {discounts.map(d => {
                             const isRevoked = d.status === 'REVOKED';
                             const isBeingRevoked = revoking === d.id;
                             return (
-                                <span key={d.id} className={`discount-chip ${isRevoked ? 'revoked' : ''}`}>
-                                    <span className="discount-chip-pct">
+                                <span key={d.id} className={`dsc-chip ${isRevoked ? 'is-revoked' : ''}`}>
+                                    <span className="dsc-chip-pct">
                                         {d.type === 'CUSTOM' ? `Custom ${d.percentage}%` : `${d.percentage}%`}
                                     </span>
-                                    {d.reason ? <span className="discount-chip-reason">{d.reason}</span> : null}
-                                    {isRevoked && <span className="discount-chip-tag">(revocado)</span>}
+                                    {d.reason ? <span className="dsc-chip-reason">{d.reason}</span> : null}
+                                    {isRevoked && <span className="dsc-chip-tag">(revocado)</span>}
 
                                     {/* Botón revocar: solo si la orden no está completada y el descuento no está ya revocado */}
                                     {canRevoke && !isRevoked && (
                                         <button
-                                            className="discount-chip-remove"
+                                            type="button"
+                                            className="dsc-chip-remove"
                                             onClick={() => revokeDiscount(d.id)}
                                             disabled={isBeingRevoked || loading}
                                             title="Revocar descuento"
+                                            aria-label="Revocar descuento"
                                         >
-                                            {isBeingRevoked ? '…' : '×'}
+                                            {isBeingRevoked
+                                                ? <span className="ui-spinner ui-spinner--sm" aria-hidden="true"></span>
+                                                : <span className="material-icons-round" aria-hidden="true">close</span>}
                                         </button>
                                     )}
                                 </span>
@@ -142,13 +147,14 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
 
             {/* Formulario de aplicar descuento — oculto si la orden está completada */}
             {canRevoke && (
-                <div className="discount-controls">
+                <div className="dsc-controls">
                     {/* Atajos rápidos */}
-                    <div className="discount-presets">
+                    <div className="dsc-presets">
                         {[10, 12, 15].map(pct => (
                             <button
+                                type="button"
                                 key={pct}
-                                className="discount-preset-btn"
+                                className="ui-btn ui-btn--secondary ui-btn--sm dsc-preset"
                                 onClick={() => applyPreset(pct)}
                                 disabled={loading}
                             >
@@ -158,20 +164,22 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
                     </div>
 
                     {/* Personalizado: %, motivo opcional y aplicar en una sola fila compacta */}
-                    <form className="discount-custom-form" onSubmit={applyCustom}>
+                    <form className="dsc-custom-form" onSubmit={applyCustom}>
                         <input
                             type="number" step="0.01" placeholder="%" value={customPercent}
                             onChange={e => setCustomPercent(e.target.value)}
-                            className="discount-input discount-input-pct"
+                            className="ui-input dsc-input dsc-pct"
+                            aria-label="Porcentaje de descuento"
                             disabled={loading} min="0" max="100" onWheel={(e) => e.target.blur()}
                         />
                         <input
                             type="text" placeholder="Motivo (opcional)" value={customReason}
                             onChange={e => setCustomReason(e.target.value)}
-                            className="discount-input discount-input-reason"
+                            className="ui-input dsc-input dsc-reason"
+                            aria-label="Motivo del descuento"
                             disabled={loading}
                         />
-                        <button type="submit" className="discount-apply-btn" disabled={loading || !customPercent}>
+                        <button type="submit" className="ui-btn ui-btn--primary ui-btn--sm dsc-apply" disabled={loading || !customPercent}>
                             Aplicar
                         </button>
                     </form>
@@ -180,10 +188,10 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
 
             {/* Mensaje informativo cuando la orden ya está completada */}
             {!canRevoke && discounts.length === 0 && (
-                <p className="discount-empty-note">Sin descuentos aplicados.</p>
+                <p className="dsc-note">Sin descuentos aplicados.</p>
             )}
             {!canRevoke && discounts.length > 0 && (
-                <p className="discount-empty-note">La orden está completada. Solo el Owner puede modificar descuentos.</p>
+                <p className="dsc-note">La orden está completada. Solo el Owner puede modificar descuentos.</p>
             )}
         </div>
     );

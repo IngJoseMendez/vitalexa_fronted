@@ -54,103 +54,120 @@ export default function PhysicalCountModal({ product, onClose, onSuccess }) {
     };
 
     return (
-        <div className="pcm-overlay" onClick={onClose}>
+        <div className="ui-modal-overlay pcm-overlay" onClick={onClose}>
             <div
-                className="pcm-modal"
+                className="ui-modal ui-modal--sm pcm-modal"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="pcm-title"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="pcm-header">
-                    <div>
-                        <h3 id="pcm-title">
-                            <span className="material-icons-round" aria-hidden="true">fact_check</span>
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">fact_check</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="pcm-title" className="ui-modal-title">
                             Conteo físico
                         </h3>
-                        <p className="pcm-product">{product.nombre}</p>
+                        <p className="ui-modal-subtitle pcm-product">{product.nombre}</p>
                     </div>
-                    <button type="button" className="pcm-close" onClick={onClose} aria-label="Cerrar">&times;</button>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
+                    </button>
                 </div>
 
                 {result ? (
-                    <div className="pcm-body">
-                        <div className="pcm-success" role="status">
-                            <span className="material-icons-round" aria-hidden="true">check_circle</span>
-                            Conteo registrado
-                        </div>
-                        <dl className="pcm-result">
-                            <div><dt>Unidades contadas</dt><dd>{result.conteo}</dd></div>
-                            <div><dt>En pedidos sin despachar</dt><dd>{result.comprometido}</dd></div>
-                            <div><dt>Sistema antes</dt><dd>{result.stockAnterior}</dd></div>
-                            <div><dt>Sistema ahora</dt><dd>{result.stockNuevo}</dd></div>
-                            <div>
-                                <dt>Diferencia</dt>
-                                <dd className={result.diferencia > 0 ? 'pcm-in' : result.diferencia < 0 ? 'pcm-out' : ''}>
-                                    {formatDelta(result.diferencia)}
-                                </dd>
+                    <div className="pcm-content">
+                        <div className="ui-modal-body ui-modal-body--plain">
+                            <div className="ui-alert ui-alert--success pcm-success" role="status">
+                                <span className="material-icons-round" aria-hidden="true">check_circle</span>
+                                Conteo registrado
                             </div>
-                        </dl>
-                        <p className="pcm-help">Quedó en el historial de inventario con tu usuario y el motivo.</p>
-                        <div className="pcm-footer">
-                            <button type="button" className="pcm-btn pcm-btn-primary" onClick={onClose}>Listo</button>
+                            <dl className="pcm-result">
+                                <div><dt>Unidades contadas</dt><dd>{result.conteo}</dd></div>
+                                <div><dt>En pedidos sin despachar</dt><dd>{result.comprometido}</dd></div>
+                                <div><dt>Sistema antes</dt><dd>{result.stockAnterior}</dd></div>
+                                <div><dt>Sistema ahora</dt><dd>{result.stockNuevo}</dd></div>
+                                <div>
+                                    <dt>Diferencia</dt>
+                                    <dd className={result.diferencia > 0 ? 'pcm-in' : result.diferencia < 0 ? 'pcm-out' : ''}>
+                                        {formatDelta(result.diferencia)}
+                                    </dd>
+                                </div>
+                            </dl>
+                            <p className="pcm-help">Quedó en el historial de inventario con tu usuario y el motivo.</p>
+                        </div>
+                        <div className="ui-modal-footer">
+                            <button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>Listo</button>
                         </div>
                     </div>
                 ) : (
-                    <form className="pcm-body" onSubmit={handleSubmit} noValidate>
-                        <p className="pcm-help">
-                            Escribe lo que hay <strong>físicamente</strong> en la bodega. Las unidades de pedidos sin
-                            despachar ya están descontadas del sistema, así que el sistema queda en
-                            <strong> contado − en pedidos</strong>.
-                        </p>
-
-                        {(sistemaActual != null || comprometido != null) && (
-                            <div className="pcm-current">
-                                {sistemaActual != null && <span>Sistema: <strong>{sistemaActual}</strong></span>}
-                                {comprometido != null && <span>En pedidos: <strong>{comprometido}</strong></span>}
-                            </div>
-                        )}
-
-                        {error && <div className="pcm-error" role="alert">{error}</div>}
-
-                        <label className="pcm-label" htmlFor="pcm-conteo">Unidades contadas en bodega *</label>
-                        <input
-                            id="pcm-conteo"
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
-                            className="pcm-input"
-                            value={conteo}
-                            onChange={e => setConteo(e.target.value)}
-                            onWheel={e => e.target.blur()}
-                            placeholder="Ej: 24"
-                            autoFocus
-                        />
-
-                        <label className="pcm-label" htmlFor="pcm-motivo">Motivo *</label>
-                        <input
-                            id="pcm-motivo"
-                            type="text"
-                            className="pcm-input"
-                            value={motivo}
-                            maxLength={150}
-                            onChange={e => setMotivo(e.target.value)}
-                            placeholder="Ej: Inventario mensual, faltante encontrado..."
-                        />
-
-                        {vistaPrevia !== null && (
-                            <p className="pcm-preview">
-                                El sistema quedará en <strong>{vistaPrevia}</strong>
-                                {vistaPrevia < 0 && ' (hay más unidades en pedidos que en bodega: faltan por registrar)'}
+                    <form className="pcm-content" onSubmit={handleSubmit} noValidate>
+                        <div className="ui-modal-body ui-modal-body--plain">
+                            <p className="pcm-help">
+                                Escribe lo que hay <strong>físicamente</strong> en la bodega. Las unidades de pedidos sin
+                                despachar ya están descontadas del sistema, así que el sistema queda en
+                                <strong> contado − en pedidos</strong>.
                             </p>
-                        )}
 
-                        <div className="pcm-footer">
-                            <button type="button" className="pcm-btn pcm-btn-secondary" onClick={onClose} disabled={loading}>
+                            {(sistemaActual != null || comprometido != null) && (
+                                <div className="pcm-current">
+                                    {sistemaActual != null && <span>Sistema: <strong>{sistemaActual}</strong></span>}
+                                    {comprometido != null && <span>En pedidos: <strong>{comprometido}</strong></span>}
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="ui-alert ui-alert--danger pcm-error" role="alert">
+                                    <span className="material-icons-round" aria-hidden="true">error_outline</span>
+                                    <p>{error}</p>
+                                </div>
+                            )}
+
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor="pcm-conteo">Unidades contadas en bodega <span className="ui-required">*</span></label>
+                                <input
+                                    id="pcm-conteo"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    inputMode="numeric"
+                                    className="ui-input"
+                                    value={conteo}
+                                    onChange={e => setConteo(e.target.value)}
+                                    onWheel={e => e.target.blur()}
+                                    placeholder="Ej: 24"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor="pcm-motivo">Motivo <span className="ui-required">*</span></label>
+                                <input
+                                    id="pcm-motivo"
+                                    type="text"
+                                    className="ui-input"
+                                    value={motivo}
+                                    maxLength={150}
+                                    onChange={e => setMotivo(e.target.value)}
+                                    placeholder="Ej: Inventario mensual, faltante encontrado..."
+                                />
+                            </div>
+
+                            {vistaPrevia !== null && (
+                                <p className={`pcm-preview${vistaPrevia < 0 ? ' is-negative' : ''}`}>
+                                    El sistema quedará en <strong>{vistaPrevia}</strong>
+                                    {vistaPrevia < 0 && ' (hay más unidades en pedidos que en bodega: faltan por registrar)'}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="ui-modal-footer">
+                            <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose} disabled={loading}>
                                 Cancelar
                             </button>
-                            <button type="submit" className="pcm-btn pcm-btn-primary" disabled={loading}>
+                            <button type="submit" className="ui-btn ui-btn--primary" disabled={loading}>
                                 {loading ? 'Registrando...' : 'Registrar conteo'}
                             </button>
                         </div>

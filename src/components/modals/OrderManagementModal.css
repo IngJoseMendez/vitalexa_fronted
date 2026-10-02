@@ -1,1194 +1,785 @@
-/* ============================================
-   ENHANCED ORDER DETAIL MODAL STYLES
-   ============================================ */
+/* ==========================================================================
+   MODALES DE ÓRDENES — OrderManagementModal.js
+   - Detalle de orden (OrderDetailModal): .omm-detail
+   - Registrar pago (PaymentFormModal, también lo usa BalancesPage): .omm-pay
+   - Añadir descuento (OwnerDiscountFormModal): .omm-discount-modal
+   Estructura y estilo base = primitivas .ui-* de design-system.css (modal, secciones,
+   campos, tabla, badges, avisos). Aquí solo lo propio, con prefijo .omm-*.
+   Sin :root (los tokens viven solo en design-system.css).
+   ========================================================================== */
 
-/* CSS Variables fallback (integration) */
-:root {
-    --primary: #2563eb;
-    --primary-dark: #1e40af;
-    --primary-light: #60a5fa;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
-    --text-main: #0f172a;
-    --text-secondary: #64748b;
-    --border: #e2e8f0;
-}
-
-/* Modal Overlay & Base */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 1rem;
-    animation: fadeIn 0.2s ease-out;
-}
-
-.modal-content-large {
-    background: white;
-    width: 100%;
-    max-width: 800px;
-    border-radius: 1.5rem;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    display: flex;
-    flex-direction: column;
-    max-height: 85vh;
-    animation: slideUp 0.3s ease-out;
-}
-
-.modal-content.form-modal {
-    background: white;
-    width: 100%;
-    max-width: 500px;
-    border-radius: 1rem;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-}
-
-.modal-content.form-modal.small {
-    max-width: 400px;
-}
-
-.modal-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--text-main);
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.modal-header h3 .material-icons-round {
-    color: var(--primary);
-    font-size: 1.5rem;
-}
-
-.btn-close {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 50%;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.btn-close:hover {
-    background: #f1f5f9;
-    color: var(--danger);
-}
-
-/* Content Layout */
-/* Especificidad 0,2,0 para ganarle a .modal-content-large (max-width:600px)
-   definido en AdminDashboard.css y al .order-detail-enhanced de OwnerDashboard.css. */
-.modal-content-large.order-detail-enhanced {
-    max-width: 1040px;
-    width: 100%;
-}
-
-.order-detail-content {
-    padding: 1.5rem;
-    overflow-y: auto;
-    flex: 1;
+/* ---------- Detalle: rejilla del cuerpo ----------
+   Información y Productos a todo el ancho; Descuentos y Pagos lado a lado. */
+.omm-detail .omm-detail-body {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.1rem;
+    align-content: start;
     align-items: start;
 }
 
-.order-detail-content .detail-section {
-    background: #f8fafc;
-    border-radius: 1rem;
-    padding: 1.25rem;
-    margin-bottom: 0;
-    border: 1px solid #e2e8f0;
-}
-
-/* Información General y Productos ocupan todo el ancho; Descuentos y Pagos van
-   lado a lado en 2 columnas para aprovechar el espacio del modal ancho. */
-.order-detail-content > .order-summary-section,
-.order-detail-content > .detail-section:not(.order-summary-section):not(.discounts-section):not(.payments-section) {
+.omm-detail .omm-span-full,
+.omm-detail .omm-detail-loading {
     grid-column: 1 / -1;
 }
 
-@media (max-width: 768px) {
-    .order-detail-content {
-        grid-template-columns: 1fr;
+@media (max-width: 1024px) {
+    .omm-detail .omm-detail-body {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
-.order-detail-content .detail-section h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text-main);
+.omm-detail .omm-detail-loading {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-text);
+    font-size: var(--text-sm);
+    font-weight: 500;
 }
 
-.order-detail-content .detail-section h4 .material-icons-round {
-    font-size: 1.25rem;
-    color: var(--primary);
+.omm-detail .omm-detail-loading .ui-spinner {
+    color: inherit;
 }
 
-/* Info Grid */
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem;
-}
-
-.info-item {
+/* Títulos de sección con baldosa de color (.ui-icon-tile--sm + tono en el JSX):
+   Información = primary, Productos = sky, Descuentos = teal, Pagos = success */
+.omm-detail .omm-section-title {
     display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* Cabecera de sección con acción a la derecha */
+.omm-detail .omm-section-head {
+    flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    padding: 0.75rem;
-    background: white;
-    border-radius: 0.5rem;
-    border: 1px solid #e2e8f0;
 }
 
-.info-item .label {
-    color: var(--text-secondary);
-    font-size: 0.85rem;
+/* ---------- Información general (filas etiqueta / valor) ---------- */
+.omm-detail .omm-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 0 var(--space-6);
 }
 
-.info-item .value {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-main);
-}
-
-.info-item.highlight {
-    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-    border-color: #93c5fd;
-}
-
-.info-item.highlight .value {
-    font-weight: 700;
-    color: var(--primary);
-    font-size: 1.1rem;
-}
-
-.info-item.highlight.success {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #6ee7b7;
-}
-
-.info-item.highlight.success .value {
-    color: #059669;
-}
-
-/* Notes Box */
-.notes-box {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: #fffbeb;
-    border-radius: 0.75rem;
-    border-left: 4px solid #f59e0b;
-}
-
-.notes-box strong {
+.omm-detail .omm-info-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    color: #b45309;
-    font-size: 0.85rem;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 40px;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--text-sm);
 }
 
-.notes-box p {
-    margin: 0.5rem 0 0 0;
-    color: #92400e;
-    font-size: 0.9rem;
-}
-
-/* Revertir anulación (header) */
-.btn-revert-annulment {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0.4rem 0.8rem;
-    background: #059669;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-weight: bold;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.btn-revert-annulment:hover {
-    background: #047857;
-}
-
-/* Venta anulada: motivo vigente */
-.annulled-banner {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 1rem;
-    padding: 1rem;
-    background: #fef2f2;
-    border-radius: 0.75rem;
-    border-left: 4px solid #ef4444;
-}
-
-.annulled-banner-icon {
-    color: #dc2626;
+.omm-detail .omm-info-label {
+    color: var(--color-text-muted);
     flex-shrink: 0;
 }
 
-.annulled-banner strong {
-    color: #b91c1c;
-    font-size: 0.9rem;
-}
-
-.annulled-banner p {
-    margin: 0.35rem 0 0 0;
-    color: #7f1d1d;
-    font-size: 0.9rem;
+.omm-detail .omm-info-value {
+    min-width: 0;
+    color: var(--color-text);
+    font-weight: 500;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
 }
 
-.annulled-banner small {
+.omm-detail .omm-info-item--amount .omm-info-value {
+    font-size: var(--text-md);
+    font-weight: 600;
+}
+
+.omm-detail .omm-info-item--success .omm-info-value {
+    color: var(--color-success-text);
+}
+
+/* Avisos dentro de "Información general" */
+.omm-detail .omm-callout {
+    margin-top: var(--space-4);
+}
+
+.omm-detail .omm-annulled-reason {
+    margin: 2px 0 0;
+    overflow-wrap: anywhere;
+}
+
+.omm-detail .omm-annulled-meta {
     display: block;
-    margin-top: 0.35rem;
-    color: #991b1b;
-    font-size: 0.78rem;
+    margin-top: var(--space-1);
+    font-size: var(--text-xs);
+}
+
+/* Notas: dato neutro, no aviso */
+.omm-detail .omm-notes {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+}
+
+.omm-detail .omm-notes-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.omm-detail .omm-notes-title .material-icons-round {
+    font-size: 18px;
+    color: var(--color-text-muted);
+}
+
+.omm-detail .omm-notes p {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-base);
+    color: var(--color-text);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
 /* Historial de anulación / reversión */
-.annulment-history {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: #f8fafc;
-    border-radius: 0.75rem;
-    border: 1px solid var(--border);
-}
-
-.annulment-history-title {
+.omm-detail .omm-history-title {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-secondary);
 }
 
-.annulment-history ul {
-    list-style: none;
-    margin: 0.75rem 0 0 0;
-    padding: 0;
+.omm-detail .omm-history-title .material-icons-round {
+    font-size: 18px;
+    color: var(--color-text-muted);
+}
+
+.omm-detail .omm-history-list {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
 }
 
-.annulment-event {
-    padding: 0.6rem 0.75rem;
-    background: white;
-    border-radius: 0.5rem;
-    border-left: 3px solid #ef4444;
+.omm-detail .omm-history-event {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
 }
 
-.annulment-event.is-reversal {
-    border-left-color: #10b981;
-}
-
-.annulment-event-head {
+.omm-detail .omm-history-head {
     display: flex;
-    align-items: center;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    font-size: 0.85rem;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    font-size: var(--text-sm);
 }
 
-.annulment-event-head .material-icons-round {
-    font-size: 1rem;
-    color: #dc2626;
+.omm-detail .omm-history-icon {
+    font-size: 18px;
+    color: var(--color-danger-text);
 }
 
-.annulment-event.is-reversal .annulment-event-head .material-icons-round {
-    color: #059669;
+.omm-detail .omm-history-event.is-reversal .omm-history-icon {
+    color: var(--color-success-text);
 }
 
-.annulment-event-meta {
+.omm-detail .omm-history-meta {
     margin-left: auto;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
-.annulment-event-reason {
-    margin: 0.35rem 0 0 0;
-    color: var(--text-main);
-    font-size: 0.85rem;
+.omm-detail .omm-history-reason {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-sm);
+    color: var(--color-text);
     overflow-wrap: anywhere;
 }
 
-.annulment-event-detail {
+.omm-detail .omm-history-detail {
     display: block;
-    margin-top: 0.25rem;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
 }
 
-/* Products Table */
-.products-table-wrapper {
-    overflow-x: auto;
+/* Promoción pendiente de surtidos */
+.omm-detail .omm-pending-promo-title {
+    margin: 0;
+    font-size: var(--text-sm);
 }
 
-.items-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 0.75rem;
-    overflow: hidden;
+.omm-detail .omm-pending-promo-body p {
+    margin: 2px 0 0;
 }
 
-.items-table th,
-.items-table td {
-    padding: 0.75rem 1rem;
+.omm-detail .omm-pending-promo-action {
+    margin-top: var(--space-3);
+}
+
+.omm-detail .omm-pending-promo-action .ui-btn {
+    white-space: normal;
     text-align: left;
-    border-bottom: 1px solid #f1f5f9;
 }
 
-.items-table th {
-    background: #f1f5f9;
-    font-weight: 700;
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    text-transform: uppercase;
+/* ---------- Productos ---------- */
+.omm-detail .omm-items-table td {
+    vertical-align: top;
 }
 
-.items-table tbody tr:hover {
-    background: #f8fafc;
-}
-
-/* Section Header with Button */
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.section-header h4 {
-    margin: 0 !important;
-}
-
-.btn-add-small {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.5rem 0.85rem;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    color: var(--text-secondary);
-    font-size: 0.8rem;
+.omm-detail .omm-item-name {
     font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    color: var(--color-text);
 }
 
-.btn-add-small:hover {
-    background: #f1f5f9;
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.btn-add-small.primary {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
-}
-
-.btn-add-small.primary:hover {
-    background: var(--primary-dark);
-}
-
-.btn-add-small .material-icons-round {
-    font-size: 1rem;
-}
-
-/* Loading/Empty States */
-.loading-inline,
-.empty-inline {
-    padding: 1.5rem;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    background: white;
-    border-radius: 0.75rem;
-    border: 1px dashed #cbd5e1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.empty-inline .material-icons-round {
-    font-size: 1.25rem;
-    color: #94a3b8;
-}
-
-/* Payment Summary */
-.payment-summary {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-}
-
-.payment-summary .summary-item {
-    flex: 1;
-    min-width: 140px;
-    padding: 1rem;
-    background: white;
-    border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
-    text-align: center;
-}
-
-.payment-summary .summary-item span {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.25rem;
-}
-
-.payment-summary .summary-item strong {
-    font-size: 1.25rem;
-    color: var(--text-main);
-}
-
-.payment-summary .summary-item.paid strong {
-    color: var(--primary);
-}
-
-.payment-summary .summary-item.success {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #6ee7b7;
-}
-
-.payment-summary .summary-item.success strong {
-    color: #059669;
-}
-
-.payment-summary .summary-item.warning {
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-    border-color: #fcd34d;
-}
-
-.payment-summary .summary-item.warning strong {
-    color: #d97706;
-}
-
-/* Payments List */
-.payments-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.payment-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
-    transition: all 0.2s;
-}
-
-.payment-item:hover {
-    border-color: var(--primary-light);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.payment-main {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex: 1;
-}
-
-.payment-amount {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: var(--primary);
-}
-
-.payment-date {
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-}
-
-.badge-deadline {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: #d1fae5;
-    color: #059669;
-    border-radius: 99px;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-
-.badge-deadline .material-icons-round {
-    font-size: 0.8rem;
-}
-
-.payment-meta {
+.omm-detail .omm-item-badges {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    gap: var(--space-1);
+    margin-top: var(--space-1);
 }
 
-.payment-meta span {
-    padding: 0.25rem 0.5rem;
-    background: #f1f5f9;
-    border-radius: 0.25rem;
+.omm-detail .omm-item-badges:empty {
+    display: none;
 }
 
-.btn-cancel-payment {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
+.omm-detail .omm-items-table tbody tr.omm-row-warning,
+.omm-detail .omm-items-table tbody tr.omm-row-warning:hover {
+    background: var(--color-warning-soft);
 }
 
-.btn-cancel-payment:hover {
-    background: #fef2f2;
-    border-color: #ef4444;
-    color: #ef4444;
-}
-
-/* Cancelled Payment Styles */
-.payment-item.cancelled {
-    background: #f8fafc;
-    border-color: #e2e8f0;
-    opacity: 0.8;
-    position: relative;
-    border-left: 4px solid #94a3b8;
-}
-
-.payment-item.cancelled .payment-amount {
-    color: #94a3b8;
-    text-decoration: line-through;
-}
-
-.badge-cancelled {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.6rem;
-    background: #f1f5f9;
-    color: #64748b;
-    border-radius: 99px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    border: 1px solid #e2e8f0;
-}
-
-.badge-cancelled .material-icons-round {
-    font-size: 0.9rem;
-}
-
-.cancellation-info-mini {
-    width: 100%;
-    margin-top: 0.4rem;
-    font-size: 0.75rem;
-    color: #ef4444;
+.omm-detail .omm-free {
+    color: var(--color-success-text);
     font-weight: 600;
 }
 
-.payment-actions {
-    display: flex;
-    gap: 0.5rem;
+/* Estimación de llegada (ETA) de ítems sin stock */
+.omm-detail .omm-eta {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
 }
 
-.btn-restore-payment {
-    width: 36px;
-    height: 36px;
+.omm-detail .omm-eta-info {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    color: #f59e0b;
-    cursor: pointer;
-    transition: all 0.2s;
+    gap: var(--space-1) var(--space-2);
+    color: var(--color-warning-text);
 }
 
-.btn-restore-payment:hover {
-    background: #fffbeb;
-    border-color: #f59e0b;
-    color: #d97706;
+.omm-detail .omm-eta-form {
+    max-width: 360px;
+    margin-top: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
 }
 
-/* Discounts List */
-.discounts-list {
+.omm-detail .omm-eta-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.omm-detail .omm-eta-fields {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: var(--space-2);
 }
 
-.discount-item {
+/* Secundaria y luego primaria, alineadas a la derecha. El JSX ya trae ese orden,
+   así que el tabulador sigue el orden visual (sin row-reverse, WCAG 2.4.3). */
+.omm-detail .omm-eta-actions {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 0.75rem;
-    border: 1px solid #e2e8f0;
-}
-
-.discount-item.applied {
-    border-left: 4px solid #10b981;
-}
-
-.discount-item.revoked {
-    border-left: 4px solid #94a3b8;
-    opacity: 0.7;
-}
-
-.discount-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-}
-
-.discount-percentage {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #10b981;
-}
-
-.discount-type,
-.discount-status {
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.discount-type {
-    background: #eff6ff;
-    color: var(--primary);
-}
-
-.discount-status {
-    background: #f1f5f9;
-    color: var(--text-secondary);
-}
-
-.discount-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-}
-
-.btn-revoke {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.4rem 0.75rem;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    border-radius: 0.5rem;
-    color: #ef4444;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn-revoke:hover {
-    background: #fee2e2;
-    border-color: #ef4444;
-}
-
-/* FORM STYLES */
-.form-group {
-    margin-bottom: 1.25rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-main);
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    font-family: inherit;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.form-group.checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.form-group.checkbox input {
-    width: auto;
-}
-
-.form-group.checkbox label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0;
-    cursor: pointer;
-    font-weight: 500;
-    color: var(--text-main);
-}
-
-/* Add padding to the form container itself */
-.payment-form {
-    padding: 1.5rem;
-}
-
-/* Ensure first form group has margin-top if needed (though padding handles it) */
-.payment-form .form-group:first-child {
-    margin-top: 0.5rem;
-}
-
-.form-actions {
-    display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 2rem;
+    gap: var(--space-2);
 }
 
-.btn-save {
-    padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-    color: white;
-    border: none;
-    border-radius: 0.5rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-/* Payment Context Styles (Desktop Grid) */
-.payment-context {
-    display: flex;
-    gap: 0.5rem;
-    /* Reduced gap */
-    padding: 0.75rem 1rem;
-    /* Compact padding */
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.context-item {
-    flex: 1;
+/* ---------- Descuentos y pagos (listas) ---------- */
+.omm-detail .omm-list {
     display: flex;
     flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* Fila 1: datos; fila 2: metadatos; acción a la derecha ocupando ambas filas */
+/* Franja izquierda por estado (.ui-stripe en el JSX): pago activo / descuento aplicado = verde,
+   pago anulado = rojo, descuento revocado = neutro */
+.omm-detail .omm-list-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 0.5rem;
-    /* Reduced internal padding */
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-3) + 2px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    transition: border-color var(--duration-control) var(--ease);
 }
 
-.context-item span {
-    font-size: 0.7rem;
-    /* Smaller label */
-    color: var(--text-secondary);
-    margin-bottom: 0.25rem;
-    text-transform: uppercase;
-    font-weight: 700;
-    letter-spacing: 0.025em;
+.omm-detail .omm-list-item:hover {
+    border-color: var(--color-border-strong);
 }
 
-.context-item strong {
-    font-size: 1rem;
-    /* Smaller value to fit better */
-    color: var(--text-main);
-    line-height: 1.1;
-    white-space: nowrap;
-    /* Prevent wrapping of numbers */
+.omm-detail .omm-list-item > :not(.omm-list-action) {
+    grid-column: 1;
 }
 
-.context-item.highlight strong {
-    color: var(--primary);
+.omm-detail .omm-list-item > .omm-list-action {
+    grid-column: 2;
+    grid-row: 1 / span 2;
 }
 
-.context-item.highlight strong.warning {
-    color: #d97706;
+.omm-detail .omm-payment-actions {
+    display: flex;
+    gap: var(--space-1);
 }
 
-/* Preview Box Styles */
-.payment-preview-box {
-    margin: 0.75rem 1rem 0 1rem;
-    /* Reduced margins */
-    padding: 0.6rem 0.85rem;
-    /* Compact padding */
-    background: #ecfdf5;
-    border: 1px solid #6ee7b7;
-    border-radius: 0.5rem;
-    animation: fadeIn 0.3s ease;
+.omm-detail .omm-payment-actions:empty {
+    display: none;
 }
 
-.payment-preview-box span {
-    font-size: 0.85rem;
-    color: #065f46;
+.omm-detail .omm-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.omm-detail .omm-discount-info,
+.omm-detail .omm-payment-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.omm-detail .omm-discount-pct,
+.omm-detail .omm-payment-amount {
+    font-size: var(--text-md);
     font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
 }
 
-.payment-preview-box strong {
-    font-size: 1rem;
-    color: #059669;
+/* Pago: monto en verde; anulado en rojo tachado */
+.omm-detail .omm-payment-amount {
+    color: var(--color-success-text);
 }
 
-.paid-badge {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid rgba(5, 150, 105, 0.2);
-    color: #059669;
-    font-weight: 700;
-    font-size: 0.95rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.btn-cancel {
-    padding: 0.75rem 1.5rem;
-    background: white;
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    border-radius: 0.5rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.input-with-suffix {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.input-with-suffix .suffix {
-    position: absolute;
-    right: 1rem;
-    color: var(--text-secondary);
-    font-weight: 700;
-}
-
-.input-with-suffix input {
-    padding-right: 2.5rem;
-}
-
-/* Input Groups for Suffix/Prefix */
-.input-group-text {
-    display: flex;
-    align-items: center;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    background: white;
-    overflow: hidden;
-}
-
-.input-group-text input {
-    flex: 1;
-    border: none;
-    box-shadow: none;
-    margin: 0;
-}
-
-.input-group-text input:focus {
-    box-shadow: none;
-}
-
-.input-group-text .prefix,
-.input-group-text .suffix {
-    padding: 0 12px;
-    color: #64748b;
-    font-weight: 500;
-    font-size: 0.9rem;
-    background: #f8fafc;
-    border-left: 1px solid #e2e8f0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-}
-
-.input-group-text .prefix {
-    border-left: none;
-    border-right: 1px solid #e2e8f0;
-}
-
-.strike-through {
-    text-decoration: line-through;
-    color: #94a3b8;
-    font-weight: normal;
-    font-size: 0.9em;
-}
-
-.input-help {
-    margin-top: 6px;
-    font-size: 0.85rem;
-    display: flex;
+.omm-detail .omm-payment-date {
+    display: inline-flex;
     align-items: center;
     gap: 4px;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
-.input-help.success {
-    color: #10b981;
+.omm-detail .omm-payment-date .material-icons-round {
+    font-size: 15px;
 }
 
-.context-item.preview {
-    background: #f0fdf4;
-    border-radius: 6px;
-    padding: 8px;
-    margin-top: 8px;
+.omm-detail .omm-discount.is-revoked,
+.omm-detail .omm-payment.is-cancelled {
+    background: var(--color-surface-subtle);
 }
 
-/* ============================================
-   MOBILE RESPONSIVE STYLES
-   ============================================ */
-
-@media (max-width: 768px) {
-    .modal-content-large {
-        max-width: 100%;
-        max-height: 95vh;
-        border-radius: 1rem;
-        margin: 0.5rem;
-    }
-
-    .modal-header {
-        padding: 1rem;
-    }
-
-    .modal-header h3 {
-        font-size: 1.1rem;
-    }
-
-    .order-detail-content {
-        padding: 1rem;
-    }
-
-    /* Info Grid - Stack on mobile */
-    .info-grid {
-        grid-template-columns: 1fr;
-        gap: 0.75rem;
-    }
-
-    .info-item {
-        padding: 0.75rem;
-    }
-
-    /* Payment Summary - 2x2 grid on tablet, stack on mobile */
-    .payment-summary {
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
-    .payment-summary .summary-item {
-        min-width: 100%;
-        padding: 0.75rem;
-    }
-
-    /* Payment Context in Form */
-    .payment-context {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .context-item {
-        padding: 0.75rem;
-    }
-
-    /* Discount Items - stack content */
-    .discount-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .discount-info {
-        flex-wrap: wrap;
-    }
-
-    .btn-revoke {
-        width: 100%;
-        justify-content: center;
-    }
-
-    /* Payment Items - stack content */
-    .payment-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .payment-main {
-        flex-wrap: wrap;
-    }
-
-    .btn-cancel-payment {
-        align-self: flex-end;
-    }
-
-    /* Section Headers */
-    .section-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-
-    .section-header .btn-add-small {
-        width: 100%;
-        justify-content: center;
-    }
-
-    /* Products Table - Scroll on small screens */
-    .products-table-wrapper {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .items-table {
-        min-width: 400px;
-        font-size: 0.85rem;
-    }
-
-    .items-table th,
-    .items-table td {
-        padding: 0.5rem;
-    }
+.omm-detail .omm-discount.is-revoked .omm-discount-pct {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
 }
 
-@media (max-width: 480px) {
-    .modal-overlay {
-        padding: 0;
+.omm-detail .omm-payment.is-cancelled .omm-payment-amount {
+    color: var(--color-danger-text);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+}
+
+.omm-detail .omm-cancel-info {
+    width: 100%;
+    color: var(--color-danger-text);
+    font-weight: 500;
+}
+
+/* Resumen de pagos */
+.omm-detail .omm-summary {
+    margin-bottom: var(--space-4);
+    padding: var(--space-1) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+}
+
+.omm-detail .omm-summary-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.omm-detail .omm-summary-row + .omm-summary-row {
+    border-top: 1px solid var(--color-border);
+}
+
+.omm-detail .omm-summary-row strong {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.omm-detail .omm-summary-row .omm-strike {
+    font-weight: 400;
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+}
+
+.omm-detail .omm-summary-row .omm-text-success {
+    color: var(--color-success-text);
+}
+
+.omm-detail .omm-summary-row--balance strong {
+    font-size: var(--text-lg);
+}
+
+.omm-detail .omm-summary-row--balance.is-success strong {
+    color: var(--color-success-text);
+}
+
+.omm-detail .omm-summary-row--balance.is-warning strong {
+    color: var(--color-warning-text);
+}
+
+/* Barra de lo pagado bajo el resumen (verde sobre pista clara) */
+.omm-detail .omm-summary-progress {
+    margin: var(--space-1) 0 var(--space-3);
+}
+
+/* Carga y vacío en línea */
+.omm-detail .omm-inline-loading {
+    padding: var(--space-4);
+    font-size: var(--text-sm);
+}
+
+.omm-detail .omm-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+}
+
+.omm-detail .omm-empty .material-icons-round {
+    font-size: 18px;
+}
+
+/* ---------- Pie con las acciones de la venta ---------- */
+.omm-detail .omm-detail-footer:empty {
+    display: none;
+}
+
+.omm-detail .omm-footer-start {
+    margin-right: auto;
+}
+
+/* ---------- Formularios (pago / descuento): el form envuelve cuerpo y pie ----------
+   padding/margin 0: el <form> conserva las clases payment-form / discount-form y
+   OwnerDashboard.css tiene una regla vieja `:where(.payment-form, .discount-form)`
+   con padding 0 24px 24px que metía el cuerpo y el pie fijo hacia adentro. */
+.omm-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+}
+
+/* Registrar pago: contexto de la factura */
+.omm-pay .omm-pay-context {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.omm-pay .omm-pay-context-item {
+    min-width: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+}
+
+.omm-pay .omm-pay-context-item span {
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+.omm-pay .omm-pay-context-item strong {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+/* Mismo código de color que la cartera: pagado en verde, pendiente en ámbar
+   (tarjeta con tinte suave del tono; etiqueta en secundario para mantener el contraste) */
+.omm-pay .omm-pay-context-item.is-paid {
+    border-color: var(--color-success-border);
+    background: var(--color-success-soft);
+}
+
+.omm-pay .omm-pay-context-item.is-pending {
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-soft);
+}
+
+.omm-pay .omm-pay-context-item.is-paid span,
+.omm-pay .omm-pay-context-item.is-pending span {
+    color: var(--color-text-secondary);
+}
+
+.omm-pay .omm-pay-context-item.is-paid strong,
+.omm-pay .omm-pay-context-item.is-settled strong {
+    color: var(--color-success-text);
+}
+
+.omm-pay .omm-pay-context-item.is-pending strong {
+    color: var(--color-warning-text);
+}
+
+/* Barra de lo ya pagado, pegada al contexto */
+.omm-pay .omm-pay-progress {
+    margin-top: calc(-1 * var(--space-2));
+}
+
+.omm-pay .omm-pay-credit {
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.omm-pay .omm-pay-credit-text {
+    flex: 1 1 160px;
+}
+
+.omm-pay .omm-pay-credit .ui-btn {
+    flex-shrink: 0;
+}
+
+/* Vista previa del saldo restante */
+.omm-pay .omm-pay-preview {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+}
+
+.omm-pay .omm-pay-preview.is-paid {
+    border-color: transparent;
+    background: var(--color-success-soft);
+    color: var(--color-success-text);
+}
+
+.omm-pay .omm-pay-preview-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.omm-pay .omm-pay-preview-row strong {
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.omm-pay .omm-pay-preview.is-pending .omm-pay-preview-row strong {
+    color: var(--color-warning-text);
+}
+
+.omm-pay .omm-pay-preview.is-paid .omm-pay-preview-row strong {
+    color: var(--color-success-text);
+}
+
+.omm-pay .omm-pay-paid {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    font-weight: 600;
+}
+
+.omm-pay .omm-pay-paid .material-icons-round {
+    font-size: 18px;
+}
+
+/* ---------- Móvil ---------- */
+@media (max-width: 640px) {
+    .omm-detail .omm-info-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
-    .modal-content-large {
+    /* Tabla de productos como tarjetas apiladas: sin scroll horizontal */
+    .omm-detail .omm-items-wrap {
+        overflow: visible;
+        border: 0;
         border-radius: 0;
-        max-height: 100vh;
-        height: 100%;
+        background: transparent;
     }
 
-    .modal-content.form-modal {
-        max-width: 100%;
-        border-radius: 1rem 1rem 0 0;
-        margin-top: auto;
-    }
-
-    .order-detail-content {
-        padding: 0.75rem;
-    }
-
-    .detail-section {
-        padding: 1rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .detail-section h4 {
-        font-size: 0.9rem;
-    }
-
-    /* Further simplify payment summary */
-    .payment-summary .summary-item {
-        text-align: left;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .payment-summary .summary-item span {
-        margin-bottom: 0;
-    }
-
-    .payment-summary .summary-item strong {
-        font-size: 1.1rem;
-    }
-
-    /* Form adjustments */
-    .form-group label {
-        font-size: 0.85rem;
-    }
-
-    .form-group input,
-    .form-group textarea,
-    .form-group select {
-        padding: 0.65rem;
-        font-size: 0.95rem;
-    }
-
-    .form-actions {
-        flex-direction: column-reverse;
-        gap: 0.75rem;
-    }
-
-    .form-actions button {
+    .omm-detail .omm-items-table,
+    .omm-detail .omm-items-table tbody,
+    .omm-detail .omm-items-table tr,
+    .omm-detail .omm-items-table td {
+        display: block;
         width: 100%;
     }
 
-    /* Notes box */
-    .notes-box {
-        padding: 0.75rem;
+    .omm-detail .omm-items-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
     }
+
+    .omm-detail .omm-items-table tbody tr {
+        padding: var(--space-3);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+    }
+
+    .omm-detail .omm-items-table tbody tr + tr {
+        margin-top: var(--space-2);
+    }
+
+    .omm-detail .omm-items-table tbody tr:hover {
+        background: var(--color-surface);
+    }
+
+    .omm-detail .omm-items-table td,
+    .omm-detail .omm-items-table tbody tr:last-child td {
+        height: auto;
+        padding: 2px 0;
+        border: 0;
+    }
+
+    .omm-detail .omm-items-table td.omm-col-product {
+        padding-bottom: var(--space-2);
+    }
+
+    .omm-detail .omm-items-table td[data-label] {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--space-3);
+        font-size: var(--text-sm);
+    }
+
+    .omm-detail .omm-items-table td[data-label]::before {
+        content: attr(data-label);
+        color: var(--color-text-muted);
+        font-weight: 400;
+        text-align: left;
+    }
+
+    .omm-detail .omm-items-table td.omm-col-status {
+        display: none;
+    }
+
+    .omm-detail .omm-eta-form {
+        max-width: none;
+    }
+
+    .omm-detail .omm-detail-footer .ui-btn {
+        flex: 1 1 auto;
+    }
+
+    .omm-detail .omm-footer-start {
+        margin-right: 0;
+    }
+
+    .omm-pay .omm-pay-context {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .omm-pay .omm-pay-context-item {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+    }
+
+    .omm-pay .omm-pay-context-item strong {
+        margin-top: 0;
+        text-align: right;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   COMPATIBILIDAD (especificidad 0 con :where, ninguna regla de área se ve pisada)
+   Antes este archivo definía SIN scope clases genéricas que también usan otros
+   componentes (AdminClientsPanel, TagsPanel, StockArrivalModal, VendorSelectionDropdown,
+   ClientComponents, OwnerDashboard, VendedorDashboard...). Su apariencia (.modal-overlay,
+   .modal-header, .btn-close, .btn-save, .btn-cancel, .loading-inline, controles de
+   .form-group) ya la da la capa legacy de design-system.css; aquí solo se conserva el
+   espaciado que esa capa no fija. Los modales de este archivo ya no usan estas clases.
+   Borrar cuando esas áreas migren a .ui-*.
+   -------------------------------------------------------------------------- */
+:where(.form-group) {
+    margin-bottom: var(--space-4);
+}
+
+:where(.form-group) :where(label) {
+    display: block;
+    margin-bottom: 6px;
+}
+
+:where(.form-group) :where(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea) {
+    width: 100%;
+}
+
+:where(.section-header) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
 }

@@ -31,19 +31,25 @@ function EmpacadorDashboard() {
 
     return (
         <div className="emp-dashboard">
-            {/* ── Top Bar ── */}
+            {/* ── Encabezado de página ── */}
             <header className="emp-topbar">
                 <div className="emp-topbar-left">
-                    <span className="material-icons-round emp-logo-icon">inventory_2</span>
-                    <div>
+                    <span className="material-icons-round emp-logo-icon" aria-hidden="true">inventory_2</span>
+                    <div className="emp-topbar-heading">
                         <h1 className="emp-title">Inventario</h1>
                         <p className="emp-subtitle">
                             Actualizado: {lastUpdate.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                     </div>
                 </div>
-                <button className="emp-refresh-btn" onClick={handleRefresh} title="Actualizar inventario">
-                    <span className="material-icons-round">sync</span>
+                <button
+                    type="button"
+                    className="emp-refresh-btn ui-icon-btn ui-icon-btn--bordered ui-icon-btn--lg"
+                    onClick={handleRefresh}
+                    title="Actualizar inventario"
+                    aria-label="Actualizar inventario"
+                >
+                    <span className="material-icons-round" aria-hidden="true">sync</span>
                 </button>
             </header>
 
@@ -129,14 +135,13 @@ function InventarioPanel() {
 
             {/* ── Summary Cards ── */}
             <div className="emp-stats-row">
-                <StatCard icon="category" label="Productos" value={totalProductos} color="#6366f1" bg="#eef2ff" />
-                <StatCard icon="layers" label="Unidades en bodega" value={totalUnidades} color="#0ea5e9" bg="#e0f2fe" />
+                <StatCard icon="category" label="Productos" value={totalProductos} tone="primary" />
+                <StatCard icon="layers" label="Unidades en bodega" value={totalUnidades} tone="teal" />
                 <StatCard
                     icon="warning_amber"
                     label="Alertas"
                     value={alertasCriticas}
-                    color={alertasCriticas > 0 ? '#dc2626' : '#16a34a'}
-                    bg={alertasCriticas > 0 ? '#fef2f2' : '#f0fdf4'}
+                    tone={alertasCriticas > 0 ? 'danger' : 'success'}
                     onClick={() => setFilter(filter === 'alerts' ? 'all' : 'alerts')}
                     active={filter === 'alerts'}
                 />
@@ -144,8 +149,7 @@ function InventarioPanel() {
                     icon="local_shipping"
                     label="En Pedidos"
                     value={conComprometido}
-                    color="#d97706"
-                    bg="#fffbeb"
+                    tone="warning"
                     onClick={() => setFilter(filter === 'committed' ? 'all' : 'committed')}
                     active={filter === 'committed'}
                 />
@@ -154,18 +158,24 @@ function InventarioPanel() {
             {/* ── Controls ── */}
             <div className="emp-controls">
                 {/* Buscador */}
-                <div className="emp-search-wrap">
-                    <span className="material-icons-round emp-search-icon">search</span>
+                <div className="emp-search-wrap ui-search">
+                    <span className="material-icons-round ui-search-icon emp-search-icon" aria-hidden="true">search</span>
                     <input
-                        className="emp-search-input"
+                        className="emp-search-input ui-input"
                         type="text"
                         placeholder="Buscar producto..."
+                        aria-label="Buscar producto"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                     />
                     {search && (
-                        <button className="emp-clear-btn" onClick={() => setSearch('')}>
-                            <span className="material-icons-round">close</span>
+                        <button
+                            type="button"
+                            className="emp-clear-btn ui-icon-btn ui-search-clear"
+                            onClick={() => setSearch('')}
+                            aria-label="Limpiar búsqueda"
+                        >
+                            <span className="material-icons-round" aria-hidden="true">close</span>
                         </button>
                     )}
                 </div>
@@ -186,7 +196,8 @@ function InventarioPanel() {
                     {/* Sort + View toggle */}
                     <div className="emp-right-controls">
                         <select
-                            className="emp-sort-select"
+                            className="emp-sort-select ui-select"
+                            aria-label="Ordenar productos"
                             value={sortBy}
                             onChange={e => setSortBy(e.target.value)}
                         >
@@ -196,30 +207,40 @@ function InventarioPanel() {
                             <option value="alerta">Alertas primero</option>
                         </select>
 
-                        <div className="emp-view-toggle">
+                        <div className="emp-view-toggle ui-tabs">
                             <button
-                                className={viewMode === 'cards' ? 'active' : ''}
+                                type="button"
+                                className={`ui-tab${viewMode === 'cards' ? ' active is-active' : ''}`}
                                 onClick={() => setViewMode('cards')}
                                 title="Vista tarjetas"
+                                aria-label="Vista tarjetas"
+                                aria-pressed={viewMode === 'cards'}
                             >
-                                <span className="material-icons-round">grid_view</span>
+                                <span className="material-icons-round" aria-hidden="true">grid_view</span>
                             </button>
                             <button
-                                className={viewMode === 'list' ? 'active' : ''}
+                                type="button"
+                                className={`ui-tab${viewMode === 'list' ? ' active is-active' : ''}`}
                                 onClick={() => setViewMode('list')}
                                 title="Vista lista"
+                                aria-label="Vista lista"
+                                aria-pressed={viewMode === 'list'}
                             >
-                                <span className="material-icons-round">view_list</span>
+                                <span className="material-icons-round" aria-hidden="true">view_list</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
                 {/* Contador de resultados */}
-                <p className="emp-result-count">
+                <p className="emp-result-count" aria-live="polite">
                     {loading ? 'Cargando...' : `${filtered.length} producto${filtered.length !== 1 ? 's' : ''}`}
                     {filter !== 'all' || search ? (
-                        <button className="emp-reset-filter" onClick={() => { setFilter('all'); setSearch(''); }}>
+                        <button
+                            type="button"
+                            className="emp-reset-filter ui-btn ui-btn--ghost ui-btn--sm"
+                            onClick={() => { setFilter('all'); setSearch(''); }}
+                        >
                             Limpiar filtros
                         </button>
                     ) : null}
@@ -228,16 +249,25 @@ function InventarioPanel() {
 
             {/* ── Content ── */}
             {loading ? (
-                <div className="emp-loading">
-                    <span className="material-icons-round emp-spin">hourglass_top</span>
-                    <p>Cargando inventario...</p>
+                // Esqueletos con la forma de las tarjetas; el texto queda para lectores de pantalla
+                <div className="emp-loading emp-skeleton-grid" role="status" aria-busy="true">
+                    <p className="ui-sr-only">Cargando inventario...</p>
+                    {[0, 1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="emp-skeleton-card" aria-hidden="true">
+                            <span className="ui-skeleton ui-skeleton--title" />
+                            <span className="ui-skeleton ui-skeleton--text emp-skeleton-short" />
+                            <span className="ui-skeleton emp-skeleton-bar" />
+                            <span className="ui-skeleton ui-skeleton--text" />
+                            <span className="ui-skeleton ui-skeleton--text" />
+                        </div>
+                    ))}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="emp-empty">
-                    <span className="material-icons-round">
+                <div className={`emp-empty ui-empty${filter === 'alerts' ? ' emp-empty--ok' : ''}`}>
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">
                         {filter === 'alerts' ? 'check_circle' : 'search_off'}
                     </span>
-                    <p>
+                    <p className="ui-empty-title">
                         {filter === 'alerts'
                             ? '¡Sin alertas críticas! Inventario en orden.'
                             : search
@@ -246,13 +276,13 @@ function InventarioPanel() {
                     </p>
                 </div>
             ) : viewMode === 'cards' ? (
-                <div className="emp-cards-grid">
+                <div className="emp-cards-grid ui-stagger">
                     {filtered.map(item => (
                         <ProductCardMobile key={item.productId} item={item} />
                     ))}
                 </div>
             ) : (
-                <div className="emp-list">
+                <div className="emp-list ui-stagger">
                     {filtered.map(item => (
                         <ProductRowMobile key={item.productId} item={item} />
                     ))}
@@ -263,24 +293,24 @@ function InventarioPanel() {
             {!loading && filtered.length > 0 && (
                 <div className="emp-legend">
                     <span className="emp-legend-item">
-                        <span className="material-icons-round" style={{ color: '#dc2626', fontSize: '14px' }}>circle</span>
+                        <span className="material-icons-round emp-legend-icon emp-fg--danger" aria-hidden="true">circle</span>
                         Stock negativo
                     </span>
                     <span className="emp-legend-item">
-                        <span className="material-icons-round" style={{ color: '#d97706', fontSize: '14px' }}>circle</span>
+                        <span className="material-icons-round emp-legend-icon emp-fg--warning" aria-hidden="true">circle</span>
                         Stock = 0
                     </span>
                     <span className="emp-legend-item">
-                        <span className="material-icons-round" style={{ color: '#16a34a', fontSize: '14px' }}>circle</span>
+                        <span className="material-icons-round emp-legend-icon emp-fg--success" aria-hidden="true">circle</span>
                         Stock positivo
                     </span>
                     <span className="emp-legend-item">
-                        <span className="material-icons-round" style={{ color: '#d97706', fontSize: '14px' }}>local_shipping</span>
+                        <span className="material-icons-round emp-legend-icon emp-fg--warning" aria-hidden="true">local_shipping</span>
                         En pedidos activos
                     </span>
                     {conFaltante > 0 && (
                         <span className="emp-legend-item">
-                            <span className="material-icons-round" style={{ color: '#b45309', fontSize: '14px' }}>report_problem</span>
+                            <span className="material-icons-round emp-legend-icon emp-fg--warning" aria-hidden="true">report_problem</span>
                             {conFaltante} con unidades por registrar (bodega en 0)
                         </span>
                     )}
@@ -301,36 +331,49 @@ function FaltanteNote({ item }) {
     const { faltante } = bodegaInfo(item);
     if (faltante <= 0) return null;
     return (
-        <div className="emp-faltante" style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600, marginTop: '4px' }}>
+        <div className="emp-faltante">
             faltan {faltante} por registrar
         </div>
     );
 }
 
-function getSistemaIcon(val) {
-    if (val < 0) return <span className="material-icons-round" style={{ fontSize: '14px', color: '#dc2626' }}>cancel</span>;
-    if (val === 0) return <span className="material-icons-round" style={{ fontSize: '14px', color: '#d97706' }}>warning_amber</span>;
-    return <span className="material-icons-round" style={{ fontSize: '14px', color: '#16a34a' }}>check_circle</span>;
+// Tono (color con significado) del stock del sistema: negativo, en cero o positivo
+function getSistemaTone(val) {
+    if (val < 0) return 'danger';
+    if (val === 0) return 'warning';
+    return 'success';
 }
 
-function getSistemaColor(val) {
-    if (val < 0) return '#dc2626';
-    if (val === 0) return '#d97706';
-    return '#16a34a';
+function getSistemaIcon(val) {
+    if (val < 0) return <span className="material-icons-round emp-sys-icon emp-fg--danger" aria-hidden="true">cancel</span>;
+    if (val === 0) return <span className="material-icons-round emp-sys-icon emp-fg--warning" aria-hidden="true">warning_amber</span>;
+    return <span className="material-icons-round emp-sys-icon emp-fg--success" aria-hidden="true">check_circle</span>;
 }
 
 // ── Sub-componentes ───────────────────────────────────────────────────────────
 
-function StatCard({ icon, label, value, color, bg, onClick, active }) {
+// Color de la cifra según el tono de la tarjeta (mismo significado que su baldosa)
+const STAT_VALUE_TONE = {
+    primary: 'ui-text-primary',
+    success: 'ui-text-success',
+    warning: 'ui-text-warning',
+    danger: 'ui-text-danger',
+    teal: 'emp-fg--teal',
+};
+
+function StatCard({ icon, label, value, tone = 'primary', onClick, active }) {
     return (
         <div
-            className={`emp-stat-card${onClick ? ' clickable' : ''}${active ? ' active' : ''}`}
-            style={{ '--stat-color': color, '--stat-bg': bg }}
+            className={`emp-stat-card ui-stat${onClick ? ' clickable' : ''}${active ? ' active' : ''}`}
             onClick={onClick}
         >
-            <span className="material-icons-round emp-stat-icon">{icon}</span>
-            <div className="emp-stat-value">{value}</div>
-            <div className="emp-stat-label">{label}</div>
+            <span className={`ui-stat-icon${tone !== 'primary' ? ` ui-stat-icon--${tone}` : ''}`} aria-hidden="true">
+                <span className="material-icons-round emp-stat-icon">{icon}</span>
+            </span>
+            <div className="ui-stat-content">
+                <div className={`emp-stat-value ui-stat-value ${STAT_VALUE_TONE[tone] || ''}`}>{value}</div>
+                <div className="emp-stat-label ui-stat-label">{label}</div>
+            </div>
         </div>
     );
 }
@@ -341,8 +384,8 @@ function FilterChip({ active, danger, warning, onClick, icon, children }) {
     else if (active && warning) cls += ' active-warning';
     else if (active) cls += ' active';
     return (
-        <button className={cls} onClick={onClick}>
-            {icon && <span className="material-icons-round" style={{ fontSize: '14px' }}>{icon}</span>}
+        <button type="button" className={cls} onClick={onClick} aria-pressed={!!active}>
+            {icon && <span className="material-icons-round" aria-hidden="true">{icon}</span>}
             {children}
         </button>
     );
@@ -359,20 +402,21 @@ function ProductCardMobile({ item }) {
     // Barra de stock visual
     const maxStock = Math.max(bodega, 1);
     const pct = Math.min(100, Math.max(0, (bodega / maxStock) * 100));
-    const barColor = sistema < 0 ? '#dc2626' : sistema === 0 ? '#d97706' : bodega < 5 ? '#f59e0b' : '#10b981';
+    // Mismo criterio de color que antes, con los tonos del sistema (bodega < 5 = advertencia)
+    const barTone = sistema < 0 ? 'danger' : sistema === 0 ? 'warning' : bodega < 5 ? 'warning' : 'success';
 
     return (
-        <div className={`emp-pcard${isCritical ? ' critical' : hasCommitted ? ' committed' : ''}`}>
+        <div className={`emp-pcard ui-stripe ui-stripe--${isCritical ? 'danger' : barTone}${isCritical ? ' critical' : hasCommitted ? ' committed' : ''}`}>
             {/* Status badge */}
             {isCritical && (
-                <span className="emp-badge danger">
-                    <span className="material-icons-round" style={{ fontSize: '12px' }}>error</span>
+                <span className="emp-badge danger ui-badge ui-badge--danger">
+                    <span className="material-icons-round" aria-hidden="true">error</span>
                     Alerta
                 </span>
             )}
             {!isCritical && hasCommitted && (
-                <span className="emp-badge warning">
-                    <span className="material-icons-round" style={{ fontSize: '12px' }}>local_shipping</span>
+                <span className="emp-badge warning ui-badge ui-badge--warning">
+                    <span className="material-icons-round" aria-hidden="true">local_shipping</span>
                     Pedidos
                 </span>
             )}
@@ -381,9 +425,9 @@ function ProductCardMobile({ item }) {
             <div className="emp-pcard-id">{item.productId?.substring(0, 8)}…</div>
 
             {/* Barra visual */}
-            <div className="emp-stock-bar-wrap">
-                <div className="emp-stock-bar">
-                    <div className="emp-stock-fill" style={{ width: `${pct}%`, background: barColor }} />
+            <div className="emp-stock-bar-wrap" aria-hidden="true">
+                <div className={`emp-stock-bar ui-progress ui-progress--${barTone}`} style={{ '--value': pct }}>
+                    <span className="emp-stock-fill ui-progress-bar" />
                 </div>
             </div>
 
@@ -391,17 +435,17 @@ function ProductCardMobile({ item }) {
             <div className="emp-pcard-nums">
                 <div className="emp-pcard-num">
                     <span className="emp-num-label">Bodega</span>
-                    <span className="emp-num-value" style={{ color: barColor }}>{bodega}</span>
+                    <span className={`emp-num-value emp-fg--${barTone}`}>{bodega}</span>
                 </div>
                 {hasCommitted && (
                     <div className="emp-pcard-num">
                         <span className="emp-num-label">Pedidos</span>
-                        <span className="emp-num-value" style={{ color: '#d97706' }}>{comprometido}</span>
+                        <span className="emp-num-value emp-fg--warning">{comprometido}</span>
                     </div>
                 )}
                 <div className="emp-pcard-num">
                     <span className="emp-num-label">Sistema</span>
-                    <span className="emp-num-value" style={{ color: getSistemaColor(sistema) }}>
+                    <span className={`emp-num-value emp-fg--${getSistemaTone(sistema)}`}>
                         {getSistemaIcon(sistema)} {sistema}
                     </span>
                 </div>
@@ -421,22 +465,22 @@ function ProductRowMobile({ item }) {
     return (
         <div className={`emp-prow${isCritical ? ' critical' : comprometido > 0 ? ' committed' : ''}`}>
             <div className="emp-prow-left">
-                <div className="emp-prow-dot" style={{ background: getSistemaColor(sistema) }} />
-                <div>
+                <div className={`emp-prow-dot emp-bg--${getSistemaTone(sistema)}`} aria-hidden="true" />
+                <div className="emp-prow-text">
                     <div className="emp-prow-name">{item.nombre}</div>
                     <div className="emp-prow-id">{item.productId?.substring(0, 8)}…</div>
                     <FaltanteNote item={item} />
                 </div>
             </div>
             <div className="emp-prow-nums">
-                <span className="emp-prow-badge bodega">{bodega}</span>
+                <span className="emp-prow-badge bodega" title="Bodega">{bodega}</span>
                 {comprometido > 0 && (
-                    <span className="emp-prow-badge ped">
-                        <span className="material-icons-round" style={{ fontSize: '12px' }}>local_shipping</span>
+                    <span className="emp-prow-badge ped" title="En pedidos">
+                        <span className="material-icons-round" aria-hidden="true">local_shipping</span>
                         {comprometido}
                     </span>
                 )}
-                <span className="emp-prow-badge sistema" style={{ color: getSistemaColor(sistema) }}>
+                <span className={`emp-prow-badge sistema emp-fg--${getSistemaTone(sistema)}`} title="Sistema">
                     {getSistemaIcon(sistema)}{sistema}
                 </span>
             </div>

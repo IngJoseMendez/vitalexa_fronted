@@ -1,0 +1,43 @@
+/* src/components/modals/EnhancedPaymentFormModal.css
+   Registro de pago (versión con método y fecha). Usa las primitivas
+   .ui-modal-*, .ui-section, .ui-field, .ui-input-group y .ui-btn;
+   aquí solo lo propio, bajo .enhanced-payment-form-modal. */
+
+/* El <form> envuelve cuerpo + pie: debe dejar que el cuerpo haga scroll */
+.enhanced-payment-form-modal .epf-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Resumen de la orden: el saldo pendiente se lee como monto */
+.enhanced-payment-form-modal .epf-summary {
+    padding: var(--space-4);
+}
+
+.enhanced-payment-form-modal .epf-pending {
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+}
+
+/* Mismo código de color que la cartera: referencia en azul, pendiente en ámbar */
+.enhanced-payment-form-modal .epf-ref {
+    color: var(--color-primary-text);
+    font-weight: 600;
+}
+
+.enhanced-payment-form-modal .epf-pending dd {
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-warning-text);
+}
+
+.enhanced-payment-form-modal .epf-pending.is-settled dd {
+    color: var(--color-success-text);
+}
+
+/* La casilla "Pago dentro del plazo" se alinea con la base de los campos */
+.enhanced-payment-form-modal .epf-deadline {
+    justify-content: flex-end;
+}

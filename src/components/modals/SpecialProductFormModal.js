@@ -1,15 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId } from 'react';
 import { useToast } from '../ToastContainer';
 import specialProductService from '../../api/specialProductService';
 import client from '../../api/client';
 import { formatCurrency } from '../../utils/formatters';
+import { PLACEHOLDER_IMAGE } from '../../utils/placeholderImage';
+import SearchableSelect from '../SearchableSelect';
 import '../../styles/SpecialProducts.css';
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial,sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 export default function SpecialProductFormModal({ product, tags, onClose, onSuccess }) {
     const isEdit = !!product;
     const toast = useToast();
+    // Ids para asociar cada etiqueta con su campo (solo presentación)
+    const uid = useId();
+    const fieldId = (name) => `${uid}-${name}`;
 
     // Mode: 'standalone' or 'linked'
     const [mode, setMode] = useState(product?.parentProductId ? 'linked' : 'standalone');
@@ -196,232 +200,328 @@ export default function SpecialProductFormModal({ product, tags, onClose, onSucc
     );
 
     return (
-        <div className="sp-modal-overlay" onClick={onClose}>
-            <div className="sp-modal" onClick={e => e.stopPropagation()}>
+        <div className="ui-modal-overlay" onClick={onClose}>
+            <div
+                className="ui-modal ui-modal--md sp-form-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={fieldId('title')}
+                onClick={e => e.stopPropagation()}
+            >
 
                 {/* Header */}
-                <div className="sp-modal-header">
-                    <h3>
+                <header className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
                         <span className="material-icons-round">star</span>
-                        {isEdit ? 'Editar Producto Especial' : 'Nuevo Producto Especial'}
-                    </h3>
-                    <button className="sp-modal-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id={fieldId('title')} className="ui-modal-title">
+                            {isEdit ? 'Editar Producto Especial' : 'Nuevo Producto Especial'}
+                        </h3>
+                        <p className="ui-modal-subtitle">Precio propio, inventario y vendedores que lo ven.</p>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
-                </div>
+                </header>
 
                 {/* Body */}
-                <form className="sp-modal-body" onSubmit={handleSubmit}>
+                <form className="ui-modal-body" onSubmit={handleSubmit}>
 
-                    {/* Mode Toggle — only on create */}
-                    {!isEdit && (
-                        <div className="sp-mode-toggle">
-                            <button type="button" className={`sp-mode-btn ${mode === 'standalone' ? 'active' : ''}`}
-                                onClick={() => { setMode('standalone'); removeParent(); }}>
-                                <span className="material-icons-round">inventory_2</span>
-                                Standalone
-                            </button>
-                            <button type="button" className={`sp-mode-btn ${mode === 'linked' ? 'active' : ''}`}
-                                onClick={() => setMode('linked')}>
-                                <span className="material-icons-round">account_tree</span>
-                                Ramificación
-                            </button>
+                    {/* 1. Tipo: standalone o ramificación de un producto */}
+                    <section className="ui-section">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">1</span>
+                            <div>
+                                <h4 className="ui-section-title">Tipo de producto especial</h4>
+                                <p className="ui-section-desc">Con inventario propio o compartido con un producto padre.</p>
+                            </div>
                         </div>
-                    )}
 
-                    {/* Edit: show mode as read-only badge */}
-                    {isEdit && (
-                        <div style={{ marginBottom: '1rem' }}>
-                            <span className={`sp-type-badge ${product.parentProductId ? 'linked' : 'standalone'}`} style={{ position: 'static' }}>
-                                <span className="material-icons-round" style={{ fontSize: '13px' }}>
-                                    {product.parentProductId ? 'account_tree' : 'inventory_2'}
-                                </span>
-                                {product.parentProductId ? `Vinculado a: ${product.parentProductName}` : 'Standalone'}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Parent Search (only create + linked mode) */}
-                    {!isEdit && mode === 'linked' && (
-                        <>
-                            {parentProductId ? (
-                                <div className="sp-parent-selected">
-                                    <img src={imageUrl || PLACEHOLDER_IMAGE} alt="" onError={e => e.target.src = PLACEHOLDER_IMAGE} />
-                                    <div className="info">
-                                        <div className="name">{parentProductName}</div>
-                                        <div className="detail">Producto padre seleccionado</div>
-                                    </div>
-                                    <button type="button" onClick={removeParent}>
-                                        <span className="material-icons-round">close</span>
+                        <div className="spf-stack">
+                            {/* Mode Toggle — only on create */}
+                            {!isEdit && (
+                                <div className="ui-choice-grid" role="group" aria-label="Tipo de producto especial">
+                                    <button
+                                        type="button"
+                                        aria-pressed={mode === 'standalone'}
+                                        className={`ui-choice ui-choice--compact spf-choice-btn${mode === 'standalone' ? ' is-selected' : ''}`}
+                                        onClick={() => { setMode('standalone'); removeParent(); }}
+                                    >
+                                        <span className="material-icons-round ui-choice-icon" aria-hidden="true">inventory_2</span>
+                                        <span className="ui-choice-text">
+                                            <span className="ui-choice-title">Standalone</span>
+                                            <span className="ui-choice-desc">Producto con su propio stock.</span>
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-pressed={mode === 'linked'}
+                                        className={`ui-choice ui-choice--compact spf-choice-btn${mode === 'linked' ? ' is-selected' : ''}`}
+                                        onClick={() => setMode('linked')}
+                                    >
+                                        <span className="material-icons-round ui-choice-icon" aria-hidden="true">account_tree</span>
+                                        <span className="ui-choice-text">
+                                            <span className="ui-choice-title">Ramificación</span>
+                                            <span className="ui-choice-desc">Comparte el stock de un producto padre.</span>
+                                        </span>
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="sp-parent-search">
-                                    <span className="material-icons-round">search</span>
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar producto padre..."
-                                        value={parentSearch}
-                                        onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
-                                        onFocus={() => setShowParentDropdown(true)}
-                                    />
-                                    {showParentDropdown && parentResults.length > 0 && (
-                                        <div className="sp-parent-dropdown">
-                                            {parentResults.map(p => (
-                                                <div key={p.id} className="sp-parent-option" onClick={() => handleSelectParent(p)}>
-                                                    <img src={p.imageUrl || PLACEHOLDER_IMAGE} alt="" onError={e => e.target.src = PLACEHOLDER_IMAGE} />
-                                                    <div className="info">
-                                                        <div className="name">{p.nombre}</div>
-                                                        <div className="detail">${formatCurrency(p.precio)} — Stock: {p.stock}</div>
-                                                    </div>
+                            )}
+
+                            {/* Edit: show mode as read-only badge */}
+                            {isEdit && (
+                                <div className="spf-kind">
+                                    <span className="ui-badge ui-badge--neutral spf-kind-badge">
+                                        <span className="material-icons-round" aria-hidden="true">
+                                            {product.parentProductId ? 'account_tree' : 'inventory_2'}
+                                        </span>
+                                        {product.parentProductId ? `Vinculado a: ${product.parentProductName}` : 'Standalone'}
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Parent Search (only create + linked mode) */}
+                            {!isEdit && mode === 'linked' && (
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor={fieldId('parentSearch')}>Producto padre <span className="ui-required">*</span></label>
+                                    {parentProductId ? (
+                                        <div className="sp-parent-selected">
+                                            <img src={imageUrl || PLACEHOLDER_IMAGE} alt="" width="40" height="40" decoding="async" onError={e => e.target.src = PLACEHOLDER_IMAGE} />
+                                            <div className="info">
+                                                <div className="name">{parentProductName}</div>
+                                                <div className="detail">Producto padre seleccionado</div>
+                                            </div>
+                                            <button type="button" className="ui-icon-btn" onClick={removeParent} aria-label="Quitar producto padre">
+                                                <span className="material-icons-round" aria-hidden="true">close</span>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="sp-parent-search">
+                                            <div className="ui-input-group">
+                                                <span className="material-icons-round ui-input-icon" aria-hidden="true">search</span>
+                                                <input
+                                                    id={fieldId('parentSearch')}
+                                                    className="ui-input"
+                                                    type="text"
+                                                    autoComplete="off"
+                                                    placeholder="Buscar producto padre..."
+                                                    value={parentSearch}
+                                                    onChange={e => { setParentSearch(e.target.value); setShowParentDropdown(true); }}
+                                                    onFocus={() => setShowParentDropdown(true)}
+                                                />
+                                            </div>
+                                            {showParentDropdown && parentResults.length > 0 && (
+                                                <div className="sp-parent-dropdown">
+                                                    {parentResults.map(p => (
+                                                        <div key={p.id} className="sp-parent-option" onClick={() => handleSelectParent(p)}>
+                                                            <img src={p.imageUrl || PLACEHOLDER_IMAGE} alt="" width="36" height="36" loading="lazy" decoding="async" onError={e => e.target.src = PLACEHOLDER_IMAGE} />
+                                                            <div className="info">
+                                                                <div className="name">{p.nombre}</div>
+                                                                <div className="detail">${formatCurrency(p.precio)} — Stock: {p.stock}</div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             )}
-                        </>
-                    )}
+                        </div>
+                    </section>
 
-                    {/* Name */}
-                    <div className="sp-form-group">
-                        <label>Nombre *</label>
-                        <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre del producto especial" required />
-                    </div>
+                    {/* 2. Nombre y descripción */}
+                    <section className="ui-section">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">2</span>
+                            <div>
+                                <h4 className="ui-section-title">Información básica</h4>
+                                <p className="ui-section-desc">Así lo verán los vendedores asignados.</p>
+                            </div>
+                        </div>
+                        <div className="ui-grid ui-grid--1">
+                            {/* Name */}
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('nombre')}>Nombre <span className="ui-required">*</span></label>
+                                <input id={fieldId('nombre')} className="ui-input" type="text" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre del producto especial" required />
+                            </div>
 
-                    {/* Description */}
-                    <div className="sp-form-group">
-                        <label>Descripción</label>
-                        <textarea rows="2" value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Descripción..." />
-                    </div>
+                            {/* Description */}
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('descripcion')}>Descripción</label>
+                                <textarea id={fieldId('descripcion')} className="ui-textarea" rows="2" value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Descripción..." />
+                            </div>
+                        </div>
+                    </section>
 
-                    {/* Price + Stock row */}
-                    <div className="sp-form-row">
-                        <div className="sp-form-group">
-                            <label>Precio *</label>
-                            <input type="number" min="0" step="0.01" value={precio} onChange={e => setPrecio(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="0.00" required />
-                            {precio && (
-                                <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '4px' }}>
-                                    Vista previa: <strong>${formatCurrency(precio)}</strong>
+                    {/* 3. Precio e inventario */}
+                    <section className="ui-section">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">3</span>
+                            <div>
+                                <h4 className="ui-section-title">Precio e inventario</h4>
+                                <p className="ui-section-desc">Precio de venta, stock y etiqueta.</p>
+                            </div>
+                        </div>
+                        <div className="ui-grid">
+                            {/* Price + Stock */}
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('precio')}>Precio <span className="ui-required">*</span></label>
+                                <div className="ui-input-group">
+                                    <span className="ui-input-prefix" aria-hidden="true">$</span>
+                                    <input id={fieldId('precio')} className="ui-input" type="number" inputMode="decimal" min="0" step="0.01" value={precio} onChange={e => setPrecio(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="0.00" required />
+                                </div>
+                                {precio && (
+                                    <span className="ui-help">
+                                        Vista previa: <strong className="sp-price-preview">${formatCurrency(precio)}</strong>
+                                    </span>
+                                )}
+                            </div>
+                            {/* Stock only for standalone or edit-standalone */}
+                            {(mode === 'standalone' || (isEdit && !product.parentProductId)) && (
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor={fieldId('stock')}>Stock <span className="ui-required">*</span></label>
+                                    <input id={fieldId('stock')} className="ui-input" type="number" inputMode="numeric" min="0" value={stock} onChange={e => setStock(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="0" />
                                 </div>
                             )}
-                        </div>
-                        {/* Stock only for standalone or edit-standalone */}
-                        {(mode === 'standalone' || (isEdit && !product.parentProductId)) && (
-                            <div className="sp-form-group">
-                                <label>Stock *</label>
-                                <input type="number" min="0" value={stock} onChange={e => setStock(e.target.value)} onWheel={(e) => e.target.blur()} placeholder="0" />
-                            </div>
-                        )}
-                        {mode === 'linked' && !isEdit && (
-                            <div className="sp-form-group">
-                                <label>Stock</label>
-                                <input type="number" disabled value="Compartido" style={{ background: '#f3f4f6', color: '#9ca3af' }} />
-                                <small style={{ color: '#6b7280', fontSize: '0.75rem' }}>Se comparte con el padre</small>
-                            </div>
-                        )}
-                    </div>
+                            {mode === 'linked' && !isEdit && (
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor={fieldId('stockShared')}>Stock</label>
+                                    <input id={fieldId('stockShared')} className="ui-input" type="number" disabled value="Compartido" />
+                                    <small className="ui-help">Se comparte con el padre</small>
+                                </div>
+                            )}
 
-                    {/* Reorder Point + Tag */}
-                    <div className="sp-form-row">
-                        <div className="sp-form-group">
-                            <label>Punto de Reorden</label>
-                            <input type="number" min="0" value={reorderPoint} onChange={e => setReorderPoint(e.target.value)} onWheel={(e) => e.target.blur()} />
-                        </div>
-                        <div className="sp-form-group">
-                            <label>Etiqueta</label>
-                            <select value={tagId} onChange={e => setTagId(e.target.value)}>
-                                <option value="">Sin etiqueta</option>
-                                {(tags || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* Image */}
-                    <div className="sp-form-group">
-                        <label>Imagen</label>
-                        <div className="sp-image-upload">
-                            <img className="sp-image-preview" src={imageUrl || PLACEHOLDER_IMAGE} alt="preview" onError={e => e.target.src = PLACEHOLDER_IMAGE} />
-                            <div style={{ flex: 1 }}>
-                                <input type="file" accept="image/*" onChange={handleImageChange} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
-                                <input type="text" placeholder="...o pegar URL de imagen" value={imageBase64 ? '' : imageUrl}
-                                    onChange={e => { setImageUrl(e.target.value); setImageBase64(''); setImageFileName(''); }}
-                                    disabled={!!imageBase64}
-                                    style={{ fontSize: '0.85rem' }}
+                            {/* Reorder Point + Tag */}
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('reorderPoint')}>Punto de Reorden</label>
+                                <input id={fieldId('reorderPoint')} className="ui-input" type="number" inputMode="numeric" min="0" value={reorderPoint} onChange={e => setReorderPoint(e.target.value)} onWheel={(e) => e.target.blur()} />
+                            </div>
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('tag')}>Etiqueta</label>
+                                <SearchableSelect
+                                    id={fieldId('tag')}
+                                    value={tagId}
+                                    onChange={e => setTagId(e.target.value)}
+                                    options={(tags || []).map(t => ({ value: t.id, label: t.name }))}
+                                    emptyOption={{ label: 'Sin etiqueta' }}
+                                    placeholder="Sin etiqueta"
+                                    searchPlaceholder="Escribe el nombre de la etiqueta…"
+                                    noResultsText="Ninguna etiqueta coincide"
                                 />
                             </div>
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Edit: Active toggle */}
-                    {isEdit && (
-                        <div className="sp-form-group">
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} style={{ accentColor: 'var(--primary)' }} />
-                                Producto Activo
-                            </label>
-                        </div>
-                    )}
-
-                    {/* Vendor Multi-Select */}
-                    <div className="sp-form-group" style={{ position: 'relative' }}>
-                        <label>Vendedores Asignados</label>
-                        <div className="sp-vendor-wrapper" style={{ position: 'relative' }}>
-                            <div className="sp-vendor-select" onClick={() => setShowVendorDropdown(prev => !prev)}>
-                                {selectedVendorIds.length === 0 && (
-                                    <span style={{ color: '#9ca3af', fontSize: '0.85rem', padding: '0.1rem' }}>Seleccionar vendedores...</span>
-                                )}
-                                {selectedVendorIds.map(id => {
-                                    const v = vendedores.find(v => v.id === id);
-                                    return v ? (
-                                        <span key={id} className="sp-vendor-tag">
-                                            {v.username}
-                                            <button type="button" onClick={e => { e.stopPropagation(); toggleVendor(id); }}>
-                                                <span className="material-icons-round" style={{ fontSize: '14px' }}>close</span>
-                                            </button>
-                                        </span>
-                                    ) : null;
-                                })}
+                    {/* 4. Imagen, estado y vendedores */}
+                    <section className="ui-section">
+                        <div className="ui-section-head">
+                            <span className="ui-step" aria-hidden="true">4</span>
+                            <div>
+                                <h4 className="ui-section-title">Imagen y vendedores</h4>
+                                <p className="ui-section-desc">Foto del producto y quién lo puede vender.</p>
                             </div>
-
-                            {showVendorDropdown && (
-                                <div className="sp-vendor-dropdown">
-                                    <div style={{ padding: '0.4rem', borderBottom: '1px solid #e5e7eb' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Filtrar..."
-                                            value={vendorSearch}
-                                            onChange={e => setVendorSearch(e.target.value)}
-                                            onClick={e => e.stopPropagation()}
-                                            style={{ width: '100%', padding: '0.3rem 0.5rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.85rem' }}
+                        </div>
+                        <div className="ui-grid ui-grid--1">
+                            {/* Image */}
+                            <div className="ui-field">
+                                <label className="ui-label" htmlFor={fieldId('imageFile')}>Imagen</label>
+                                <div className="sp-image-upload">
+                                    <img className="sp-image-preview" src={imageUrl || PLACEHOLDER_IMAGE} alt="preview" onError={e => e.target.src = PLACEHOLDER_IMAGE} />
+                                    <div className="sp-image-fields">
+                                        <input id={fieldId('imageFile')} className="sp-file-input" type="file" accept="image/*" onChange={handleImageChange} />
+                                        <input type="text" className="ui-input" placeholder="...o pegar URL de imagen" aria-label="URL de la imagen" value={imageBase64 ? '' : imageUrl}
+                                            onChange={e => { setImageUrl(e.target.value); setImageBase64(''); setImageFileName(''); }}
+                                            disabled={!!imageBase64}
                                         />
                                     </div>
-                                    {filteredVendors.map(v => (
-                                        <div key={v.id}
-                                            className={`sp-vendor-dropdown-item ${selectedVendorIds.includes(v.id) ? 'selected' : ''}`}
-                                            onClick={e => { e.stopPropagation(); toggleVendor(v.id); }}>
-                                            {selectedVendorIds.includes(v.id) && <span className="material-icons-round" style={{ fontSize: '14px', marginRight: '0.3rem', color: 'var(--primary)' }}>check</span>}
-                                            {v.username}
-                                        </div>
-                                    ))}
-                                    {filteredVendors.length === 0 && (
-                                        <div style={{ padding: '0.5rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.85rem' }}>Sin resultados</div>
-                                    )}
+                                </div>
+                            </div>
+
+                            {/* Edit: Active toggle */}
+                            {isEdit && (
+                                <div className="ui-field">
+                                    <label className="ui-switch">
+                                        <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+                                        <span className="ui-switch-track" aria-hidden="true"><span className="ui-switch-thumb" /></span>
+                                        <span className="ui-switch-text">
+                                            <span className="ui-switch-title">Producto Activo</span>
+                                        </span>
+                                    </label>
                                 </div>
                             )}
+
+                            {/* Vendor Multi-Select */}
+                            <div className="ui-field">
+                                <label className="ui-label">Vendedores Asignados</label>
+                                <div className="sp-vendor-wrapper">
+                                    <div
+                                        className={`sp-vendor-select${showVendorDropdown ? ' is-open' : ''}`}
+                                        onClick={() => setShowVendorDropdown(prev => !prev)}
+                                    >
+                                        {selectedVendorIds.length === 0 && (
+                                            <span className="sp-vendor-placeholder">Seleccionar vendedores...</span>
+                                        )}
+                                        {selectedVendorIds.map(id => {
+                                            const v = vendedores.find(v => v.id === id);
+                                            return v ? (
+                                                <span key={id} className="sp-vendor-tag">
+                                                    {v.username}
+                                                    <button type="button" aria-label={`Quitar ${v.username}`} onClick={e => { e.stopPropagation(); toggleVendor(id); }}>
+                                                        <span className="material-icons-round" aria-hidden="true">close</span>
+                                                    </button>
+                                                </span>
+                                            ) : null;
+                                        })}
+                                        <span className="material-icons-round sp-vendor-caret" aria-hidden="true">
+                                            {showVendorDropdown ? 'expand_less' : 'expand_more'}
+                                        </span>
+                                    </div>
+
+                                    {showVendorDropdown && (
+                                        <div className="sp-vendor-dropdown">
+                                            <div className="sp-vendor-filter">
+                                                <input
+                                                    type="text"
+                                                    className="ui-input"
+                                                    placeholder="Filtrar..."
+                                                    aria-label="Filtrar vendedores"
+                                                    value={vendorSearch}
+                                                    onChange={e => setVendorSearch(e.target.value)}
+                                                    onClick={e => e.stopPropagation()}
+                                                />
+                                            </div>
+                                            {filteredVendors.map(v => (
+                                                <div key={v.id}
+                                                    className={`sp-vendor-dropdown-item ${selectedVendorIds.includes(v.id) ? 'selected' : ''}`}
+                                                    onClick={e => { e.stopPropagation(); toggleVendor(v.id); }}>
+                                                    {selectedVendorIds.includes(v.id) && <span className="material-icons-round sp-vendor-check" aria-hidden="true">check</span>}
+                                                    {v.username}
+                                                </div>
+                                            ))}
+                                            {filteredVendors.length === 0 && (
+                                                <div className="sp-vendor-empty">Sin resultados</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </section>
 
                 </form>
 
                 {/* Footer */}
-                <div className="sp-modal-footer">
-                    <button type="button" className="sp-btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
-                    <button type="button" className="sp-btn-primary" onClick={handleSubmit} disabled={saving}>
-                        <span className="material-icons-round" style={{ fontSize: '18px' }}>{saving ? 'hourglass_empty' : 'save'}</span>
+                <footer className="ui-modal-footer">
+                    <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose} disabled={saving}>Cancelar</button>
+                    <button type="button" className="ui-btn ui-btn--primary" onClick={handleSubmit} disabled={saving}>
+                        {saving
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round" aria-hidden="true">save</span>}
                         {saving ? 'Guardando...' : (isEdit ? 'Actualizar' : 'Crear Producto')}
                     </button>
-                </div>
+                </footer>
             </div>
         </div>
     );

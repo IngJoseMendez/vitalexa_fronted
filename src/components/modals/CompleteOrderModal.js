@@ -46,34 +46,34 @@ function CompleteOrderModal({ order, onClose, onSuccess }) {
     };
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="ui-modal-overlay complete-order-overlay" onClick={onClose}>
             <div
-                className="modal-content complete-order-modal"
+                className="ui-modal ui-modal--sm complete-order-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="complete-order-title"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ── HEADER ── */}
-                <div className="modal-header">
-                    <h3>
-                        <span
-                            className="material-icons-round"
-                            style={{ verticalAlign: 'middle', marginRight: '0.5rem', color: '#10b981' }}
-                        >
-                            done_all
-                        </span>
-                        Completar Orden
-                    </h3>
-                    <button className="btn-close" onClick={onClose} disabled={isLoading}>
-                        <span className="material-icons-round">close</span>
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon ui-modal-icon--success" aria-hidden="true">
+                        <span className="material-icons-round">done_all</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="complete-order-title" className="ui-modal-title">Completar Orden</h3>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} disabled={isLoading} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
                 {/* ── BODY ── */}
-                <div className="modal-body">
+                <div className="ui-modal-body ui-modal-body--plain">
                     {/* Info de la orden */}
-                    <div className="complete-info-section">
-                        <span className="material-icons-round complete-info-icon">receipt_long</span>
+                    <div className="ui-alert ui-alert--info complete-info-section">
+                        <span className="material-icons-round" aria-hidden="true">receipt_long</span>
                         <p className="complete-info-text">
-                            <strong>{orderLabel} — {order?.cliente || 'Sin cliente'}</strong>
+                            <strong className="ui-alert-title">{orderLabel} — {order?.cliente || 'Sin cliente'}</strong>
                             Al confirmar, la orden quedará en estado <strong>COMPLETADO</strong>. Puedes
                             asignar una fecha de factura diferente a la de hoy (útil para facturas emitidas
                             con retraso). Las metas y saldos se calcularán con la fecha elegida.
@@ -81,27 +81,29 @@ function CompleteOrderModal({ order, onClose, onSuccess }) {
                     </div>
 
                     {/* Date picker */}
-                    <div className="form-group">
-                        <label className="form-label">
+                    <div className="ui-field">
+                        <label className="ui-label" htmlFor="complete-order-date">
                             Fecha de factura
-                            <span className="optional-badge">(opcional — vacío = hoy)</span>
+                            <span className="ui-optional complete-optional">(opcional — vacío = hoy)</span>
                         </label>
-                        <div className="date-input-row">
+                        <div className="complete-date-row">
                             <input
+                                id="complete-order-date"
                                 type="date"
-                                className="form-control"
+                                className="ui-input"
                                 value={completedAt}
                                 onChange={(e) => setCompletedAt(e.target.value)}
                                 disabled={isLoading}
                             />
                             {completedAt && (
                                 <button
-                                    className="btn-use-today"
+                                    type="button"
+                                    className="ui-btn ui-btn--secondary complete-use-today"
                                     onClick={() => setCompletedAt('')}
                                     disabled={isLoading}
                                     title="Usar la fecha de hoy"
                                 >
-                                    <span className="material-icons-round" style={{ fontSize: '15px' }}>
+                                    <span className="material-icons-round" aria-hidden="true">
                                         today
                                     </span>
                                     Usar hoy
@@ -111,45 +113,47 @@ function CompleteOrderModal({ order, onClose, onSuccess }) {
                     </div>
 
                     {/* Nota de auditoría */}
-                    <div className="form-group">
-                        <label className="form-label">
+                    <div className="ui-field">
+                        <label className="ui-label" htmlFor="complete-order-note">
                             Nota de auditoría
-                            <span className="optional-badge">(opcional)</span>
+                            <span className="ui-optional complete-optional">(opcional)</span>
                         </label>
                         <textarea
-                            className="form-control"
+                            id="complete-order-note"
+                            className="ui-textarea"
                             rows={3}
                             placeholder="Ej: Factura de enero registrada con retraso..."
                             value={auditNote}
                             onChange={(e) => setAuditNote(e.target.value)}
                             disabled={isLoading}
-                            style={{ resize: 'vertical' }}
                         />
                     </div>
                 </div>
 
                 {/* ── FOOTER ── */}
-                <div className="modal-footer">
+                <div className="ui-modal-footer">
                     <button
-                        className="btn btn-secondary"
+                        type="button"
+                        className="ui-btn ui-btn--secondary"
                         onClick={onClose}
                         disabled={isLoading}
                     >
                         Cancelar
                     </button>
                     <button
-                        className="btn btn-success"
+                        type="button"
+                        className="ui-btn ui-btn--primary"
                         onClick={handleConfirm}
                         disabled={isLoading}
                     >
                         {isLoading ? (
                             <>
-                                <span className="complete-spinner" />
+                                <span className="ui-spinner" aria-hidden="true" />
                                 Completando...
                             </>
                         ) : (
                             <>
-                                <span className="material-icons-round" style={{ fontSize: '18px' }}>done_all</span>
+                                <span className="material-icons-round" aria-hidden="true">done_all</span>
                                 Completar Orden
                             </>
                         )}

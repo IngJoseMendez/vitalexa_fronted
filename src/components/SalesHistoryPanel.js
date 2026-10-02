@@ -2,23 +2,25 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContainer';
 import orderService from '../api/orderService';
 import { formatCurrency, formatDate, formatDateTime, formatOrderLabel } from '../utils/formatters';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
+import '../styles/areas/Inventory.css';
 
-// Etiquetas y colores para el tipo de línea de cada factura
+// Etiquetas, tono e icono para el tipo de línea de cada factura (insignias con color de
+// significado: venta normal celeste, promoción azul, regalo/bonificado verde, flete teal).
+// Los tonos teal/sky son de la hoja del área (.inv-type-badge--*).
 const ITEM_TYPE_META = {
-    NORMAL: { label: 'Normal', bg: '#f3f4f6', color: '#374151' },
-    PROMOCION: { label: 'Promoción', bg: '#ede9fe', color: '#6d28d9' },
-    PROMO_REGALO: { label: 'Regalo', bg: '#fef3c7', color: '#92400e' },
-    BONIFICADO: { label: 'Bonificado', bg: '#dbeafe', color: '#1e40af' },
-    FLETE: { label: 'Flete', bg: '#e0f2fe', color: '#075985' },
+    NORMAL: { label: 'Normal', tone: 'sky', icon: 'inventory_2' },
+    PROMOCION: { label: 'Promoción', tone: 'primary', icon: 'sell' },
+    PROMO_REGALO: { label: 'Regalo', tone: 'success', icon: 'redeem' },
+    BONIFICADO: { label: 'Bonificado', tone: 'success', icon: 'card_giftcard' },
+    FLETE: { label: 'Flete', tone: 'teal', icon: 'local_shipping' },
 };
 
 function ItemTypeBadge({ tipo }) {
-    const meta = ITEM_TYPE_META[tipo] || { label: tipo, bg: '#f3f4f6', color: '#374151' };
+    const meta = ITEM_TYPE_META[tipo] || { label: tipo, tone: 'neutral' };
     return (
-        <span style={{
-            padding: '0.1rem 0.5rem', borderRadius: '99px', fontSize: '0.7rem',
-            fontWeight: 600, background: meta.bg, color: meta.color, whiteSpace: 'nowrap'
-        }}>
+        <span className={`ui-badge inv-type-badge inv-type-badge--${meta.tone}`}>
+            {meta.icon && <span className="material-icons-round" aria-hidden="true">{meta.icon}</span>}
             {meta.label}
         </span>
     );
@@ -32,84 +34,90 @@ function InvoiceRow({ sale }) {
     const salio = sale.completedAt ? formatDate(sale.completedAt) : '—';
 
     return (
-        <div style={{ borderBottom: '1px solid #f3f4f6' }}>
-            {/* Barra principal (clic para desplegar) */}
+        <div className="inv-invoice">
+            {/* Barra principal (clic para desplegar). Desplegada: franja azul a la izquierda */}
             <button
+                type="button"
+                className={`inv-invoice-toggle${expanded ? ' is-expanded ui-stripe ui-stripe--primary' : ''}`}
+                aria-expanded={expanded}
                 onClick={() => setExpanded(e => !e)}
-                style={{
-                    width: '100%', background: expanded ? '#eef1fd' : 'white', border: 'none',
-                    cursor: 'pointer', padding: '0.9rem 1rem', display: 'flex', alignItems: 'center',
-                    gap: '1rem', textAlign: 'left', transition: 'background 0.15s ease'
-                }}
-                onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = '#f5f5fe'; }}
-                onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = 'white'; }}
+                style={{ background: expanded ? 'var(--color-primary-soft)' : 'var(--color-surface)' }}
+                onMouseEnter={(e) => { if (!expanded) e.currentTarget.style.background = 'var(--color-surface-hover)'; }}
+                onMouseLeave={(e) => { if (!expanded) e.currentTarget.style.background = 'var(--color-surface)'; }}
             >
-                <span className="material-icons-round" style={{ color: 'var(--text-secondary)', transition: 'transform 0.15s', transform: expanded ? 'rotate(90deg)' : 'none' }}>
+                <span className="material-icons-round inv-invoice-chevron" aria-hidden="true">
                     chevron_right
                 </span>
 
                 {/* Número de factura y de pedido ("Factura #1500 · Pedido P-123") */}
-                <span style={{
-                    fontWeight: 700, fontFamily: 'monospace', fontSize: '0.85rem',
-                    background: 'var(--primary)', color: '#fff',
-                    padding: '0.25rem 0.65rem', borderRadius: '8px', minWidth: '70px', maxWidth: '230px',
-                    textAlign: 'center', flexShrink: 0,
-                    boxShadow: '0 1px 3px rgba(99, 102, 241, 0.3)', letterSpacing: '0.02em'
-                }}>
+                <span className="inv-invoice-number">
                     {formatOrderLabel(sale) || '—'}
                 </span>
 
-                {/* Cliente */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {sale.cliente || 'Sin cliente'}
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                        Vendedor: {sale.vendedor || '—'} · {sale.totalProductos} producto(s)
+                {/* Cliente (avatar de iniciales con tono estable por nombre) */}
+                <div className="inv-invoice-client">
+                    <span className={`ui-avatar ui-avatar--sm ui-avatar--${avatarTone(sale.cliente)}`} aria-hidden="true">
+                        {avatarInitials(sale.cliente)}
+                    </span>
+                    <div className="inv-invoice-client-text">
+                        <div className="inv-invoice-name">
+                            {sale.cliente || 'Sin cliente'}
+                        </div>
+                        <div className="inv-invoice-meta">
+                            Vendedor: {sale.vendedor || '—'} · {sale.totalProductos} producto(s)
+                        </div>
                     </div>
                 </div>
 
                 {/* Fechas: llegó → salió */}
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'right', minWidth: '180px' }}>
-                    <div><strong>Llegó:</strong> {llego}</div>
-                    <div><strong>Salió:</strong> {salio}</div>
+                <div className="inv-invoice-dates">
+                    <div>
+                        <span className="material-icons-round inv-icon--primary" aria-hidden="true">schedule</span>
+                        <strong>Llegó:</strong> {llego}
+                    </div>
+                    <div>
+                        <span className="material-icons-round inv-icon--success" aria-hidden="true">local_shipping</span>
+                        <strong>Salió:</strong> {salio}
+                    </div>
                 </div>
 
-                {/* Total */}
-                <span style={{ fontWeight: 700, fontSize: '1rem', minWidth: '110px', textAlign: 'right' }}>
+                {/* Total (dinero facturado: verde) */}
+                <span className="inv-invoice-total">
                     {formatCurrency(sale.total)}
                 </span>
             </button>
 
             {/* Detalle desplegado */}
             {expanded && (
-                <div style={{ background: '#fcfcfd', padding: '0.5rem 1rem 1.25rem 3rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
-                                <th style={{ padding: '0.5rem 0.5rem', fontWeight: 600 }}>Producto</th>
-                                <th style={{ padding: '0.5rem 0.5rem', fontWeight: 600, textAlign: 'center' }}>Tipo</th>
-                                <th style={{ padding: '0.5rem 0.5rem', fontWeight: 600, textAlign: 'center' }}>Cant.</th>
-                                <th style={{ padding: '0.5rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>P. Unit.</th>
-                                <th style={{ padding: '0.5rem 0.5rem', fontWeight: 600, textAlign: 'right' }}>Subtotal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {(sale.items || []).length === 0 ? (
-                                <tr><td colSpan="5" style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>Sin items.</td></tr>
-                            ) : (
-                                sale.items.map((it, idx) => (
-                                    <tr key={idx} style={{ borderTop: '1px solid #f0f0f3' }}>
-                                        <td style={{ padding: '0.5rem', fontWeight: 500 }}>{it.producto}</td>
-                                        <td style={{ padding: '0.5rem', textAlign: 'center' }}><ItemTypeBadge tipo={it.tipo} /></td>
-                                        <td style={{ padding: '0.5rem', textAlign: 'center', fontFamily: 'monospace' }}>{it.cantidad}</td>
-                                        <td style={{ padding: '0.5rem', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(it.precioUnitario)}</td>
-                                        <td style={{ padding: '0.5rem', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(it.subtotal)}</td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                <div className="inv-invoice-detail">
+                    <div className="ui-table-wrap">
+                        <table className="ui-table ui-table--compact">
+                            <thead>
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Tipo</th>
+                                    <th className="ui-num">Cant.</th>
+                                    <th className="ui-num">P. Unit.</th>
+                                    <th className="ui-num">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(sale.items || []).length === 0 ? (
+                                    <tr><td colSpan="5" className="inv-cell-muted">Sin items.</td></tr>
+                                ) : (
+                                    sale.items.map((it, idx) => (
+                                        <tr key={idx}>
+                                            <td className="inv-cell-name">{it.producto}</td>
+                                            <td><ItemTypeBadge tipo={it.tipo} /></td>
+                                            <td className="ui-num">{it.cantidad}</td>
+                                            <td className="ui-num">{formatCurrency(it.precioUnitario)}</td>
+                                            <td className="ui-num ui-amount--success">{formatCurrency(it.subtotal)}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>
@@ -167,81 +175,102 @@ export default function SalesHistoryPanel() {
     }, [searchInput]);
 
     return (
-        <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div className="inv-page inv-sales">
             {/* Encabezado */}
-            <div style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>receipt_long</span>
-                    Historial de Ventas
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                    Facturas completadas. Haz clic en una factura para ver su contenido.
-                </p>
-            </div>
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">receipt_long</span>
+                        Historial de Ventas
+                    </h2>
+                    <p className="ui-page-desc">
+                        Facturas completadas. Haz clic en una factura para ver su contenido.
+                    </p>
+                </div>
+            </header>
 
             {/* Filtros */}
-            <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '220px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Buscar</label>
-                    <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: '6px', border: '1px solid var(--border)', padding: '0 0.5rem' }}>
-                        <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>search</span>
+            <div className="inv-filters">
+                <div className="ui-field inv-field-grow">
+                    <label className="ui-label" htmlFor="sh-search">Buscar</label>
+                    <div className="ui-search inv-field-search">
+                        <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                         <input
+                            id="sh-search"
                             type="text"
+                            className="ui-input"
                             placeholder="N° de factura, pedido (P-123), cliente o vendedor..."
                             value={searchInput}
                             onChange={(e) => setSearchInput(e.target.value)}
-                            style={{ flex: 1, padding: '0.5rem', border: 'none', background: 'transparent', outline: 'none' }}
                         />
                         {searchInput && (
                             <button
+                                type="button"
+                                className="ui-icon-btn ui-search-clear"
+                                aria-label="Limpiar búsqueda"
                                 onClick={() => setSearchInput('')}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
                             >
-                                <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>close</span>
+                                <span className="material-icons-round" aria-hidden="true">close</span>
                             </button>
                         )}
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Desde (facturación)</label>
+                <div className="ui-field">
+                    <label className="ui-label" htmlFor="sh-start">Desde (facturación)</label>
                     <input
+                        id="sh-start"
                         type="date"
+                        className="ui-input"
                         value={startDate}
                         onChange={e => { setStartDate(e.target.value); setPage(0); }}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }}
                     />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hasta (facturación)</label>
+                <div className="ui-field">
+                    <label className="ui-label" htmlFor="sh-end">Hasta (facturación)</label>
                     <input
+                        id="sh-end"
                         type="date"
+                        className="ui-input"
                         value={endDate}
                         onChange={e => { setEndDate(e.target.value); setPage(0); }}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }}
                     />
                 </div>
 
                 {(startDate || endDate || search) && (
                     <button
+                        type="button"
                         onClick={() => { setSearchInput(''); setStartDate(''); setEndDate(''); setPage(0); }}
-                        className="btn-secondary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                        className="ui-btn ui-btn--secondary"
                     >
-                        <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>filter_alt_off</span>
+                        <span className="material-icons-round" aria-hidden="true">filter_alt_off</span>
                         Limpiar
                     </button>
                 )}
             </div>
 
             {/* Lista de facturas */}
-            <div style={{ flex: 1, overflow: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            {/* Las primeras 8 facturas entran escalonadas (key = orderId) */}
+            <div className="inv-sales-list ui-stagger">
                 {loading ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Cargando...</div>
+                    <div className="inv-sales-skeleton" role="status" aria-busy="true">
+                        <span className="ui-sr-only">Cargando...</span>
+                        {[0, 1, 2, 3, 4].map(i => (
+                            <div key={i} className="inv-sales-skeleton-row" aria-hidden="true">
+                                <span className="ui-skeleton ui-skeleton--circle inv-skeleton-avatar" />
+                                <span className="ui-skeleton-stack inv-skeleton-grow">
+                                    <span className="ui-skeleton ui-skeleton--title" />
+                                    <span className="ui-skeleton ui-skeleton--text inv-skeleton-short" />
+                                </span>
+                                <span className="ui-skeleton ui-skeleton--text inv-skeleton-amount" />
+                            </div>
+                        ))}
+                    </div>
                 ) : sales.length === 0 ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        No se encontraron ventas.
+                    <div className="ui-empty ui-empty--plain">
+                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
+                        <p className="ui-empty-text">No se encontraron ventas.</p>
                     </div>
                 ) : (
                     sales.map(sale => <InvoiceRow key={sale.orderId} sale={sale} />)
@@ -249,12 +278,12 @@ export default function SalesHistoryPanel() {
             </div>
 
             {/* Paginación */}
-            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '1rem', alignItems: 'center' }}>
-                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="btn-secondary">Anterior</button>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+            <div className="inv-pagination">
+                <button type="button" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="ui-btn ui-btn--secondary ui-btn--sm">Anterior</button>
+                <span className="inv-pagination-info">
                     Página {page + 1} de {totalPages || 1} (Total: {totalElements})
                 </span>
-                <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="btn-secondary">Siguiente</button>
+                <button type="button" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="ui-btn ui-btn--secondary ui-btn--sm">Siguiente</button>
             </div>
         </div>
     );

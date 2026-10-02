@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
 import { useConfirm } from '../ConfirmDialog';
-import './HistoricalInvoiceModal.css'; // Importing the new premium styles
+import './HistoricalInvoiceModal.css';
 
 // El backend guarda las fechas en hora de Colombia, sin zona: se editan y envían tal cual.
 // Pasarlas por toISOString() las convertía a UTC y cada guardado corría la fecha +5 horas.
@@ -169,7 +169,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
             const confirmed = await askConfirm({
                 title: 'Advertencia de edición',
                 message:
-                    "⚠️ ADVERTENCIA DE EDICIÓN ⚠️\n\n" +
+                    "ADVERTENCIA DE EDICIÓN\n\n" +
                     "Al guardar estos cambios:\n" +
                     "1. Los pagos existentes se ELIMINARÁN y se creará uno nuevo con el 'Monto Pagado' ingresado.\n" +
                     "2. Los datos de la factura se actualizarán permanentemente.\n\n" +
@@ -255,75 +255,86 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
     };
 
     return (
-        <div className="historical-modal-overlay">
-            <div className="historical-modal-content" onClick={e => e.stopPropagation()}>
+        <div className="ui-modal-overlay hm-overlay">
+            <div
+                className="ui-modal ui-modal--lg hm-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="hm-title"
+                onClick={e => e.stopPropagation()}
+            >
                 {/* HEADER */}
-                <div className="hm-header" style={isEditMode ? { borderBottomColor: '#f59e0b' } : {}}>
-                    <h3>
-                        <div className="header-icon" style={isEditMode ? { background: '#fef3c7', color: '#d97706' } : {}}>
-                            <span className="material-icons-round">{isEditMode ? 'edit' : 'history'}</span>
-                        </div>
-                        {isEditMode ? 'Editar Factura / Orden' : 'Registrar Factura Histórica'}
-                    </h3>
-                    <button className="btn-close-modal" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+                <div className="ui-modal-header">
+                    <span className={`ui-modal-icon${isEditMode ? ' ui-modal-icon--warning' : ''}`} aria-hidden="true">
+                        <span className="material-icons-round">{isEditMode ? 'edit' : 'history'}</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="hm-title" className="ui-modal-title">
+                            {isEditMode ? 'Editar Factura / Orden' : 'Registrar Factura Histórica'}
+                        </h3>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
                 {/* BODY */}
-                <div className="hm-body">
+                <div className="ui-modal-body">
                     {/* INFO BANNER */}
-                    <div className="hm-section" style={{
-                        background: isEditMode ? '#fff7ed' : '#fffbeb',
-                        borderColor: isEditMode ? '#fbbf24' : '#fcd34d',
-                        padding: '1rem'
-                    }}>
-                        <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.9rem', color: isEditMode ? '#9a3412' : '#92400e' }}>
-                            <span className="material-icons-round" style={{ fontSize: '20px' }}>
-                                {isEditMode ? 'warning' : 'info'}
-                            </span>
-                            <p style={{ margin: 0 }}>
-                                {isEditMode ? (
-                                    <span>
-                                        <strong>⚠️ PRECAUCIÓN:</strong> Editar la factura <strong>reiniciará los pagos</strong> al monto ingresado abajo. Asegúrate de colocar el "Total Pagado" correcto.
-                                    </span>
-                                ) : (
-                                    <span>
-                                        <strong>Nota:</strong> Estas facturas no contienen productos, solo montos para afectar el balance.
-                                    </span>
-                                )}
-                            </p>
-                        </div>
+                    <div className={`ui-alert ${isEditMode ? 'ui-alert--warning' : 'ui-alert--info'}`}>
+                        <span className="material-icons-round" aria-hidden="true">
+                            {isEditMode ? 'warning' : 'info'}
+                        </span>
+                        <p>
+                            {isEditMode ? (
+                                <span>
+                                    <strong>PRECAUCIÓN:</strong> Editar la factura <strong>reiniciará los pagos</strong> al monto ingresado abajo. Asegúrate de colocar el "Total Pagado" correcto.
+                                </span>
+                            ) : (
+                                <span>
+                                    <strong>Nota:</strong> Estas facturas no contienen productos, solo montos para afectar el balance.
+                                </span>
+                            )}
+                        </p>
                     </div>
 
-                    <form onSubmit={handleSubmit} id="historical-form">
+                    <form onSubmit={handleSubmit} id="historical-form" className="hm-form">
 
                         {/* SECTION 1: CLIENT */}
-                        <div className="hm-section">
-                            <div className="hm-section-title">
-                                <span className="material-icons-round" style={{ fontSize: '18px' }}>person</span>
-                                Información del Cliente
+                        <section className="ui-section">
+                            <div className="ui-section-head">
+                                <span className="ui-step" aria-hidden="true">1</span>
+                                <div>
+                                    <h4 className="ui-section-title">Información del Cliente</h4>
+                                </div>
                             </div>
 
-                            <div className="client-type-selector">
-                                <label className={`type-option ${isRegisteredClient ? 'active' : ''}`}>
+                            <div className="ui-choice-grid hm-client-type" role="radiogroup" aria-label="Tipo de cliente">
+                                <label className={`ui-choice ui-choice--compact${isRegisteredClient ? ' is-selected' : ''}`}>
                                     <input type="radio" checked={isRegisteredClient} onChange={() => setIsRegisteredClient(true)} />
-                                    Cliente Registrado
+                                    <span className="material-icons-round ui-choice-icon" aria-hidden="true">how_to_reg</span>
+                                    <span className="ui-choice-text">
+                                        <span className="ui-choice-title">Cliente Registrado</span>
+                                    </span>
                                 </label>
-                                <label className={`type-option ${!isRegisteredClient ? 'active' : ''}`}>
+                                <label className={`ui-choice ui-choice--compact${!isRegisteredClient ? ' is-selected' : ''}`}>
                                     <input type="radio" checked={!isRegisteredClient} onChange={() => setIsRegisteredClient(false)} />
-                                    Nuevo / Ocasional
+                                    <span className="material-icons-round ui-choice-icon" aria-hidden="true">person_add</span>
+                                    <span className="ui-choice-text">
+                                        <span className="ui-choice-title">Nuevo / Ocasional</span>
+                                    </span>
                                 </label>
                             </div>
 
                             {isRegisteredClient ? (
-                                <div className="client-search-container">
-                                    <label className="hm-label">Buscar Cliente <span className="required">*</span></label>
-                                    <div className="search-input-wrapper">
-                                        <span className="material-icons-round search-icon">search</span>
+                                <div className="client-search-container ui-field hm-client-search">
+                                    <label className="ui-label" htmlFor="hm-client-search">Buscar Cliente <span className="ui-required">*</span></label>
+                                    <div className="ui-input-group hm-search">
+                                        <span className="material-icons-round ui-input-icon" aria-hidden="true">search</span>
                                         <input
+                                            id="hm-client-search"
                                             type="text"
-                                            className="hm-input search-mode"
+                                            className="ui-input hm-search-input"
                                             placeholder="Buscar por establecimiento, representante o NIT..."
                                             value={searchTerm}
                                             onChange={(e) => {
@@ -338,50 +349,37 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                                             <button
                                                 type="button"
                                                 onClick={clearClientSelection}
-                                                style={{
-                                                    position: 'absolute',
-                                                    right: formData.clientId ? '36px' : '10px',
-                                                    top: '50%',
-                                                    transform: 'translateY(-50%)',
-                                                    background: 'none',
-                                                    border: 'none',
-                                                    color: '#9ca3af',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    padding: '4px',
-                                                    zIndex: 10
-                                                }}
+                                                className={`ui-icon-btn hm-search-clear${formData.clientId ? ' has-check' : ''}`}
                                                 title="Limpiar búsqueda"
                                             >
-                                                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                                                <span className="material-icons-round" aria-hidden="true">close</span>
                                             </button>
                                         )}
                                         {formData.clientId && (
-                                            <span className="material-icons-round" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#10b981' }}>
+                                            <span className="material-icons-round hm-search-check" aria-hidden="true">
                                                 check_circle
                                             </span>
                                         )}
                                     </div>
 
                                     {showDropdown && (
-                                        <div className="client-dropdown">
-                                            {fetchingClients && <div className="no-results">Cargando...</div>}
+                                        <div className="hm-dropdown">
+                                            {fetchingClients && <div className="hm-no-results">Cargando...</div>}
                                             {!fetchingClients && filteredClients.length === 0 && (
-                                                <div className="no-results">No se encontraron clientes</div>
+                                                <div className="hm-no-results">No se encontraron clientes</div>
                                             )}
                                             {filteredClients.map(c => (
-                                                <div key={c.id} className="client-option" onClick={() => handleClientSelect(c)}>
-                                                    <div className="client-option-info">
-                                                        <span className="client-name">
+                                                <div key={c.id} className="hm-option" onClick={() => handleClientSelect(c)}>
+                                                    <div className="hm-option-info">
+                                                        <span className="hm-option-name">
                                                             {c.nombre}
                                                             {c.representanteLegal && (
-                                                                <span style={{ fontSize: '0.85em', color: '#6b7280', fontWeight: '400' }}> / {c.representanteLegal}</span>
+                                                                <span className="hm-option-rep"> / {c.representanteLegal}</span>
                                                             )}
                                                         </span>
-                                                        {c.nit && <span className="client-nit">NIT: {c.nit}</span>}
+                                                        {c.nit && <span className="hm-option-nit">NIT: {c.nit}</span>}
                                                     </div>
-                                                    <span className="material-icons-round" style={{ fontSize: '16px', color: '#9ca3af' }}>chevron_right</span>
+                                                    <span className="material-icons-round hm-option-chevron" aria-hidden="true">chevron_right</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -389,60 +387,68 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                                 </div>
                             ) : (
                                 // NON-REGISTERED INPUTS
-                                <div className="hm-grid-2">
-                                    <div className="hm-form-group">
-                                        <label className="hm-label">Nombre Completo <span className="required">*</span></label>
+                                <div className="ui-grid">
+                                    <div className="ui-field">
+                                        <label className="ui-label" htmlFor="hm-client-name">Nombre Completo <span className="ui-required">*</span></label>
                                         <input
-                                            type="text" name="clientName" className="hm-input"
+                                            id="hm-client-name"
+                                            type="text" name="clientName" className="ui-input"
                                             value={formData.clientName} onChange={handleChange} required={!isRegisteredClient}
                                         />
                                     </div>
-                                    <div className="hm-form-group">
-                                        <label className="hm-label">Teléfono</label>
+                                    <div className="ui-field">
+                                        <label className="ui-label" htmlFor="hm-client-phone">Teléfono</label>
                                         <input
-                                            type="text" name="clientPhone" className="hm-input"
+                                            id="hm-client-phone"
+                                            type="text" name="clientPhone" className="ui-input"
                                             value={formData.clientPhone} onChange={handleChange}
                                         />
                                     </div>
-                                    <div className="hm-form-group">
-                                        <label className="hm-label">Email</label>
+                                    <div className="ui-field">
+                                        <label className="ui-label" htmlFor="hm-client-email">Email</label>
                                         <input
-                                            type="email" name="clientEmail" className="hm-input"
+                                            id="hm-client-email"
+                                            type="email" name="clientEmail" className="ui-input"
                                             value={formData.clientEmail} onChange={handleChange}
                                         />
                                     </div>
-                                    <div className="hm-form-group">
-                                        <label className="hm-label">Dirección</label>
+                                    <div className="ui-field">
+                                        <label className="ui-label" htmlFor="hm-client-address">Dirección</label>
                                         <input
-                                            type="text" name="clientAddress" className="hm-input"
+                                            id="hm-client-address"
+                                            type="text" name="clientAddress" className="ui-input"
                                             value={formData.clientAddress} onChange={handleChange}
                                         />
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </section>
 
                         {/* SECTION 2: INVOICE DATA */}
-                        <div className="hm-section">
-                            <div className="hm-section-title">
-                                <span className="material-icons-round" style={{ fontSize: '18px' }}>receipt_long</span>
-                                Detalles de la Factura
+                        <section className="ui-section">
+                            <div className="ui-section-head">
+                                <span className="ui-step" aria-hidden="true">2</span>
+                                <div>
+                                    <h4 className="ui-section-title">Detalles de la Factura</h4>
+                                </div>
                             </div>
 
-                            <div className="hm-grid-3">
-                                <div className="hm-form-group">
-                                    <label className="hm-label">No. Factura <span className="required">*</span></label>
+                            <div className="ui-grid ui-grid--3">
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="hm-invoice-number">No. Factura <span className="ui-required">*</span></label>
                                     <input
-                                        type="number" name="invoiceNumber" className="hm-input"
+                                        id="hm-invoice-number"
+                                        type="number" name="invoiceNumber" className="ui-input"
                                         value={formData.invoiceNumber} onChange={handleChange} required min="1"
                                         placeholder="Ej: 1001"
                                         onWheel={(e) => e.target.blur()}
                                     />
                                 </div>
-                                <div className="hm-form-group">
-                                    <label className="hm-label">Tipo <span className="required">*</span></label>
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="hm-invoice-type">Tipo <span className="ui-required">*</span></label>
                                     <select
-                                        name="invoiceType" className="hm-select"
+                                        id="hm-invoice-type"
+                                        name="invoiceType" className="ui-select"
                                         value={formData.invoiceType} onChange={handleChange} required
                                     >
                                         <option value="NORMAL">Normal</option>
@@ -450,52 +456,58 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                                         <option value="PROMO">Promoción</option>
                                     </select>
                                 </div>
-                                <div className="hm-form-group">
-                                    <label className="hm-label">Fecha Factura <span className="required">*</span></label>
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="hm-invoice-date">Fecha Factura <span className="ui-required">*</span></label>
                                     <input
-                                        type="datetime-local" name="fecha" className="hm-input"
+                                        id="hm-invoice-date"
+                                        type="datetime-local" name="fecha" className="ui-input"
                                         value={formData.fecha} onChange={handleChange} required
                                     />
                                 </div>
                             </div>
 
-                            <div className="hm-form-group" style={{ marginTop: '1rem' }}>
-                                <label className="hm-label">Notas</label>
+                            <div className="ui-field hm-notes">
+                                <label className="ui-label" htmlFor="hm-notes">Notas</label>
                                 <textarea
-                                    name="notes" className="hm-textarea"
+                                    id="hm-notes"
+                                    name="notes" className="ui-textarea"
                                     value={formData.notes} onChange={handleChange}
                                     placeholder="Detalles adicionales..."
                                 />
                             </div>
-                        </div>
+                        </section>
 
                         {/* SECTION 3: FINANCIALS */}
-                        <div className="hm-section">
-                            <div className="hm-section-title">
-                                <span className="material-icons-round" style={{ fontSize: '18px' }}>payments</span>
-                                Montos
+                        <section className="ui-section">
+                            <div className="ui-section-head">
+                                <span className="ui-step" aria-hidden="true">3</span>
+                                <div>
+                                    <h4 className="ui-section-title">Montos</h4>
+                                </div>
                             </div>
 
-                            <div className="hm-grid-2">
-                                <div className="hm-form-group">
-                                    <label className="hm-label">Valor Total ($) <span className="required">*</span></label>
+                            <div className="ui-grid">
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="hm-total-value">Valor Total ($) <span className="ui-required">*</span></label>
                                     <input
-                                        type="number" name="totalValue" className="hm-input"
+                                        id="hm-total-value"
+                                        type="number" name="totalValue" className="ui-input"
                                         value={formData.totalValue} onChange={handleChange} required min="0" step="0.01"
                                         placeholder="0.00"
                                         onWheel={(e) => e.target.blur()}
                                     />
                                 </div>
-                                <div className="hm-form-group">
-                                    <label className="hm-label">Monto Pagado ($) <span className="required">*</span></label>
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="hm-amount-paid">Monto Pagado ($) <span className="ui-required">*</span></label>
                                     <input
-                                        type="number" name="amountPaid" className="hm-input"
+                                        id="hm-amount-paid"
+                                        type="number" name="amountPaid" className="ui-input"
                                         value={formData.amountPaid} onChange={handleChange} required min="0" step="0.01"
                                         placeholder="0.00"
                                         onWheel={(e) => e.target.blur()}
                                     />
                                     {isEditMode && (
-                                        <small style={{ color: '#d97706', fontSize: '0.8em', display: 'block', marginTop: '4px' }}>
+                                        <small className="ui-help hm-help-warning">
                                             * Este monto reemplazará todos los pagos anteriores.
                                         </small>
                                     )}
@@ -503,32 +515,32 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                             </div>
 
                             {/* Summary Cards */}
-                            <div className="financial-summary">
-                                <div className="fin-card">
-                                    <span className="fin-label">Total Factura</span>
-                                    <span className="fin-value">${total.toFixed(2)}</span>
+                            <div className="hm-fin">
+                                <div className="hm-fin-card">
+                                    <span className="hm-fin-label">Total Factura</span>
+                                    <span className="hm-fin-value">${total.toFixed(2)}</span>
                                 </div>
-                                <div className="fin-card">
-                                    <span className="fin-label">Abonado</span>
-                                    <span className="fin-value" style={{ color: '#10b981' }}>${paid.toFixed(2)}</span>
+                                <div className="hm-fin-card">
+                                    <span className="hm-fin-label">Abonado</span>
+                                    <span className="hm-fin-value hm-text-success">${paid.toFixed(2)}</span>
                                 </div>
-                                <div className={`fin-card highlight`}>
-                                    <span className="fin-label">{isPaidOff ? 'Estado' : 'Saldo Pendiente'}</span>
-                                    <span className="fin-value" style={{ color: isPaidOff ? '#10b981' : '#dc2626' }}>
+                                <div className="hm-fin-card hm-fin-card--balance">
+                                    <span className="hm-fin-label">{isPaidOff ? 'Estado' : 'Saldo Pendiente'}</span>
+                                    <span className={`hm-fin-value ${isPaidOff ? 'hm-text-success' : 'hm-text-danger'}`}>
                                         {isPaidOff ? 'PAGADO' : `$${balance.toFixed(2)}`}
                                     </span>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
                     </form>
                 </div>
 
                 {/* FOOTER */}
-                <div className="hm-footer">
+                <div className="ui-modal-footer">
                     <button
                         type="button"
-                        className="hm-btn hm-btn-secondary"
+                        className="ui-btn ui-btn--secondary"
                         onClick={onClose}
                         disabled={loading}
                     >
@@ -537,9 +549,8 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                     <button
                         type="submit"
                         form="historical-form"
-                        className={`hm-btn ${isEditMode ? 'hm-btn-warning' : 'hm-btn-primary'}`}
+                        className="ui-btn ui-btn--primary"
                         disabled={loading}
-                        style={isEditMode ? { background: '#f59e0b', borderColor: '#d97706' } : {}}
                     >
                         {loading ? 'Guardando...' : (isEditMode ? 'Actualizar Factura' : 'Registrar Factura')}
                     </button>

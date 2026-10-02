@@ -104,3 +104,31 @@ test('guardar la edición no reenvía los productos del surtido como items cobra
     expect(payload.promotionIds).toEqual([]);
     expect(payload.keptPromotionInstanceIds).toEqual([]);
 });
+
+test('el cliente se busca escribiendo (nombre, teléfono o NIT) y al guardar se envía su id', async () => {
+    const baseGet = client.get.getMockImplementation();
+    client.get.mockImplementation((url) => (url === '/admin/clients'
+        ? Promise.resolve({ data: [
+            { id: 'c1', nombre: 'Droguería Uno', telefono: '3001234567', nit: '900123' },
+            { id: 'c2', nombre: 'Droguería Dos', telefono: '3109876543' },
+        ] })
+        : baseGet(url)));
+    renderModal();
+    await screen.findByText('Total Estimado');
+
+    // La orden no tiene cliente: el campo muestra "Sin cliente" (la opción vacía del antiguo <select>)
+    const cliente = screen.getByRole('combobox', { name: 'Cliente' });
+    expect(cliente).toHaveValue('Sin cliente');
+
+    // Por NIT (va en la descripción de la opción): solo queda ese cliente, con el mismo texto de antes
+    fireEvent.change(cliente, { target: { value: '900123' } });
+    const opciones = screen.getAllByRole('option');
+    expect(opciones.map((o) => o.querySelector('.ui-combobox-option-label').textContent))
+        .toEqual(['Droguería Uno - 3001234567']);
+    fireEvent.click(opciones[0]);
+    expect(cliente).toHaveValue('Droguería Uno - 3001234567');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar Cambios' }));
+    await waitFor(() => expect(client.put).toHaveBeenCalledTimes(1));
+    expect(client.put.mock.calls[0][1].clientId).toBe('c1');
+});

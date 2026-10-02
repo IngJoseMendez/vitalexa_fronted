@@ -3,6 +3,7 @@ import { useToast } from './ToastContainer';
 import productService from '../api/productService';
 import PhysicalCountModal from './modals/PhysicalCountModal';
 import { bodegaInfo, committedUnits, hasCommitted } from '../utils/inventoryMovements';
+import '../styles/areas/StockReportPanel.css';
 
 /**
  * StockReportPanel
@@ -59,19 +60,20 @@ export default function StockReportPanel({ role = 'admin' }) {
         return !search.trim() || (item.nombre || '').toLowerCase().includes(search.toLowerCase());
     });
 
-    // Color for "Sistema" column
-    const sistemaColor = (val) => {
-        if (val == null) return { color: 'var(--text-secondary)', fontWeight: 700 };
-        if (val < 0) return { color: '#dc2626', fontWeight: 700 };
-        if (val === 0) return { color: '#d97706', fontWeight: 700 };
-        return { color: '#16a34a', fontWeight: 700 };
+    // Tono de la columna "Sistema": negativo = peligro, 0 = advertencia, positivo = normal
+    const sistemaTone = (val) => {
+        if (val == null) return 'muted';
+        if (val < 0) return 'danger';
+        if (val === 0) return 'warning';
+        return '';
     };
 
-    const sistemaIcon = (val) => {
+    // Punto de color de la columna "Sistema" (antes eran emojis de colores)
+    const sistemaDot = (val) => {
         if (val == null) return '';
-        if (val < 0) return '🔴';
-        if (val === 0) return '🟡';
-        return '✅';
+        if (val < 0) return 'danger';
+        if (val === 0) return 'warning';
+        return 'success';
     };
 
     const emptyMessage = () => {
@@ -83,105 +85,94 @@ export default function StockReportPanel({ role = 'admin' }) {
     };
 
     return (
-        <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="isr-page">
 
             {/* ── Header ── */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                        <span className="material-icons-round" style={{ color: 'var(--primary)' }}>warehouse</span>
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">warehouse</span>
                         Reporte de Stock Real
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.3rem', lineHeight: 1.5 }}>
-                        <strong>En Bodega</strong> = stock físico&nbsp;&nbsp;|&nbsp;&nbsp;
-                        <strong>En Pedidos</strong> = comprometido en pedidos activos&nbsp;&nbsp;|&nbsp;&nbsp;
-                        <strong>Sistema</strong> = lo que muestra la BD (ya descontó pedidos)
+                    <p className="ui-page-desc isr-desc">
+                        <strong className="isr-key isr-key--success">En Bodega</strong> = stock físico&nbsp;&nbsp;|&nbsp;&nbsp;
+                        <strong className="isr-key isr-key--primary">En Pedidos</strong> = comprometido en pedidos activos&nbsp;&nbsp;|&nbsp;&nbsp;
+                        <strong className="isr-key">Sistema</strong> = lo que muestra la BD (ya descontó pedidos)
                     </p>
                 </div>
-                <button
-                    onClick={fetchData}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.55rem 1rem', borderRadius: '8px',
-                        border: '1px solid var(--border)', background: 'white',
-                        cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem',
-                        color: 'var(--text-main)'
-                    }}
-                    title="Actualizar datos"
-                >
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>sync</span>
-                    Actualizar
-                </button>
-            </div>
+                <div className="ui-page-actions">
+                    {/* Mientras recarga: spinner en lugar del icono (sin deshabilitar, como hoy) */}
+                    <button
+                        type="button"
+                        className="ui-btn ui-btn--secondary"
+                        aria-busy={loading || undefined}
+                        onClick={fetchData}
+                        title="Actualizar datos"
+                    >
+                        {loading
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round isr-icon--primary" aria-hidden="true">sync</span>}
+                        Actualizar
+                    </button>
+                </div>
+            </header>
 
-            {/* ── Summary Cards ── */}
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {/* ── Summary Cards ── (el número va en el color de su significado) */}
+            <div className="ui-stat-grid ui-stagger">
                 <SummaryCard
                     icon="inventory_2"
                     label="Total productos"
                     value={items.length}
-                    color="#6366f1"
-                    bg="#eef2ff"
+                    tone="teal"
                 />
                 <SummaryCard
                     icon="report_problem"
                     label="Faltan unidades por registrar"
                     value={missingCount}
-                    color={missingCount > 0 ? '#b45309' : '#16a34a'}
-                    bg={missingCount > 0 ? '#fff7ed' : '#f0fdf4'}
+                    tone={missingCount > 0 ? 'warning' : 'success'}
+                    valueTone={missingCount > 0 ? 'warning' : 'success'}
                 />
                 <SummaryCard
                     icon="warning_amber"
                     label="Sistema en negativo (vendido sin stock)"
                     value={criticalCount}
-                    color={criticalCount > 0 ? '#dc2626' : '#16a34a'}
-                    bg={criticalCount > 0 ? '#fef2f2' : '#f0fdf4'}
+                    tone={criticalCount > 0 ? 'danger' : 'success'}
+                    valueTone={criticalCount > 0 ? 'danger' : 'success'}
                 />
                 <SummaryCard
                     icon="local_shipping"
                     label="Con pedidos activos"
                     value={committedCount}
-                    color="#d97706"
-                    bg="#fffbeb"
+                    tone="primary"
+                    valueTone="primary"
                 />
             </div>
 
             {/* ── Controls ── */}
-            <div style={{
-                background: 'white', padding: '1rem', borderRadius: '12px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center'
-            }}>
+            <div className="ui-toolbar">
                 {/* Search */}
-                <div style={{ position: 'relative', flex: '1 1 220px' }}>
-                    <span className="material-icons-round" style={{
-                        position: 'absolute', left: '0.7rem', top: '50%',
-                        transform: 'translateY(-50%)', color: 'var(--text-secondary)', fontSize: '18px'
-                    }}>search</span>
+                <div className="ui-search">
+                    <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                     <input
                         type="text"
+                        className="ui-input"
+                        aria-label="Buscar producto"
                         placeholder="Buscar producto..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        style={{
-                            width: '100%', padding: '0.55rem 0.75rem 0.55rem 2.25rem',
-                            borderRadius: '8px', border: '1px solid var(--border)',
-                            fontSize: '0.9rem', boxSizing: 'border-box'
-                        }}
                     />
                 </div>
 
                 {/* View filter toggle */}
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    <FilterBtn active={viewMode === 'all'} onClick={() => setViewMode('all')} icon="list_alt">
+                <div className="ui-tabs" role="group" aria-label="Vista del reporte">
+                    <FilterBtn active={viewMode === 'all'} onClick={() => setViewMode('all')} icon="list_alt" tone="primary">
                         Todos ({items.length})
                     </FilterBtn>
                     <FilterBtn
                         active={viewMode === 'missing'}
                         onClick={() => setViewMode('missing')}
                         icon="report_problem"
-                        activeColor="#b45309"
-                        activeBackground="#fff7ed"
+                        tone="warning"
                     >
                         Faltan por registrar ({missingCount})
                     </FilterBtn>
@@ -189,8 +180,7 @@ export default function StockReportPanel({ role = 'admin' }) {
                         active={viewMode === 'alerts'}
                         onClick={() => setViewMode('alerts')}
                         icon="warning_amber"
-                        activeColor="#dc2626"
-                        activeBackground="#fef2f2"
+                        tone="danger"
                     >
                         Sistema negativo ({criticalCount})
                     </FilterBtn>
@@ -198,8 +188,7 @@ export default function StockReportPanel({ role = 'admin' }) {
                         active={viewMode === 'committed'}
                         onClick={() => setViewMode('committed')}
                         icon="local_shipping"
-                        activeColor="#92400e"
-                        activeBackground="#fef3c7"
+                        tone="primary"
                     >
                         En pedidos ({committedCount})
                     </FilterBtn>
@@ -207,108 +196,136 @@ export default function StockReportPanel({ role = 'admin' }) {
             </div>
 
             {/* ── Table ── */}
-            <div style={{ flex: 1, overflow: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+            <div className="ui-table-wrap">
                 {loading ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        <span className="material-icons-round" style={{ fontSize: '40px', display: 'block', marginBottom: '0.75rem', animation: 'spin 1s linear infinite' }}>hourglass_top</span>
-                        Cargando inventario...
+                    // Carga: filas de esqueleto con la forma de la tabla (texto para lectores)
+                    <div className="isr-skeleton" role="status" aria-busy="true">
+                        <span className="ui-sr-only">Cargando inventario...</span>
+                        {[0, 1, 2, 3, 4].map(i => (
+                            <div key={i} className="isr-skeleton-row" aria-hidden="true">
+                                <span className="ui-skeleton isr-skeleton-tile" />
+                                <span className="ui-skeleton-stack isr-skeleton-grow">
+                                    <span className="ui-skeleton ui-skeleton--title" />
+                                    <span className="ui-skeleton ui-skeleton--text isr-skeleton-short" />
+                                </span>
+                                <span className="ui-skeleton ui-skeleton--text isr-skeleton-qty" />
+                                <span className="ui-skeleton ui-skeleton--text isr-skeleton-qty" />
+                            </div>
+                        ))}
                     </div>
                 ) : filtered.length === 0 ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                        <span className="material-icons-round" style={{ fontSize: '48px', display: 'block', marginBottom: '0.75rem' }}>
+                    <div className="ui-empty ui-empty--plain">
+                        <span className={`material-icons-round ui-empty-icon ${viewMode === 'all' || search ? 'isr-icon--primary' : 'isr-icon--success'}`} aria-hidden="true">
                             {viewMode === 'all' || search ? 'search_off' : 'check_circle'}
                         </span>
-                        {emptyMessage()}
+                        <p className="ui-empty-text">{emptyMessage()}</p>
                     </div>
                 ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                        <thead style={{ background: '#f9fafb', position: 'sticky', top: 0, zIndex: 1 }}>
-                            <tr style={{ textAlign: 'left' }}>
-                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', minWidth: '200px' }}>Producto</th>
-                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>
-                                    <span title="Cuánto hay físicamente en bodega ahora mismo">En Bodega 🏭</span>
+                    <table className="ui-table isr-table">
+                        <thead>
+                            <tr>
+                                <th className="isr-col-product">Producto</th>
+                                <th className="ui-num">
+                                    <span className="isr-th-help" title="Cuánto hay físicamente en bodega ahora mismo">
+                                        En Bodega <span className="material-icons-round" aria-hidden="true">info</span>
+                                    </span>
                                 </th>
-                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>
-                                    <span title="Cuánto está comprometido en pedidos activos pendientes de despacho">En Pedidos 📦</span>
+                                <th className="ui-num">
+                                    <span className="isr-th-help" title="Cuánto está comprometido en pedidos activos pendientes de despacho">
+                                        En Pedidos <span className="material-icons-round" aria-hidden="true">info</span>
+                                    </span>
                                 </th>
-                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>
-                                    <span title="Lo que muestra el sistema (ya descontó todos los pedidos creados)">Sistema 💾</span>
+                                <th className="ui-num">
+                                    <span className="isr-th-help" title="Lo que muestra el sistema (ya descontó todos los pedidos creados)">
+                                        Sistema <span className="material-icons-round" aria-hidden="true">info</span>
+                                    </span>
                                 </th>
-                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Estado</th>
-                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Acción</th>
+                                <th>Estado</th>
+                                <th className="isr-col-action">Acción</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {filtered.map((item, idx) => {
+                        {/* Las primeras 8 filas entran escalonadas (key = productId) */}
+                        <tbody className="ui-stagger">
+                            {filtered.map((item) => {
                                 const { bodega, faltante } = bodegaInfo(item);
                                 const comprometido = committedUnits(item);
                                 const alert = isAlert(item);
                                 const enPedidos = hasCommitted(item);
+                                const tone = sistemaTone(item.stockEnBD);
+                                const dot = sistemaDot(item.stockEnBD);
+                                const rowState = productState({ faltante, alert, enPedidos });
                                 return (
                                     <tr
                                         key={item.productId}
-                                        style={{
-                                            borderBottom: '1px solid #f3f4f6',
-                                            background: faltante > 0
-                                                ? 'rgba(255, 247, 237, 0.7)'
-                                                : idx % 2 === 0 ? 'white' : '#fafafa'
-                                        }}
+                                        className={faltante > 0 ? 'is-missing' : undefined}
                                     >
-                                        {/* Product name */}
-                                        <td style={{ padding: '0.875rem 1rem' }}>
-                                            <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.nombre}</div>
-                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px', fontFamily: 'monospace' }}>
-                                                {item.productId?.substring(0, 8)}...
+                                        {/* Product name (baldosa con el color del estado del producto) */}
+                                        <td className="isr-col-product">
+                                            <div className="isr-product">
+                                                <span className={`ui-icon-tile ui-icon-tile--sm ui-icon-tile--${rowState.tone}`} aria-hidden="true">
+                                                    <span className="material-icons-round">{rowState.icon}</span>
+                                                </span>
+                                                <div className="isr-product-text">
+                                                    <div className="isr-product-name">{item.nombre}</div>
+                                                    <div className="isr-product-id">
+                                                        {item.productId?.substring(0, 8)}...
+                                                    </div>
+                                                </div>
                                             </div>
                                         </td>
 
-                                        {/* En Bodega: nunca negativa; el faltante se avisa aparte */}
-                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
-                                            <div data-testid="bodega" style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700 }}>{bodega}</div>
-                                            {faltante > 0 && (
-                                                <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600, marginTop: '2px' }}>
-                                                    faltan {faltante} por registrar
-                                                </div>
-                                            )}
+                                        {/* En Bodega: nunca negativa; el faltante se avisa aparte.
+                                            Con unidades = verde; en 0 = ámbar */}
+                                        <td className="ui-num" data-label="En Bodega">
+                                            <div className="isr-cell-stack">
+                                                <div data-testid="bodega" className={`isr-qty ${bodega > 0 ? 'isr-qty--success' : 'isr-qty--warning'}`}>{bodega}</div>
+                                                {faltante > 0 && (
+                                                    <div className="isr-missing">
+                                                        faltan {faltante} por registrar
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
 
                                         {/* En Pedidos = stockComprometido */}
-                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem' }}>
+                                        <td className="ui-num" data-label="En Pedidos">
                                             {comprometido > 0 ? (
-                                                <span style={{ color: '#d97706', fontWeight: 700 }}>{comprometido}</span>
+                                                <span className="isr-qty isr-qty--primary">{comprometido}</span>
                                             ) : (
-                                                <span style={{ color: 'var(--text-secondary)' }}>0</span>
+                                                <span className="isr-qty isr-qty--muted">0</span>
                                             )}
                                         </td>
 
                                         {/* Sistema = stockEnBD */}
-                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem' }}>
-                                            <span style={sistemaColor(item.stockEnBD)}>
-                                                {sistemaIcon(item.stockEnBD)} {item.stockEnBD ?? '-'}
+                                        <td className="ui-num" data-label="Sistema">
+                                            <span className={`isr-qty isr-sistema${tone ? ` isr-sistema--${tone}` : ''}`}>
+                                                {dot && <span className={`isr-dot isr-dot--${dot}`} aria-hidden="true" />}
+                                                {item.stockEnBD ?? '-'}
                                             </span>
                                         </td>
 
                                         {/* Estado badges */}
-                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
-                                            <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                        <td data-label="Estado">
+                                            <div className="isr-badges">
                                                 {faltante > 0 && (
-                                                    <Badge icon="report_problem" bg="#ffedd5" color="#9a3412">Faltan por registrar</Badge>
+                                                    <Badge icon="report_problem" tone="warning">Faltan por registrar</Badge>
                                                 )}
                                                 {alert && (
-                                                    <Badge icon="warning" bg="#fee2e2" color="#991b1b">Sistema negativo</Badge>
+                                                    <Badge icon="warning" tone="danger">Sistema negativo</Badge>
                                                 )}
                                                 {enPedidos && (
-                                                    <Badge icon="local_shipping" bg="#fef3c7" color="#92400e">En pedidos</Badge>
+                                                    <Badge icon="local_shipping" tone="primary">En pedidos</Badge>
                                                 )}
                                                 {faltante === 0 && !alert && !enPedidos && (
-                                                    <Badge bg="#dcfce7" color="#166534">✓ OK</Badge>
+                                                    <Badge tone="success">✓ OK</Badge>
                                                 )}
                                             </div>
                                         </td>
 
-                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                                        <td className="isr-col-action">
                                             <button
                                                 type="button"
+                                                className="ui-btn ui-btn--secondary ui-btn--sm"
                                                 onClick={() => setCountProduct({
                                                     id: item.productId,
                                                     nombre: item.nombre,
@@ -316,14 +333,8 @@ export default function StockReportPanel({ role = 'admin' }) {
                                                     stockComprometido: comprometido,
                                                 })}
                                                 title="Ajustar el sistema a lo que hay en bodega"
-                                                style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                                                    padding: '0.35rem 0.7rem', borderRadius: '6px', cursor: 'pointer',
-                                                    border: '1px solid #bae6fd', background: '#f0f9ff', color: '#0369a1',
-                                                    fontSize: '0.78rem', fontWeight: 600, whiteSpace: 'nowrap'
-                                                }}
                                             >
-                                                <span className="material-icons-round" style={{ fontSize: '15px' }}>fact_check</span>
+                                                <span className="material-icons-round isr-icon--warning" aria-hidden="true">fact_check</span>
                                                 Conteo físico
                                             </button>
                                         </td>
@@ -336,17 +347,21 @@ export default function StockReportPanel({ role = 'admin' }) {
             </div>
 
             {/* ── Legend ── */}
-            <div style={{
-                background: '#f8fafc', borderRadius: '10px', padding: '0.875rem 1rem',
-                fontSize: '0.8rem', color: 'var(--text-secondary)',
-                display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center',
-                border: '1px solid var(--border)'
-            }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Leyenda Sistema:</span>
-                <span>🔴 Stock BD negativo (vendido sin stock)</span>
-                <span>🟡 Stock BD = 0</span>
-                <span>✅ Stock BD positivo</span>
-                <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>
+            <div className="isr-legend">
+                <span className="isr-legend-title">Leyenda Sistema:</span>
+                <span className="isr-legend-item">
+                    <span className="isr-dot isr-dot--danger" aria-hidden="true" />
+                    Stock BD negativo (vendido sin stock)
+                </span>
+                <span className="isr-legend-item">
+                    <span className="isr-dot isr-dot--warning" aria-hidden="true" />
+                    Stock BD = 0
+                </span>
+                <span className="isr-legend-item">
+                    <span className="isr-dot isr-dot--success" aria-hidden="true" />
+                    Stock BD positivo
+                </span>
+                <span className="isr-legend-note">
                     En Bodega = Sistema + Pedidos activos (nunca menos de 0; si falta, se avisa)
                 </span>
             </div>
@@ -364,55 +379,52 @@ export default function StockReportPanel({ role = 'admin' }) {
 
 // ── Helper sub-components ─────────────────────────────────────────────────────
 
-function Badge({ icon, bg, color, children }) {
+// Baldosa de la fila según el estado más importante del producto (mismo orden que las
+// insignias): faltan por registrar (ámbar) > sistema negativo (rojo) > en pedidos (azul) > OK
+// (verde). Solo presentación.
+function productState({ faltante, alert, enPedidos }) {
+    if (faltante > 0) return { tone: 'warning', icon: 'report_problem' };
+    if (alert) return { tone: 'danger', icon: 'warning' };
+    if (enPedidos) return { tone: 'primary', icon: 'local_shipping' };
+    return { tone: 'success', icon: 'inventory_2' };
+}
+
+// tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' (.ui-badge)
+function Badge({ icon, tone = 'neutral', children }) {
     return (
-        <span style={{
-            padding: '0.2rem 0.6rem', borderRadius: '99px',
-            fontSize: '0.72rem', fontWeight: 700,
-            background: bg, color,
-            display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'
-        }}>
-            {icon && <span className="material-icons-round" style={{ fontSize: '12px' }}>{icon}</span>}
+        <span className={`ui-badge ui-badge--${tone}`}>
+            {icon && <span className="material-icons-round" aria-hidden="true">{icon}</span>}
             {children}
         </span>
     );
 }
 
-function SummaryCard({ icon, label, value, color, bg }) {
+// tone: '' (primario) | 'neutral' | 'success' | 'warning' | 'danger' | 'primary' | 'teal' | 'sky'
+// (.ui-stat-icon). valueTone: color del número ('success' | 'warning' | 'danger' | 'primary').
+function SummaryCard({ icon, label, value, tone, valueTone }) {
     return (
-        <div style={{
-            background: bg, borderRadius: '12px', padding: '1rem 1.25rem',
-            display: 'flex', alignItems: 'center', gap: '0.75rem',
-            flex: '1 1 180px', minWidth: '160px',
-            border: `1px solid ${color}22`
-        }}>
-            <span className="material-icons-round" style={{ color, fontSize: '28px' }}>{icon}</span>
-            <div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '3px' }}>{label}</div>
+        <div className="ui-stat isr-stat">
+            <span className={`ui-stat-icon${tone ? ` ui-stat-icon--${tone}` : ''}`} aria-hidden="true">
+                <span className="material-icons-round">{icon}</span>
+            </span>
+            <div className="ui-stat-content">
+                <span className={`ui-stat-value${valueTone ? ` ui-text-${valueTone}` : ''}`}>{value}</span>
+                <span className="ui-stat-label">{label}</span>
             </div>
         </div>
     );
 }
 
-function FilterBtn({ active, onClick, icon, children, activeColor, activeBackground }) {
-    const activeBg = activeBackground || 'var(--primary)';
-    const activeCol = activeColor || 'white';
+// Pestaña de vista; el icono lleva el tono del estado que filtra
+function FilterBtn({ active, onClick, icon, children, tone }) {
     return (
         <button
+            type="button"
             onClick={onClick}
             aria-pressed={active}
-            style={{
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.55rem 0.9rem', borderRadius: '8px', cursor: 'pointer',
-                fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap',
-                border: active ? 'none' : '1px solid var(--border)',
-                background: active ? activeBg : 'white',
-                color: active ? activeCol : 'var(--text-secondary)',
-                transition: 'all 0.15s'
-            }}
+            className={`ui-tab${active ? ' is-active' : ''}`}
         >
-            <span className="material-icons-round" style={{ fontSize: '16px' }}>{icon}</span>
+            <span className={`material-icons-round${tone ? ` isr-tab-icon--${tone}` : ''}`} aria-hidden="true">{icon}</span>
             {children}
         </button>
     );

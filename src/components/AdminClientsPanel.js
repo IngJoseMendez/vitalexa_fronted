@@ -2,6 +2,31 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import apiClient from '../api/client';
 import { useToast } from './ToastContainer';
+import SearchableSelect from './SearchableSelect';
+import { EXPORT_FORMATS } from './ExportButton';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
+import '../styles/areas/AdminClientsPanel.css';
+
+// Contenido de un botón de exportación con el mismo marcado que ExportButton: icono del formato
+// (o spinner mientras exporta) y etiqueta; mientras carga, la etiqueta normal queda invisible
+// debajo del texto de carga para que el botón no se encoja. El <button> sigue en este archivo
+// con su mismo onClick/disabled de siempre.
+function ExportButtonContent({ kind, busy, label, loadingLabel = 'Exportando...' }) {
+    return (
+        <>
+            {busy
+                ? <span className="ui-spinner" aria-hidden="true" />
+                : <span className="material-icons-round" aria-hidden="true">{EXPORT_FORMATS[kind].icon}</span>}
+            <span className="ui-btn-label">
+                {busy && <span className="ui-btn-label-sizer" aria-hidden="true">{label}</span>}
+                <span>{busy ? loadingLabel : label}</span>
+            </span>
+        </>
+    );
+}
+
+// Esqueletos con la forma de las tarjetas de cliente (solo mientras carga)
+const SKELETON_CARDS = [0, 1, 2, 3, 4, 5];
 
 /**
  * AdminClientsPanel - Panel for Admin/Owner to manage clients
@@ -18,6 +43,9 @@ function AdminClientsPanel({ refreshTrigger }) {
     const [selectedVendedor, setSelectedVendedor] = useState(''); // Filter by vendor
     const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
     const [exporting, setExporting] = useState(false);
+    // Qué botón inició la exportación ('seller' | 'route' | 'all'): solo ese muestra la carga;
+    // "exporting" sigue siendo la única guarda y el disabled de todos
+    const [exportingKey, setExportingKey] = useState(null);
     const [exportKeyword, setExportKeyword] = useState('');
     const [selectedExportVendor, setSelectedExportVendor] = useState('');
     const toast = useToast();
@@ -42,6 +70,12 @@ function AdminClientsPanel({ refreshTrigger }) {
     useEffect(() => {
         fetchData();
     }, [fetchData, refreshTrigger]);
+
+    useEffect(() => {
+        if (!exporting) setExportingKey(null);
+    }, [exporting]);
+
+    const exportBusy = (key) => exporting && exportingKey === key;
 
     // Helper to extract filename from Content-Disposition header
     const getFilenameFromContentDisposition = (contentDisposition) => {
@@ -166,142 +200,147 @@ function AdminClientsPanel({ refreshTrigger }) {
             : nameB.localeCompare(nameA);
     }), [clients, selectedVendedor, searchTerm, sortOrder]);
 
+    // Opciones de los selectores con buscador (mismos value/texto que tenían las <option>):
+    // exportar usa el id de la vendedora; el filtro de la lista, su username
+    const vendedorIdOptions = useMemo(
+        () => vendedores.map(v => ({ value: v.id, label: v.username })),
+        [vendedores]
+    );
+    const vendedorUsernameOptions = useMemo(
+        () => vendedores.map(v => ({ value: v.username, label: v.username })),
+        [vendedores]
+    );
+
     if (loading) {
-        return <div className="loading">Cargando clientes...</div>;
+        // aria-busy: el contenedor solo aparece con fade y, al llegar los datos, el panel entra
+        // con la subida (design-system 9.1). Los esqueletos tienen la forma de las tarjetas.
+        return (
+            <div className="acp acp-loading-view" aria-busy="true">
+                <div className="ui-loading acp-loading" role="status">
+                    <span className="ui-spinner" aria-hidden="true"></span>
+                    Cargando clientes...
+                </div>
+                <div className="acp-grid" aria-hidden="true">
+                    {SKELETON_CARDS.map(i => (
+                        <div key={i} className="acp-card acp-card--skeleton">
+                            <div className="acp-card-head">
+                                <span className="ui-skeleton ui-skeleton--circle acp-skeleton-avatar" />
+                                <div className="ui-skeleton-stack acp-card-heading">
+                                    <span className="ui-skeleton ui-skeleton--title acp-skeleton-title" />
+                                    <span className="ui-skeleton ui-skeleton--text acp-skeleton-chip" />
+                                </div>
+                            </div>
+                            <div className="ui-skeleton-stack acp-skeleton-rows">
+                                <span className="ui-skeleton ui-skeleton--text" />
+                                <span className="ui-skeleton ui-skeleton--text acp-skeleton-short" />
+                                <span className="ui-skeleton ui-skeleton--text" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="admin-clients-panel">
-            <div className="panel-header">
-                <h2>
-                    <span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>people</span>
-                    {' '}Gestión de Clientes
-                </h2>
-                <button className="btn-add" onClick={() => setShowModal(true)}>
-                    <span className="material-icons-round" style={{ fontSize: '18px', verticalAlign: 'middle' }}>add</span>
-                    {' '}Nuevo Cliente
-                </button>
-            </div>
+        <div className="admin-clients-panel acp">
+            <header className="ui-page-header acp-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">people</span>
+                        {' '}Gestión de Clientes
+                    </h2>
+                </div>
+                <div className="ui-page-actions">
+                    <button type="button" className="ui-btn ui-btn--primary" onClick={() => setShowModal(true)}>
+                        <span className="material-icons-round" aria-hidden="true">add</span>
+                        {' '}Nuevo Cliente
+                    </button>
+                </div>
+            </header>
 
             {/* Excel Export Section */}
-            <div style={{
-                background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-                border: '1px solid #a7f3d0',
-                borderRadius: '12px',
-                padding: '1rem 1.25rem',
-                marginBottom: '1.5rem',
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '1rem',
-                alignItems: 'flex-end'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', width: '100%' }}>
-                    <span className="material-icons-round" style={{ color: '#059669', fontSize: '20px' }}>download</span>
-                    <span style={{ fontWeight: 600, color: '#065f46', fontSize: '0.95rem' }}>Exportar Clientes a Excel</span>
-                </div>
-
-                {/* Export by Seller */}
-                <div style={{ flex: '1', minWidth: '250px' }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#374151', marginBottom: '0.4rem', fontWeight: 500 }}>
-                        Por Vendedora
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <select
-                            value={selectedExportVendor}
-                            onChange={(e) => setSelectedExportVendor(e.target.value)}
-                            disabled={exporting}
-                            style={{
-                                flex: 1,
-                                padding: '0.6rem 0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: '0.9rem',
-                                background: 'white',
-                                cursor: exporting ? 'not-allowed' : 'pointer'
-                            }}
-                        >
-                            <option value="">-- Seleccionar --</option>
-                            {vendedores.map(v => (
-                                <option key={v.id} value={v.id}>{v.username}</option>
-                            ))}
-                        </select>
-                        <button
-                            onClick={handleExportBySeller}
-                            disabled={!selectedExportVendor || exporting}
-                            style={{
-                                background: selectedExportVendor && !exporting ? '#10b981' : '#d1d5db',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '0.6rem 1rem',
-                                fontSize: '0.85rem',
-                                fontWeight: 600,
-                                cursor: selectedExportVendor && !exporting ? 'pointer' : 'not-allowed',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                whiteSpace: 'nowrap'
-                            }}
-                        >
-                            <span className="material-icons-round" style={{ fontSize: '16px' }}>table_chart</span>
-                            {exporting ? 'Exportando...' : 'Exportar'}
-                        </button>
+            <section className="ui-section acp-export">
+                <div className="ui-section-head">
+                    <span className="ui-icon-tile ui-icon-tile--success" aria-hidden="true">
+                        <span className="material-icons-round">download</span>
+                    </span>
+                    <div>
+                        <h3 className="ui-section-title">Exportar Clientes a Excel</h3>
                     </div>
                 </div>
 
-                {/* Export by Route */}
-                <div style={{ flex: '1', minWidth: '250px' }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#374151', marginBottom: '0.4rem', fontWeight: 500 }}>
-                        Por Ruta/Dirección
-                    </label>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <input
-                            type="text"
-                            placeholder="Ej: Zona 1, Centro..."
-                            value={exportKeyword}
-                            onChange={(e) => setExportKeyword(e.target.value)}
-                            disabled={exporting}
-                            onKeyPress={(e) => {
-                                if (e.key === 'Enter' && exportKeyword.trim() && !exporting) {
-                                    handleExportByRoute();
-                                }
-                            }}
-                            style={{
-                                flex: 1,
-                                padding: '0.6rem 0.8rem',
-                                borderRadius: '8px',
-                                border: '1px solid #d1d5db',
-                                fontSize: '0.9rem',
-                                background: 'white'
-                            }}
-                        />
-                        <button
-                            onClick={handleExportByRoute}
-                            disabled={!exportKeyword.trim() || exporting}
-                            style={{
-                                background: exportKeyword.trim() && !exporting ? '#10b981' : '#d1d5db',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '0.6rem 1rem',
-                                fontSize: '0.85rem',
-                                fontWeight: 600,
-                                cursor: exportKeyword.trim() && !exporting ? 'pointer' : 'not-allowed',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.4rem',
-                                whiteSpace: 'nowrap'
-                            }}
-                        >
-                            <span className="material-icons-round" style={{ fontSize: '16px' }}>table_chart</span>
-                            {exporting ? 'Exportando...' : 'Exportar'}
-                        </button>
+                <div className="ui-grid acp-export-grid">
+                    {/* Export by Seller */}
+                    <div className="ui-field">
+                        <label className="ui-label" htmlFor="acp-export-vendor">
+                            Por Vendedora
+                        </label>
+                        <div className="acp-inline">
+                            <SearchableSelect
+                                id="acp-export-vendor"
+                                value={selectedExportVendor}
+                                onChange={(e) => setSelectedExportVendor(e.target.value)}
+                                disabled={exporting}
+                                placeholder="Seleccionar vendedora"
+                                options={vendedorIdOptions}
+                            />
+                            <button
+                                type="button"
+                                className={`ui-btn ui-btn--excel${exportBusy('seller') ? ' is-loading' : ''}`}
+                                aria-busy={exportBusy('seller') || undefined}
+                                onClickCapture={() => setExportingKey('seller')}
+                                onClick={handleExportBySeller}
+                                disabled={!selectedExportVendor || exporting}
+                            >
+                                <ExportButtonContent kind="excel" busy={exportBusy('seller')} label="Exportar" loadingLabel="Exportando..." />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Export by Route */}
+                    <div className="ui-field">
+                        <label className="ui-label" htmlFor="acp-export-route">
+                            Por Ruta/Dirección
+                        </label>
+                        <div className="acp-inline">
+                            <input
+                                id="acp-export-route"
+                                className="ui-input"
+                                type="text"
+                                placeholder="Ej: Zona 1, Centro..."
+                                value={exportKeyword}
+                                onChange={(e) => setExportKeyword(e.target.value)}
+                                disabled={exporting}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter' && exportKeyword.trim() && !exporting) {
+                                        // Enter también exporta por ruta: marca ese botón como el que carga
+                                        setExportingKey('route');
+                                        handleExportByRoute();
+                                    }
+                                }}
+                            />
+                            <button
+                                type="button"
+                                className={`ui-btn ui-btn--excel${exportBusy('route') ? ' is-loading' : ''}`}
+                                aria-busy={exportBusy('route') || undefined}
+                                onClickCapture={() => setExportingKey('route')}
+                                onClick={handleExportByRoute}
+                                disabled={!exportKeyword.trim() || exporting}
+                            >
+                                <ExportButtonContent kind="excel" busy={exportBusy('route')} label="Exportar" loadingLabel="Exportando..." />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {/* Export All Clients */}
-                <div style={{ width: '100%', marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid #d1fae5' }}>
+                <div className="acp-export-all">
                     <button
+                        type="button"
+                        className={`ui-btn ui-btn--excel ui-btn--lg ui-btn--block acp-export-all-btn${exportBusy('all') ? ' is-loading' : ''}`}
+                        aria-busy={exportBusy('all') || undefined}
+                        onClickCapture={() => setExportingKey('all')}
                         onClick={async () => {
                             if (exporting) return;
                             try {
@@ -335,231 +374,161 @@ function AdminClientsPanel({ refreshTrigger }) {
                             }
                         }}
                         disabled={exporting}
-                        style={{
-                            width: '100%',
-                            background: exporting ? '#d1d5db' : 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '0.75rem 1rem',
-                            fontSize: '0.9rem',
-                            fontWeight: 600,
-                            cursor: exporting ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem'
-                        }}
                     >
-                        <span className="material-icons-round" style={{ fontSize: '18px' }}>download</span>
-                        {exporting ? 'Exportando...' : 'Exportar TODOS los Clientes'}
+                        <ExportButtonContent kind="excel" busy={exportBusy('all')} label="Exportar TODOS los Clientes" loadingLabel="Exportando..." />
                     </button>
                 </div>
-            </div>
+            </section>
 
             {/* Filters Row */}
-            <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '1rem',
-                marginBottom: '1.5rem',
-                alignItems: 'center'
-            }}>
+            <div className="ui-toolbar acp-toolbar">
                 {/* Search Bar */}
-                <div className="search-container" style={{ flex: '1', minWidth: '250px', marginBottom: 0 }}>
-                    <span className="material-icons-round search-icon">search</span>
+                <div className="ui-search acp-search">
+                    <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                     <input
                         type="text"
+                        className="ui-input"
+                        aria-label="Buscar clientes"
                         placeholder="Buscar por nombre, NIT, email, teléfono, dirección, municipio..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="search-input"
-                        style={{ width: '100%' }}
                     />
                 </div>
 
                 {/* Vendor Filter Dropdown */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '20px' }}>badge</span>
-                    <select
+                <div className="acp-vendor-filter">
+                    <SearchableSelect
+                        className="acp-vendor-select"
+                        aria-label="Filtrar por vendedor"
                         value={selectedVendedor}
                         onChange={(e) => setSelectedVendedor(e.target.value)}
-                        style={{
-                            padding: '0.6rem 1rem',
-                            borderRadius: '8px',
-                            border: '1px solid #e5e7eb',
-                            fontSize: '0.9rem',
-                            minWidth: '180px',
-                            background: selectedVendedor ? '#f0fdf4' : 'white',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <option value="">Todos los vendedores</option>
-                        {vendedores.map(v => (
-                            <option key={v.id} value={v.username}>{v.username}</option>
-                        ))}
-                    </select>
+                        emptyOption={{ label: 'Todos los vendedores' }}
+                        options={vendedorUsernameOptions}
+                    />
                     {selectedVendedor && (
                         <button
+                            type="button"
+                            className="ui-icon-btn"
                             onClick={() => setSelectedVendedor('')}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '4px',
-                                color: '#6b7280',
-                                display: 'flex',
-                                alignItems: 'center'
-                            }}
                             title="Limpiar filtro"
+                            aria-label="Limpiar filtro"
                         >
-                            <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                            <span className="material-icons-round" aria-hidden="true">close</span>
                         </button>
                     )}
                 </div>
 
                 {/* Results count */}
-                <span style={{
-                    fontSize: '0.85rem',
-                    color: 'var(--text-muted)',
-                    padding: '0.5rem 0.75rem',
-                    background: '#f3f4f6',
-                    borderRadius: '20px'
-                }}>
+                <span className="ui-badge ui-badge--primary acp-count">
                     {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}
                 </span>
 
+                <span className="ui-toolbar-spacer" />
+
                 {/* Sort Button */}
                 <button
-                    className="btn-sort"
+                    type="button"
+                    className="ui-btn ui-btn--secondary acp-sort"
                     onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
                     title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
-                    style={{
-                        background: 'white',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        padding: '0.5rem 0.8rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        marginLeft: 'auto'
-                    }}
                 >
-                    <span className="material-icons-round">sort_by_alpha</span>
+                    <span className="material-icons-round" aria-hidden="true">sort_by_alpha</span>
                     {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
                 </button>
             </div>
 
 
             {/* Clients Grid */}
-            <div className="clients-grid" style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                gap: '1.5rem'
-            }}>
+            {/* ui-stagger: solo las primeras 8 tarjetas entran escalonadas */}
+            <div className="acp-grid ui-stagger">
                 {filteredClients.length === 0 ? (
-                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                        <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>person_search</span>
-                        <p style={{ marginTop: '0.5rem' }}>No se encontraron clientes</p>
+                    <div className="ui-empty acp-empty">
+                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">person_search</span>
+                        <p className="ui-empty-title">No se encontraron clientes</p>
                     </div>
                 ) : (
                     filteredClients.map(cliente => (
-                        <div key={cliente.id} className="cliente-card" style={{
-                            background: 'white',
-                            borderRadius: '12px',
-                            padding: '1.25rem',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                            border: '1px solid #e5e7eb'
-                        }}>
-                            <div style={{ marginBottom: '0.75rem' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>{cliente.nombre}</h3>
-                                <span style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    marginTop: '0.5rem',
-                                    padding: '4px 10px',
-                                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                                    color: 'white',
-                                    borderRadius: '20px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 600
-                                }}>
-                                    <span className="material-icons-round" style={{ fontSize: '14px' }}>badge</span>
-                                    Vendedor: {cliente.vendedorAsignadoNombre || 'N/A'}
+                        <article key={cliente.id} className="acp-card">
+                            <div className="acp-card-head">
+                                {/* Avatar de iniciales: mismo tono para el mismo cliente en toda la app */}
+                                <span className={`ui-avatar ui-avatar--${avatarTone(cliente.nombre)}`} aria-hidden="true">
+                                    {avatarInitials(cliente.nombre)}
                                 </span>
+                                <div className="acp-card-heading">
+                                    <h3 className="acp-card-title">{cliente.nombre}</h3>
+                                    <span className={`ui-badge ${cliente.vendedorAsignadoNombre ? 'ui-badge--primary' : 'ui-badge--neutral'} acp-vendor-badge`}>
+                                        <span className="material-icons-round" aria-hidden="true">badge</span>
+                                        Vendedor: {cliente.vendedorAsignadoNombre || 'N/A'}
+                                    </span>
+                                </div>
                             </div>
 
-                            <div style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6 }}>
-                                <p style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.4rem 0' }}>
-                                    <span className="material-icons-round" style={{ fontSize: '16px', color: '#6b7280' }}>email</span>
-                                    {cliente.email}
-                                </p>
-                                <p style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.4rem 0' }}>
-                                    <span className="material-icons-round" style={{ fontSize: '16px', color: '#6b7280' }}>phone</span>
-                                    {cliente.telefono}
-                                </p>
-                                <p style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.4rem 0' }}>
-                                    <span className="material-icons-round" style={{ fontSize: '16px', color: '#6b7280' }}>place</span>
-                                    {cliente.direccion || 'Sin dirección'}
-                                </p>
-                                <p style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.4rem 0' }}>
-                                    <span className="material-icons-round" style={{ fontSize: '16px', color: '#6b7280' }}>home_work</span>
-                                    NIT: {cliente.nit}
-                                </p>
+                            {/* Contacto: correo azul, teléfono verde, dirección ámbar, NIT teal; vacíos en texto tenue */}
+                            <ul className="ui-info-list acp-card-meta">
+                                <li className={`ui-info-row${cliente.email ? '' : ' is-empty'}`}>
+                                    <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true">
+                                        <span className="material-icons-round">email</span>
+                                    </span>
+                                    <span>{cliente.email || 'Sin correo'}</span>
+                                </li>
+                                <li className={`ui-info-row${cliente.telefono ? '' : ' is-empty'}`}>
+                                    <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true">
+                                        <span className="material-icons-round">phone</span>
+                                    </span>
+                                    <span>{cliente.telefono || 'Sin teléfono'}</span>
+                                </li>
+                                <li className={`ui-info-row${cliente.direccion ? '' : ' is-empty'}`}>
+                                    <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--warning" aria-hidden="true">
+                                        <span className="material-icons-round">place</span>
+                                    </span>
+                                    <span>{cliente.direccion || 'Sin dirección'}</span>
+                                </li>
+                                <li className={`ui-info-row${cliente.nit ? '' : ' is-empty'}`}>
+                                    <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--teal" aria-hidden="true">
+                                        <span className="material-icons-round">home_work</span>
+                                    </span>
+                                    <span>{cliente.nit ? <>NIT: {cliente.nit}</> : 'Sin NIT'}</span>
+                                </li>
                                 {cliente.administrador && (
-                                    <p style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.4rem 0' }}>
-                                        <span className="material-icons-round" style={{ fontSize: '16px', color: '#6b7280' }}>person</span>
-                                        Admin: {cliente.administrador}
-                                    </p>
+                                    <li className="ui-info-row">
+                                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--sky" aria-hidden="true">
+                                            <span className="material-icons-round">person</span>
+                                        </span>
+                                        <span>Admin: {cliente.administrador}</span>
+                                    </li>
                                 )}
                                 {cliente.representanteLegal && (
-                                    <p style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.4rem 0' }}>
-                                        <span className="material-icons-round" style={{ fontSize: '16px', color: '#6b7280' }}>gavel</span>
-                                        Rep. Legal: {cliente.representanteLegal}
-                                    </p>
+                                    <li className="ui-info-row">
+                                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--sky" aria-hidden="true">
+                                            <span className="material-icons-round">gavel</span>
+                                        </span>
+                                        <span>Rep. Legal: {cliente.representanteLegal}</span>
+                                    </li>
                                 )}
-                            </div>
+                            </ul>
 
-                            <div style={{
-                                marginTop: '1rem',
-                                paddingTop: '0.75rem',
-                                borderTop: '1px solid #e5e7eb',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', color: '#059669', fontWeight: 600 }}>
-                                    <span className="material-icons-round" style={{ fontSize: '16px' }}>shopping_bag</span>
-                                    Compras: ${formatCurrency(cliente.totalCompras || 0)}
+                            <div className="acp-card-footer">
+                                <span className="acp-card-total">
+                                    <span className="material-icons-round" aria-hidden="true">shopping_bag</span>
+                                    Compras:{' '}
+                                    <span className={(cliente.totalCompras || 0) > 0 ? 'ui-amount--success' : 'acp-card-total-zero'}>
+                                        ${formatCurrency(cliente.totalCompras || 0)}
+                                    </span>
                                 </span>
                                 <button
+                                    type="button"
+                                    className="ui-btn ui-btn--secondary ui-btn--sm"
                                     onClick={() => {
                                         setEditingClient(cliente);
                                         setShowEditModal(true);
                                     }}
-                                    style={{
-                                        background: '#3b82f6',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        padding: '0.4rem 0.8rem',
-                                        fontSize: '0.8rem',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        fontWeight: '500'
-                                    }}
                                     title="Editar cliente"
                                 >
-                                    <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
+                                    <span className="material-icons-round" aria-hidden="true">edit</span>
                                     Editar
                                 </button>
                             </div>
-                        </div>
+                        </article>
                     ))
                 )}
             </div>
@@ -669,151 +638,155 @@ function AdminClientFormModal({ vendedores, onClose, onSuccess }) {
         formData.direccion.trim() && formData.vendedorId;
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
-                maxWidth: '520px',
-                width: '100%',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                margin: 'auto'
-            }}>
-                <div className="modal-header">
-                    <h3>
-                        <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>person_add</span>
-                        Crear Cliente
-                    </h3>
-                    <button className="btn-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+        <div className="ui-modal-overlay acp-overlay">
+            <div
+                className="ui-modal ui-modal--md acp-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="acp-new-title"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">person_add</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="acp-new-title" className="ui-modal-title">
+                            Crear Cliente
+                        </h3>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
-                {/* Vendor Selection Info Box */}
-                <div style={{
-                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
-                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                    borderRadius: '8px',
-                    padding: '12px 16px',
-                    margin: '0 0 16px 0',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px'
-                }}>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '20px', marginTop: '2px' }}>info</span>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        <strong style={{ color: 'var(--text-primary)' }}>Asignación de Vendedor:</strong>
-                        <br />
-                        El cliente será asignado al vendedor seleccionado y solo ese vendedor podrá ver y gestionar este cliente.
-                    </div>
-                </div>
+                <form onSubmit={handleSubmit} className="acp-form">
+                    <div className="ui-modal-body">
+                        {/* Vendor Selection Info Box */}
+                        <div className="ui-alert ui-alert--info">
+                            <span className="material-icons-round" aria-hidden="true">info</span>
+                            <div>
+                                <strong className="ui-alert-title">Asignación de Vendedor:</strong>
+                                El cliente será asignado al vendedor seleccionado y solo ese vendedor podrá ver y gestionar este cliente.
+                            </div>
+                        </div>
 
-                <form onSubmit={handleSubmit} className="client-form">
-                    {/* Vendor Selection */}
-                    <div className="form-group">
-                        <label>
-                            Asignar a Vendedor <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
-                        </label>
-                        <select
-                            value={formData.vendedorId}
-                            onChange={(e) => setFormData({ ...formData, vendedorId: e.target.value })}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                borderRadius: '8px',
-                                border: '1px solid #e5e7eb',
-                                fontSize: '0.95rem',
-                                background: formData.vendedorId ? '#f0fdf4' : 'white'
-                            }}
-                        >
-                            <option value="">-- Seleccionar vendedor --</option>
-                            {vendedores.map(v => (
-                                <option key={v.id} value={v.id}>{v.username}</option>
-                            ))}
-                        </select>
+                        <section className="ui-section">
+                            <div className="ui-grid">
+                                {/* Vendor Selection */}
+                                <div className="ui-field ui-span-full">
+                                    <label className="ui-label" htmlFor="acp-new-vendedor">
+                                        Asignar a Vendedor <span className="ui-required">*</span>
+                                    </label>
+                                    <SearchableSelect
+                                        id="acp-new-vendedor"
+                                        value={formData.vendedorId}
+                                        onChange={(e) => setFormData({ ...formData, vendedorId: e.target.value })}
+                                        required
+                                        placeholder="Seleccionar vendedor"
+                                        options={vendedores.map(v => ({ value: v.id, label: v.username }))}
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-new-nit">NIT <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-new-nit"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.nit}
+                                        onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+                                        placeholder="Ej: 123456789"
+                                        required
+                                    />
+                                    <small className="ui-help acp-help">
+                                        <span className="material-icons-round" aria-hidden="true">vpn_key</span>
+                                        Este será el usuario y contraseña del cliente
+                                    </small>
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-new-nombre">Nombre de Establecimiento <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-new-nombre"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.nombre}
+                                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                                        placeholder="Nombre del establecimiento"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-new-admin">Administrador <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-new-admin"
+                                        className="ui-input"
+                                        value={formData.administrador}
+                                        onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+                                        placeholder="Nombre del administrador"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-new-rep">Representante Legal <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-new-rep"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.representanteLegal}
+                                        onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+                                        placeholder="Nombre del representante legal"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-new-email">Email</label>
+                                    <input
+                                        id="acp-new-email"
+                                        className="ui-input"
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        placeholder="correo@ejemplo.com (Opcional)"
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-new-tel">Teléfono</label>
+                                    <input
+                                        id="acp-new-tel"
+                                        className="ui-input"
+                                        type="tel"
+                                        value={formData.telefono}
+                                        onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                                        placeholder="Número de teléfono (Opcional)"
+                                    />
+                                </div>
+
+                                <div className="ui-field ui-span-full">
+                                    <label className="ui-label" htmlFor="acp-new-dir">Dirección</label>
+                                    <textarea
+                                        id="acp-new-dir"
+                                        className="ui-textarea acp-textarea"
+                                        value={formData.direccion}
+                                        onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                                        rows="2"
+                                        placeholder="Dirección del cliente (Opcional)"
+                                    />
+                                </div>
+                            </div>
+                        </section>
                     </div>
 
-                    <div className="form-group">
-                        <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.nit}
-                            onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
-                            placeholder="Ej: 123456789"
-                            required
-                        />
-                        <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                            <span className="material-icons-round" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '4px' }}>vpn_key</span>
-                            Este será el usuario y contraseña del cliente
-                        </small>
-                    </div>
-
-                    <div className="form-group">
-                        <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.nombre}
-                            onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                            placeholder="Nombre del establecimiento"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            value={formData.administrador}
-                            onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
-                            placeholder="Nombre del administrador"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.representanteLegal}
-                            onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
-                            placeholder="Nombre del representante legal"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Email</label>
-                        <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="correo@ejemplo.com (Opcional)"
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Teléfono</label>
-                        <input
-                            type="tel"
-                            value={formData.telefono}
-                            onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                            placeholder="Número de teléfono (Opcional)"
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Dirección</label>
-                        <textarea
-                            value={formData.direccion}
-                            onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                            rows="2"
-                            placeholder="Dirección del cliente (Opcional)"
-                        />
-                    </div>
-
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="btn-cancel">
+                    <div className="ui-modal-footer">
+                        <button type="button" onClick={onClose} className="ui-btn ui-btn--secondary">
                             Cancelar
                         </button>
-                        <button type="submit" disabled={saving || !isFormValid} className="btn-save">
+                        <button type="submit" disabled={saving || !isFormValid} className="ui-btn ui-btn--primary">
                             {saving ? 'Guardando...' : 'Crear Cliente'}
                         </button>
                     </div>
@@ -877,125 +850,139 @@ function AdminClientEditModal({ clientToEdit, vendedores, onClose, onSuccess }) 
         formData.vendedorId;
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
-                maxWidth: '520px',
-                width: '100%',
-                maxHeight: '90vh',
-                overflowY: 'auto',
-                margin: 'auto'
-            }}>
-                <div className="modal-header">
-                    <h3>
-                        <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>edit</span>
-                        Editar Cliente
-                    </h3>
-                    <button className="btn-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+        <div className="ui-modal-overlay acp-overlay">
+            <div
+                className="ui-modal ui-modal--md acp-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="acp-edit-title"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">edit</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="acp-edit-title" className="ui-modal-title">
+                            Editar Cliente
+                        </h3>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="client-form">
-                    <div className="form-group">
-                        <label>
-                            Asignar a Vendedor <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span>
-                        </label>
-                        <select
-                            value={formData.vendedorId}
-                            onChange={(e) => setFormData({ ...formData, vendedorId: e.target.value })}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                borderRadius: '8px',
-                                border: '1px solid #e5e7eb',
-                                fontSize: '0.95rem',
-                                background: formData.vendedorId ? '#f0fdf4' : 'white'
-                            }}
-                        >
-                            <option value="">-- Seleccionar vendedor --</option>
-                            {vendedores.map(v => (
-                                <option key={v.id} value={v.id}>{v.username}</option>
-                            ))}
-                        </select>
+                <form onSubmit={handleSubmit} className="acp-form">
+                    <div className="ui-modal-body">
+                        <section className="ui-section">
+                            <div className="ui-grid">
+                                <div className="ui-field ui-span-full">
+                                    <label className="ui-label" htmlFor="acp-edit-vendedor">
+                                        Asignar a Vendedor <span className="ui-required">*</span>
+                                    </label>
+                                    <SearchableSelect
+                                        id="acp-edit-vendedor"
+                                        value={formData.vendedorId}
+                                        onChange={(e) => setFormData({ ...formData, vendedorId: e.target.value })}
+                                        required
+                                        placeholder="Seleccionar vendedor"
+                                        options={vendedores.map(v => ({ value: v.id, label: v.username }))}
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-edit-nit">NIT <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-edit-nit"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.nit}
+                                        onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-edit-nombre">Nombre de Establecimiento <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-edit-nombre"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.nombre}
+                                        onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-edit-admin">Administrador <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-edit-admin"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.administrador}
+                                        onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+                                        placeholder="Nombre del administrador"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-edit-rep">Representante Legal <span className="ui-required">*</span></label>
+                                    <input
+                                        id="acp-edit-rep"
+                                        className="ui-input"
+                                        type="text"
+                                        value={formData.representanteLegal}
+                                        onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+                                        placeholder="Nombre del representante legal"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-edit-email">Email</label>
+                                    <input
+                                        id="acp-edit-email"
+                                        className="ui-input"
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        placeholder="Opcional"
+                                    />
+                                </div>
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="acp-edit-tel">Teléfono</label>
+                                    <input
+                                        id="acp-edit-tel"
+                                        className="ui-input"
+                                        type="tel"
+                                        value={formData.telefono}
+                                        onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                                        placeholder="Opcional"
+                                    />
+                                </div>
+
+                                <div className="ui-field ui-span-full">
+                                    <label className="ui-label" htmlFor="acp-edit-dir">Dirección</label>
+                                    <textarea
+                                        id="acp-edit-dir"
+                                        className="ui-textarea acp-textarea"
+                                        value={formData.direccion}
+                                        onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                                        rows="2"
+                                    />
+                                </div>
+                            </div>
+                        </section>
                     </div>
 
-                    <div className="form-group">
-                        <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.nit}
-                            onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.nombre}
-                            onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.administrador}
-                            onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
-                            placeholder="Nombre del administrador"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-                        <input
-                            type="text"
-                            value={formData.representanteLegal}
-                            onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
-                            placeholder="Nombre del representante legal"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Email</label>
-                        <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="Opcional"
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Teléfono</label>
-                        <input
-                            type="tel"
-                            value={formData.telefono}
-                            onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-                            placeholder="Opcional"
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Dirección</label>
-                        <textarea
-                            value={formData.direccion}
-                            onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-                            rows="2"
-                        />
-                    </div>
-
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="btn-cancel">
+                    <div className="ui-modal-footer">
+                        <button type="button" onClick={onClose} className="ui-btn ui-btn--secondary">
                             Cancelar
                         </button>
-                        <button type="submit" disabled={saving || !isFormValid} className="btn-save">
+                        <button type="submit" disabled={saving || !isFormValid} className="ui-btn ui-btn--primary">
                             {saving ? 'Guardando...' : 'Actualizar Cliente'}
                         </button>
                     </div>

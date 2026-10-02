@@ -1,675 +1,682 @@
 /* ============================================================
-   EMPACADOR DASHBOARD — Inventario Mobile-First 2026
+   EMPACADOR — Visor de inventario (móvil primero)
+   Usa las primitivas .ui-* y los tokens de design-system.css.
+   Todo selector va bajo la raíz .emp-dashboard (el CSS de CRA es global).
    ============================================================ */
 
-/* ── Reset / Base ── */
-*, *::before, *::after { box-sizing: border-box; }
-
 .emp-dashboard {
-    min-height: 100vh;
-    background: #f1f5f9;
     display: flex;
     flex-direction: column;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    gap: var(--space-4);
+    width: 100%;
+    max-width: var(--content-max-w);
+    min-height: calc(100vh - var(--app-header-h));
+    padding: var(--space-4);
+    color: var(--color-text);
     -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Top Bar ── */
-.emp-topbar {
-    position: sticky;
-    top: 0;
-    z-index: 200;
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    color: white;
-    padding: 0.875rem 1rem;
+/* ── Encabezado de página ── */
+.emp-dashboard .emp-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: 0 2px 12px rgba(79, 70, 229, 0.35);
-    min-height: 64px;
+    gap: var(--space-3);
 }
 
-.emp-topbar-left {
+.emp-dashboard .emp-topbar-left {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--space-3);
+    min-width: 0;
 }
 
-.emp-logo-icon {
-    font-size: 28px !important;
-    color: rgba(255, 255, 255, 0.9);
+.emp-dashboard .emp-topbar-heading {
+    min-width: 0;
 }
 
-.emp-title {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 800;
-    letter-spacing: -0.3px;
-    line-height: 1.2;
-}
-
-.emp-subtitle {
-    margin: 0;
-    font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.7);
-    line-height: 1;
-    margin-top: 2px;
-}
-
-.emp-refresh-btn {
-    background: rgba(255, 255, 255, 0.15);
-    border: 1.5px solid rgba(255, 255, 255, 0.3);
-    color: white;
-    border-radius: 50%;
-    width: 42px;
-    height: 42px;
+/* Baldosa de icono (como la cabecera de los modales) */
+.emp-dashboard .emp-logo-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    backdrop-filter: blur(4px);
     flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-text);
+    font-size: 22px;
 }
 
-.emp-refresh-btn:hover,
-.emp-refresh-btn:active {
-    background: rgba(255, 255, 255, 0.25);
+/* Actualizar: el icono gira al pasar el mouse y al presionar (microinteracción) */
+.emp-dashboard .emp-refresh-btn .material-icons-round {
+    transition: transform 240ms var(--ease);
+}
+
+.emp-dashboard .emp-refresh-btn:hover .material-icons-round {
+    transform: rotate(90deg);
+}
+
+.emp-dashboard .emp-refresh-btn:active .material-icons-round {
     transform: rotate(180deg);
 }
 
-/* ── Main ── */
-.emp-main {
-    flex: 1;
-    overflow-y: auto;
-    padding-bottom: 2rem;
-}
-
-/* ── Inventario Panel ── */
-.emp-inv-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 0.875rem;
-    padding: 0.875rem;
-}
-
-/* ── Stats Row ── */
-.emp-stats-row {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
-}
-
-.emp-stat-card {
-    background: var(--stat-bg, #eef2ff);
-    border-radius: 14px;
-    padding: 0.875rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.3rem;
-    text-align: center;
-    border: 1.5px solid transparent;
-    transition: all 0.2s;
-    min-height: 90px;
-    justify-content: center;
-}
-
-.emp-stat-card.clickable {
-    cursor: pointer;
-}
-
-.emp-stat-card.clickable:hover,
-.emp-stat-card.clickable:active {
-    transform: scale(1.03);
-    border-color: var(--stat-color, #6366f1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.emp-stat-card.active {
-    border-color: var(--stat-color, #6366f1);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--stat-color, #6366f1) 20%, transparent);
-}
-
-.emp-stat-icon {
-    font-size: 22px !important;
-    color: var(--stat-color, #6366f1);
-}
-
-.emp-stat-value {
-    font-size: 1.6rem;
-    font-weight: 900;
-    color: var(--stat-color, #6366f1);
-    line-height: 1;
-}
-
-.emp-stat-label {
-    font-size: 0.7rem;
-    color: #64748b;
+.emp-dashboard .emp-title {
+    margin: 0;
+    font-size: var(--text-xl);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    line-height: 1.2;
+    line-height: var(--leading-title);
+    letter-spacing: var(--tracking-title);
+    color: var(--color-text);
 }
 
-/* ── Controls ── */
-.emp-controls {
-    background: white;
-    border-radius: 16px;
-    padding: 0.875rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+.emp-dashboard .emp-subtitle {
+    margin: 2px 0 0;
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--color-text-secondary); /* sobre el canvas, muted no llega a 4.5:1 */
+    font-variant-numeric: tabular-nums;
 }
 
-/* Search */
-.emp-search-wrap {
-    display: flex;
-    align-items: center;
-    background: #f8fafc;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0.6rem 0.875rem;
-    gap: 0.5rem;
-    transition: all 0.2s;
-}
-
-.emp-search-wrap:focus-within {
-    border-color: #4f46e5;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
-}
-
-.emp-search-icon {
-    font-size: 20px !important;
-    color: #94a3b8;
-    flex-shrink: 0;
-}
-
-.emp-search-input {
+/* ── Contenido ── */
+.emp-dashboard .emp-main {
     flex: 1;
-    border: none;
-    background: transparent;
-    outline: none;
-    font-size: 0.95rem;
-    color: #0f172a;
     min-width: 0;
 }
 
-.emp-search-input::placeholder {
-    color: #94a3b8;
+.emp-dashboard .emp-inv-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
 }
 
-.emp-clear-btn {
-    background: none;
-    border: none;
+/* ── Estadísticas (ui-stat): 2 columnas en móvil, 4 en tablet/escritorio ── */
+.emp-dashboard .emp-stats-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.emp-dashboard .emp-stat-card {
+    padding: var(--space-3);
+    box-shadow: var(--shadow-card);
+    transition: border-color var(--duration) var(--ease),
+        background-color var(--duration) var(--ease),
+        box-shadow var(--duration) var(--ease),
+        scale var(--duration-press) var(--ease);
+}
+
+.emp-dashboard .emp-stat-card.clickable {
     cursor: pointer;
-    color: #94a3b8;
-    padding: 2px;
+}
+
+/* Tarjeta que filtra: realce de sombra y borde al pasar el mouse (sin desplazarla) y
+   leve presión al tocarla */
+.emp-dashboard .emp-stat-card.clickable:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-card-hover);
+}
+
+.emp-dashboard .emp-stat-card.clickable:active {
+    scale: 0.98;
+}
+
+/* Filtro activo: mismo lenguaje que una tarjeta de elección seleccionada */
+.emp-dashboard .emp-stat-card.active,
+.emp-dashboard .emp-stat-card.active:hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+}
+
+.emp-dashboard .emp-stat-card.active .emp-stat-label {
+    color: var(--color-text-secondary);
+}
+
+.emp-dashboard .emp-stat-value {
+    font-size: var(--text-xl);
+}
+
+.emp-dashboard .emp-stat-label {
+    line-height: 1.3;
+}
+
+/* ── Barra de herramientas ── */
+.emp-dashboard .emp-controls {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Buscador (ui-search) a todo el ancho de la tarjeta */
+.emp-dashboard .emp-search-wrap {
+    max-width: none;
+}
+
+.emp-dashboard .emp-controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+}
+
+/* Filtros rápidos (pastillas) */
+.emp-dashboard .emp-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.emp-dashboard .emp-chip {
+    transition: background-color var(--duration-control) var(--ease),
+        border-color var(--duration-control) var(--ease),
+        color var(--duration-control) var(--ease),
+        scale var(--duration-press) var(--ease);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+}
+
+.emp-dashboard .emp-chip .material-icons-round {
+    font-size: 16px;
+}
+
+.emp-dashboard .emp-chip:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.emp-dashboard .emp-chip:active {
+    scale: 0.97;
+}
+
+/* Icono de cada filtro con su color (todos azul, alertas rojo, en pedidos ámbar) */
+.emp-dashboard .emp-chip .material-icons-round {
+    color: var(--color-primary);
+}
+
+.emp-dashboard .emp-filter-chips > .emp-chip:nth-child(2) .material-icons-round {
+    color: var(--color-danger);
+}
+
+.emp-dashboard .emp-filter-chips > .emp-chip:nth-child(3) .material-icons-round {
+    color: var(--color-warning);
+}
+
+.emp-dashboard .emp-chip.active {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+    color: var(--color-primary-text);
+}
+
+.emp-dashboard .emp-chip.active-danger {
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger);
+    color: var(--color-danger-text);
+}
+
+.emp-dashboard .emp-chip.active-warning {
+    background: var(--color-warning-soft);
+    border-color: var(--color-warning);
+    color: var(--color-warning-text);
+}
+
+/* Orden + cambio de vista */
+.emp-dashboard .emp-right-controls {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.15s;
+    gap: var(--space-2);
+    margin-left: auto;
+    min-width: 0;
+}
+
+.emp-dashboard .emp-sort-select {
+    width: auto;
+    min-width: 0;
+    max-width: 200px;
+}
+
+.emp-dashboard .emp-view-toggle {
     flex-shrink: 0;
 }
 
-.emp-clear-btn:hover { color: #ef4444; }
-.emp-clear-btn .material-icons-round { font-size: 18px !important; }
-
-/* Controls row */
-.emp-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-/* Filter chips */
-.emp-filter-chips {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-    flex: 1;
-}
-
-.emp-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 99px;
-    border: 1.5px solid #e2e8f0;
-    background: white;
-    color: #64748b;
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-    line-height: 1;
-}
-
-.emp-chip:hover { border-color: #94a3b8; }
-
-.emp-chip.active {
-    background: #4f46e5;
-    border-color: #4f46e5;
-    color: white;
-}
-
-.emp-chip.active-danger {
-    background: #fee2e2;
-    border-color: #fca5a5;
-    color: #991b1b;
-}
-
-.emp-chip.active-warning {
-    background: #fef3c7;
-    border-color: #fcd34d;
-    color: #92400e;
-}
-
-/* Right controls */
-.emp-right-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: auto;
-}
-
-.emp-sort-select {
-    border: 1.5px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #374151;
-    background: white;
-    cursor: pointer;
-    outline: none;
-    max-width: 130px;
-}
-
-.emp-sort-select:focus { border-color: #4f46e5; }
-
-.emp-view-toggle {
-    display: flex;
-    background: #f1f5f9;
-    border-radius: 8px;
-    padding: 3px;
-    gap: 2px;
-}
-
-.emp-view-toggle button {
-    background: transparent;
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
+.emp-dashboard .emp-view-toggle .ui-tab {
     justify-content: center;
-    color: #94a3b8;
-    transition: all 0.15s;
-}
-
-.emp-view-toggle button.active {
-    background: white;
-    color: #4f46e5;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.emp-view-toggle button .material-icons-round { font-size: 18px !important; }
-
-/* Result count */
-.emp-result-count {
-    margin: 0;
-    font-size: 0.8rem;
-    color: #94a3b8;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.emp-reset-filter {
-    background: none;
-    border: none;
-    color: #4f46e5;
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: underline;
+    width: 36px;
     padding: 0;
 }
 
-/* ── Loading / Empty ── */
-.emp-loading,
-.emp-empty {
-    background: white;
-    border-radius: 16px;
-    padding: 3rem 1rem;
-    text-align: center;
-    color: #94a3b8;
+/* Contador de resultados + limpiar filtros */
+.emp-dashboard .emp-result-count {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.emp-loading .material-icons-round,
-.emp-empty .material-icons-round {
-    font-size: 48px !important;
-    color: #cbd5e1;
-}
-
-.emp-loading p,
-.emp-empty p {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 500;
-}
-
-@keyframes emp-spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.emp-spin {
-    animation: emp-spin 1.2s linear infinite;
-}
-
-/* ── Cards Grid (2 cols default mobile) ── */
-.emp-cards-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
-}
-
-@media (min-width: 480px) {
-    .emp-cards-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (min-width: 768px) {
-    .emp-cards-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (min-width: 1200px) {
-    .emp-cards-grid { grid-template-columns: repeat(4, 1fr); }
-}
-
-/* ── Product Card ── */
-.emp-pcard {
-    background: white;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 0.875rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    position: relative;
-    transition: all 0.2s;
-    overflow: hidden;
-}
-
-.emp-pcard::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: #10b981;
-    border-radius: 14px 14px 0 0;
-}
-
-.emp-pcard.critical::before { background: #dc2626; }
-.emp-pcard.committed::before { background: #f59e0b; }
-
-.emp-pcard.critical {
-    border-color: #fca5a5;
-    background: #fff8f8;
-}
-
-.emp-pcard.committed {
-    border-color: #fcd34d;
-    background: #fffdf0;
-}
-
-.emp-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 0.2rem 0.55rem;
-    border-radius: 99px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    width: fit-content;
-}
-
-.emp-badge.danger {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-.emp-badge.warning {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.emp-pcard-name {
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1.3;
-    word-break: break-word;
-}
-
-.emp-pcard-id {
-    font-size: 0.65rem;
-    color: #94a3b8;
-    font-family: 'Courier New', monospace;
-    line-height: 1;
-}
-
-/* Stock bar */
-.emp-stock-bar-wrap {
-    margin: 0.1rem 0;
-}
-
-.emp-stock-bar {
-    height: 6px;
-    background: #f1f5f9;
-    border-radius: 99px;
-    overflow: hidden;
-}
-
-.emp-stock-fill {
-    height: 100%;
-    border-radius: 99px;
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    min-width: 2px;
-}
-
-/* Card numbers */
-.emp-pcard-nums {
-    display: flex;
-    gap: 0.4rem;
     flex-wrap: wrap;
-}
-
-.emp-pcard-num {
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    background: #f8fafc;
-    border-radius: 8px;
-    padding: 0.35rem 0.5rem;
-    flex: 1;
-    min-width: 44px;
+    gap: var(--space-2);
+    min-height: 32px;
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
-.emp-num-label {
-    font-size: 0.6rem;
-    color: #94a3b8;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    line-height: 1;
+.emp-dashboard .emp-reset-filter {
+    color: var(--color-primary-text);
 }
 
-.emp-num-value {
-    font-size: 1.05rem;
-    font-weight: 800;
-    line-height: 1.2;
-    font-family: 'Courier New', monospace;
+/* ── Carga / vacío (ui-loading, ui-empty) ── */
+.emp-dashboard .emp-loading p,
+.emp-dashboard .emp-empty p {
+    margin: 0;
 }
 
-/* ── List View ── */
-.emp-list {
-    background: white;
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+/* Sin alertas: el visto bueno en verde */
+.emp-dashboard .emp-empty--ok .ui-empty-icon {
+    background: var(--color-success-soft);
+    color: var(--color-success);
+}
+
+/* Esqueletos de carga con la forma de las tarjetas de producto */
+.emp-dashboard .emp-skeleton-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.emp-dashboard .emp-skeleton-card {
     display: flex;
     flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
 }
 
-.emp-prow {
+.emp-dashboard .emp-skeleton-card .ui-skeleton--title {
+    width: 80%;
+}
+
+.emp-dashboard .emp-skeleton-short {
+    width: 40%;
+}
+
+.emp-dashboard .emp-skeleton-bar {
+    min-height: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+}
+
+/* ── Tarjetas de producto ── */
+.emp-dashboard .emp-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.emp-dashboard .emp-pcard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Franja izquierda de 4px con el color del stock (.ui-stripe--{tono}: verde positivo,
+   ámbar bajo o en 0, rojo alerta) sobre la sombra de la tarjeta */
+.emp-dashboard .emp-pcard.ui-stripe {
+    box-shadow: inset 4px 0 0 var(--ui-stripe-color), var(--shadow-card);
+    padding-left: calc(var(--space-3) + 4px);
+}
+
+/* Alerta crítica: el borde comunica el estado (el badge lo nombra) */
+.emp-dashboard .emp-pcard.critical {
+    border-color: var(--color-danger);
+}
+
+.emp-dashboard .emp-badge {
+    align-self: flex-start;
+}
+
+.emp-dashboard .emp-pcard-name {
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.emp-dashboard .emp-pcard-id,
+.emp-dashboard .emp-prow-id {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: var(--text-xs);
+    line-height: 1.3;
+    color: var(--color-text-muted);
+}
+
+/* Barra de stock (.ui-progress--{tono}: crece con transform al montar) */
+.emp-dashboard .emp-stock-bar {
+    background: var(--color-surface-hover);
+}
+
+/* Números como filas etiqueta / valor (caben en tarjetas angostas) */
+.emp-dashboard .emp-pcard-nums {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+}
+
+.emp-dashboard .emp-pcard-num {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #f1f5f9;
-    gap: 0.5rem;
-    transition: background 0.1s;
+    gap: var(--space-2);
+    min-height: 24px;
 }
 
-.emp-prow:last-child { border-bottom: none; }
-
-.emp-prow.critical {
-    background: #fff8f8;
-    border-left: 3px solid #dc2626;
+.emp-dashboard .emp-num-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
 }
 
-.emp-prow.committed {
-    background: #fffdf0;
-    border-left: 3px solid #f59e0b;
+.emp-dashboard .emp-num-value {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--text-base);
+    font-weight: 700;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
 }
 
-.emp-prow:hover { background: #f8fafc; }
-.emp-prow.critical:hover { background: #fef2f2; }
+/* La bodega es el número principal */
+.emp-dashboard .emp-pcard-num:first-child .emp-num-value {
+    font-size: var(--text-lg);
+}
 
-.emp-prow-left {
+.emp-dashboard .emp-sys-icon {
+    font-size: 16px;
+}
+
+.emp-dashboard .emp-faltante {
+    margin-top: 2px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-warning-text);
+}
+
+/* ── Vista lista ── */
+.emp-dashboard .emp-list {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.emp-dashboard .emp-prow {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 56px;
+    padding: 10px var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.emp-dashboard .emp-prow:last-child {
+    border-bottom: 0;
+}
+
+.emp-dashboard .emp-prow {
+    transition: background-color var(--duration-fast) var(--ease);
+}
+
+.emp-dashboard .emp-prow:hover {
+    background: var(--color-surface-hover);
+}
+
+.emp-dashboard .emp-prow.critical,
+.emp-dashboard .emp-prow.critical:hover {
+    background: var(--color-danger-soft);
+}
+
+/* Sobre el fondo rojo suave, muted no llega a 4.5:1 */
+.emp-dashboard .emp-prow.critical .emp-prow-id {
+    color: var(--color-text-secondary);
+}
+
+.emp-dashboard .emp-prow-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     flex: 1;
     min-width: 0;
 }
 
-.emp-prow-dot {
+.emp-dashboard .emp-prow-text {
+    min-width: 0;
+}
+
+/* Punto de estado con un halo suave del mismo color */
+.emp-dashboard .emp-prow-dot {
+    flex-shrink: 0;
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    flex-shrink: 0;
 }
 
-.emp-prow-name {
-    font-size: 0.88rem;
+.emp-dashboard .emp-prow-dot.emp-bg--success { box-shadow: 0 0 0 3px var(--color-success-soft); }
+.emp-dashboard .emp-prow-dot.emp-bg--warning { box-shadow: 0 0 0 3px var(--color-warning-soft); }
+.emp-dashboard .emp-prow-dot.emp-bg--danger { box-shadow: 0 0 0 3px var(--color-danger-soft); }
+
+.emp-dashboard .emp-prow-name {
+    overflow: hidden;
+    font-size: var(--text-base);
     font-weight: 600;
-    color: #0f172a;
+    line-height: 1.35;
+    color: var(--color-text);
     white-space: nowrap;
-    overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.emp-prow-id {
-    font-size: 0.65rem;
-    color: #94a3b8;
-    font-family: 'Courier New', monospace;
-    white-space: nowrap;
+.emp-dashboard .emp-prow-id {
     overflow: hidden;
+    white-space: nowrap;
     text-overflow: ellipsis;
 }
 
-.emp-prow-nums {
+.emp-dashboard .emp-prow-nums {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 6px;
     flex-shrink: 0;
 }
 
-.emp-prow-badge {
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    font-family: 'Courier New', monospace;
-    white-space: nowrap;
-}
-
-.emp-prow-badge.bodega {
-    background: #e0f2fe;
-    color: #0369a1;
-}
-
-.emp-prow-badge.ped {
-    background: #fef3c7;
-    color: #92400e;
-    font-family: inherit;
+.emp-dashboard .emp-prow-badge {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
+    min-height: 26px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-hover);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
-.emp-prow-badge.sistema {
-    background: #f1f5f9;
+.emp-dashboard .emp-prow-badge .material-icons-round {
+    font-size: 14px;
 }
 
-/* ── Legend ── */
-.emp-legend {
-    background: white;
-    border-radius: 12px;
-    padding: 0.75rem 1rem;
+.emp-dashboard .emp-prow-badge.bodega {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-text);
+}
+
+.emp-dashboard .emp-prow-badge.ped {
+    background: var(--color-warning-soft);
+    color: var(--color-warning-text);
+}
+
+/* ── Leyenda ── */
+.emp-dashboard .emp-legend {
     display: flex;
-    gap: 0.75rem 1.25rem;
     flex-wrap: wrap;
-    font-size: 0.75rem;
-    color: #64748b;
-    font-weight: 500;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    gap: var(--space-2) var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+  box-shadow: var(--shadow-card);
 }
 
-.emp-legend-item {
-    display: flex;
+.emp-dashboard .emp-legend-item {
+    display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 6px;
 }
 
-/* ── Desktop adjustments ── */
-@media (min-width: 768px) {
-    .emp-inv-panel {
-        padding: 1.25rem;
-        max-width: 1280px;
-        margin: 0 auto;
+.emp-dashboard .emp-legend-icon {
+    font-size: 14px;
+}
+
+/* ── Tonos con significado (texto/icono y relleno) ── */
+.emp-dashboard .emp-fg--success { color: var(--color-success-text); }
+.emp-dashboard .emp-fg--warning { color: var(--color-warning-text); }
+.emp-dashboard .emp-fg--danger { color: var(--color-danger-text); }
+.emp-dashboard .emp-fg--teal { color: var(--color-teal-text); }
+
+.emp-dashboard .emp-bg--success { background: var(--color-success); }
+.emp-dashboard .emp-bg--warning { background: var(--color-warning); }
+.emp-dashboard .emp-bg--danger { background: var(--color-danger); }
+
+/* ── Móvil (≤640px): objetivos táctiles de 44px ── */
+@media (max-width: 640px) {
+    .emp-dashboard .emp-chip {
+        min-height: 44px;
+    }
+
+    .emp-dashboard .emp-view-toggle .ui-tab {
+        width: 44px;
+    }
+
+    .emp-dashboard .emp-right-controls {
         width: 100%;
+        margin-left: 0;
     }
 
-    .emp-stats-row {
-        grid-template-columns: repeat(4, 1fr);
+    .emp-dashboard .emp-sort-select {
+        flex: 1;
+        max-width: none;
     }
 
-    .emp-topbar {
-        padding: 1rem 1.5rem;
+    .emp-dashboard .emp-stat-card {
+        gap: var(--space-2);
     }
 
-    .emp-title { font-size: 1.4rem; }
+    .emp-dashboard .emp-stat-card .ui-stat-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .emp-dashboard .emp-stat-card .ui-stat-icon .material-icons-round {
+        font-size: 20px;
+    }
 }
 
-@media (min-width: 1024px) {
-    .emp-inv-panel { padding: 1.5rem; }
+/* ── Tablet / escritorio ── */
+@media (min-width: 641px) {
+    .emp-dashboard {
+        gap: var(--space-6);
+        padding: var(--space-6);
+    }
+
+    .emp-dashboard .emp-title {
+        font-size: var(--text-2xl);
+    }
+
+    .emp-dashboard .emp-controls,
+    .emp-dashboard .emp-stat-card,
+    .emp-dashboard .emp-pcard,
+    .emp-dashboard .emp-skeleton-card {
+        padding: var(--space-4);
+    }
+
+    .emp-dashboard .emp-pcard.ui-stripe {
+        padding-left: calc(var(--space-4) + 4px);
+    }
+
+    .emp-dashboard .emp-stat-value {
+        font-size: var(--text-2xl);
+    }
+}
+
+@media (min-width: 768px) {
+    .emp-dashboard .emp-stats-row {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--space-4);
+    }
+
+    .emp-dashboard .emp-cards-grid,
+    .emp-dashboard .emp-skeleton-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-4);
+    }
+}
+
+@media (min-width: 1200px) {
+    .emp-dashboard .emp-cards-grid,
+    .emp-dashboard .emp-skeleton-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+/* Sin movimiento: sin giros ni presiones (los colores cambian al instante) */
+@media (prefers-reduced-motion: reduce) {
+    .emp-dashboard .emp-refresh-btn:hover .material-icons-round,
+    .emp-dashboard .emp-refresh-btn:active .material-icons-round {
+        transform: none;
+    }
+
+    .emp-dashboard .emp-stat-card.clickable:active,
+    .emp-dashboard .emp-chip:active {
+        scale: none;
+    }
 }

@@ -1,3928 +1,2286 @@
-/* ============================================
-   VENDEDOR DASHBOARD MODERN STYLES
-   ============================================ */
+/* ==========================================================================
+   PANEL DE LA VENDEDORA (pages/VendedorDashboard.js)
+   Rediseño con el sistema de diseño (src/styles/design-system.css):
+   - TODO va bajo la raíz .vendedor-dashboard: en CRA el CSS es global y este
+     archivo no debe pintar otras áreas.
+   - Solo tokens var(--…) y primitivas .ui-* (botones, campos, modales, badges,
+     tabs, estados vacíos). Aquí va el layout y las piezas propias del panel.
+   - Móvil primero: objetivos táctiles ≥44px, total del carrito siempre visible,
+     sin scroll horizontal a 375px, modales a pantalla completa en ≤640px.
+   Breakpoints: ≤1024 carrito como barra fija + hoja · ≤768 menú lateral ·
+   ≤640 teléfono.
+   ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   1. RAÍZ Y NAVEGACIÓN
+   -------------------------------------------------------------------------- */
 .vendedor-dashboard {
-  min-height: calc(100vh - 70px);
-  background: var(--bg-body);
+  /* Alto de la barra de pestañas (48px + borde). Variable LOCAL del área (no es
+     un token): la usa el carrito sticky para quedar debajo de la barra. */
+  --vd-nav-h: 49px;
   display: flex;
   flex-direction: column;
-  animation: fadeIn var(--transition-normal);
+  min-height: calc(100vh - var(--app-header-h));
+  background: var(--color-canvas);
 }
 
-/* HEADER GLASS */
-.vendedor-dashboard .dashboard-header {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 1rem 2rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.dashboard-header h1 {
-  font-size: 1.6rem;
-  margin: 0;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.header-info {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.header-info span {
-  font-weight: 600;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-}
-
-/* NAV GLASS */
+/* Pestañas (escritorio/tablet): barra blanca fija bajo el header global.
+   Si no caben (ventanas angostas, laptops con zoom) se desplaza en horizontal
+   con una barra de desplazamiento fina y VISIBLE: así ninguna pestaña,
+   "Saldos" ni "Actualizar datos" queda escondida sin pista para el mouse. */
 .vendedor-dashboard .dashboard-nav {
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  padding: 0 2rem;
+  position: sticky;
+  top: var(--app-header-h);
+  z-index: var(--z-sidebar);
   display: flex;
-  gap: 1rem;
-  border-bottom: 1px solid var(--border);
+  align-items: stretch;
+  gap: var(--space-1);
+  padding: 0 var(--space-6);
+  background: var(--color-nav-bg);
+  border-bottom: 1px solid var(--color-nav-border);
   overflow-x: auto;
-  position: relative;
-  z-index: 10;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
 }
 
-.vendedor-dashboard .dashboard-nav button {
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  padding: 1.25rem 0.75rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
+/* Safari / Chrome antiguos (los nuevos usan scrollbar-width de arriba) */
+.vendedor-dashboard .dashboard-nav::-webkit-scrollbar {
+  height: 6px;
+}
+
+.vendedor-dashboard .dashboard-nav::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
+  border: 0;
+  border-radius: var(--radius-full);
+}
+
+/* Pestaña: el fondo del hover (::before, una "pastilla" redondeada) y el subrayado (::after)
+   son capas propias que se animan solo con opacity/transform; el texto y el icono pasan a
+   azul con transición, como el menú lateral de Admin/Owner (Dashboard.css). */
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn) {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-nav-text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 500;
   white-space: nowrap;
-}
-
-.vendedor-dashboard .dashboard-nav button .material-icons-round {
-  font-size: 20px;
-  transition: transform 0.3s;
-}
-
-.vendedor-dashboard .dashboard-nav button:hover {
-  color: var(--primary);
-}
-
-.vendedor-dashboard .dashboard-nav button:hover .material-icons-round {
-  transform: translateY(-2px);
-}
-
-.vendedor-dashboard .dashboard-nav button.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.vendedor-dashboard .dashboard-nav .nav-external {
-  margin-left: auto;
-  color: var(--text-secondary);
-}
-
-.vendedor-dashboard .dashboard-nav .nav-external:hover {
-  color: var(--primary);
-}
-
-/* ============================================
-   ✅ FIX TCL 50 PRO N / GPU Mali-G57 / Móviles gama media-baja
-   backdrop-filter satura la GPU → freeze + parpadeo al cambiar pestañas
-   ============================================ */
-@media (max-width: 768px) {
-  .vendedor-dashboard .dashboard-header {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: #ffffff !important;
-  }
-
-  .vendedor-dashboard .dashboard-nav {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    background: #ffffff !important;
-  }
-
-  .productos-section {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .carrito-section {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  /* Desactivar animaciones pesadas de hover en táctil — no tienen hover real */
-  .product-card:hover {
-    transform: none !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
-  }
-
-  .product-card:hover img {
-    transform: none !important;
-    padding: 1.5rem !important;
-  }
-
-  .product-card:hover::before {
-    opacity: 0 !important;
-  }
-
-  /* ✅ Fix 100vh dinámico en Chrome Android — la barra URL cambia el viewport */
-  .productos-grid {
-    max-height: none !important;
-    height: auto !important;
-    overflow-y: visible !important;
-  }
-
-  .venta-layout {
-    height: auto !important;
-  }
-}
-
-/* CONTENT */
-.dashboard-content {
-  padding: 1.5rem;
-  flex: 1;
-  max-width: 1600px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-
-@media (max-width: 600px) {
-  .dashboard-content {
-    padding: 1rem 0.75rem;
-    /* Reduced padding for mobile */
-  }
-}
-
-/* ============================================
-   NUEVA VENTA PANEL - PREMIUM 2026 DESIGN
-   ============================================ */
-.nueva-venta-panel h2 {
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.venta-layout {
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 2rem;
-  height: calc(100vh - 250px);
-  align-items: start;
-}
-
-@media (max-width: 1200px) {
-  .venta-layout {
-    grid-template-columns: 1fr;
-    height: auto;
-    gap: 1.5rem;
-  }
-
-  .productos-section {
-    height: auto;
-    min-height: 500px;
-  }
-
-  .carrito-section {
-    height: auto;
-    position: sticky;
-    top: 20px;
-  }
-}
-
-/* Tablet Responsiveness */
-@media (max-width: 768px) {
-  .products-header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .search-container {
-    flex: 1;
-    min-width: 200px;
-  }
-
-  .search-input {
-    width: 100%;
-  }
-
-  .grid-columns-selector {
-    display: flex;
-    gap: 0.3rem;
-    padding: 0.3rem;
-    background: #f1f5f9;
-    border-radius: 0.6rem;
-    flex-shrink: 0;
-  }
-
-  .grid-btn {
-    flex: 0 1 auto;
-    padding: 0.35rem 0.45rem;
-    font-size: 0.7rem;
-    min-width: 2.2rem;
-  }
-
-  .grid-btn .material-icons-round {
-    font-size: 0.9rem;
-  }
-
-  .productos-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-    padding: 0.75rem;
-  }
-
-  .product-card {
-    border-radius: 1rem;
-  }
-
-  .product-card img {
-    height: 160px;
-  }
-
-  .product-info {
-    padding: 1rem;
-    gap: 0.5rem;
-  }
-
-  .product-price {
-    font-size: 1.25rem;
-  }
-
-  .btn-add-cart {
-    padding: 0.8rem 0.75rem;
-    font-size: 0.85rem;
-    gap: 0.35rem;
-  }
-
-  .carrito-section {
-    padding: 1.5rem;
-    border-radius: 1.5rem;
-  }
-
-  .cart-total {
-    font-size: 1.2rem;
-    padding: 1rem;
-    border-radius: 1rem;
-  }
-
-  .btn-finalizar-venta {
-    padding: 1rem;
-    font-size: 0.95rem;
-  }
-}
-
-/* Mobile Responsiveness */
-@media (max-width: 640px) {
-  .nueva-venta-panel h2 {
-    font-size: 1.25rem;
-    margin-bottom: 1rem;
-  }
-
-  .venta-layout {
-    gap: 1rem;
-  }
-
-  .productos-section {
-    border-radius: 1.5rem;
-    padding: 0;
-  }
-
-  .products-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-    padding: 1rem;
-  }
-
-  .products-header h3 {
-    font-size: 1.1rem;
-    margin: 0;
-    flex: 0 0 auto;
-  }
-
-  .products-header-toolbar {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    align-items: stretch;
-    width: 100%;
-  }
-
-  .search-container {
-    width: 100%;
-    min-width: auto;
-  }
-
-  .search-input {
-    padding: 0.75rem 1rem 0.75rem 2.5rem;
-    font-size: 1rem;
-    border-radius: 0.75rem;
-  }
-
-  .grid-columns-selector {
-    display: flex;
-    gap: 0.3rem;
-    padding: 0.3rem;
-    background: #f1f5f9;
-    border-radius: 0.6rem;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .grid-btn {
-    flex: 1;
-    padding: 0.4rem 0.5rem;
-    font-size: 0.75rem;
-    min-width: auto;
-  }
-
-  .grid-btn .material-icons-round {
-    font-size: 0.9rem;
-  }
-
-  .tag-filter-bar {
-    padding: 0.5rem 1rem;
-  }
-
-  .productos-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
-    padding: 0.75rem;
-    max-height: calc(100vh - 350px);
-  }
-
-  .product-card {
-    border-radius: 0.875rem;
-  }
-
-  .product-card img {
-    height: 140px;
-    padding: 1rem;
-  }
-
-  .product-info {
-    padding: 0.85rem;
-    gap: 0.4rem;
-  }
-
-  .product-info h4 {
-    font-size: 0.85rem;
-    line-height: 1.2;
-  }
-
-  .product-price {
-    font-size: 1.1rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .stock-visual-indicator {
-    margin-bottom: 0.75rem;
-    padding: 0.6rem;
-    gap: 0.35rem;
-  }
-
-  .stock-bar-small {
-    height: 5px;
-  }
-
-  .stock-text {
-    font-size: 0.7rem;
-  }
-
-  .product-cart-badge {
-    width: 38px;
-    height: 38px;
-    font-size: 0.8rem;
-    top: 0.6rem;
-    left: 0.6rem;
-  }
-
-  .btn-add-cart {
-    padding: 0.7rem 0.6rem;
-    font-size: 0.75rem;
-    border-radius: 0.75rem;
-    gap: 0.3rem;
-  }
-
-  .btn-add-cart .material-icons-round {
-    font-size: 0.95rem;
-  }
-
-  .product-card {
-    border-radius: 0.875rem;
-  }
-
-  .product-card img {
-    height: 140px;
-    padding: 1rem;
-  }
-
-  .product-info {
-    padding: 0.85rem;
-    gap: 0.4rem;
-  }
-
-  .product-info h4 {
-    font-size: 0.85rem;
-    line-height: 1.2;
-  }
-
-  .product-price {
-    font-size: 1.1rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .stock-visual-indicator {
-    margin-bottom: 0.75rem;
-    padding: 0.6rem;
-    gap: 0.35rem;
-  }
-
-  .stock-bar-small {
-    height: 5px;
-  }
-
-  .stock-text {
-    font-size: 0.7rem;
-  }
-
-  .product-cart-badge {
-    width: 38px;
-    height: 38px;
-    font-size: 0.8rem;
-    top: 0.6rem;
-    left: 0.6rem;
-  }
-
-  .btn-add-cart {
-    padding: 0.7rem 0.6rem;
-    font-size: 0.75rem;
-    border-radius: 0.75rem;
-    gap: 0.3rem;
-  }
-
-  .btn-add-cart .material-icons-round {
-    font-size: 0.95rem;
-  }
-
-  /* Cart Section Mobile */
-  .carrito-section {
-    padding: 1.25rem;
-    border-radius: 1.25rem;
-    gap: 1rem;
-    position: static;
-  }
-
-  .carrito-section h3 {
-    font-size: 1.1rem;
-    margin: 0;
-    margin-bottom: 0.5rem;
-  }
-
-  .form-group {
-    margin-bottom: 0.75rem;
-  }
-
-  .form-group label {
-    font-size: 0.75rem;
-    margin-bottom: 0.4rem;
-  }
-
-  .form-group select,
-  .form-group textarea {
-    padding: 0.75rem 0.85rem;
-    font-size: 1rem;
-    border-radius: 0.75rem;
-  }
-
-  .checkbox-group {
-    gap: 0.6rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .checkbox-group input {
-    width: 18px;
-    height: 18px;
-  }
-
-  .checkbox-group label {
-    font-size: 0.85rem;
-  }
-
-  .cart-items {
-    max-height: 250px;
-    padding: 0.75rem;
-    border-radius: 1rem;
-  }
-
-  .cart-item {
-    padding: 0.75rem;
-    margin-bottom: 0.6rem;
-    border-radius: 0.75rem;
-  }
-
-  .cart-item-info h4 {
-    font-size: 0.8rem;
-  }
-
-  .cart-item-info p {
-    font-size: 0.75rem;
-    margin-top: 0.2rem;
-  }
-
-  .cart-item-controls {
-    gap: 0.5rem;
-  }
-
-  .cart-item-controls>div:first-child {
-    gap: 0.3rem;
-    padding: 0.25rem;
-  }
-
-  .cart-item-controls button {
-    width: 26px;
-    height: 26px;
-    font-size: 0.8rem;
-  }
-
-  .cart-item-controls input {
-    width: 28px;
-    font-size: 0.8rem;
-  }
-
-  .btn-remove {
-    width: 26px;
-    height: 26px;
-  }
-
-  .btn-remove .material-icons-round {
-    font-size: 0.95rem;
-  }
-
-  .cart-item-subtotal {
-    font-size: 0.85rem;
-  }
-
-  .cart-total {
-    font-size: 1rem;
-    padding: 1rem;
-    border-radius: 1rem;
-    margin: 0;
-  }
-
-  .cart-total span {
-    font-size: 1.3rem;
-  }
-
-  .btn-finalizar-venta {
-    padding: 0.95rem 0.85rem;
-    font-size: 0.9rem;
-    border-radius: 1rem;
-    gap: 0.5rem;
-  }
-
-  .btn-finalizar-venta .material-icons-round {
-    font-size: 1rem;
-  }
-}
-
-/* Extra Small Devices */
-@media (max-width: 480px) {
-  .nueva-venta-panel h2 {
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
-    gap: 0.5rem;
-  }
-
-  .nueva-venta-panel h2 .material-icons-round {
-    font-size: 24px;
-  }
-
-  .productos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 0.6rem;
-    padding: 0.75rem;
-  }
-
-  .product-card img {
-    height: 120px;
-    padding: 0.75rem;
-  }
-
-  .product-info {
-    padding: 0.7rem;
-    gap: 0.3rem;
-  }
-
-  .product-info h4 {
-    font-size: 0.75rem;
-  }
-
-  .product-price {
-    font-size: 0.95rem;
-  }
-
-  .form-group label {
-    font-size: 0.7rem;
-  }
-
-  .carrito-section h3 {
-    font-size: 0.95rem;
-  }
-
-  .cart-items {
-    max-height: 200px;
-  }
-}
-
-/* ============================================
-   PRODUCTOS SECTION - MODERN CARD DESIGN
-   ============================================ */
-.productos-section {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  padding: 0;
-  border-radius: 2rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(10px);
-}
-
-.productos-section h3 {
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  font-size: 1.25rem;
-}
-
-.products-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding: 1.5rem 1.5rem 1rem;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
-  gap: 1rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 250, 252, 0.5) 100%);
-  flex-wrap: wrap;
-}
-
-.products-header h3 {
-  font-size: 1.25rem;
-  margin: 0;
-  flex: 0 0 auto;
-}
-
-.products-header-toolbar {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  flex: 1;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
-.grid-columns-selector {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  background: #f1f5f9;
-  padding: 0.4rem;
-  border-radius: 0.85rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-}
-
-.grid-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.5rem 0.8rem;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 0.6rem;
   cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color var(--duration-control) var(--ease);
 }
 
-.grid-btn:hover {
-  background: white;
-  border-color: rgba(99, 102, 241, 0.2);
-  color: var(--primary);
-}
-
-.grid-btn.active {
-  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
-  color: white;
-  border-color: var(--primary);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.grid-btn .material-icons-round {
-  font-size: 1.1rem;
-}
-
-.search-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 250px;
-}
-
-.search-icon {
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn)::before {
+  content: '';
   position: absolute;
-  left: 1rem;
-  color: var(--text-muted);
-  font-size: 1.25rem;
+  inset: var(--space-2) 0;
+  z-index: -1;
+  border-radius: var(--radius-md);
+  background: var(--color-nav-hover);
+  opacity: 0;
+  transition: opacity var(--duration-control) var(--ease);
   pointer-events: none;
 }
 
-.search-input {
-  padding: 0.85rem 1.25rem 0.85rem 2.75rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  outline: none;
-  font-size: 0.9rem;
-  flex: 1;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--text-main);
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.search-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), inset 0 0 0 1px var(--primary);
-  background: white;
-  transform: translateY(-1px);
-}
-
-.tag-filter-bar {
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.productos-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1.25rem;
-  overflow-y: auto;
-  padding: 1.5rem;
-  flex: 1;
-  min-height: 0;
-  grid-auto-rows: max-content;
-}
-
-/* ============================================
-   PRODUCT CARD - 2026 PREMIUM DESIGN
-   ============================================ */
-.product-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
-  background: white;
-  height: 100%;
-  position: relative;
-  box-shadow: var(--shadow-sm);
-  gap: 0;
-}
-
-.product-card:hover {
-  transform: translateY(-6px);
-  box-shadow: var(--shadow-xl);
-  border-color: rgba(99, 102, 241, 0.3);
-}
-
-.product-card::before {
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn)::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.3), transparent);
-  opacity: 0;
-  transition: opacity 0.3s;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-nav-accent);
+  transform: scaleX(0);
+  transition: transform var(--duration) var(--ease);
+  pointer-events: none;
 }
 
-.product-card:hover::before {
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn) .material-icons-round {
+  font-size: 20px;
+  color: var(--color-nav-icon);
+  transition: color var(--duration-control) var(--ease);
+}
+
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):not(.active):hover {
+  color: var(--color-nav-text-active);
+}
+
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):not(.active):hover::before {
   opacity: 1;
 }
 
-.product-card img {
-  height: 200px;
-  width: 100%;
-  object-fit: contain;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  padding: 1.5rem;
-  transition: all 0.6s cubic-bezier(0.33, 1, 0.68, 1);
-  flex-shrink: 0;
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):not(.active):hover .material-icons-round {
+  color: var(--color-nav-text-active);
 }
 
-.product-card:hover img {
-  transform: scale(1.12) translateY(-8px);
-  padding: 1.25rem;
+/* Presión: leve hundimiento de la pestaña (propiedad scale, como .ui-btn) */
+.vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):active {
+  scale: 0.98;
 }
 
-.product-info {
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  background: white;
-  position: relative;
-  z-index: 2;
-  gap: 0.6rem;
-}
-
-.product-info h4 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--text-main);
-  font-weight: 700;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.product-price {
-  font-weight: 800;
-  font-size: 1.45rem;
-  color: var(--primary);
-  margin-bottom: 0.35rem;
-  letter-spacing: -0.02em;
-}
-
-/* Visual Stock Indicator */
-.stock-visual-indicator {
-  margin-bottom: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  background: rgba(248, 250, 252, 0.8);
-  padding: 0.75rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(226, 232, 240, 0.6);
-}
-
-.stock-bar-small {
-  width: 100%;
-  height: 7px;
-  background: rgba(226, 232, 240, 0.8);
-  border-radius: 99px;
-  overflow: hidden;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
-  position: relative;
-}
-
-.stock-fill-small {
-  height: 100%;
-  border-radius: 99px;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
-}
-
-.stock-fill-small::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.3) 50%,
-      transparent 100%);
-  animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.stock-text {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: linear-gradient(135deg, var(--primary), #7c3aed);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.product-cart-badge {
-  position: absolute;
-  top: 0.85rem;
-  left: 0.85rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  font-weight: 800;
-  font-size: 0.9rem;
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
-  z-index: 10;
-  border: 3px solid white;
-  animation: badgePulse 2s ease-in-out infinite;
-}
-
-@keyframes badgePulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-.product-cart-badge .material-icons-round {
-  font-size: 20px;
-}
-
-.btn-add-cart {
-  margin-top: auto;
-  width: 100%;
-  padding: 0.95rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
-  color: white;
-  border: none;
-  border-radius: 1rem;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 0.95rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-add-cart::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-
-.btn-add-cart:hover:not(:disabled)::before {
-  width: 300px;
-  height: 300px;
-}
-
-.btn-add-cart:hover:not(:disabled) {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.4);
-}
-
-.btn-add-cart:active:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.btn-add-cart:disabled {
-  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* ============================================
-   CARRITO SECTION - MODERN DESIGN
-   ============================================ */
-.carrito-section {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  padding: 1.75rem;
-  border-radius: 2rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  display: flex;
-  flex-direction: column;
-  height: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(10px);
-  gap: 1.25rem;
-}
-
-@media (max-width: 600px) {
-  .carrito-section {
-    padding: 1.25rem;
-  }
-}
-
-.carrito-section h3 {
-  margin-top: 0;
-  margin-bottom: 0;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.carrito-section h3::before {
-  content: '';
-  display: inline-block;
-  width: 4px;
-  height: 24px;
-  background: linear-gradient(180deg, var(--primary), #7c3aed);
-  border-radius: 99px;
-}
-
-.form-group {
-  margin-bottom: 0;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.form-group select,
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 0.85rem;
-  font-family: inherit;
-  font-size: 0.9rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: white;
-  color: var(--text-main);
-}
-
-.form-group select:focus,
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.checkbox-group input {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  accent-color: var(--primary);
-}
-
-.checkbox-group label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin: 0;
-  text-transform: none;
-  letter-spacing: normal;
-  cursor: pointer;
-}
-
-.cart-items {
-  flex: 1;
-  overflow-y: auto;
-  border: none;
-  border-radius: 0;
-  padding: 0.25rem 0.15rem;
-  background: transparent;
-  min-height: 0;
-}
-
-.cart-items::-webkit-scrollbar {
-  width: 6px;
-}
-
-.cart-items::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.cart-items::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
-  border-radius: 99px;
-}
-
-.cart-items::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.5);
-}
-
-.empty-cart {
-  text-align: center;
-  color: var(--text-muted);
-  font-style: italic;
-  padding: 2rem 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  justify-content: center;
-  height: 100%;
-}
-
-.empty-cart::before {
-  content: '🛒';
-  font-size: 2.5rem;
-  opacity: 0.4;
-}
-
-.cart-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas:
-    "avatar info     subtotal"
-    "avatar controls remove";
-  align-items: center;
-  column-gap: 0.7rem;
-  row-gap: 0.4rem;
-  background: white;
-  padding: 0.65rem 0.75rem;
-  margin-bottom: 0.55rem;
-  border-radius: 0.9rem;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.7);
-  transition: all 0.2s;
-}
-
-.cart-item:hover {
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.1);
-  border-color: rgba(99, 102, 241, 0.25);
-}
-
-/* Avatar del producto (inicial) — ancla visual que da un look moderno/premium */
-.cart-item-avatar {
-  grid-area: avatar;
-  align-self: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 0.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 1.05rem;
-  color: #fff;
-  background: var(--primary-gradient);
-  box-shadow: 0 3px 8px rgba(99, 102, 241, 0.3);
-}
-
-.cart-item-info {
-  grid-area: info;
-  margin: 0;
-  min-width: 0;
-}
-
-.cart-item-info h4 {
-  margin: 0;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--text-main);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cart-item-info p {
-  margin: 0.1rem 0 0;
-  font-size: 0.72rem;
-  color: var(--text-muted);
+/* Activa: texto e icono azules y subrayado azul que se despliega desde el centro */
+.vendedor-dashboard .dashboard-nav > button.active {
+  color: var(--color-nav-text-active);
   font-weight: 600;
 }
 
-.cart-item-controls {
+.vendedor-dashboard .dashboard-nav > button.active::after {
+  transform: scaleX(1);
+}
+
+.vendedor-dashboard .dashboard-nav > button.active .material-icons-round {
+  color: var(--color-nav-accent);
+}
+
+/* "Saldos" (abre otra página) en verde de marca, como en el menú lateral de Admin/Owner:
+   texto e icono verdes; al pasar el mouse, pastilla verde suave y subrayado verde */
+.vendedor-dashboard .dashboard-nav > button.nav-external,
+.vendedor-dashboard .dashboard-nav > button.nav-external:not(.active):hover {
+  color: var(--color-success-text);
+}
+
+.vendedor-dashboard .dashboard-nav > button.nav-external .material-icons-round,
+.vendedor-dashboard .dashboard-nav > button.nav-external:not(.active):hover .material-icons-round {
+  color: var(--color-success);
+}
+
+.vendedor-dashboard .dashboard-nav > button.nav-external::before {
+  background: var(--color-success-soft);
+}
+
+.vendedor-dashboard .dashboard-nav > button.nav-external::after {
+  background: var(--color-success);
+}
+
+.vendedor-dashboard .dashboard-nav > button.nav-external:hover::after {
+  transform: scaleX(1);
+}
+
+.vendedor-dashboard .dashboard-nav > button.nav-external:focus-visible {
+  outline-color: var(--color-success);
+}
+
+/* La barra recorta lo que sale de ella (overflow-x): el anillo de foco va por
+   dentro de la pestaña para que se vea completo con teclado */
+.vendedor-dashboard .dashboard-nav > button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* "Saldos" (abre otra página) queda a la derecha */
+.vendedor-dashboard .dashboard-nav > .nav-external {
+  margin-left: auto;
+}
+
+.vendedor-dashboard .dashboard-nav > .vendedor-nav-refresh {
+  align-self: center;
+  margin-left: var(--space-2);
+}
+
+/* Escritorio angosto / tablet con pestañas (769–1279px): pestañas más
+   compactas para que todo quepa en una fila desde ~1080px (laptop 1366px al
+   125 %). Por debajo de eso aparece la barra de desplazamiento fina; como
+   puede sumar unos px al alto de la barra, el carrito sticky deja margen. */
+@media (min-width: 769px) and (max-width: 1279px) {
+  .vendedor-dashboard {
+    --vd-nav-h: calc(49px + var(--space-2));
+  }
+
+  .vendedor-dashboard .dashboard-nav {
+    gap: 0;
+    padding: 0 var(--space-4);
+  }
+
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn) {
+    padding: 0 var(--space-2);
+  }
+}
+
+/* Piezas que solo existen en móvil */
+.vendedor-dashboard .vendedor-mobile-bar,
+.vendedor-dashboard .vendedor-nav-scrim,
+.vendedor-dashboard .vendedor-nav-head {
+  display: none;
+}
+
+/* Contenido: 24px (16px en teléfono), ancho máximo del sistema, alineado a la izquierda */
+.vendedor-dashboard .dashboard-content {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: var(--content-max-w);
+  padding: var(--space-6);
+}
+
+/* Carga de cada pestaña */
+.vendedor-dashboard .vd-loading {
+  min-height: 240px;
+}
+
+/* Barras de búsqueda/filtros de las listas */
+.vendedor-dashboard .vd-list-toolbar,
+.vendedor-dashboard .ventas-filter-toolbar {
+  margin-bottom: var(--space-4);
+}
+
+/* Barra de filtro con icono (fecha, orden) */
+.vendedor-dashboard .vd-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.vendedor-dashboard .vd-filter-icon {
+  font-size: 20px;
+  color: var(--color-text-muted);
+}
+
+.vendedor-dashboard .vd-filter .ui-input,
+.vendedor-dashboard .vd-filter .ui-select {
+  width: auto;
+}
+
+/* Grillas de tarjetas de las listas */
+.vendedor-dashboard .ventas-list,
+.vendedor-dashboard .clientes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-4);
+}
+
+.vendedor-dashboard .productos-grid-catalogo {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-4);
+}
+
+.vendedor-dashboard .vd-grid-empty {
+  grid-column: 1 / -1;
+}
+
+/* Filtro por etiquetas (TagFilterBar, de index.css): el espacio lo da el contenedor */
+.vendedor-dashboard .tag-filter-bar {
+  margin-bottom: var(--space-4);
+}
+
+.vendedor-dashboard .productos-section .tag-filter-bar {
+  margin-bottom: 0;
+}
+
+/* Campo con icono en la etiqueta y ayuda con icono */
+.vendedor-dashboard .vd-field {
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .vd-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vendedor-dashboard .vd-label .material-icons-round {
+  font-size: 16px;
+  color: var(--color-text-muted);
+}
+
+.vendedor-dashboard .vd-help {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.vendedor-dashboard .vd-help .material-icons-round {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* Casilla + etiqueta (input y label hermanos o label envolvente) */
+.vendedor-dashboard .vd-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-size: var(--text-base);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.vendedor-dashboard .vd-check--inline {
+  display: inline-flex;
+}
+
+.vendedor-dashboard .vd-check input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.vendedor-dashboard .vd-check > label {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-height: inherit;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.vendedor-dashboard .vd-check--warning {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-warning-text);
+}
+
+/* --------------------------------------------------------------------------
+   2. NUEVA VENTA — CATÁLOGO
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .venta-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.vendedor-dashboard .productos-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.vendedor-dashboard .products-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.vendedor-dashboard .products-header-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .grid-columns-selector .grid-btn {
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* En una columna flex, .ui-search no debe crecer en alto */
+.vendedor-dashboard .vd-catalog-search {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+/* El número de columnas lo elige la vendedora (variable --vd-grid-cols, inline) */
+.vendedor-dashboard .productos-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--vd-grid-cols, 2), minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+/* --------------------------------------------------------------------------
+   3. NUEVA VENTA — CARRITO (escritorio: columna fija a la derecha)
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .venta-layout > .carrito-section {
+  position: sticky;
+  /* header global + barra de pestañas (--vd-nav-h) + respiro */
+  top: calc(var(--app-header-h) + var(--vd-nav-h) + var(--space-4));
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--app-header-h) - var(--vd-nav-h) - var(--space-8));
+  max-height: calc(100dvh - var(--app-header-h) - var(--vd-nav-h) - var(--space-8));
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.vendedor-dashboard .vd-cart-head {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.vendedor-dashboard .vd-cart-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Icono del carrito en baldosa azul suave */
+.vendedor-dashboard .vd-cart-title .material-icons-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.vendedor-dashboard .vd-cart-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Total + Finalizar: siempre visibles al pie del carrito */
+.vendedor-dashboard .vd-cart-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.vendedor-dashboard .cart-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.vendedor-dashboard .cart-total-amount {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Flete (solo admin/owner) */
+.vendedor-dashboard .vd-freight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.vendedor-dashboard .vd-freight-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .vd-freight-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .vd-freight-text {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.vendedor-dashboard .vd-freight-qty {
+  flex: 0 0 76px;
+  width: 76px;
+  text-align: center;
+}
+
+.vendedor-dashboard .vd-freight-search {
+  position: relative;
+}
+
+.vendedor-dashboard .vd-freight-results {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+}
+
+.vendedor-dashboard .vd-freight-option {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.vendedor-dashboard .vd-freight-option:last-child {
+  border-bottom: 0;
+}
+
+.vendedor-dashboard .vd-freight-option {
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+.vendedor-dashboard .vd-freight-option:hover {
+  background: var(--color-primary-soft);
+}
+
+.vendedor-dashboard .vd-freight-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.vendedor-dashboard .vd-freight-item-name {
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.vendedor-dashboard .vd-freight-item-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.vendedor-dashboard .vd-freight-item-qty {
+  width: 64px;
+  padding-left: var(--space-1);
+  padding-right: var(--space-1);
+  text-align: center;
+}
+
+.vendedor-dashboard .vd-freight-remove {
+  font-size: var(--text-xl);
+  line-height: 1;
+  color: var(--color-danger-text);
+}
+
+/* ---------- Lista del carrito ---------- */
+.vendedor-dashboard .cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.vendedor-dashboard .empty-cart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  text-align: center;
+}
+
+.vendedor-dashboard .empty-cart .material-icons-round {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 24px;
+}
+
+/* Cada producto/promoción/bonificado que entra al carrito aparece con fade + subida
+   (solo al montarse: los que ya estaban no se vuelven a animar) */
+.vendedor-dashboard .cart-items > .cart-item,
+.vendedor-dashboard .bonified-section > .cart-item {
+  animation: ui-rise-in var(--duration-enter) var(--ease) backwards;
+}
+
+/* Producto: inicial | nombre + precio c/u | subtotal
+             inicial | cantidad             | quitar   */
+.vendedor-dashboard .cart-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'avatar info subtotal'
+    'avatar controls remove';
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.vendedor-dashboard .cart-item.has-warning {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+/* Inicial del producto: color determinista por nombre (.ui-avatar--{tono}, avatarTone) en
+   una baldosa cuadrada de 36px */
+.vendedor-dashboard .cart-item-avatar {
+  grid-area: avatar;
+  align-self: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.vendedor-dashboard .cart-item-info {
+  grid-area: info;
+  min-width: 0;
+}
+
+.vendedor-dashboard .cart-item-info h4,
+.vendedor-dashboard .cart-item-info h5 {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.vendedor-dashboard .cart-item-info h4 .material-icons-round,
+.vendedor-dashboard .cart-item-info h5 .material-icons-round {
+  margin-top: 1px;
+  font-size: 16px;
+  color: var(--color-primary-text);
+}
+
+.vendedor-dashboard .cart-item-info p {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vendedor-dashboard .cart-item-info p.vd-free-price {
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+.vendedor-dashboard .cart-item-controls {
   grid-area: controls;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  justify-content: flex-start;
-}
-
-.cart-item-controls>div:first-child {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: #f1f5f9;
-  border-radius: 0.75rem;
-  padding: 0.3rem;
-}
-
-.cart-item-controls button {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: white;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  font-weight: 700;
-  color: var(--text-main);
-  transition: all 0.2s;
-  font-size: 0.9rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.cart-item-controls button:hover {
-  background: var(--primary);
-  color: white;
-  transform: scale(1.1);
-}
-
-.cart-item-controls input {
-  width: 32px;
-  text-align: center;
-  border: none;
-  background: transparent;
-  font-weight: 700;
-  color: var(--text-main);
-  font-size: 0.9rem;
-}
-
-.cart-item-controls input::-webkit-outer-spin-button,
-.cart-item-controls input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  appearance: none;
-  margin: 0;
-}
-
-.btn-remove {
-  grid-area: remove;
-  justify-self: end;
-  align-self: center;
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-  font-size: 1.1rem;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 0;
-}
-
-.btn-remove:hover {
-  background: #ef4444;
-  color: white;
-  transform: scale(1.15);
-}
-
-.cart-item-subtotal {
-  grid-area: subtotal;
-  align-self: center;
-  justify-self: end;
-  text-align: right;
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--text-main);
-  white-space: nowrap;
-}
-
-.cart-total {
-  text-align: right;
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: var(--text-main);
-  padding: 1.25rem;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(124, 58, 237, 0.05) 100%);
-  border-radius: 1.25rem;
-  border: 2px solid rgba(99, 102, 241, 0.2);
-  margin: 0;
-  letter-spacing: -0.02em;
-}
-
-.btn-finalizar-venta {
-  width: 100%;
-  padding: 1.1rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
-  color: white;
-  border: none;
-  border-radius: 1.25rem;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-finalizar-venta::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.btn-finalizar-venta:hover:not(:disabled) {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 36px rgba(99, 102, 241, 0.4);
-}
-
-.btn-finalizar-venta:hover:not(:disabled)::before {
-  left: 100%;
-}
-
-.btn-finalizar-venta:active:not(:disabled) {
-  transform: translateY(-2px);
-}
-
-.btn-finalizar-venta:disabled {
-  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-
-
-/* (Eliminado) Aquí había un bloque CSS DUPLICADO del carrito que, por orden de
-   cascada, pisaba el diseño pulido definido más arriba (.cart-item L1207+):
-   devolvía los controles a 24px, el input a un recuadro plano de 40px, el
-   subtotal quedaba huérfano y el botón "Finalizar" volvía al verde viejo.
-   Quitarlo deja activo el diseño coherente y ordenado del carrito. */
-
-/* ============================================
-   MIS VENTAS & COMPLETADAS
-   ============================================ */
-.mis-ventas-panel,
-.ventas-completadas-panel,
-.clientes-panel,
-.productos-catalogo {
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  height: 100%;
-  /* Ensure it fills available space */
-  display: flex;
-  flex-direction: column;
-}
-
-@media (max-width: 600px) {
-
-  .mis-ventas-panel,
-  .ventas-completadas-panel,
-  .clientes-panel,
-  .productos-catalogo {
-    padding: 1rem;
-    /* Reduced padding for mobile panels */
-  }
-}
-
-.ventas-list,
-.clientes-grid,
-.productos-grid-catalogo {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  /* Increased min-width to avoid cramping */
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  padding-bottom: 1rem;
-  /* Prevent cutting off shadows */
-}
-
-@media (max-width: 600px) {
-
-  .ventas-list,
-  .clientes-grid,
-  .productos-grid-catalogo {
-    grid-template-columns: 1fr;
-    /* Stack singly on very small screens */
-  }
-}
-
-/* ============================================
-   VENTAS FILTER TOOLBAR (Mis Ventas & Completadas)
-   ============================================ */
-.ventas-filter-toolbar {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  margin-bottom: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.ventas-search-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 220px;
-}
-
-.ventas-search-icon {
-  position: absolute;
-  left: 0.85rem;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  pointer-events: none;
-}
-
-.ventas-search-input {
-  width: 100%;
-  padding: 0.65rem 2.5rem 0.65rem 2.5rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  font-size: 0.88rem;
-  color: var(--text-main);
-  background: #f8fafc;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-}
-
-.ventas-search-input:focus {
-  border-color: var(--primary);
-  background: white;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-}
-
-.ventas-search-clear {
-  position: absolute;
-  right: 0.6rem;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  padding: 0.2rem;
-  border-radius: 50%;
-  transition: color 0.2s, background 0.2s;
-}
-
-.ventas-search-clear:hover {
-  color: var(--text-main);
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.ventas-search-clear .material-icons-round {
-  font-size: 1rem;
-}
-
-.ventas-sort-container {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-}
-
-.ventas-sort-select {
-  padding: 0.6rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  background: #f8fafc;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.ventas-sort-select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-}
-
-@media (max-width: 600px) {
-  .ventas-filter-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ventas-sort-container {
-    justify-content: flex-start;
-  }
-
-  .ventas-sort-select {
-    flex: 1;
-  }
-}
-
-.venta-card,
-.cliente-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
-  transition: all 0.3s;
-  background: white;
-  overflow: hidden;
-  /* Prevent content overflow */
-  word-wrap: break-word;
-  /* Ensure long emails/names wrap */
-  overflow-wrap: break-word;
-}
-
-.venta-card:hover,
-.cliente-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--primary);
-  transform: translateY(-2px);
-}
-
-.venta-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.venta-id {
-  font-weight: 700;
-  font-family: monospace;
-}
-
-.venta-status {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 99px;
-  font-weight: 700;
-}
-
-.status-completado {
-  background: var(--success-bg);
-  color: var(--success-text);
-}
-
-.status-pendiente {
-  background: var(--warning-bg);
-  color: var(--warning-text);
-}
-
-.status-confirmado {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-/* Mobile responsive for venta headers and badges */
-@media (max-width: 600px) {
-  .venta-header {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .venta-id {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-  }
-
-  .venta-status {
-    font-size: 0.65rem;
-    padding: 0.2rem 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .venta-status .material-icons-round {
-    font-size: 12px !important;
-  }
-
-  .venta-card {
-    padding: 0.75rem;
-  }
-
-  .venta-info p {
-    font-size: 0.85rem;
-    margin: 0.25rem 0;
-  }
-}
-
-@media (max-width: 400px) {
-  .venta-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.35rem;
-  }
-
-  .venta-id {
-    order: -1;
-  }
-}
-
-.venta-details summary {
-  color: var(--primary);
-  cursor: pointer;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-/* CATALOGO PRODUCTOS Y BÚSQUEDA */
-.panel-header-catalogo {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.search-container-catalogo {
-  position: relative;
-  max-width: 400px;
-  width: 100%;
-}
-
-.search-input-catalogo {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border-radius: 99px;
-  border: 1px solid var(--border);
-  outline: none;
-  font-size: 0.95rem;
-  color: var(--text-main);
-  background: var(--bg-body);
-  transition: all 0.2s;
-}
-
-.search-input-catalogo:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
-  background: white;
-}
-
-.search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 20px;
-}
-
-.producto-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  background: white;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-}
-
-.producto-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--primary-light);
-}
-
-.producto-img-container {
-  width: 100%;
-  height: 200px;
-  background: #f9fafb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding: 1rem;
-  /* Padding to ensure image isn't edge-to-edge if it contains text */
-}
-
-.producto-card img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  /* Prevent cropping of 200x200 images */
-  transition: transform 0.3s;
-}
-
-.producto-card:hover img {
-  transform: scale(1.05);
-}
-
-.producto-info {
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-}
-
-.producto-info h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
-  line-height: 1.4;
-  color: var(--text-main);
-}
-
-.producto-descripcion {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  margin-bottom: 1rem;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  /* Added for compatibility */
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex-grow: 1;
-}
-
-.producto-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px dashed var(--border);
-}
-
-.producto-precio {
-  font-size: 1.25rem;
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.producto-stock.low {
-  color: var(--danger);
-  font-weight: 700;
-}
-
-/* BTN ADD CLIENT */
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  /* Allow stacking on mobile */
-}
-
-@media (max-width: 600px) {
-  .panel-header .btn-add {
-    width: 100%;
-    margin-top: 0.5rem;
-  }
-}
-
-.btn-add {
-  padding: 0.5rem 1rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* ============================================
-   MIS METAS PANEL (VENDEDOR)
-   ============================================ */
-.mis-metas-panel {
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  min-height: 500px;
-}
-
-.mis-metas-panel .panel-header h2 {
-  font-size: 1.75rem;
-  color: var(--text-main);
-  margin: 0 0 0.5rem 0;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* No Goal Message */
-.no-goal-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
-  text-align: center;
-  background: linear-gradient(135deg, var(--bg-body) 0%, #f8fafc 100%);
-  border-radius: var(--radius-lg);
-  margin-top: 2rem;
-}
-
-.no-goal-message h3 {
-  margin: 1rem 0 0.5rem 0;
-  color: var(--text-main);
-  font-size: 1.25rem;
-}
-
-.no-goal-message p {
-  color: var(--text-secondary);
-  margin: 0;
-  max-width: 400px;
-}
-
-/* Current Goal Section */
-.current-goal-section {
-  margin-top: 1.5rem;
-}
-
-.goal-card-large {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  box-shadow: var(--shadow-md);
-  transition: all 0.3s ease;
-}
-
-.goal-card-large:hover {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
-
-/* Goal Header */
-.goal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid var(--border);
-}
-
-.goal-period {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.goal-period .material-icons-round {
-  color: var(--primary);
-  font-size: 24px;
-}
-
-.goal-completed-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 99px;
-  font-weight: 700;
-  font-size: 0.875rem;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  animation: celebratePulse 2s ease-in-out infinite;
-}
-
-@keyframes celebratePulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-/* Goal Stats Large */
-.goal-stats-large {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.stat-box {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  transition: all 0.3s ease;
-}
-
-.stat-box:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--primary-light);
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.stat-icon .material-icons-round {
-  font-size: 28px;
-}
-
-.stat-icon.target {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
-}
-
-.stat-icon.current {
-  background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.stat-icon.remaining {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-}
-
-.stat-content {
-  flex: 1;
+  gap: var(--space-2);
   min-width: 0;
 }
 
-.stat-label {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+.vendedor-dashboard .cart-item-subtotal {
+  grid-area: subtotal;
+  justify-self: end;
+  font-size: var(--text-base);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.25rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.stat-value {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-main);
-  word-break: break-all;
+.vendedor-dashboard .cart-item > .vd-remove {
+  grid-area: remove;
+  justify-self: end;
 }
 
-/* Progress Section Large */
-.progress-section-large {
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  margin-bottom: 1.5rem;
-}
-
-.progress-header {
+/* Promociones y bonificados: nombre a la izquierda, acciones a la derecha */
+.vendedor-dashboard .cart-item.promotion-item,
+.vendedor-dashboard .cart-item.cart-item--bonified {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
-.progress-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.vendedor-dashboard .cart-item.promotion-item .cart-item-info,
+.vendedor-dashboard .cart-item.cart-item--bonified .cart-item-info {
+  flex: 1;
 }
 
-.progress-percentage {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.progress-bar-large {
-  height: 32px;
-  background: var(--bg-body);
-  border-radius: 99px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06);
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary) 0%, #2563eb 100%);
-  border-radius: 99px;
-  transition: width 1s ease-out;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 1rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.progress-fill::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.2) 50%,
-      transparent 100%);
-  animation: shimmer 2s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-
-  100% {
-    transform: translateX(100%);
-  }
-}
-
-.progress-fill.completed {
-  background: linear-gradient(90deg, var(--success) 0%, #059669 100%);
-  animation: completePulse 1.5s ease-in-out;
-}
-
-@keyframes completePulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.8;
-  }
-}
-
-.progress-text {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: white;
-  position: relative;
-  z-index: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.progress-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-/* Motivation Message */
-.motivation-message {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border: 1px solid #fbbf24;
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
-}
-
-.motivation-message .material-icons-round {
-  font-size: 32px;
-  color: #d97706;
+.vendedor-dashboard .cart-item.promotion-item .cart-item-controls,
+.vendedor-dashboard .cart-item.cart-item--bonified .cart-item-controls,
+.vendedor-dashboard .cart-item.promotion-item > .vd-remove {
   flex-shrink: 0;
 }
 
-.motivation-message p {
-  margin: 0;
-  font-size: 0.95rem;
+.vendedor-dashboard .vd-promo-price {
   font-weight: 600;
-  color: #92400e;
-  line-height: 1.5;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-/* Completion Celebration */
-.completion-celebration {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  border: 2px solid var(--success);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  text-align: center;
-  margin-bottom: 1.5rem;
-  animation: celebrate 0.6s ease-out;
-}
-
-@keyframes celebrate {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
-
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.celebration-icon {
-  font-size: 64px;
-  color: var(--success);
-  display: block;
-  margin-bottom: 1rem;
-  animation: bounce 1s ease-in-out infinite;
-}
-
-@keyframes bounce {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.completion-celebration h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
-  color: var(--success-text);
-}
-
-.completion-celebration p {
-  margin: 0;
-  color: #065f46;
-  font-weight: 500;
-}
-
-/* Goal Timestamps */
-.goal-timestamps {
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
-  margin-top: 1rem;
-}
-
-.goal-timestamps p {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Goal History Section */
-.goal-history-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 2px dashed var(--border);
-}
-
-.btn-toggle-history {
-  width: 100%;
-  padding: 1rem 1.5rem;
-  background: linear-gradient(135deg, var(--bg-body) 0%, #f1f5f9 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  transition: all 0.3s ease;
-}
-
-.btn-toggle-history:hover {
-  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-  border-color: var(--primary);
-  color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-toggle-history .material-icons-round {
-  font-size: 20px;
-}
-
-/* History Grid */
-.history-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-  animation: slideDown 0.4s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.history-card {
-  background: white;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.history-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: var(--text-muted);
-  transition: background 0.3s ease;
-}
-
-.history-card.completed::before {
-  background: linear-gradient(180deg, var(--success) 0%, #059669 100%);
-}
-
-.history-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--primary-light);
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.history-header h4 {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--text-main);
-}
-
-.completed-icon {
-  color: var(--success);
-  display: flex;
-  align-items: center;
-}
-
-.completed-icon .material-icons-round {
-  font-size: 24px;
-}
-
-/* History Stats */
-.history-stats {
+.vendedor-dashboard .bonified-section {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
-.history-stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.875rem;
-}
-
-.history-stat .label {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.history-stat .value {
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-/* History Progress */
-.history-progress {
+.vendedor-dashboard .bonified-title {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-}
-
-.progress-bar-small {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-body);
-  border-radius: 99px;
-  overflow: hidden;
-}
-
-.progress-bar-small .progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary) 0%, #2563eb 100%);
-  border-radius: 99px;
-  transition: width 0.6s ease-out;
-}
-
-.progress-bar-small .progress-fill.completed {
-  background: linear-gradient(90deg, var(--success) 0%, #059669 100%);
-}
-
-.percentage-text {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  min-width: 40px;
-  text-align: right;
-}
-
-/* Responsive Design for Mis Metas */
-@media (max-width: 768px) {
-  .goal-stats-large {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .stat-box {
-    padding: 1rem;
-    gap: 0.75rem;
-  }
-
-  .stat-value {
-    font-size: 0.9rem;
-    word-break: break-word;
-    overflow-wrap: break-word;
-  }
-
-  .stat-label {
-    font-size: 0.7rem;
-  }
-
-  .stat-icon {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-  }
-
-  .stat-icon .material-icons-round {
-    font-size: 24px;
-  }
-
-  .history-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .goal-card-large {
-    padding: 1.5rem;
-  }
-
-  .motivation-message {
-    flex-direction: column;
-    text-align: center;
-    padding: 1rem;
-  }
-
-  .progress-percentage {
-    font-size: 1.1rem;
-  }
-
-  .goal-period {
-    font-size: 0.9rem;
-  }
-
-  .progress-section-large {
-    padding: 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .goal-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .goal-stats-large {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-
-  .stat-box {
-    padding: 0.75rem;
-    gap: 0.5rem;
-  }
-
-  .stat-value {
-    font-size: 0.95rem;
-    font-weight: 700;
-    word-break: break-word;
-    max-width: 120px;
-  }
-
-  .stat-label {
-    font-size: 0.65rem;
-  }
-
-  .stat-icon {
-    width: 40px;
-    height: 40px;
-    min-width: 40px;
-  }
-
-  .stat-icon .material-icons-round {
-    font-size: 20px;
-  }
-
-  .progress-percentage {
-    font-size: 0.95rem;
-  }
-
-  .progress-header {
-    font-size: 0.8rem;
-  }
-
-  .mis-metas-panel {
-    padding: 1rem;
-  }
-
-  .goal-card-large {
-    padding: 1rem;
-  }
-
-  .goal-period {
-    font-size: 0.8rem;
-  }
-
-  .motivation-message {
-    padding: 0.75rem;
-    gap: 0.5rem;
-  }
-
-  .motivation-message .material-icons-round {
-    font-size: 24px;
-  }
-
-  .motivation-message p {
-    font-size: 0.8rem;
-  }
-}
-
-/* ============================================
-   MODAL (base) — RESTAURADO
-   El commit 839be05 ("llevando a produccion") eliminó estas reglas base
-   de VendedorDashboard.css, dejando los modales de crear/editar cliente
-   sin estilos: el formulario "desaparecía" y en móvil solo quedaban los
-   botones fijos (.form-actions position:fixed) visibles. El chunk del
-   vendedor NO carga AdminDashboard.css (code-splitting con React.lazy),
-   así que estas reglas deben vivir aquí. Se restauran tal cual estaban,
-   con nombres de animación propios para no chocar con los @keyframes
-   fadeIn/slideUp definidos más abajo. Debe ir ANTES del bloque
-   @media (max-width:480px) para que ese override móvil siga aplicando.
-   ============================================ */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: vendModalFadeIn 0.3s;
-}
-
-@keyframes vendModalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  animation: vendModalSlideUp 0.3s;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes vendModalSlideUp {
-  from {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 25px;
-  border-bottom: 2px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.modal-header h3 {
+  gap: 6px;
   margin: 0;
-  color: #1f2937;
-  font-size: 20px;
+  font-size: var(--text-sm);
   font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-success-text);
 }
 
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: #6b7280;
-  width: 32px;
-  height: 32px;
+.vendedor-dashboard .bonified-title .material-icons-round {
+  font-size: 18px;
+}
+
+/* Cantidad excede el stock: permitir venta sin stock */
+.vendedor-dashboard .out-of-stock-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-2);
+}
+
+/* Control de cantidad −/+ del carrito */
+.vendedor-dashboard .vd-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.vendedor-dashboard .vd-stepper button {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  transition: all 0.3s;
-}
-
-.btn-close:hover {
-  background: #e5e7eb;
-  color: #1f2937;
-}
-
-.client-form {
-  padding: 25px;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 25px;
-}
-
-.btn-cancel {
-  flex: 1;
-  padding: 12px;
-  background: #f3f4f6;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-lg);
   font-weight: 600;
-  transition: all 0.3s;
-}
-
-.btn-cancel:hover {
-  background: #e5e7eb;
-  border-color: #d1d5db;
-}
-
-.btn-save {
-  flex: 1;
-  padding: 12px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
+  line-height: 1;
   cursor: pointer;
+}
+
+.vendedor-dashboard .vd-stepper button {
+  transition: background-color var(--duration-control) var(--ease), color var(--duration-control) var(--ease);
+}
+
+.vendedor-dashboard .vd-stepper button:hover {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.vendedor-dashboard .vd-stepper button:active {
+  background: var(--color-primary-soft-hover);
+}
+
+/* El contenedor recorta (overflow: hidden): foco por dentro, como el input,
+   y esquinas exteriores redondeadas para que el anillo siga el borde */
+.vendedor-dashboard .vd-stepper button:focus-visible {
+  outline-offset: -2px;
+}
+
+.vendedor-dashboard .vd-stepper button:first-child {
+  border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px);
+}
+
+.vendedor-dashboard .vd-stepper button:last-child {
+  border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0;
+}
+
+.vendedor-dashboard .vd-stepper input {
+  width: 48px;
+  height: 36px;
+  min-width: 0;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-base);
   font-weight: 600;
-  transition: all 0.3s;
-  box-shadow: 0 2px 5px rgba(102, 126, 234, 0.3);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
-.btn-save:hover:not(:disabled) {
-  background: #5568d3;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.4);
+.vendedor-dashboard .vd-stepper input::-webkit-outer-spin-button,
+.vendedor-dashboard .vd-stepper input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-.btn-save:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.vendedor-dashboard .vd-stepper input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
-/* ============================================
-   ADDITIONAL MOBILE FIXES
-   ============================================ */
-
-/* Modal buttons fix - prevent overlap on mobile */
-@media (max-width: 480px) {
-  .modal-content {
-    margin: 0.5rem;
-    max-height: 95vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .client-form {
-    overflow-y: auto;
-    flex: 1;
-    padding-bottom: 120px;
-    /* Space for fixed buttons */
-  }
-
-  .client-form .form-actions {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: white;
-    padding: 1rem;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column-reverse;
-    gap: 0.75rem;
-    z-index: 1001;
-    border-radius: 1rem 1rem 0 0;
-  }
-
-  .client-form .form-actions button {
-    width: 100%;
-    padding: 1rem;
-    margin: 0;
-  }
-
-  /* Header logout button fix */
-  .header-info {
-    gap: 0.5rem;
-  }
-
-  .header-info span:not(.btn-logout) {
-    display: none;
-    /* Hide user name on very small screens */
-  }
-
-  .btn-logout {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-  }
-
-  .btn-logout span.logout-text {
-    display: none;
-  }
-
-  .btn-logout .material-icons-round {
-    margin: 0;
-  }
-}
-
-/* Product cards spacing on narrow mobile */
-@media (max-width: 600px) {
-  .productos-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.75rem;
-    padding: 0.5rem;
-  }
-
-  .producto-card {
-    padding: 0.75rem;
-  }
-
-  .producto-card img {
-    height: 80px;
-  }
-
-  .producto-card h3 {
-    font-size: 0.85rem;
-    line-height: 1.2;
-    margin-bottom: 0.25rem;
-  }
-
-  .producto-card .price {
-    font-size: 1rem;
-  }
-
-  .stock-info {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-  }
-
-  .btn-add-to-cart {
-    padding: 0.5rem;
-    font-size: 0.75rem;
-  }
-
-  .btn-add-to-cart .material-icons-round {
-    font-size: 16px;
-  }
-}
-
-/* Catalog panel more space on mobile */
-@media (max-width: 768px) {
-  .catalogo-panel {
-    padding: 0.75rem;
-  }
-
-  .productos-grid {
-    gap: 0.75rem;
-  }
-
-  /* Header improvements on mobile */
-  .dashboard-header {
-    padding: 0.75rem 1rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .dashboard-header h1 {
-    font-size: 1.25rem;
-    flex: 1;
-  }
-}
-
-/* Bot�n Flotante de Carrito para M�vil */
-.mobile-cart-fab {
+/* ---------- Barra fija + hoja del carrito (≤1024px) ---------- */
+.vendedor-dashboard .sticky-cart-footer,
+.vendedor-dashboard .mobile-cart-modal-overlay {
   display: none;
-  position: fixed;
-  bottom: 2rem;
-  right: 1.5rem;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: var(--primary-gradient);
-  color: white;
-  border: none;
-  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
-  z-index: 1000;
-  cursor: pointer;
+}
+
+.vendedor-dashboard .carrito-section--sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.vendedor-dashboard .mobile-cart-actions {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.vendedor-dashboard .mobile-cart-actions .cart-total {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.vendedor-dashboard .mobile-cart-actions .cart-total-amount {
+  font-size: var(--text-xl);
+}
+
+.vendedor-dashboard .mobile-cart-actions .btn-finalizar-venta {
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   4. MIS VENTAS / COMPLETADAS
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .venta-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Franja izquierda de 4px con el color del estado (.ui-stripe--{tono}) sobre la sombra de la
+   tarjeta. Las ventas S/R (.is-sr, index.css) quitan la sombra: su borde rojo ya lo dice. */
+.vendedor-dashboard .venta-card.ui-stripe {
+  box-shadow: inset 4px 0 0 var(--ui-stripe-color), var(--shadow-card);
+}
+
+.vendedor-dashboard .venta-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Cinta "SIN REGISTRO" (index.css) en la esquina: que no tape el estado */
+.vendedor-dashboard .venta-card.is-sr .venta-header {
+  padding-right: 64px;
+}
+
+.vendedor-dashboard .venta-header-main {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-@keyframes bounceIn {
-  0% {
-    transform: scale(0);
-    opacity: 0;
-  }
-
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+.vendedor-dashboard .venta-id {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
-.mobile-cart-fab .material-icons-round {
-  font-size: 28px;
+/* Número de factura/pedido en azul (referencia), también en Completadas
+   (Mis Ventas ya lo pinta con .is-normal de index.css) */
+.vendedor-dashboard .venta-card.completed .venta-id {
+  color: var(--color-primary-text);
 }
 
-.cart-count-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background: #ef4444;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 800;
+/* Estado de la orden (badge): el color sigue el significado del estado */
+.vendedor-dashboard .venta-status {
+  flex-shrink: 0;
+}
+
+.vendedor-dashboard .venta-status .material-icons-round {
+  font-size: 14px;
+}
+
+.vendedor-dashboard .venta-status.status-pendiente,
+.vendedor-dashboard .venta-status.status-pending_promotion_completion {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+.vendedor-dashboard .venta-status.status-confirmado {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.vendedor-dashboard .venta-status.status-completado {
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+
+.vendedor-dashboard .venta-status.status-anulada,
+.vendedor-dashboard .venta-status.status-anulado,
+.vendedor-dashboard .venta-status.status-cancelado,
+.vendedor-dashboard .venta-status.status-cancelada {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.vendedor-dashboard .venta-status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Datos: etiqueta a la izquierda, valor a la derecha */
+.vendedor-dashboard .venta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+.vendedor-dashboard .venta-info > p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.vendedor-dashboard .venta-info > p > strong {
+  flex-shrink: 0;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+/* Venta S/R (fondo rojo suave, .is-sr de index.css): muted no llega a 4.5:1 */
+.vendedor-dashboard .is-sr .venta-info > p > strong {
+  color: var(--color-text-secondary);
+}
+
+/* Cliente: avatar de 24px con su color + nombre, alineados a la derecha como los demás valores */
+.vendedor-dashboard .venta-client {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.vendedor-dashboard .venta-client-avatar {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* Total de la venta en verde (.ui-amount--success), un poco más grande que el resto */
+.vendedor-dashboard .venta-total {
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.vendedor-dashboard .venta-info > p.venta-total-row {
+  align-items: center;
+  padding-top: var(--space-1);
+}
+
+.vendedor-dashboard .venta-notes {
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.vendedor-dashboard .venta-notes strong {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: 2px solid white;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
-@media (max-width: 1024px) {
-  .mobile-cart-fab {
-    display: flex;
-  }
+.vendedor-dashboard .venta-notes .material-icons-round {
+  font-size: 14px;
 }
 
-.mobile-cart-fab:hover {
-  transform: scale(1.1) rotate(-5deg);
-  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5);
+.vendedor-dashboard .venta-notes p {
+  margin: 2px 0 0;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.mobile-cart-fab:active {
-  transform: scale(0.95);
+/* "Ver productos" */
+.vendedor-dashboard .venta-details {
+  margin-top: auto;
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-border);
 }
 
-/* Estilos para buscador de productos m�s peque�o y responsive */
-.search-container-sm {
-  margin: 1rem auto;
-  max-width: 450px !important;
-  width: calc(100% - 2rem) !important;
-  flex: 0 0 auto !important;
-}
-
-.search-input-sm {
-  padding: 0.6rem 1rem 0.6rem 2.5rem !important;
-  font-size: 0.9rem !important;
-  border-radius: 10px !important;
-  height: auto !important;
-}
-
-/* Refresh Button Style */
-.btn-refresh-dashboard {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 9999px;
-  width: 44px;
-  height: 44px;
+.vendedor-dashboard .venta-details summary {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  list-style: none;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #64748b;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  transition: color var(--duration-control) var(--ease);
 }
 
-.btn-refresh-dashboard:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border-color: #6366f1;
-  color: #6366f1;
-  background: #eef2ff;
+.vendedor-dashboard .venta-details summary:hover {
+  color: var(--color-primary);
 }
 
-.btn-refresh-dashboard:active {
-  transform: translateY(0);
+/* Al abrir, la lista de productos aparece con un fade suave */
+.vendedor-dashboard .venta-details[open] ul {
+  animation: ui-enter-fade var(--duration-enter) var(--ease) backwards;
 }
 
-.btn-refresh-dashboard .material-icons-round {
-  font-size: 1.25rem;
-  transition: transform 0.5s ease;
+.vendedor-dashboard .venta-details summary::-webkit-details-marker {
+  display: none;
 }
 
-.btn-refresh-dashboard:hover .material-icons-round {
+/* Icono decorativo: el texto alternativo vacío ('/ ""') evita que el lector de
+   pantalla lea "expand_more"; la primera línea es respaldo para navegadores
+   sin esa sintaxis */
+.vendedor-dashboard .venta-details summary::after {
+  content: 'expand_more';
+  content: 'expand_more' / '';
+  font-family: 'Material Icons Round';
+  font-size: 20px;
+  font-weight: normal;
+  line-height: 1;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  transition: transform var(--duration-fast) var(--ease);
+}
+
+.vendedor-dashboard .venta-details[open] summary::after {
   transform: rotate(180deg);
 }
 
-
-/* Responsive Fixes */
-@media (max-width: 768px) {
-  .productos-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .product-card {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
-  .product-card img {
-    width: 100%;
-    height: auto;
-  }
+.vendedor-dashboard .venta-details ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+.vendedor-dashboard .venta-details li {
+  padding: var(--space-2) 0;
+  border-top: 1px dashed var(--color-border);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
 
-/* ========================================
-   MOBILE RESPONSIVE STYLES FOR NUEVA VENTA
-   ======================================== */
+.vendedor-dashboard .venta-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 
-/* Sticky Cart Footer - Mobile Only */
-.sticky-cart-footer {
+.vendedor-dashboard .venta-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.vendedor-dashboard .venta-item-badges:empty {
   display: none;
 }
 
-.mobile-cart-modal-overlay {
-  display: none;
+/* Paginación de las listas */
+.vendedor-dashboard .vd-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
-/* Mobile Breakpoint: Tablets and smaller */
+.vendedor-dashboard .vd-pagination-size {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.vendedor-dashboard .vd-pagination-select {
+  width: auto;
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: var(--text-sm);
+}
+
+.vendedor-dashboard .vd-pagination-pages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.vendedor-dashboard .vd-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color var(--duration-control) var(--ease),
+    border-color var(--duration-control) var(--ease),
+    color var(--duration-control) var(--ease),
+    scale var(--duration-press) var(--ease);
+}
+
+.vendedor-dashboard .vd-page-btn:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-border);
+  color: var(--color-primary-text);
+}
+
+.vendedor-dashboard .vd-page-btn:active {
+  scale: 0.95;
+}
+
+.vendedor-dashboard .vd-page-btn.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  font-weight: 600;
+}
+
+.vendedor-dashboard .vd-pagination-info {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   5. CLIENTES
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .cliente-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow-wrap: anywhere;
+  box-shadow: var(--shadow-card);
+}
+
+/* Cabecera: avatar de iniciales con color propio del cliente + nombre */
+.vendedor-dashboard .cliente-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-bottom: var(--space-1);
+}
+
+.vendedor-dashboard .cliente-card h3 {
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.vendedor-dashboard .cliente-info {
+  gap: 6px;
+}
+
+/* Compras en verde (.ui-amount--success); el icono en verde suave */
+.vendedor-dashboard .cliente-stats {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.vendedor-dashboard .cliente-stats .ui-amount--success {
+  font-size: var(--text-base);
+}
+
+.vendedor-dashboard .cliente-stats .material-icons-round {
+  margin-right: var(--space-1);
+  font-size: 16px;
+  color: var(--color-success);
+  vertical-align: -3px;
+}
+
+.vendedor-dashboard .btn-edit-client {
+  margin-top: auto;
+}
+
+/* Modales crear/editar cliente: el <form> envuelve cuerpo + pie */
+.vendedor-dashboard .vd-modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------------------
+   6. CATÁLOGO DE PRODUCTOS
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .producto-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.vendedor-dashboard .producto-img-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 160px;
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.vendedor-dashboard .producto-img-container img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.vendedor-dashboard .producto-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.vendedor-dashboard .producto-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .producto-title-row h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.vendedor-dashboard .producto-descripcion {
+  display: -webkit-box;
+  flex-grow: 1;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.vendedor-dashboard .producto-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.vendedor-dashboard .producto-precio {
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.vendedor-dashboard .producto-stock {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   7. MIS METAS
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .vd-export {
+  margin-bottom: var(--space-6);
+}
+
+.vendedor-dashboard .vd-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.vendedor-dashboard .vd-export-row .ui-field {
+  flex: 1 1 160px;
+  max-width: 220px;
+}
+
+.vendedor-dashboard .vd-export-btn {
+  flex-shrink: 0;
+}
+
+.vendedor-dashboard .vd-export-note {
+  margin: var(--space-3) 0 0;
+}
+
+.vendedor-dashboard .goal-card-large {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.vendedor-dashboard .goal-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .goal-period {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Mes de la meta: icono en baldosa azul suave */
+.vendedor-dashboard .goal-period .material-icons-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+/* Insignia "¡Meta Completada!": aparece con un pequeño "pop" */
+.vendedor-dashboard .goal-completed-badge {
+  animation: vd-pop-in var(--duration-enter) var(--ease) backwards;
+}
+
+/* Tarjetas de cifras: blancas con sombra, cifra grande arriba (con el color de su
+   significado: meta azul, vendido verde, falta ámbar) y etiqueta debajo */
+.vendedor-dashboard .goal-stats-large .stat-box {
+  box-shadow: var(--shadow-card);
+}
+
+.vendedor-dashboard .stat-content .stat-value {
+  order: -1;
+}
+
+.vendedor-dashboard .goal-stats-large .stat-value {
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-title);
+}
+
+@media (min-width: 641px) {
+  .vendedor-dashboard .goal-stats-large .stat-box {
+    padding: var(--space-5);
+  }
+
+  .vendedor-dashboard .goal-stats-large .ui-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
+  }
+
+  .vendedor-dashboard .goal-stats-large .ui-stat-icon .material-icons-round {
+    font-size: 26px;
+  }
+
+  .vendedor-dashboard .goal-stats-large .stat-value {
+    font-size: var(--text-3xl);
+  }
+}
+
+.vendedor-dashboard .progress-section-large {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.vendedor-dashboard .progress-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.vendedor-dashboard .progress-label {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Porcentaje grande con el color del avance (.ui-text-{tono}; el tono lo da goalTone) */
+.vendedor-dashboard .progress-percentage {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 641px) {
+  .vendedor-dashboard .progress-percentage {
+    font-size: var(--text-3xl);
+  }
+}
+
+/* Barra grande de color (.ui-progress--{tono}: ámbar arrancando, azul desde 25 %, verde
+   cumplida). El relleno es .ui-progress-bar (transform: scaleX, crece al montar); el
+   porcentaje va encima, al final del tramo lleno, y aparece al terminar de crecer. */
+.vendedor-dashboard .progress-bar-large {
+  height: 24px;
+  background: var(--color-surface-hover);
+}
+
+/* Meta completada: verde oscuro para que el porcentaje en blanco cumpla AA con holgura */
+.vendedor-dashboard .progress-bar-large .progress-fill.completed {
+  background: var(--color-success-text);
+}
+
+.vendedor-dashboard .progress-text {
+  position: absolute;
+  top: 50%;
+  right: calc((100 - clamp(0, var(--value, 0), 100)) * 1% + var(--space-2));
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-inverse);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  animation: ui-enter-fade var(--duration-enter) var(--ease) 180ms backwards;
+}
+
+/* Sobre el ámbar el blanco no llega a 4.5:1: texto marino */
+.vendedor-dashboard .progress-bar-large.ui-progress--warning .progress-text {
+  color: var(--color-text);
+}
+
+.vendedor-dashboard .progress-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vendedor-dashboard .completion-celebration {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  text-align: center;
+}
+
+.vendedor-dashboard .completion-celebration .celebration-icon {
+  font-size: 40px;
+  animation: vd-pop-in 240ms var(--ease) 120ms backwards;
+}
+
+@keyframes vd-pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+
+.vendedor-dashboard .completion-celebration h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+.vendedor-dashboard .completion-celebration p {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.vendedor-dashboard .goal-timestamps p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.vendedor-dashboard .goal-timestamps .material-icons-round {
+  font-size: 16px;
+}
+
+/* Historial de metas */
+.vendedor-dashboard .goal-history-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.vendedor-dashboard .history-grid {
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-3);
+}
+
+.vendedor-dashboard .history-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Mes cumplido: franja verde de 4px a la izquierda */
+.vendedor-dashboard .history-card.completed {
+  box-shadow: inset 4px 0 0 var(--color-success), var(--shadow-card);
+}
+
+.vendedor-dashboard .history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vendedor-dashboard .history-header h4 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--color-text);
+}
+
+.vendedor-dashboard .completed-icon {
+  display: inline-flex;
+  color: var(--color-success-text);
+}
+
+.vendedor-dashboard .completed-icon .material-icons-round {
+  font-size: 20px;
+}
+
+.vendedor-dashboard .history-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.vendedor-dashboard .history-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.vendedor-dashboard .history-stat-label {
+  color: var(--color-text-muted);
+}
+
+.vendedor-dashboard .history-stat-value {
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "Logrado" en verde */
+.vendedor-dashboard .history-stat-value.ui-amount--success {
+  color: var(--color-success-text);
+}
+
+.vendedor-dashboard .history-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Barra pequeña de color (.ui-progress--{tono}) */
+.vendedor-dashboard .progress-bar-small {
+  flex: 1;
+  height: 8px;
+  background: var(--color-surface-hover);
+}
+
+/* Porcentaje con el color del avance (.ui-text-{tono}) */
+.vendedor-dashboard .percentage-text {
+  min-width: 44px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   7b. ESQUELETOS DE CARGA (PanelSkeleton)
+   Forma aproximada del contenido que llega: título + tarjetas (ventas, clientes con
+   avatar, productos con imagen) o cifras + barra (Mis Metas). El pulso lo da .ui-skeleton.
+   -------------------------------------------------------------------------- */
+.vendedor-dashboard .vd-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.vendedor-dashboard .vd-skeleton-heading {
+  width: min(260px, 60%);
+  height: 28px;
+}
+
+.vendedor-dashboard .vd-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-4);
+}
+
+.vendedor-dashboard .vd-skeleton-grid--products {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+}
+
+.vendedor-dashboard .vd-skeleton-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-4);
+}
+
+.vendedor-dashboard .vd-skeleton-wide {
+  grid-column: 1 / -1;
+}
+
+.vendedor-dashboard .vd-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.vendedor-dashboard .vd-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.vendedor-dashboard .vd-skeleton-grow {
+  flex: 1;
+}
+
+.vendedor-dashboard .vd-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.vendedor-dashboard .vd-skeleton-tile {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+}
+
+.vendedor-dashboard .vd-skeleton-media {
+  height: 120px;
+}
+
+.vendedor-dashboard .vd-skeleton-short {
+  width: 60%;
+}
+
+/* --------------------------------------------------------------------------
+   8. RESPONSIVE
+   -------------------------------------------------------------------------- */
+@media (max-width: 1280px) {
+  .vendedor-dashboard .venta-layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+/* Tablet y teléfono: el carrito pasa a barra fija + hoja */
 @media (max-width: 1024px) {
-  .nueva-venta-panel .venta-layout {
-    flex-direction: column;
-    gap: 1rem;
+  .vendedor-dashboard .venta-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .nueva-venta-panel .productos-section {
-    width: 100%;
-    max-width: none;
-  }
-
-  /* Hide cart section on mobile - will use modal instead */
-  .nueva-venta-panel .carrito-section {
+  .vendedor-dashboard .venta-layout > .carrito-section {
     display: none;
   }
 
-  /* Show sticky footer on mobile */
-  .sticky-cart-footer {
-    display: flex;
+  /* Que la barra fija no tape las últimas tarjetas */
+  .vendedor-dashboard .nueva-venta-panel {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  .vendedor-dashboard .sticky-cart-footer {
     position: fixed;
-    bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
-    padding: 1rem;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
+    bottom: 0;
+    z-index: var(--z-sidebar);
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
   }
 
-  .sticky-cart-footer .cart-summary {
+  .vendedor-dashboard .cart-summary {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    min-width: 0;
   }
 
-  .sticky-cart-footer .cart-summary .label {
-    font-size: 0.75rem;
-    opacity: 0.9;
+  .vendedor-dashboard .cart-summary-label {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
   }
 
-  .sticky-cart-footer .cart-summary .total {
-    font-size: 1.25rem;
-    font-weight: bold;
+  .vendedor-dashboard .cart-summary-total {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
   }
 
-  .sticky-cart-footer .btn-show-cart {
-    background: white;
-    color: #2563eb;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
+  .vendedor-dashboard .btn-show-cart {
+    flex-shrink: 0;
+  }
+
+  .vendedor-dashboard .mobile-cart-modal-overlay {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    white-space: nowrap;
-    transition: transform 0.2s;
   }
 
-  .sticky-cart-footer .btn-show-cart:active {
-    transform: scale(0.95);
-  }
-
-  /* Add padding to bottom of content to avoid footer overlap */
-  .nueva-venta-panel .productos-section {
-    padding-bottom: 100px;
-  }
-
-  /* Mobile Cart Modal */
-  .mobile-cart-modal-overlay {
-    display: flex;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 2000;
-    animation: fadeIn 0.2s;
-  }
-
-  .mobile-cart-modal-overlay.hidden {
+  .vendedor-dashboard .mobile-cart-modal-overlay.hidden {
     display: none;
   }
 
-  .mobile-cart-modal {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: white;
-    border-radius: 20px 20px 0 0;
-    max-height: 85vh;
-    overflow-y: auto;
-    animation: slideUp 0.3s ease-out;
-    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.2);
+  /* Táctil: controles de cantidad de 44px y 16px (sin zoom de iOS) */
+  .vendedor-dashboard .vd-stepper button {
+    width: 44px;
+    height: 44px;
   }
 
-  .mobile-cart-modal .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 10;
+  .vendedor-dashboard .vd-stepper input {
+    width: 52px;
+    height: 44px;
+    font-size: var(--text-md);
   }
 
-  .mobile-cart-modal .modal-header h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .vendedor-dashboard .cart-item > .vd-remove,
+  .vendedor-dashboard .cart-item .vd-remove {
+    width: 44px;
+    height: 44px;
   }
 
-  .mobile-cart-modal .modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: #6b7280;
-    padding: 0;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mobile-cart-modal .modal-body {
-    padding: 1rem 1.25rem 0.5rem;
-  }
-
-  /* Quitar la "tarjeta" (rectángulo invisible) que envolvía y apretaba todo:
-     dentro del modal, la carrito-section NO debe tener fondo/borde/sombra/radio,
-     para que el contenido use todo el ancho y respire. */
-  .mobile-cart-modal .carrito-section {
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    padding: 0;
-    gap: 0;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(100%);
-    }
-
-    to {
-      transform: translateY(0);
-    }
+  /* Casillas ("Venta sin cliente", "Permitir sin stock"…) también de 44px en la hoja táctil */
+  .vendedor-dashboard .vd-check {
+    min-height: 44px;
   }
 }
 
-/* Phone-specific: Even narrower screens */
-@media (max-width: 640px) {
-  .nueva-venta-panel .productos-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .nueva-venta-panel .grid-columns-selector {
-    display: none;
-  }
-
-  /* Optimize promotion cards for mobile */
-  .promotions-grid-compact {
-    grid-template-columns: 1fr !important;
-  }
-
-  .promotion-card.compact {
-    padding: 0.75rem;
-  }
-
-  /* Optimize product cards for narrow screens */
-  .product-card {
-    padding: 0.75rem;
-  }
-
-  .product-card .product-info h4 {
-    font-size: 0.9rem;
-  }
-
-  .product-card .product-price {
-    font-size: 1rem;
-  }
-
-  /* Make buttons more touch-friendly */
-  .btn-add-cart,
-  .btn-add-promo {
-    padding: 0.65rem 1rem;
-    font-size: 0.9rem;
-  }
-
-  /* Adjust search inputs for mobile */
-  .search-container-sm input {
-    font-size: 16px;
-    /* Prevents zoom on iOS */
-  }
-}
-
-
-/* ========================================
-   PRODUCT CARD MOBILE BUTTON FIX
-   ======================================== */
-
-/* Ensure quantity control buttons don't get hidden on mobile */
-@media (max-width: 640px) {
-  .product-card .product-info {
-    width: 100%;
-  }
-
-  /* Force buttons to stay visible and prevent flex shrinking */
-  .product-card .product-info>div[style*="display: flex"] button {
-    flex-shrink: 0 !important;
-    min-width: 32px !important;
-  }
-
-  /* Ensure input doesn't push buttons out */
-  .product-card .product-info>div[style*="display: flex"] input[type="number"] {
-    min-width: 0 !important;
-    flex: 1 1 auto !important;
-  }
-}
-
-
-/* ========================================
-   ENHANCED MOBILE CART MODAL DESIGN
-   ======================================== */
-
-@media (max-width: 1024px) {
-
-  /* Enhanced Modal Header */
-  .mobile-cart-modal .modal-header {
-    background: var(--primary-gradient);
-    color: white;
-    padding: 1.25rem 1.5rem;
-    border-bottom: none;
-  }
-
-  .mobile-cart-modal .modal-header h3 {
-    color: white;
-    font-size: 1.35rem;
-    font-weight: 700;
-  }
-
-  .mobile-cart-modal .modal-close {
-    color: white;
-    opacity: 0.9;
-    transition: opacity 0.2s;
-  }
-
-  .mobile-cart-modal .modal-close:hover {
-    opacity: 1;
-  }
-
-  /* Enhanced Form Groups */
-  .mobile-cart-modal .form-group {
-    margin-bottom: 0.85rem;
-  }
-
-  .mobile-cart-modal .form-group label {
-    font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-    font-size: 0.9rem;
-  }
-
-  .mobile-cart-modal select,
-  .mobile-cart-modal input,
-  .mobile-cart-modal textarea {
-    width: 100%;
-    padding: 0.7rem 0.75rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    font-size: 0.95rem;
-    transition: all 0.2s;
-  }
-
-  .mobile-cart-modal select:focus,
-  .mobile-cart-modal input:focus,
-  .mobile-cart-modal textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-  }
-
-  /* Checkbox sin caja gris: solo el control + etiqueta, más limpio */
-  .mobile-cart-modal .checkbox-group {
-    background: transparent;
-    padding: 0.25rem 0.15rem;
-    border-radius: 0;
-    border: none;
-    margin-bottom: 0.6rem;
-    align-items: center;
-    gap: 0.6rem;
-  }
-
-  /* El checkbox NO debe estirarse al 100% como el resto de inputs del modal */
-  .mobile-cart-modal .checkbox-group input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    flex: 0 0 auto;
-    margin: 0;
-    accent-color: var(--primary);
-    cursor: pointer;
-  }
-
-  .mobile-cart-modal .checkbox-group label {
-    flex: 1;
-    font-size: 0.875rem;
-    color: #4b5563;
-    line-height: 1.3;
-    margin: 0;
-  }
-
-  /* Enhanced Empty Cart State */
-  .mobile-cart-modal .empty-cart {
-    padding: 3rem 1rem;
-    text-align: center;
-    background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
-    border-radius: 16px;
-    margin: 1rem 0;
-  }
-
-  .mobile-cart-modal .empty-cart span.material-icons-round {
-    color: #d1d5db;
-  }
-
-  .mobile-cart-modal .empty-cart span:last-child {
-    color: #9ca3af;
-    font-size: 0.95rem;
-    margin-top: 0.5rem;
-  }
-
-  /* Enhanced Cart Items */
-  /* Lista limpia SIN cajas: cada producto es una fila con separador sutil
-     (nada de rectángulos por item), estilo carrito moderno. */
-  .mobile-cart-modal .cart-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-areas:
-      "avatar info     subtotal"
-      "avatar controls remove";
-    align-items: center;
-    column-gap: 0.8rem;
-    row-gap: 0.4rem;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid #f0f1f4;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0.9rem 0.15rem;
-    margin-bottom: 0;
-    transition: background 0.15s ease;
-  }
-
-  .mobile-cart-modal .cart-item:last-child {
-    border-bottom: none;
-  }
-
-  .mobile-cart-modal .cart-item:active {
-    background: rgba(99, 102, 241, 0.04);
-  }
-
-  .mobile-cart-modal .cart-item:hover {
-    border-color: #e5e7eb;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
-  }
-
-  .mobile-cart-modal .cart-item-info h5 {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: #1f2937;
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .mobile-cart-modal .cart-item-info p {
-    font-size: 0.74rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin: 0.1rem 0 0;
-  }
-
-  /* Enhanced Promotion Item */
-  .mobile-cart-modal .promotion-item {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border-color: #fbbf24;
-  }
-
-  .mobile-cart-modal .promotion-item h5::before {
-    content: ' ';
-  }
-
-  /* Enhanced Cart Controls */
-  .mobile-cart-modal .cart-item-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .mobile-cart-modal .cart-item-controls>div {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    background: #f9fafb;
-    padding: 0.25rem;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
-  }
-
-  .mobile-cart-modal .cart-item-controls button {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: white;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 1.1rem;
-    font-weight: bold;
-    color: var(--primary);
-  }
-
-  .mobile-cart-modal .cart-item-controls button:active {
-    transform: scale(0.9);
-    background: #f3f4f6;
-  }
-
-  .mobile-cart-modal .cart-item-controls input[type="number"] {
-    width: 50px;
-    text-align: center;
-    border: none;
-    background: transparent;
-    font-weight: bold;
-    padding: 0.25rem;
-    font-size: 1rem;
-  }
-
-  .mobile-cart-modal .btn-remove {
-    background: #fef2f2 !important;
-    color: #ef4444 !important;
-    border: 1px solid #fecaca !important;
-  }
-
-  .mobile-cart-modal .btn-remove:active {
-    background: #fee2e2 !important;
-  }
-
-  /* Enhanced Cart Total */
-  .mobile-cart-modal .cart-total {
-    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-    padding: 1.25rem;
-    border-radius: 12px;
-    text-align: center;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--primary-hover);
-    margin: 1.5rem 0 1rem;
-    border: 2px solid #c7d2fe;
-  }
-
-  .mobile-cart-modal .cart-total span {
-    display: block;
-    font-size: 1.75rem !important;
-    font-weight: 900 !important;
-    color: var(--primary) !important;
-    margin-top: 0.25rem;
-  }
-
-  /* Enhanced Finalizar Venta Button */
-  .mobile-cart-modal .btn-finalizar-venta {
-    width: 100%;
-    padding: 1rem;
-    background: var(--primary-gradient);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition: all 0.2s;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-  }
-
-  .mobile-cart-modal .btn-finalizar-venta:active {
-    transform: translateY(1px);
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
-  }
-
-  .mobile-cart-modal .btn-finalizar-venta:disabled {
-    background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
-    cursor: not-allowed;
-    box-shadow: none;
-  }
-
-  /* Barra de acción fija abajo: total + "Finalizar" siempre visibles al hacer scroll,
-     como en las hojas de checkout modernas. */
-  .mobile-cart-modal .mobile-cart-actions {
-    position: sticky;
-    bottom: 0;
-    background: #fff;
-    margin: 0.75rem -1.5rem 0;
-    padding: 0.8rem 1.5rem;
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -10px 24px -12px rgba(15, 23, 42, 0.25);
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    z-index: 5;
-  }
-
-  .mobile-cart-modal .mobile-cart-actions .cart-total {
-    margin: 0;
-    padding: 0.55rem 0.9rem;
-  }
-
-  .mobile-cart-modal .mobile-cart-actions .btn-finalizar-venta {
-    margin: 0;
-  }
-
-  /* Bonifications Section */
-  .mobile-cart-modal .cart-items>div[style*="borderTop"] {
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-    padding: 1rem;
-    border-radius: 12px;
-    border: 2px solid #bbf7d0 !important;
-  }
-
-  .mobile-cart-modal .cart-items>div[style*="borderTop"] h4 {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1rem !important;
-  }
-}
-
-/* ============================================================
-   MOBILE-FIRST: catálogo de productos más compacto.
-   Va al FINAL a propósito: la regla base .productos-grid se define
-   después de los media queries previos y los pisaba (misma especificidad,
-   orden de cascada). Esto deja 2 columnas con imágenes bajas para que el
-   vendedor (que usa el sistema en móvil) vea más productos por pantalla.
-   Solo CSS — no cambia lógica ni la info mostrada.
-   ============================================================ */
-@media (max-width: 600px) {
-  /* Imagen más baja → cada card es más corta → el vendedor ve más productos
-     por pantalla. Se respeta el layout de 1 columna ya definido para teléfonos. */
-  .product-card img {
-    height: 110px;
-    padding: 0.6rem;
-  }
-
-  .product-info {
-    padding: 0.75rem;
-    gap: 0.4rem;
-  }
-
-  /* Tamaño táctil cómodo aunque la card sea compacta */
-  .product-card .btn-agregar,
-  .product-card button {
-    min-height: 40px;
-  }
-}
-
-/* ============================================================
-   MENÚ LATERAL MÓVIL (DRAWER) — PANEL DE VENDEDOR
-   El nav de 9 pestañas obliga a scroll horizontal en móvil y se pierden de
-   vista opciones. En ≤768px el nav se transforma en un menú lateral oculto
-   que se abre con la hamburguesa de la barra superior. El escritorio queda
-   intacto: todo vive dentro del media query. Solo presentación — la lógica
-   de pestañas (selectTab) es la misma.
-   ============================================================ */
-
-/* Elementos exclusivos de móvil: ocultos en escritorio */
-.vendedor-mobile-bar,
-.vendedor-nav-scrim,
-.vendedor-nav-head,
-.vendedor-nav-close,
-.vendedor-mobile-refresh {
-  display: none;
-}
-
+/* Menú lateral (drawer) en lugar de la barra de pestañas */
 @media (max-width: 768px) {
-  /* --- Barra superior móvil: hamburguesa + sección actual + refrescar --- */
   .vendedor-dashboard .vendedor-mobile-bar {
+    position: sticky;
+    top: var(--app-header-h);
+    z-index: var(--z-sidebar);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 0.85rem;
-    background: #ffffff;
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 60;
+    gap: var(--space-1);
+    min-height: 56px;
+    padding: var(--space-1) var(--space-2);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .vendedor-dashboard .vendedor-hamburger,
   .vendedor-dashboard .vendedor-mobile-refresh {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 44px;
     height: 44px;
-    flex: 0 0 auto;
-    border: none;
-    background: transparent;
-    border-radius: var(--radius-md);
-    color: var(--text-main);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .vendedor-dashboard .vendedor-hamburger:active,
-  .vendedor-dashboard .vendedor-mobile-refresh:active {
-    background: var(--primary-light);
-    color: var(--primary-hover);
+    color: var(--color-text);
   }
 
   .vendedor-dashboard .vendedor-mobile-title {
-    flex: 1 1 auto;
-    min-width: 0;
     display: flex;
     align-items: center;
-    gap: 0.45rem;
-    font-weight: 700;
-    font-size: 1.05rem;
-    color: var(--text-main);
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 
+  /* Icono de la sección actual en baldosa azul suave (como los títulos de página) */
   .vendedor-dashboard .vendedor-mobile-title .material-icons-round {
-    color: var(--primary);
-    font-size: 1.35rem;
-    flex: 0 0 auto;
-  }
-
-  /* --- El nav superior se convierte en menú lateral deslizante --- */
-  .vendedor-dashboard .dashboard-nav {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: min(82vw, 320px);
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    padding: 0;
-    margin: 0;
-    background: #ffffff;
-    box-shadow: var(--shadow-lg);
-    border-bottom: none;
-    border-right: 1px solid var(--border);
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    transform: translateX(-100%);
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 1200;
-  }
-
-  .vendedor-dashboard .dashboard-nav.open {
-    transform: translateX(0);
-  }
-
-  /* Cabecera del drawer */
-  .vendedor-dashboard .vendedor-nav-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.15rem;
-    font-weight: 800;
-    font-size: 1.05rem;
-    color: var(--text-main);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    background: #ffffff;
-    z-index: 1;
-  }
-
-  .vendedor-dashboard .vendedor-nav-close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
     border-radius: var(--radius-md);
-    color: var(--text-muted);
-    cursor: pointer;
+    background: var(--color-primary-soft);
+    font-size: 18px;
+    color: var(--color-primary);
   }
 
-  .vendedor-dashboard .vendedor-nav-close:active {
-    background: var(--primary-light);
-    color: var(--primary-hover);
+  .vendedor-dashboard .dashboard-nav {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-dropdown);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: min(84vw, 320px);
+    padding: 0 0 env(safe-area-inset-bottom);
+    border-bottom: 0;
+    border-right: 1px solid var(--color-nav-border);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: var(--shadow-overlay);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform var(--duration) var(--ease), visibility 0s linear var(--duration);
   }
 
-  /* Cada pestaña: fila completa de izquierda a derecha, cómoda para el dedo */
-  .vendedor-dashboard .dashboard-nav button {
-    width: 100%;
+  .vendedor-dashboard .dashboard-nav.open {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--duration) var(--ease), visibility 0s;
+  }
+
+  .vendedor-dashboard .vendedor-nav-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 56px;
+    padding: 0 var(--space-2) 0 var(--space-4);
+    background: var(--color-nav-bg);
+    border-bottom: 1px solid var(--color-nav-border);
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-nav-text-active);
+  }
+
+  .vendedor-dashboard .vendedor-nav-close {
+    width: 44px;
+    height: 44px;
+    color: var(--color-nav-text);
+  }
+
+  .vendedor-dashboard .vendedor-nav-close:hover {
+    background: var(--color-nav-hover);
+    color: var(--color-nav-text-active);
+  }
+
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn) {
     justify-content: flex-start;
-    gap: 0.9rem;
-    padding: 0.95rem 1.15rem;
-    font-size: 1rem;
-    min-height: 52px;
-    border-bottom: none;
-    border-left: 3px solid transparent;
+    gap: var(--space-3);
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    font-size: var(--text-md);
+    transition: color var(--duration-control) var(--ease), transform var(--duration) var(--ease);
+  }
+
+  /* En el menú lateral la pastilla del hover ocupa la fila y no hay subrayado:
+     la activa lleva fondo azul suave y barra izquierda de 3px (como Dashboard.css) */
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn)::before {
+    inset: 0;
     border-radius: 0;
   }
 
-  .vendedor-dashboard .dashboard-nav button .material-icons-round {
-    font-size: 22px;
-  }
-
-  /* La pestaña activa se marca con barra lateral (no inferior, que no se vería en columna) */
-  .vendedor-dashboard .dashboard-nav button.active {
-    border-bottom-color: transparent;
-    border-left-color: var(--primary);
-    background: var(--primary-light) !important;
-  }
-
-  /* "Saldos" (enlace externo): sin el margin-left:auto del escritorio, separado con borde */
-  .vendedor-dashboard .dashboard-nav .nav-external {
-    margin-left: 0;
-    border-top: 1px solid var(--border);
-  }
-
-  /* El refresco que vive dentro del nav es redundante en móvil (ya está en la barra superior) */
-  .vendedor-dashboard .dashboard-nav .vendedor-nav-refresh {
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn)::after {
     display: none;
   }
 
-  /* --- Velo oscuro detrás del menú --- */
+  /* Al pasar el dedo/mouse: leve deslizamiento, como el menú lateral de Admin/Owner */
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):not(.active):hover {
+    transform: translateX(2px);
+  }
+
+  .vendedor-dashboard .dashboard-nav > button.active {
+    background: var(--color-nav-active-bg);
+    box-shadow: inset 3px 0 0 var(--color-nav-accent);
+  }
+
+  .vendedor-dashboard .dashboard-nav > .nav-external {
+    margin: var(--space-2) 0 0;
+    border-top: 1px solid var(--color-nav-border);
+  }
+
+  /* El refresco ya está en la barra superior */
+  .vendedor-dashboard .dashboard-nav > .vendedor-nav-refresh {
+    display: none;
+  }
+
   .vendedor-dashboard .vendedor-nav-scrim {
-    display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.45);
+    z-index: calc(var(--z-dropdown) - 1);
+    display: block;
+    background: var(--color-overlay);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.28s ease;
-    z-index: 1190;
+    transition: opacity var(--duration) var(--ease);
   }
 
   .vendedor-dashboard .vendedor-nav-scrim.open {
     opacity: 1;
     pointer-events: auto;
   }
+}
 
-  /* Bloquear el scroll del fondo mientras el menú está abierto */
-  body.vendedor-nav-open {
-    overflow: hidden;
+/* Bloquea el scroll del fondo mientras el menú lateral está abierto (clase en <body>) */
+body.vendedor-nav-open {
+  overflow: hidden;
+}
+
+/* Teléfono */
+@media (max-width: 640px) {
+  .vendedor-dashboard .dashboard-content {
+    padding: var(--space-4);
   }
-}
 
-/* Respetar usuarios que reducen el movimiento */
-@media (prefers-reduced-motion: reduce) {
-  .vendedor-dashboard .dashboard-nav,
-  .vendedor-dashboard .vendedor-nav-scrim {
-    transition: none;
+  .vendedor-dashboard .vd-page-cta {
+    flex: 1;
   }
-}
 
-/* ============================================================
-   SELECTOR SEGMENTADO  [ Productos | Promociones ]  (Nueva Venta)
-   Resuelve que con muchas promociones la vendedora tenga que scrollear
-   para llegar a los productos: por defecto se ven los Productos y las
-   Promociones quedan a un toque (con contador). Solo presentación.
-   ============================================================ */
-.catalog-switch {
-  display: inline-flex;
-  background: #f1f5f9;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 0.85rem;
-  padding: 0.3rem;
-  gap: 0.25rem;
-  flex: 0 0 auto;
-}
-
-.catalog-switch-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 1rem;
-  border: none;
-  background: transparent;
-  border-radius: 0.6rem;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
-}
-
-.catalog-switch-btn .material-icons-round {
-  font-size: 1.15rem;
-}
-
-.catalog-switch-btn:hover {
-  color: var(--primary);
-}
-
-.catalog-switch-btn.active {
-  background: #ffffff;
-  color: var(--primary);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-}
-
-.catalog-switch-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: #e11d48;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-/* Botón "limpiar" dentro del buscador de productos */
-.search-container .search-clear-btn {
-  position: absolute;
-  right: 0.55rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: #f1f5f9;
-  color: var(--text-muted);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.search-container .search-clear-btn:hover {
-  background: #e2e8f0;
-  color: var(--text-main);
-}
-
-.search-container .search-clear-btn .material-icons-round {
-  font-size: 1.05rem;
-}
-
-/* En móvil, el selector segmentado ocupa todo el ancho y reparte las dos opciones */
-@media (max-width: 600px) {
-  .catalog-switch {
+  /* Productos | Promociones a todo el ancho */
+  .vendedor-dashboard .catalog-switch {
+    display: flex;
     width: 100%;
   }
-  .catalog-switch-btn {
+
+  .vendedor-dashboard .catalog-switch-btn {
     flex: 1 1 0;
     justify-content: center;
   }
+
+  /* El catálogo va a 1 columna (tarjetas en fila): el selector de columnas sobra */
+  .vendedor-dashboard .grid-columns-selector {
+    display: none;
+  }
+
+  .vendedor-dashboard .productos-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  /* Etiquetas en una sola fila deslizable: no empujan el catálogo hacia abajo.
+     Barra fina visible (en el celular es superpuesta y no ocupa espacio):
+     con mouse se ve que hay más etiquetas a la derecha. */
+  .vendedor-dashboard .productos-section .tag-filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .vendedor-dashboard .productos-section .tag-filter-bar::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .vendedor-dashboard .productos-section .tag-filter-bar::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    border: 0;
+    border-radius: var(--radius-full);
+  }
+
+  .vendedor-dashboard .productos-section .tag-filter-bar > * {
+    flex-shrink: 0;
+  }
+
+  .vendedor-dashboard .vd-filter {
+    flex: 1 1 100%;
+  }
+
+  .vendedor-dashboard .vd-filter .ui-input,
+  .vendedor-dashboard .vd-filter .ui-select {
+    flex: 1;
+    width: 100%;
+  }
+
+  .vendedor-dashboard .venta-details summary {
+    min-height: 44px;
+  }
+
+  .vendedor-dashboard .vd-pagination-select {
+    min-height: 44px;
+    font-size: var(--text-md);
+  }
+
+  .vendedor-dashboard .vd-page-btn {
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .vendedor-dashboard .vd-freight-option {
+    min-height: 44px;
+  }
+
+  /* Catálogo de productos en filas: imagen pequeña a la izquierda.
+     La 1.ª columna incluye el margen izquierdo de la imagen (88px + 12px):
+     así el texto queda a 12px de la miniatura y no pegado a ella. */
+  .vendedor-dashboard .producto-card {
+    display: grid;
+    grid-template-columns: calc(88px + var(--space-3)) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .vendedor-dashboard .producto-img-container {
+    width: 88px;
+    height: 88px;
+    margin: var(--space-3) 0 var(--space-3) var(--space-3);
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .vendedor-dashboard .producto-info {
+    padding: var(--space-3);
+  }
+
+  /* Mis Metas: fechas lado a lado y botón a todo el ancho */
+  .vendedor-dashboard .vd-export-row .ui-field {
+    flex: 1 1 calc(50% - var(--space-2));
+    max-width: none;
+  }
+
+  .vendedor-dashboard .vd-export-btn {
+    flex: 1 1 100%;
+  }
+
+  .vendedor-dashboard .goal-history-section > .btn-toggle-history {
+    width: 100%;
+  }
 }
 
-/* ============================================================
-   ESTADO DE CARGA (.loading) — antes era solo el texto "Cargando..."
-   sin estilo en 6 pestañas del vendedor. Ahora muestra un spinner.
-   Scopeado a .vendedor-dashboard para no afectar nada global.
-   ============================================================ */
-.vendedor-dashboard .loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  min-height: 280px;
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.95rem;
+/* Teléfonos angostos: sin la inicial decorativa, para que la cantidad (44px) quepa */
+@media (max-width: 400px) {
+  .vendedor-dashboard .cart-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'info subtotal'
+      'controls remove';
+  }
+
+  .vendedor-dashboard .cart-item-avatar {
+    display: none;
+  }
 }
 
-.vendedor-dashboard .loading::before {
-  content: '';
-  width: 22px;
-  height: 22px;
-  border: 3px solid rgba(99, 102, 241, 0.25);
-  border-top-color: var(--primary);
-  border-radius: 50%;
-  animation: vendedor-spin 0.7s linear infinite;
+/* Pantallas muy angostas: el pie de la hoja apila total y botón */
+@media (max-width: 360px) {
+  .vendedor-dashboard .mobile-cart-actions {
+    flex-wrap: wrap;
+  }
+
+  .vendedor-dashboard .mobile-cart-actions .btn-finalizar-venta {
+    flex: 1 1 100%;
+  }
 }
 
-@keyframes vendedor-spin {
-  to { transform: rotate(360deg); }
-}
-
+/* --------------------------------------------------------------------------
+   9. SIN MOVIMIENTO (prefers-reduced-motion)
+   Sin entradas, "pops" ni desplazamientos de las pestañas; los cambios de color quedan
+   instantáneos (la regla global de design-system.css ya acorta las transiciones).
+   -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  .vendedor-dashboard .loading::before {
-    animation: none;
+  .vendedor-dashboard .cart-items > .cart-item,
+  .vendedor-dashboard .bonified-section > .cart-item,
+  .vendedor-dashboard .venta-details[open] ul,
+  .vendedor-dashboard .goal-completed-badge,
+  .vendedor-dashboard .completion-celebration .celebration-icon,
+  .vendedor-dashboard .progress-text {
+    animation: none !important;
+  }
+
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn),
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn)::before,
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn)::after,
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn) .material-icons-round {
+    transition: none !important;
+  }
+
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):active,
+  .vendedor-dashboard .vd-page-btn:active {
+    scale: none !important;
+  }
+
+  .vendedor-dashboard .dashboard-nav > button:not(.ui-icon-btn):not(.active):hover {
+    transform: none !important;
   }
 }

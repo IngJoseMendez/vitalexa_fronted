@@ -5,6 +5,28 @@ import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastContainer';
 import { TagBadge } from './TagComponents';
 import { formatCurrency, formatOrderLabel } from '../utils/formatters';
+import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
+
+// Color con significado del estado de un pedido (franja izquierda y badge):
+// pendiente = ámbar, confirmado = azul, completado = verde, anulado/cancelado = rojo.
+const ORDER_TONE = {
+    PENDIENTE: 'warning',
+    PENDING_PROMOTION_COMPLETION: 'warning',
+    CONFIRMADO: 'primary',
+    COMPLETADO: 'success',
+    CANCELADO: 'danger',
+    ANULADA: 'danger',
+};
+
+const ORDER_ICON = {
+    PENDIENTE: 'schedule',
+    PENDING_PROMOTION_COMPLETION: 'schedule',
+    CONFIRMADO: 'task_alt',
+    COMPLETADO: 'check_circle',
+    CANCELADO: 'cancel',
+    ANULADA: 'block',
+};
 
 // === PRODUCT CARD ===
 export const ClientProductCard = ({ product, onAddToList, cart }) => {
@@ -25,36 +47,40 @@ export const ClientProductCard = ({ product, onAddToList, cart }) => {
     const stockPercentage = (availableStock / product.stock) * 100;
 
     return (
-        <div className="client-product-card animate-fade-in">
+        <div className="client-product-card">
             <div className="card-img-wrapper">
-                <img src={product.imageUrl || '/placeholder.png'} alt={product.nombre} />
+                <img
+                    src={product.imageUrl || PLACEHOLDER_IMAGE}
+                    alt={product.nombre}
+                    loading="lazy"
+                    decoding="async"
+                />
                 {isOutOfStock && <span className="stock-badge out">Agotado</span>}
                 {!isOutOfStock && availableStock < 10 && (
                     <span className="stock-badge low">¡Últimos {availableStock}!</span>
                 )}
                 {quantityInCart > 0 && (
                     <span className="stock-badge in-cart" title="Cantidad en carrito">
-                        <span className="material-icons-round">shopping_cart</span> {quantityInCart}
+                        <span className="material-icons-round" aria-hidden="true">shopping_cart</span> {quantityInCart}
                     </span>
                 )}
             </div>
             <div className="card-body">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <h3 style={{ margin: 0 }}>{product.nombre}</h3>
+                <div className="card-title-row">
+                    <h3>{product.nombre}</h3>
                     {product.tagName && <TagBadge tagName={product.tagName} />}
                 </div>
                 <p className="card-desc">{product.descripcion}</p>
 
                 {/* Visual Stock Indicator */}
                 <div className="stock-indicator">
-                    <div className="stock-bar">
-                        <div
-                            className="stock-fill"
-                            style={{
-                                width: `${Math.max(0, stockPercentage)}%`,
-                                background: stockPercentage > 30 ? '#10b981' : stockPercentage > 10 ? '#f59e0b' : '#ef4444'
-                            }}
-                        />
+                    {/* Barra de color (.ui-progress, transform: scaleX); valor protegido si el stock es 0 */}
+                    <div
+                        className={`stock-bar ui-progress ui-progress--${stockPercentage > 30 ? 'success' : stockPercentage > 10 ? 'warning' : 'danger'}`}
+                        style={{ '--value': Number.isFinite(stockPercentage) ? Math.max(0, stockPercentage) : 0 }}
+                        aria-hidden="true"
+                    >
+                        <span className={`stock-fill ui-progress-bar ${stockPercentage > 30 ? 'is-high' : stockPercentage > 10 ? 'is-mid' : 'is-low'}`} />
                     </div>
                     <span className={`stock-status ${availableStock > 0 ? 'in-stock' : 'no-stock'}`}>
                         {availableStock > 0 ? `${availableStock} de ${product.stock} disponibles` : 'Sin Stock'}
@@ -66,11 +92,13 @@ export const ClientProductCard = ({ product, onAddToList, cart }) => {
                         <span className="price">${formatCurrency(product.precio)}</span>
                         {onAddToList && (
                             <button
-                                className="btn-action"
+                                type="button"
+                                className="btn-action btn-save-list ui-icon-btn ui-icon-btn--bordered ui-icon-btn--lg"
                                 onClick={() => onAddToList(product)}
                                 title="Guardar en lista"
+                                aria-label="Guardar en lista"
                             >
-                                📑
+                                <span className="material-icons-round" aria-hidden="true">bookmark_add</span>
                             </button>
                         )}
                     </div>
@@ -79,16 +107,32 @@ export const ClientProductCard = ({ product, onAddToList, cart }) => {
                         {!isOutOfStock ? (
                             <>
                                 <div className="qty-control">
-                                    <button className="qty-btn" onClick={() => setQty(Math.max(1, qty - 1))}>-</button>
+                                    <button
+                                        type="button"
+                                        className="qty-btn"
+                                        aria-label="Disminuir cantidad"
+                                        onClick={() => setQty(Math.max(1, qty - 1))}
+                                    >-</button>
                                     <span className="qty-val">{qty}</span>
-                                    <button className="qty-btn" onClick={() => setQty(Math.min(availableStock, qty + 1))}>+</button>
+                                    <button
+                                        type="button"
+                                        className="qty-btn"
+                                        aria-label="Aumentar cantidad"
+                                        onClick={() => setQty(Math.min(availableStock, qty + 1))}
+                                    >+</button>
                                 </div>
-                                <button className="add-btn" onClick={handleAdd}>
-                                    <span className="material-icons-round">add</span>
+                                <button
+                                    type="button"
+                                    className="add-btn ui-btn ui-btn--primary"
+                                    onClick={handleAdd}
+                                    title="Agregar al carrito"
+                                    aria-label="Agregar al carrito"
+                                >
+                                    <span className="material-icons-round" aria-hidden="true">add_shopping_cart</span>
                                 </button>
                             </>
                         ) : (
-                            <button className="btn-action" style={{ width: '100%' }} disabled>Sin Stock</button>
+                            <button type="button" className="btn-action ui-btn ui-btn--secondary ui-btn--block" disabled>Sin Stock</button>
                         )}
                     </div>
                 </div>
@@ -134,10 +178,10 @@ export const CartView = ({ onOrderPlaced }) => {
 
     if (cart.length === 0) {
         return (
-            <div className="empty-state" style={{ textAlign: 'center', padding: '4rem' }}>
-                <span style={{ fontSize: '4rem' }}>🛒</span>
-                <h2>Tu carrito está vacío</h2>
-                <p>¡Agrega productos del catálogo!</p>
+            <div className="empty-state client-cart-empty ui-empty">
+                <span className="material-icons-round ui-empty-icon" aria-hidden="true">shopping_cart</span>
+                <h2 className="ui-empty-title">Tu carrito está vacío</h2>
+                <p className="ui-empty-text">¡Agrega productos del catálogo!</p>
             </div>
         );
     }
@@ -149,29 +193,55 @@ export const CartView = ({ onOrderPlaced }) => {
                 <div className="cart-items-section">
                     <div className="section-header">
                         <h2>Tu Carrito ({cart.length} productos)</h2>
-                        <button className="clear-cart-link" onClick={clearCart}>Vaciar Carrito</button>
+                        <button
+                            type="button"
+                            className="clear-cart-link ui-btn ui-btn--danger-ghost ui-btn--sm"
+                            onClick={clearCart}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">remove_shopping_cart</span>
+                            Vaciar Carrito
+                        </button>
                     </div>
 
-                    <div className="items-list">
+                    <div className="items-list ui-stagger">
                         {cart.map(item => (
                             <div key={item.product.id} className="modern-cart-item">
                                 <div className="item-image-container">
-                                    <img src={item.product.imageUrl || '/placeholder.png'} alt={item.product.nombre} />
+                                    <img
+                                        src={item.product.imageUrl || PLACEHOLDER_IMAGE}
+                                        alt={item.product.nombre}
+                                        loading="lazy"
+                                        decoding="async"
+                                    />
                                 </div>
                                 <div className="item-main-info">
                                     <div className="item-title-row">
                                         <h4>{item.product.nombre}</h4>
-                                        <button className="remove-item-btn" onClick={() => removeFromCart(item.product.id)} title="Eliminar">
-                                            <span className="material-icons-round">delete_outline</span>
+                                        <button
+                                            type="button"
+                                            className="remove-item-btn ui-icon-btn ui-icon-btn--danger"
+                                            onClick={() => removeFromCart(item.product.id)}
+                                            title="Eliminar"
+                                            aria-label="Eliminar"
+                                        >
+                                            <span className="material-icons-round" aria-hidden="true">delete_outline</span>
                                         </button>
                                     </div>
                                     <p className="item-price-unit">${formatCurrency(item.product.precio)} c/u</p>
 
                                     <div className="item-controls-row">
                                         <div className="modern-qty-selector">
-                                            <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>-</button>
+                                            <button
+                                                type="button"
+                                                aria-label="Disminuir cantidad"
+                                                onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                                            >-</button>
                                             <span>{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>+</button>
+                                            <button
+                                                type="button"
+                                                aria-label="Aumentar cantidad"
+                                                onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                                            >+</button>
                                         </div>
                                         <div className="item-subtotal">
                                             <span className="subtotal-label">Subtotal:</span>
@@ -187,7 +257,10 @@ export const CartView = ({ onOrderPlaced }) => {
                 {/* Right Side: Order Summary */}
                 <div className="cart-summary-section">
                     <div className="summary-card">
-                        <h3>Resumen del Pedido</h3>
+                        <h3>
+                            <span className="ui-icon-tile ui-icon-tile--sm" aria-hidden="true"><span className="material-icons-round">receipt</span></span>
+                            Resumen del Pedido
+                        </h3>
 
                         <div className="summary-details">
                             <div className="summary-line">
@@ -209,9 +282,11 @@ export const CartView = ({ onOrderPlaced }) => {
                             <span className="total-amount">${formatCurrency(cartTotal)}</span>
                         </div>
 
-                        <div className="order-notes-container">
-                            <label>Notas de la orden</label>
+                        <div className="order-notes-container ui-field">
+                            <label className="ui-label" htmlFor="client-order-notes">Notas de la orden</label>
                             <textarea
+                                id="client-order-notes"
+                                className="ui-textarea"
                                 placeholder="Escribe instrucciones especiales aquí..."
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
@@ -219,19 +294,20 @@ export const CartView = ({ onOrderPlaced }) => {
                         </div>
 
                         <button
-                            className="btn-place-order"
+                            type="button"
+                            className="btn-place-order ui-btn ui-btn--primary ui-btn--lg ui-btn--block"
                             onClick={handleCheckout}
                             disabled={loading}
                         >
                             {loading ? (
-                                <><span className="spinner"></span> Procesando...</>
+                                <><span className="spinner ui-spinner" aria-hidden="true"></span> Procesando...</>
                             ) : (
-                                <>Confirmar Pedido <span className="material-icons-round">arrow_forward</span></>
+                                <>Confirmar Pedido <span className="material-icons-round" aria-hidden="true">arrow_forward</span></>
                             )}
                         </button>
 
                         <p className="checkout-guarantee">
-                            <span className="material-icons-round">verified_user</span>
+                            <span className="material-icons-round" aria-hidden="true">verified_user</span>
                             Pago y envío garantizado por Vitalexa B2B
                         </p>
                     </div>
@@ -291,40 +367,79 @@ export const OrdersView = () => {
         }
     };
 
-    if (loading) return <div>Cargando pedidos...</div>;
+    if (loading) {
+        // Esqueletos con la forma de las tarjetas de pedido (texto para lectores de pantalla)
+        return (
+            <div className="client-loading orders-container" role="status" aria-busy="true">
+                <span className="ui-sr-only">Cargando pedidos...</span>
+                {[0, 1, 2].map(i => (
+                    <div key={i} className="client-skeleton-card" aria-hidden="true">
+                        <span className="ui-skeleton ui-skeleton--title" />
+                        <span className="ui-skeleton ui-skeleton--text client-skeleton-short" />
+                        <span className="ui-skeleton ui-skeleton--text" />
+                    </div>
+                ))}
+            </div>
+        );
+    }
 
     return (
-        <div className="orders-container">
-            {orders.length === 0 && <p>No tienes pedidos recientes.</p>}
+        <div className="orders-container ui-stagger">
+            {orders.length === 0 && (
+                <div className="client-orders-empty ui-empty">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
+                    <p className="ui-empty-title">No tienes pedidos recientes.</p>
+                </div>
+            )}
             {orders.map(order => (
-                <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
+                <div key={order.id} className={`order-card ui-stripe ui-stripe--${ORDER_TONE[order.estado || 'PENDIENTE'] || 'neutral'} ${order.isSROrder ? 'is-sr' : 'is-normal'}`}>
                     <div className="order-header">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div>
+                        <div className="order-head-main">
+                            <div className="order-head-text">
                                 <div className="order-id">
                                     {formatOrderLabel(order)}
                                 </div>
-                                <div className="order-date">{new Date(order.fechaCreacion).toLocaleDateString()}</div>
+                                <div className="order-date">
+                                    <span className="material-icons-round" aria-hidden="true">event</span>
+                                    {new Date(order.fechaCreacion).toLocaleDateString()}
+                                </div>
                             </div>
                             {order.isSROrder && (
-                                <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                                <span className="tag-badge tag-sr">S/N</span>
                             )}
                         </div>
-                        <span className={`order-status status-${order.estado ? order.estado.toLowerCase() : 'pending'}`}>{order.estado || 'PENDIENTE'}</span>
+                        <span className={`order-status ui-badge status-${order.estado ? order.estado.toLowerCase() : 'pending'}`}>
+                            {ORDER_ICON[order.estado || 'PENDIENTE'] && (
+                                <span className="material-icons-round" aria-hidden="true">{ORDER_ICON[order.estado || 'PENDIENTE']}</span>
+                            )}
+                            {order.estado || 'PENDIENTE'}
+                        </span>
                     </div>
                     <div className="order-items-summary">
-                        {order.items.length} productos | Total: <strong>${formatCurrency(order.total)}</strong>
+                        <span className="material-icons-round" aria-hidden="true">shopping_bag</span>
+                        {order.items.length} productos | Total: <strong className="ui-amount--success">${formatCurrency(order.total)}</strong>
                     </div>
-                    {order.notas && <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>"{order.notas}"</p>}
+                    {order.notas && <p className="client-order-notes">"{order.notas}"</p>}
 
                     <div className="order-actions">
                         {/* Solo se cancela lo PENDIENTE (el backend rechaza el resto): cancelar devuelve el
                             stock, y en un pedido ya confirmado, anulado o facturado eso lo devolvería dos
                             veces o dejaría pagos huérfanos */}
                         {order.estado === 'PENDIENTE' && (
-                            <button className="btn-action" onClick={() => handleCancel(order.id)}>Cancelar</button>
+                            <button
+                                type="button"
+                                className="btn-action ui-btn ui-btn--danger-ghost ui-btn--sm"
+                                onClick={() => handleCancel(order.id)}
+                            >Cancelar</button>
                         )}
-                        <button className="btn-action primary" onClick={() => handleReorder(order.id)}>Reordenar</button>
+                        <button
+                            type="button"
+                            className="btn-action primary ui-btn ui-btn--secondary ui-btn--sm"
+                            onClick={() => handleReorder(order.id)}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">replay</span>
+                            Reordenar
+                        </button>
                     </div>
                 </div>
             ))}
@@ -398,7 +513,7 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
             {/* Create List Header Section */}
             <div className="lists-action-header">
                 <div className="section-title-group">
-                    <span className="material-icons-round section-icon">format_list_bulleted</span>
+                    <span className="material-icons-round section-icon" aria-hidden="true">format_list_bulleted</span>
                     <div>
                         <h2>Mis Listas de Compras</h2>
                         <p>Organiza tus pedidos recurrentes y ahorra tiempo.</p>
@@ -406,17 +521,19 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
                 </div>
 
                 <form className="modern-create-list-form" onSubmit={handleCreate}>
-                    <div className="input-with-icon">
-                        <span className="material-icons-round">edit</span>
+                    <div className="input-with-icon ui-input-group">
+                        <span className="material-icons-round ui-input-icon" aria-hidden="true">edit</span>
                         <input
                             type="text"
+                            className="ui-input"
                             placeholder="Nombre de la nueva lista..."
+                            aria-label="Nombre de la nueva lista"
                             value={newName}
                             onChange={(e) => setNewName(e.target.value)}
                         />
                     </div>
-                    <button type="submit" className="btn-create-list">
-                        <span className="material-icons-round">add</span>
+                    <button type="submit" className="btn-create-list ui-btn ui-btn--primary">
+                        <span className="material-icons-round" aria-hidden="true">add</span>
                         Crear Nueva Lista
                     </button>
                 </form>
@@ -424,52 +541,61 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
 
             {/* Contextual Alert for Adding Product */}
             {productToAdd && (
-                <div className="add-context-alert">
+                <div className="add-context-alert ui-alert ui-alert--info" role="status">
                     <div className="alert-content">
-                        <span className="material-icons-round">info</span>
+                        <span className="material-icons-round" aria-hidden="true">info</span>
                         <span>Selecciona una lista para guardar: <strong>{productToAdd.nombre}</strong></span>
                     </div>
-                    <button className="btn-cancel-add" onClick={onProductAdded}>Cancelar</button>
+                    <button
+                        type="button"
+                        className="btn-cancel-add ui-btn ui-btn--secondary ui-btn--sm"
+                        onClick={onProductAdded}
+                    >Cancelar</button>
                 </div>
             )}
 
             {/* Lists Grid */}
-            <div className="modern-lists-grid">
+            <div className="modern-lists-grid ui-stagger">
                 {lists.length === 0 ? (
-                    <div className="empty-lists-state">
-                        <span className="material-icons-round">inventory_2</span>
-                        <p>No tienes listas creadas todavía.</p>
+                    <div className="empty-lists-state ui-empty">
+                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">inventory_2</span>
+                        <p className="ui-empty-title">No tienes listas creadas todavía.</p>
                     </div>
                 ) : (
                     lists.map(list => (
                         <div key={list.id} className={`modern-list-card ${expandedListId === list.id ? 'is-expanded' : ''}`}>
                             <div className="list-card-header">
-                                <div className="list-icon-circle">
+                                {/* Cada lista con su color (mismo nombre, mismo color) */}
+                                <div className={`list-icon-circle ui-icon-tile ui-icon-tile--lg ui-icon-tile--${avatarTone(list.name)}`} aria-hidden="true">
                                     <span className="material-icons-round">assignment</span>
                                 </div>
                                 <div className="list-info">
                                     <h3>{list.name}</h3>
-                                    <span className="items-count-badge">
-                                        <span className="material-icons-round">shopping_basket</span>
+                                    <span className="items-count-badge ui-badge ui-badge--neutral">
+                                        <span className="material-icons-round" aria-hidden="true">shopping_basket</span>
                                         {list.items.length} productos
                                     </span>
                                 </div>
                                 <button
-                                    className={`btn-toggle-details ${expandedListId === list.id ? 'active' : ''}`}
+                                    type="button"
+                                    className={`btn-toggle-details ui-icon-btn ${expandedListId === list.id ? 'active' : ''}`}
                                     onClick={() => setExpandedListId(expandedListId === list.id ? null : list.id)}
                                     title="Ver productos"
+                                    aria-label="Ver productos"
+                                    aria-expanded={expandedListId === list.id}
                                 >
-                                    <span className="material-icons-round">expand_more</span>
+                                    <span className="material-icons-round ui-chevron" aria-hidden="true">expand_more</span>
                                 </button>
                             </div>
 
                             {/* Conditional Add Button */}
                             {productToAdd && (
                                 <button
-                                    className="btn-add-here-pulsing"
+                                    type="button"
+                                    className="btn-add-here-pulsing ui-btn ui-btn--primary ui-btn--block"
                                     onClick={() => handleAddProductToList(list.id, list.name)}
                                 >
-                                    <span className="material-icons-round">add_shopping_cart</span>
+                                    <span className="material-icons-round" aria-hidden="true">add_shopping_cart</span>
                                     Agregar a esta lista
                                 </button>
                             )}
@@ -483,7 +609,7 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
                                         ) : (
                                             list.items.map(item => (
                                                 <div key={item.id} className="list-item-row">
-                                                    <span className="dot"></span>
+                                                    <span className="dot" aria-hidden="true"></span>
                                                     <span className="product-name">{item.productName || 'Producto'}</span>
                                                     <span className="qty-tag">x{item.defaultQty}</span>
                                                 </div>
@@ -495,11 +621,12 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
 
                             <div className="list-card-footer">
                                 <button
-                                    className="btn-convert-order"
+                                    type="button"
+                                    className="btn-convert-order ui-btn ui-btn--secondary ui-btn--block"
                                     onClick={() => handleConvert(list.id)}
                                     disabled={list.items.length === 0}
                                 >
-                                    <span className="material-icons-round">shopping_cart_checkout</span>
+                                    <span className="material-icons-round" aria-hidden="true">shopping_cart_checkout</span>
                                     Convertir a Orden
                                 </button>
                             </div>
@@ -542,65 +669,104 @@ export const ClientProfile = () => {
         }
     };
 
-    if (!profile) return <div>Cargando perfil...</div>;
+    if (!profile) {
+        return (
+            <div className="client-loading ui-loading" role="status">
+                <span className="ui-spinner" aria-hidden="true" />
+                Cargando perfil...
+            </div>
+        );
+    }
 
     return (
-        <div className="profile-card" style={{ background: 'white', padding: '2rem', borderRadius: 'var(--radius-lg)', maxWidth: '600px', margin: '0 auto', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
-                <h2>Mi Perfil</h2>
+        <div className="profile-card">
+            <div className="profile-card-header">
+                <div className="profile-card-heading">
+                    <span className={`ui-avatar ui-avatar--lg ui-avatar--${avatarTone(profile.nombre)} profile-card-avatar`} aria-hidden="true">
+                        {avatarInitials(profile.nombre)}
+                    </span>
+                    <h2>Mi Perfil</h2>
+                </div>
                 {!isEditing && (
-                    <button className="btn-action" onClick={() => setIsEditing(true)}>Editar</button>
+                    <button
+                        type="button"
+                        className="btn-action ui-btn ui-btn--secondary ui-btn--sm"
+                        onClick={() => setIsEditing(true)}
+                    >
+                        <span className="material-icons-round" aria-hidden="true">edit</span>
+                        Editar
+                    </button>
                 )}
             </div>
 
-            <div style={{ display: 'grid', gap: '1.5rem' }}>
-                <div className="form-group">
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Nombre</label>
+            <div className="profile-fields ui-grid">
+                <div className="form-group ui-field ui-span-full">
+                    <div className="profile-label">
+                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true"><span className="material-icons-round">storefront</span></span>
+                        <label className="ui-label" htmlFor="client-profile-nombre">Nombre</label>
+                    </div>
                     <input
+                        id="client-profile-nombre"
+                        className="ui-input"
                         type="text"
                         value={profile.nombre}
                         disabled
-                        style={{ width: '100%', padding: '0.75rem', background: '#f1f5f9', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
                     />
                 </div>
 
-                <div className="form-group">
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Email</label>
+                <div className="form-group ui-field">
+                    <div className="profile-label">
+                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true"><span className="material-icons-round">email</span></span>
+                        <label className="ui-label" htmlFor="client-profile-email">Email</label>
+                    </div>
                     <input
+                        id="client-profile-email"
+                        className="ui-input"
                         type="email"
                         value={isEditing ? formData.email : profile.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         disabled={!isEditing}
-                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
                     />
                 </div>
 
-                <div className="form-group">
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Teléfono</label>
+                <div className="form-group ui-field">
+                    <div className="profile-label">
+                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true"><span className="material-icons-round">phone</span></span>
+                        <label className="ui-label" htmlFor="client-profile-telefono">Teléfono</label>
+                    </div>
                     <input
+                        id="client-profile-telefono"
+                        className="ui-input"
                         type="text"
                         value={isEditing ? formData.telefono : profile.telefono}
                         onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                         disabled={!isEditing}
-                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
                     />
                 </div>
 
-                <div className="form-group">
-                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Dirección</label>
+                <div className="form-group ui-field ui-span-full">
+                    <div className="profile-label">
+                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--warning" aria-hidden="true"><span className="material-icons-round">place</span></span>
+                        <label className="ui-label" htmlFor="client-profile-direccion">Dirección</label>
+                    </div>
                     <input
+                        id="client-profile-direccion"
+                        className="ui-input"
                         type="text"
                         value={isEditing ? formData.direccion : profile.direccion}
                         onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
                         disabled={!isEditing}
-                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
                     />
                 </div>
 
                 {isEditing && (
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                        <button className="btn-primary-gradient" onClick={handleSave} style={{ padding: '0.75rem 2rem', borderRadius: 'var(--radius-md)' }}>Guardar</button>
-                        <button className="btn-action" onClick={() => { setIsEditing(false); setFormData(profile); }}>Cancelar</button>
+                    <div className="profile-actions ui-span-full">
+                        <button type="button" className="btn-primary-gradient ui-btn ui-btn--primary" onClick={handleSave}>Guardar</button>
+                        <button
+                            type="button"
+                            className="btn-action ui-btn ui-btn--secondary"
+                            onClick={() => { setIsEditing(false); setFormData(profile); }}
+                        >Cancelar</button>
                     </div>
                 )}
             </div>

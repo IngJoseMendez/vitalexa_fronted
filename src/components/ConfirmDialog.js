@@ -74,43 +74,49 @@ function ConfirmDialog({
 
     return (
         <>
-            <div className="confirm-overlay" onClick={onCancel}>
-                <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-                    <div className="confirm-header">
-                        <h3>{title}</h3>
+            <div className="confirm-overlay ui-modal-overlay" onClick={onCancel}>
+                <div
+                    className="confirm-dialog ui-modal ui-modal--sm"
+                    role="alertdialog"
+                    aria-modal="true"
+                    aria-labelledby="confirm-dialog-title"
+                    aria-describedby="confirm-dialog-message"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="confirm-header ui-modal-header">
+                        <span className="ui-modal-icon" aria-hidden="true">
+                            <span className="material-icons-round">help_outline</span>
+                        </span>
+                        <div className="ui-modal-heading">
+                            <h3 id="confirm-dialog-title" className="ui-modal-title">{title}</h3>
+                        </div>
                     </div>
-                    <div className="confirm-body">
-                        <p>{message}</p>
+                    <div className="confirm-body ui-modal-body ui-modal-body--plain">
+                        <p id="confirm-dialog-message" className="confirm-message">{message}</p>
                         {requireReason && (
-                            <div className="reason-input-group">
-                                <label htmlFor="confirm-reason">{reasonLabel} *</label>
+                            <div className="reason-input-group ui-field">
+                                <label htmlFor="confirm-reason" className="ui-label">
+                                    {reasonLabel} <span className="ui-required">*</span>
+                                </label>
                                 <textarea
                                     id="confirm-reason"
+                                    className="ui-textarea"
                                     value={reason}
                                     onChange={(e) => setReason(e.target.value)}
                                     placeholder={reasonPlaceholder}
                                     rows={4}
                                     required
-                                    style={{
-                                        width: '100%',
-                                        padding: '0.75rem',
-                                        borderRadius: '8px',
-                                        border: '1px solid #e5e7eb',
-                                        fontSize: '0.95rem',
-                                        marginTop: '0.5rem',
-                                        resize: 'vertical',
-                                        fontFamily: 'inherit'
-                                    }}
                                 />
                             </div>
                         )}
                     </div>
-                    <div className="confirm-actions">
-                        <button className="btn-cancel-confirm" onClick={onCancel}>
+                    <div className="confirm-actions ui-modal-footer">
+                        <button type="button" className="btn-cancel-confirm ui-btn ui-btn--secondary" onClick={onCancel}>
                             {cancelText}
                         </button>
                         <button
-                            className="btn-confirm"
+                            type="button"
+                            className="btn-confirm ui-btn ui-btn--primary"
                             onClick={handleConfirm}
                             disabled={requireReason && !reason.trim()}
                         >

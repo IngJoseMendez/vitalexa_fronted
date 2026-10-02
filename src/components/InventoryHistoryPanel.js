@@ -10,12 +10,43 @@ import {
     deltaTone,
     historyDateParams,
 } from '../utils/inventoryMovements';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
+import '../styles/areas/Inventory.css';
 
-// Colores por sentido del cambio real de stock (no por el tipo)
+// Colores por sentido del cambio real de stock (no por el tipo).
+// `color` va en línea en la celda "Cambio" (lo verifica InventoryHistoryPanel.test.js) y
+// coincide con los tokens --color-success / --color-danger. `icon` = flecha del sentido.
 const TONE_STYLES = {
-    in: { color: '#059669', badgeBg: '#dcfce7', badgeColor: '#166534' },
-    out: { color: '#dc2626', badgeBg: '#fee2e2', badgeColor: '#991b1b' },
-    none: { color: '#6b7280', badgeBg: '#f3f4f6', badgeColor: '#374151' },
+    in: { color: '#059669', icon: 'arrow_upward' },
+    out: { color: '#dc2626', icon: 'arrow_downward' },
+    none: { color: '#6b7280', icon: null },
+};
+
+// Color de significado por TIPO de movimiento (insignia + icono): entrada = verde,
+// salida/venta = azul, devolución = teal, ajuste = ámbar, eliminación = rojo, edición de
+// datos = celeste. Solo presentación: la etiqueta sigue saliendo de movementTypeLabel.
+const MOVEMENT_TYPE_META = {
+    RESTOCK: { tone: 'success', icon: 'local_shipping' },
+    CREATION: { tone: 'success', icon: 'add_circle' },
+    SALE: { tone: 'primary', icon: 'point_of_sale' },
+    ANNULMENT_REVERSAL: { tone: 'primary', icon: 'restore' },
+    RETURN: { tone: 'teal', icon: 'assignment_return' },
+    ORDER_EDIT_RESTORE: { tone: 'teal', icon: 'undo' },
+    ORDER_ITEM_REMOVAL: { tone: 'teal', icon: 'remove_shopping_cart' },
+    STOCK_ADJUSTMENT: { tone: 'warning', icon: 'tune' },
+    PHYSICAL_COUNT: { tone: 'warning', icon: 'fact_check' },
+    UPDATE: { tone: 'sky', icon: 'edit_note' },
+    DELETION: { tone: 'danger', icon: 'delete' },
+};
+const DEFAULT_TYPE_META = { tone: 'neutral', icon: 'swap_vert' };
+
+// Tono del stock en la sugerencia de producto: negativo rojo, 0 ámbar, con stock verde
+const stockBadgeTone = (stock) => {
+    const n = Number(stock);
+    if (Number.isNaN(n)) return 'neutral';
+    if (n < 0) return 'danger';
+    if (n === 0) return 'warning';
+    return 'success';
 };
 
 /** Mensaje del backend cuando la respuesta es un blob (descargas) o JSON */
@@ -50,6 +81,14 @@ export default function InventoryHistoryPanel() {
     const [productSuggestions, setProductSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [searchLoading, setSearchLoading] = useState(false);
+
+    // Descarga en curso (solo presentación). Patrón exportingKey: el boolean dice SI se
+    // exporta y la clave QUÉ botón lo inició ('report' o 'row:<id>'); solo ese muestra el
+    // spinner y "Exportando...", los demás quedan deshabilitados mientras tanto.
+    const [exporting, setExporting] = useState(false);
+    const [exportingKey, setExportingKey] = useState(null);
+    useEffect(() => { if (!exporting) setExportingKey(null); }, [exporting]);
+    const exportBusy = (key) => exporting && exportingKey === key;
 
     const toast = useToast();
 
@@ -133,6 +172,7 @@ export default function InventoryHistoryPanel() {
     const hasFilters = Boolean(type || productId || productNameSearch || startDate || endDate);
 
     const handleDownloadPdf = async (id) => {
+        setExporting(true);
         try {
             const response = await productService.exportInventoryMovement(id);
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -145,6 +185,8 @@ export default function InventoryHistoryPanel() {
         } catch (error) {
             console.error('Error downloading PDF:', error);
             toast.error(await errorMessage(error, 'Error al descargar PDF'));
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -153,6 +195,7 @@ export default function InventoryHistoryPanel() {
             toast.warning("La fecha 'Desde' es posterior a 'Hasta'");
             return;
         }
+        setExporting(true);
         try {
             const params = {
                 type: type || null,
@@ -171,75 +214,92 @@ export default function InventoryHistoryPanel() {
         } catch (error) {
             console.error('Error exporting report:', error);
             toast.error(await errorMessage(error, 'Error al exportar reporte'));
+        } finally {
+            setExporting(false);
         }
     };
 
     return (
-        <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                        <span className="material-icons-round" style={{ color: 'var(--primary)' }}>history</span>
+        <div className="inv-page inv-history">
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">history</span>
                         Historial de Inventario
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                    <p className="ui-page-desc">
                         Auditoría y trazabilidad de movimientos (más reciente primero)
                     </p>
                 </div>
-                <button
-                    onClick={handleExportReport}
-                    className="btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                >
-                    <span className="material-icons-round">picture_as_pdf</span>
-                    Exportar Reporte
-                </button>
-            </div>
+                <div className="ui-page-actions">
+                    {/* PDF = rojo (identidad de formato). Mientras exporta: spinner, "Exportando..."
+                        y barra fina inferior; la etiqueta normal reserva el ancho */}
+                    <button
+                        type="button"
+                        onClickCapture={() => setExportingKey('report')}
+                        onClick={handleExportReport}
+                        disabled={exporting}
+                        aria-busy={exportBusy('report') || undefined}
+                        className={`ui-btn ui-btn--pdf${exportBusy('report') ? ' is-loading' : ''}`}
+                    >
+                        {exportBusy('report')
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round" aria-hidden="true">picture_as_pdf</span>}
+                        <span className="ui-btn-label">
+                            {exportBusy('report') && <span className="ui-btn-label-sizer" aria-hidden="true">Exportar Reporte</span>}
+                            <span>{exportBusy('report') ? 'Exportando...' : 'Exportar Reporte'}</span>
+                        </span>
+                    </button>
+                </div>
+            </header>
 
             {/* Filters */}
-            <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label htmlFor="ih-type" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Tipo de Movimiento</label>
+            <div className="inv-filters">
+                <div className="ui-field">
+                    <label htmlFor="ih-type" className="ui-label">Tipo de Movimiento</label>
                     <select
                         id="ih-type"
+                        className="ui-select"
                         value={type}
                         onChange={e => { setType(e.target.value); setPage(0); }}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', minWidth: '150px' }}
                     >
                         <option value="">Todos</option>
                         {MOVEMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label htmlFor="ih-start" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Desde</label>
+                <div className="ui-field">
+                    <label htmlFor="ih-start" className="ui-label">Desde</label>
                     <input
                         id="ih-start"
                         type="date"
+                        className="ui-input"
                         value={startDate}
                         onChange={e => { setStartDate(e.target.value); setPage(0); }}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }}
                     />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label htmlFor="ih-end" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hasta (incluido)</label>
+                <div className="ui-field">
+                    <label htmlFor="ih-end" className="ui-label">Hasta (incluido)</label>
                     <input
                         id="ih-end"
                         type="date"
+                        className={`ui-input${invalidRange ? ' is-invalid' : ''}`}
+                        aria-invalid={invalidRange}
                         value={endDate}
                         onChange={e => { setEndDate(e.target.value); setPage(0); }}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: `1px solid ${invalidRange ? '#ef4444' : 'var(--border)'}` }}
                     />
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', position: 'relative', flex: 1, minWidth: '200px' }}>
-                    <label htmlFor="ih-product" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Producto (incluye inactivos)</label>
-                    <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: '6px', border: '1px solid var(--border)', padding: '0 0.5rem', transition: 'box-shadow 0.2s', boxShadow: showSuggestions ? '0 0 0 2px var(--primary-light)' : 'none' }}>
-                        <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>search</span>
+                <div className="ui-field inv-field-grow">
+                    <label htmlFor="ih-product" className="ui-label">Producto (incluye inactivos)</label>
+                    <div className="ui-search inv-field-search">
+                        <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                         <input
                             id="ih-product"
                             type="text"
+                            className="ui-input"
+                            autoComplete="off"
                             placeholder="Buscar producto por nombre..."
                             value={productNameSearch}
                             onChange={(e) => {
@@ -254,66 +314,44 @@ export default function InventoryHistoryPanel() {
                                 if (productSuggestions.length > 0) setShowSuggestions(true);
                             }}
                             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                            style={{ flex: 1, padding: '0.5rem', border: 'none', background: 'transparent', outline: 'none' }}
                         />
                         {productNameSearch && (
                             <button
                                 type="button"
                                 aria-label="Quitar producto"
+                                className="ui-icon-btn ui-search-clear"
                                 onClick={clearProduct}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
                             >
-                                <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>close</span>
+                                <span className="material-icons-round" aria-hidden="true">close</span>
                             </button>
                         )}
                     </div>
                     {/* Autocomplete Dropdown */}
                     {showSuggestions && (productSuggestions.length > 0 || searchLoading) && (
-                        <div style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: 0,
-                            right: 0,
-                            background: 'white',
-                            border: '1px solid var(--border)',
-                            borderRadius: '8px',
-                            marginTop: '0.5rem',
-                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
-                            zIndex: 10,
-                            maxHeight: '200px',
-                            overflowY: 'auto'
-                        }}>
+                        <div className="inv-suggest">
                             {searchLoading ? (
-                                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Buscando...</div>
+                                <div className="inv-suggest-loading">Buscando...</div>
                             ) : (
                                 productSuggestions.map(product => (
                                     <div
                                         key={product.id}
+                                        className="inv-suggest-item"
                                         onClick={() => {
                                             setProductNameSearch(product.nombre);
                                             setProductId(product.id);
                                             setShowSuggestions(false);
                                             setPage(0);
                                         }}
-                                        style={{
-                                            padding: '0.75rem 1rem',
-                                            cursor: 'pointer',
-                                            borderBottom: '1px solid #f3f4f6',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            gap: '0.5rem'
-                                        }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = ''}
                                     >
-                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                                        <span className="inv-suggest-name">
                                             <span>{product.nombre}</span>
                                             {product.active === false && (
-                                                <span style={{ marginLeft: '0.4rem', fontSize: '0.72rem', color: '#9ca3af', fontWeight: 600 }}>(inactivo)</span>
+                                                <span className="inv-suggest-inactive">(inactivo)</span>
                                             )}
                                         </span>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', background: '#f3f4f6', padding: '0.1rem 0.4rem', borderRadius: '99px', whiteSpace: 'nowrap' }}>
+                                        <span className={`ui-badge ui-badge--${stockBadgeTone(product.stock)} ui-tabular`}>
                                             Stock: {product.stock}
                                         </span>
                                     </div>
@@ -324,83 +362,122 @@ export default function InventoryHistoryPanel() {
                 </div>
 
                 {hasFilters && (
-                    <button type="button" onClick={clearFilters} className="btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+                    <button type="button" onClick={clearFilters} className="ui-btn ui-btn--secondary">
                         Limpiar filtros
                     </button>
                 )}
             </div>
 
             {invalidRange && (
-                <div role="alert" style={{ background: '#fef2f2', color: '#b91c1c', padding: '0.6rem 0.9rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                    La fecha "Desde" es posterior a "Hasta".
+                <div role="alert" className="ui-alert ui-alert--danger">
+                    <span className="material-icons-round" aria-hidden="true">error_outline</span>
+                    <p>La fecha "Desde" es posterior a "Hasta".</p>
                 </div>
             )}
 
             {/* Table */}
-            <div style={{ flex: 1, overflow: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                    <thead style={{ background: '#f9fafb', position: 'sticky', top: 0, zIndex: 1 }}>
-                        <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
-                            <th style={{ padding: '1rem', fontWeight: 600 }}>Fecha</th>
-                            <th style={{ padding: '1rem', fontWeight: 600 }}>Producto</th>
-                            <th style={{ padding: '1rem', fontWeight: 600 }}>Tipo</th>
-                            <th style={{ padding: '1rem', fontWeight: 600 }}>Razón</th>
-                            <th style={{ padding: '1rem', fontWeight: 600 }}>Orden</th>
-                            <th style={{ padding: '1rem', fontWeight: 600 }}>Usuario</th>
-                            <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'right' }}>Stock Ant.</th>
-                            <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'center' }}>Cambio</th>
-                            <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'right' }}>Stock Nuevo</th>
-                            <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'center' }}>Acciones</th>
+            <div className="ui-table-wrap">
+                <table className="ui-table inv-stack-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Producto</th>
+                            <th>Tipo</th>
+                            <th>Razón</th>
+                            <th>Orden</th>
+                            <th>Usuario</th>
+                            <th className="ui-num">Stock Ant.</th>
+                            <th className="ui-num">Cambio</th>
+                            <th className="ui-num">Stock Nuevo</th>
+                            <th className="inv-col-actions">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    {/* Las primeras 8 filas entran escalonadas (keys estables por id) */}
+                    <tbody className="ui-stagger">
                         {loading ? (
-                            <tr><td colSpan="10" style={{ padding: '2rem', textAlign: 'center' }}>Cargando...</td></tr>
+                            <tr>
+                                <td colSpan="10" className="inv-table-state inv-table-state--skeleton">
+                                    <span className="ui-sr-only" role="status">Cargando...</span>
+                                    <span className="ui-skeleton-stack" aria-hidden="true">
+                                        {[0, 1, 2, 3, 4].map(i => (
+                                            <span key={i} className="inv-skeleton-line">
+                                                <span className="ui-skeleton ui-skeleton--circle inv-skeleton-dot" />
+                                                <span className="ui-skeleton ui-skeleton--text inv-skeleton-fill" />
+                                                <span className="ui-skeleton ui-skeleton--text inv-skeleton-tail" />
+                                            </span>
+                                        ))}
+                                    </span>
+                                </td>
+                            </tr>
                         ) : history.length === 0 ? (
-                            <tr><td colSpan="10" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No se encontraron movimientos.</td></tr>
+                            <tr>
+                                <td colSpan="10" className="inv-table-state">
+                                    <span className="inv-table-state-inner">
+                                        <span className="material-icons-round inv-icon--primary" aria-hidden="true">manage_search</span>
+                                        No se encontraron movimientos.
+                                    </span>
+                                </td>
+                            </tr>
                         ) : (
                             history.map(item => {
                                 const delta = movementDelta(item);
                                 const tone = TONE_STYLES[deltaTone(delta)];
+                                const typeMeta = MOVEMENT_TYPE_META[item.type] || DEFAULT_TYPE_META;
+                                const orderText = item.orderLabel || formatOrderLabel({ orderId: item.orderId });
+                                const rowKey = `row:${item.id}`;
                                 return (
-                                    <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                        <td style={{ padding: '1rem', whiteSpace: 'nowrap' }}>{item.timestamp ? new Date(item.timestamp).toLocaleString('es-CO') : '-'}</td>
-                                        <td style={{ padding: '1rem', fontWeight: 500 }}>{item.productName || 'Producto Eliminado'}</td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <span style={{
-                                                padding: '0.2rem 0.6rem',
-                                                borderRadius: '99px',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                whiteSpace: 'nowrap',
-                                                background: tone.badgeBg,
-                                                color: tone.badgeColor
-                                            }}>
+                                    <tr key={item.id}>
+                                        <td className="inv-nowrap ui-tabular inv-cell-date" data-label="Fecha">{item.timestamp ? new Date(item.timestamp).toLocaleString('es-CO') : '-'}</td>
+                                        <td className="inv-cell-name" data-label="Producto">{item.productName || 'Producto Eliminado'}</td>
+                                        <td data-label="Tipo">
+                                            <span className={`ui-badge inv-type-badge inv-type-badge--${typeMeta.tone}`}>
+                                                <span className="material-icons-round" aria-hidden="true">{typeMeta.icon}</span>
                                                 {movementTypeLabel(item.type)}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{item.reason || '-'}</td>
-                                        <td style={{ padding: '1rem', whiteSpace: 'nowrap' }} title={item.orderId || ''}>
+                                        <td className="inv-cell-muted" data-label="Razón">{item.reason || '-'}</td>
+                                        <td className={`inv-nowrap${orderText ? ' inv-order-ref' : ''}`} data-label="Orden" title={item.orderId || ''}>
                                             {/* orderLabel viene del backend ("Factura #N · Pedido P-N") */}
                                             {item.orderLabel || formatOrderLabel({ orderId: item.orderId }) || '-'}
                                         </td>
-                                        <td style={{ padding: '1rem' }}>{item.username || '-'}</td>
-                                        <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.previousStock ?? '-'}</td>
+                                        <td data-label="Usuario">
+                                            {item.username ? (
+                                                <span className="inv-user">
+                                                    <span className={`ui-avatar ui-avatar--sm ui-avatar--${avatarTone(item.username)}`} aria-hidden="true">
+                                                        {avatarInitials(item.username)}
+                                                    </span>
+                                                    <span>{item.username}</span>
+                                                </span>
+                                            ) : '-'}
+                                        </td>
+                                        <td className={`ui-num${item.previousStock < 0 ? ' inv-stock-negative' : ''}`} data-label="Stock Ant.">{item.previousStock ?? '-'}</td>
                                         <td
                                             data-testid="movement-delta"
-                                            style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: tone.color }}
+                                            data-label="Cambio"
+                                            className="ui-num inv-delta"
+                                            style={{ color: tone.color }}
                                         >
-                                            {formatDelta(delta)}
+                                            <span className="inv-delta-value">
+                                                {tone.icon && <span className="material-icons-round" aria-hidden="true">{tone.icon}</span>}
+                                                {formatDelta(delta)}
+                                            </span>
                                         </td>
-                                        <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.newStock ?? '-'}</td>
-                                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                        <td className={`ui-num inv-stock-new${item.newStock < 0 ? ' inv-stock-negative' : ''}`} data-label="Stock Nuevo">{item.newStock ?? '-'}</td>
+                                        <td className="inv-col-actions" data-label="Acciones">
+                                            {/* Comprobante en PDF: icono rojo; spinner solo en la fila pulsada */}
                                             <button
+                                                type="button"
+                                                className={`ui-icon-btn ui-icon-btn--bordered ui-icon-btn--pdf${exportBusy(rowKey) ? ' is-loading' : ''}`}
+                                                aria-busy={exportBusy(rowKey) || undefined}
+                                                disabled={exporting}
+                                                onClickCapture={() => setExportingKey(rowKey)}
                                                 onClick={() => handleDownloadPdf(item.id)}
-                                                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}
                                                 title="Descargar Comprobante"
                                                 aria-label="Descargar comprobante"
                                             >
-                                                <span className="material-icons-round">description</span>
+                                                {exportBusy(rowKey)
+                                                    ? <span className="ui-spinner" aria-hidden="true" />
+                                                    : <span className="material-icons-round" aria-hidden="true">picture_as_pdf</span>}
                                             </button>
                                         </td>
                                     </tr>
@@ -412,10 +489,10 @@ export default function InventoryHistoryPanel() {
             </div>
 
             {/* Pagination */}
-            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '1rem', alignItems: 'center' }}>
-                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="btn-secondary">Anterior</button>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Página {page + 1} de {totalPages || 1} (Total: {totalElements})</span>
-                <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="btn-secondary">Siguiente</button>
+            <div className="inv-pagination">
+                <button type="button" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="ui-btn ui-btn--secondary ui-btn--sm">Anterior</button>
+                <span className="inv-pagination-info">Página {page + 1} de {totalPages || 1} (Total: {totalElements})</span>
+                <button type="button" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="ui-btn ui-btn--secondary ui-btn--sm">Siguiente</button>
             </div>
         </div>
     );

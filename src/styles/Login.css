@@ -1,179 +1,431 @@
 /* ============================================
-   LOGIN PREMIUM STYLE
+   LOGIN — la "puerta" de Vitalexa
+   Único lugar del sistema con fondo animado: luces de la marca (azul, verde de la
+   medicina natural y el dorado de la V), cuadrícula de puntos y hojas flotando.
+   Todo bajo .login-container (en CRA el CSS es global). Solo tokens del sistema;
+   las luces usan color-mix sobre los tokens. Animaciones solo de transform/opacity.
    ============================================ */
 
 .login-container {
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: var(--bg-body);
   position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-4);
   overflow: hidden;
+  background: var(--color-surface);
+  isolation: isolate;
 }
 
-/* Background elements */
-.login-container::before,
-.login-container::after {
-  content: '';
+/* ---------- Fondo animado ---------- */
+.login-container .login-bg {
   position: absolute;
-  width: 600px;
-  height: 600px;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-container .login-blob {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.15;
-  z-index: 0;
+  opacity: 0.9;
+  will-change: transform;
 }
 
-.login-container::before {
-  background: var(--primary);
-  top: -10%;
-  left: -10%;
+.login-container .login-blob--blue {
+  top: -22vmax;
+  left: -18vmax;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--color-primary) 26%, transparent) 0%, transparent 62%);
+  animation: login-drift-a 22s ease-in-out infinite alternate;
 }
 
-.login-container::after {
-  background: var(--warning);
-  bottom: -10%;
-  right: -10%;
+.login-container .login-blob--green {
+  right: -20vmax;
+  bottom: -26vmax;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--color-brand-green) 24%, transparent) 0%, transparent 62%);
+  animation: login-drift-b 26s ease-in-out infinite alternate;
 }
 
-.login-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  padding: 3rem;
-  border-radius: var(--radius-xl);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+.login-container .login-blob--gold {
+  top: 30%;
+  left: 45%;
+  width: 40vmax;
+  height: 40vmax;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--color-brand-gold) 20%, transparent) 0%, transparent 60%);
+  animation: login-drift-c 30s ease-in-out infinite alternate;
+}
+
+.login-container .login-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--color-border-strong) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  opacity: 0.55;
+  -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 72%);
+  mask-image: radial-gradient(ellipse at center, black 0%, transparent 72%);
+}
+
+.login-container .login-leaf {
+  position: absolute;
+  bottom: -48px;
+  left: var(--x);
+  font-size: var(--size);
+  color: var(--color-brand-green);
+  opacity: 0;
+  animation: login-leaf-rise var(--duration) linear var(--delay) infinite;
+}
+
+.login-container .login-leaf:nth-child(3n) {
+  color: var(--color-brand-gold);
+}
+
+/* ---------- Layout ---------- */
+.login-container .login-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-12);
+  width: 100%;
+  max-width: 1040px;
+}
+
+/* Panel de marca: solo en pantallas grandes */
+.login-container .login-showcase {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .login-container .login-showcase {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    max-width: 440px;
+    animation: login-rise 700ms var(--ease) 120ms both;
+  }
+}
+
+.login-container .login-showcase-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: flex-start;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.login-container .login-showcase-kicker .material-icons-round {
+  font-size: 18px;
+}
+
+.login-container .login-showcase-title {
+  margin: var(--space-5) 0 var(--space-8);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.login-container .login-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.login-container .login-feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  animation: login-rise 600ms var(--ease) both;
+  animation-delay: calc(450ms + var(--i, 0) * 120ms);
+}
+
+.login-container .login-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  font-size: 22px;
+}
+
+.login-container .login-feature--primary .login-feature-icon { background: var(--color-primary-soft); color: var(--color-primary); }
+.login-container .login-feature--success .login-feature-icon { background: var(--color-success-soft); color: var(--color-success); }
+.login-container .login-feature--gold .login-feature-icon {
+  background: color-mix(in srgb, var(--color-brand-gold) 14%, var(--color-surface));
+  color: var(--color-brand-gold);
+}
+
+/* ---------- Tarjeta ---------- */
+.login-container .login-card {
+  position: relative;
   width: 100%;
   max-width: 420px;
-  position: relative;
-  z-index: 10;
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: var(--space-8);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-overlay);
+  animation: login-card-in 700ms cubic-bezier(0.2, 1.1, 0.35, 1) both;
 }
 
-/* Logo de la empresa */
-.login-logo {
-  text-align: center;
-  margin-bottom: 1.5rem;
+.login-container .login-card.is-shaking {
+  animation: login-shake 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
-.login-logo img {
-  max-width: 200px;
-  max-height: 80px;
-  object-fit: contain;
-  transition: transform 0.3s ease;
-}
-
-.login-logo img:hover {
-  transform: scale(1.05);
-}
-
-.login-card h1 {
-  text-align: center;
-  color: var(--primary);
-  margin: 0 0 2rem 0;
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.input-group {
-  position: relative;
-  margin-bottom: 1.5rem;
-}
-
-.input-group .material-icons-round {
-  position: absolute;
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 20px;
-  transition: all 0.2s;
-}
-
-.input-group input {
-  width: 100%;
-  padding: 1rem 1rem 1rem 3rem;
-  /* Space for icon */
-  border: 2px solid var(--bg-body);
-  border-radius: var(--radius-lg);
-  font-size: 1rem;
-  transition: all 0.2s;
-  background: var(--bg-input);
-}
-
-.input-group input:focus {
-  outline: none;
-  border-color: var(--primary);
-  background: white;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
-}
-
-.input-group input:focus+.material-icons-round {
-  color: var(--primary);
-}
-
-button[type="submit"] {
-  width: 100%;
-  padding: 1rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-lg);
-  font-size: 1rem;
+.login-container .login-greeting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-5);
+  padding: 4px 12px 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
+  animation: login-rise 500ms var(--ease) 250ms both;
+}
+
+.login-container .login-greeting .material-icons-round {
+  font-size: 17px;
+}
+
+/* Marca: V dorada + nombre */
+.login-container .login-logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
-}
-
-button[type="submit"]:hover {
-  background: var(--primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5);
-}
-
-button[type="submit"]:disabled {
-  background: var(--text-muted);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.error {
-  background: var(--danger-bg);
-  color: var(--danger-text);
-  padding: 0.75rem;
-  border-radius: var(--radius-md);
-  margin-top: 1rem;
   text-align: center;
-  font-size: 0.9rem;
+}
+
+.login-container .login-logo img {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+  box-shadow: 0 0 0 4px var(--color-surface), 0 0 0 6px color-mix(in srgb, var(--color-brand-gold) 45%, transparent);
+  animation: login-logo-pop 800ms cubic-bezier(0.2, 1.4, 0.4, 1) 150ms both, login-glow 3.2s ease-in-out 1.2s infinite;
+}
+
+.login-container .login-brand-name {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: var(--leading-title);
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  animation: login-rise 500ms var(--ease) 320ms both;
+}
+
+.login-container .login-brand-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  animation: login-rise 500ms var(--ease) 380ms both;
+}
+
+.login-container .login-intro {
+  margin: var(--space-6) 0 var(--space-5);
+  font-size: var(--text-base);
+  text-align: center;
+  color: var(--color-text-secondary);
+  animation: login-rise 500ms var(--ease) 440ms both;
+}
+
+/* Formulario */
+.login-container .login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: login-rise 520ms var(--ease) 500ms both;
+}
+
+/* El icono del campo se pinta de azul al escribir en él */
+.login-container .ui-input-group:focus-within .ui-input-icon {
+  color: var(--color-primary);
+}
+
+.login-container .login-password-input {
+  padding-right: 48px;
+}
+
+/* Ojito para ver la contraseña */
+.login-container .login-eye {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  min-height: 0;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+}
+
+.login-container .login-eye:hover:not(:disabled) {
+  color: var(--color-primary);
+}
+
+.login-container .login-eye-icon {
+  font-size: 20px;
+  transition: transform var(--duration) var(--ease);
+}
+
+.login-container .login-eye-icon.is-open {
+  transform: scale(1.08);
+}
+
+.login-container .login-caps {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  color: var(--color-warning-text);
   font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  animation: login-rise 220ms var(--ease) both;
 }
 
-.test-users {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-  text-align: center;
+.login-container .login-caps .material-icons-round {
+  font-size: 16px;
 }
 
-.test-users p {
-  margin: 0.25rem 0;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
+.login-container .login-submit {
+  margin-top: var(--space-2);
+  gap: var(--space-2);
 }
 
-.test-users strong {
-  color: var(--text-main);
-  display: block;
-  margin-bottom: 0.5rem;
+.login-container .login-submit-arrow {
+  transition: transform var(--duration) var(--ease);
+}
+
+.login-container .login-submit:hover:not(:disabled) .login-submit-arrow {
+  transform: translateX(4px);
+}
+
+.login-container .login-spinner {
+  width: 18px;
+  height: 18px;
+  border-color: color-mix(in srgb, var(--color-text-inverse) 35%, transparent);
+  border-top-color: var(--color-text-inverse);
+}
+
+/* Error del login: aviso claro debajo del formulario */
+.login-container .login-error {
+  margin-top: var(--space-4);
+  animation: login-rise 260ms var(--ease) both;
+}
+
+.login-container .login-error .error {
+  margin: 0;
+  font-weight: 500;
+}
+
+.login-container .login-footer {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  animation: login-rise 500ms var(--ease) 700ms both;
+}
+
+/* ---------- Teléfono ---------- */
+@media (max-width: 640px) {
+  .login-container {
+    justify-content: flex-start;
+    padding: var(--space-8) var(--space-4) var(--space-6);
+  }
+
+  .login-container .login-card {
+    padding: var(--space-6) var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+
+  .login-container .login-greeting {
+    margin-bottom: var(--space-4);
+  }
+
+  .login-container .login-intro {
+    margin: var(--space-5) 0 var(--space-4);
+  }
+}
+
+/* ---------- Movimiento reducido: todo quieto ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .login-container *,
+  .login-container .login-card.is-shaking {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .login-container .login-leaf {
+    display: none;
+  }
+}
+
+/* ---------- Animaciones ---------- */
+@keyframes login-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(8vmax, 6vmax, 0) scale(1.12); }
+}
+
+@keyframes login-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.05); }
+  to { transform: translate3d(-9vmax, -7vmax, 0) scale(0.95); }
+}
+
+@keyframes login-drift-c {
+  from { transform: translate3d(0, 0, 0) scale(0.9); }
+  to { transform: translate3d(-12vmax, 8vmax, 0) scale(1.1); }
+}
+
+@keyframes login-leaf-rise {
+  0% { opacity: 0; transform: translate3d(0, 0, 0) rotate(0deg); }
+  12% { opacity: 0.22; }
+  88% { opacity: 0.22; }
+  100% { opacity: 0; transform: translate3d(40px, -112vh, 0) rotate(160deg); }
+}
+
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes login-logo-pop {
+  0% { opacity: 0; transform: scale(0.5) rotate(-12deg); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes login-glow {
+  0%, 100% { box-shadow: 0 0 0 4px var(--color-surface), 0 0 0 6px color-mix(in srgb, var(--color-brand-gold) 45%, transparent); }
+  50% { box-shadow: 0 0 0 4px var(--color-surface), 0 0 0 10px color-mix(in srgb, var(--color-brand-gold) 18%, transparent); }
+}
+
+@keyframes login-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
 }

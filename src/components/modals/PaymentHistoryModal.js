@@ -87,16 +87,17 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
         }
     };
 
+    // Icono Material por método de pago (antes emojis)
     const getPaymentMethodIcon = (method) => {
         const icons = {
-            EFECTIVO: '💵',
-            TRANSFERENCIA: '🏦',
-            CHEQUE: '📝',
-            TARJETA: '💳',
-            CREDITO: '📊',
-            OTRO: '🔖'
+            EFECTIVO: 'payments',
+            TRANSFERENCIA: 'account_balance',
+            CHEQUE: 'request_quote',
+            TARJETA: 'credit_card',
+            CREDITO: 'account_balance_wallet',
+            OTRO: 'sell'
         };
-        return icons[method] || '💰';
+        return icons[method] || 'paid';
     };
 
     const filteredPayments = payments.filter(p => showCancelled || !p.isCancelled);
@@ -104,152 +105,198 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
     if (!isOpen) return null;
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-container payment-history-modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h2>
+        <div className="ui-modal-overlay phm-overlay" onClick={onClose}>
+            <div
+                className="ui-modal ui-modal--md payment-history-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="phm-title"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
                         <span className="material-icons-round">history</span>
-                        Historial de Pagos - {formatOrderLabel({ invoiceNumber, orderNumber, orderId })}
-                    </h2>
-                    <button className="btn-close" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h2 id="phm-title" className="ui-modal-title">
+                            Historial de Pagos - {formatOrderLabel({ invoiceNumber, orderNumber, orderId })}
+                        </h2>
+                    </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
-                <div className="modal-filters">
-                    <label className="phm-toggle">
+                <div className="phm-filters">
+                    <label className="ui-switch ui-switch--plain phm-toggle">
                         <input
                             type="checkbox"
                             checked={showCancelled}
                             onChange={(e) => setShowCancelled(e.target.checked)}
                         />
-                        <span className="phm-toggle-slider"></span>
-                        <span className="phm-toggle-label">Mostrar pagos anulados</span>
+                        <span className="ui-switch-track phm-toggle-slider">
+                            <span className="ui-switch-thumb"></span>
+                        </span>
+                        <span className="ui-switch-text">
+                            <span className="ui-switch-title phm-toggle-label">Mostrar pagos anulados</span>
+                        </span>
                     </label>
                 </div>
 
-                <div className="modal-body">
+                <div className="ui-modal-body phm-body">
                     {loading ? (
-                        <div className="loading-state">
-                            <span className="material-icons-round spin">sync</span>
+                        <div className="ui-loading phm-state" role="status">
+                            <span className="ui-spinner" aria-hidden="true"></span>
                             <p>Cargando pagos...</p>
                         </div>
                     ) : filteredPayments.length === 0 ? (
-                        <div className="empty-state">
-                            <span className="material-icons-round">receipt_long</span>
-                            <p>No hay pagos registrados</p>
+                        <div className="ui-empty phm-state">
+                            <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
+                            <p className="ui-empty-title">No hay pagos registrados</p>
                         </div>
                     ) : (
-                        <div className="payment-timeline">
+                        <ol className="phm-timeline ui-stagger">
                             {filteredPayments.map((payment) => (
-                                <div
+                                <li
                                     key={payment.id}
-                                    className={`timeline-item ${payment.isCancelled ? 'cancelled' : ''}`}
+                                    className={`phm-item ${payment.isCancelled ? 'is-cancelled' : ''}`}
                                 >
-                                    <div className="timeline-icon">
-                                        {payment.isCancelled ? '❌' : '✅'}
-                                    </div>
-                                    <div className="payment-card">
-                                        <div className="payment-header">
-                                            <div className="payment-title">
-                                                <span className={`badge ${payment.isCancelled ? 'badge-danger' : 'badge-success'}`}>
+                                    <span className="phm-dot" aria-hidden="true">
+                                        <span className="material-icons-round">
+                                            {payment.isCancelled ? 'cancel' : 'check_circle'}
+                                        </span>
+                                    </span>
+                                    <article className="phm-card">
+                                        <div className="phm-card-head">
+                                            <div className="phm-card-title">
+                                                <span className={`ui-badge ${payment.isCancelled ? 'ui-badge--danger' : 'ui-badge--success'}`}>
                                                     {payment.isCancelled ? 'ANULADO' : 'ACTIVO'}
                                                 </span>
-                                                <span className="payment-amount">
+                                                {/* Monto en verde; anulado en rojo tachado */}
+                                                <span className={`phm-amount ${payment.isCancelled ? 'ui-amount--danger' : 'ui-amount--success'}`}>
                                                     ${formatCurrency(payment.amount)}
                                                 </span>
                                             </div>
-                                            <span className="payment-method-badge">
-                                                {getPaymentMethodIcon(payment.paymentMethod)} {payment.paymentMethod}
+                                            <span className="ui-badge ui-badge--neutral phm-method">
+                                                <span className="material-icons-round" aria-hidden="true">
+                                                    {getPaymentMethodIcon(payment.paymentMethod)}
+                                                </span>
+                                                {payment.paymentMethod}
                                             </span>
                                         </div>
 
-                                        <div className="payment-body">
-                                            <div className="info-row">
-                                                <span className="info-label">📅 Fecha del pago:</span>
-                                                <span className="info-value highlight">
+                                        <div className="phm-rows">
+                                            <div className="phm-row">
+                                                <span className="phm-label">
+                                                    <span className="material-icons-round" aria-hidden="true">event</span>
+                                                    Fecha del pago:
+                                                </span>
+                                                <span className="phm-value is-strong">
                                                     {formatDate(payment.actualPaymentDate)}
                                                 </span>
                                             </div>
-                                            <div className="info-row">
-                                                <span className="info-label">🕒 Registrado el:</span>
-                                                <span className="info-value">
+                                            <div className="phm-row">
+                                                <span className="phm-label">
+                                                    <span className="material-icons-round" aria-hidden="true">schedule</span>
+                                                    Registrado el:
+                                                </span>
+                                                <span className="phm-value">
                                                     {formatDateTime(payment.paymentDate)}
                                                 </span>
                                             </div>
-                                            <div className="info-row">
-                                                <span className="info-label">👤 Registrado por:</span>
-                                                <span className="info-value">{payment.registeredByUsername}</span>
+                                            <div className="phm-row">
+                                                <span className="phm-label">
+                                                    <span className="material-icons-round" aria-hidden="true">person</span>
+                                                    Registrado por:
+                                                </span>
+                                                <span className="phm-value">{payment.registeredByUsername}</span>
                                             </div>
 
                                             {payment.notes && (
-                                                <div className="info-row">
-                                                    <span className="info-label">📝 Notas:</span>
-                                                    <span className="info-value">{payment.notes}</span>
+                                                <div className="phm-row">
+                                                    <span className="phm-label">
+                                                        <span className="material-icons-round" aria-hidden="true">notes</span>
+                                                        Notas:
+                                                    </span>
+                                                    <span className="phm-value">{payment.notes}</span>
                                                 </div>
                                             )}
 
                                             {payment.discountApplied > 0 && (
-                                                <div className="info-row">
-                                                    <span className="info-label">💰 Descuento aplicado:</span>
-                                                    <span className="info-value success">
+                                                <div className="phm-row">
+                                                    <span className="phm-label">
+                                                        <span className="material-icons-round" aria-hidden="true">sell</span>
+                                                        Descuento aplicado:
+                                                    </span>
+                                                    <span className="phm-value is-strong">
                                                         ${formatCurrency(payment.discountApplied)}
                                                     </span>
                                                 </div>
                                             )}
 
                                             {payment.isCancelled && (
-                                                <div className="cancellation-info">
-                                                    <div className="info-row">
-                                                        <span className="info-label">🚫 Anulado el:</span>
-                                                        <span className="info-value">
+                                                <div className="phm-cancel-info">
+                                                    <div className="phm-row">
+                                                        <span className="phm-label">
+                                                            <span className="material-icons-round" aria-hidden="true">block</span>
+                                                            Anulado el:
+                                                        </span>
+                                                        <span className="phm-value">
                                                             {formatDateTime(payment.cancelledAt)}
                                                         </span>
                                                     </div>
-                                                    <div className="info-row">
-                                                        <span className="info-label">👤 Anulado por:</span>
-                                                        <span className="info-value">{payment.cancelledByUsername}</span>
+                                                    <div className="phm-row">
+                                                        <span className="phm-label">
+                                                            <span className="material-icons-round" aria-hidden="true">person</span>
+                                                            Anulado por:
+                                                        </span>
+                                                        <span className="phm-value">{payment.cancelledByUsername}</span>
                                                     </div>
-                                                    <div className="info-row">
-                                                        <span className="info-label">❓ Razón:</span>
-                                                        <span className="info-value">{payment.cancellationReason}</span>
+                                                    <div className="phm-row">
+                                                        <span className="phm-label">
+                                                            <span className="material-icons-round" aria-hidden="true">help_outline</span>
+                                                            Razón:
+                                                        </span>
+                                                        <span className="phm-value">{payment.cancellationReason}</span>
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="payment-footer">
+                                        <div className="phm-card-actions">
                                             {!payment.isCancelled && canManagePayments && (
                                                 <button
-                                                    className="btn btn-danger btn-sm"
+                                                    type="button"
+                                                    className="ui-btn ui-btn--danger-ghost ui-btn--sm"
                                                     onClick={() => handleCancelPayment(payment)}
                                                     disabled={processingPaymentId === payment.id}
                                                 >
-                                                    <span className="material-icons-round">cancel</span>
+                                                    <span className="material-icons-round" aria-hidden="true">cancel</span>
                                                     {processingPaymentId === payment.id ? 'Anulando...' : 'Anular Pago'}
                                                 </button>
                                             )}
 
                                             {payment.isCancelled && canManagePayments && (
                                                 <button
-                                                    className="btn btn-warning btn-sm"
+                                                    type="button"
+                                                    className="ui-btn ui-btn--secondary ui-btn--sm"
                                                     onClick={() => handleRestorePayment(payment)}
                                                     disabled={processingPaymentId === payment.id}
                                                 >
-                                                    <span className="material-icons-round">restore</span>
+                                                    <span className="material-icons-round" aria-hidden="true">restore</span>
                                                     {processingPaymentId === payment.id ? 'Restaurando...' : 'Restaurar Pago'}
                                                 </button>
                                             )}
                                         </div>
-                                    </div>
-                                </div>
+                                    </article>
+                                </li>
                             ))}
-                        </div>
+                        </ol>
                     )}
                 </div>
 
-                <div className="modal-footer">
-                    <button className="btn btn-secondary" onClick={onClose}>
+                <div className="ui-modal-footer">
+                    <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose}>
                         Cerrar
                     </button>
                 </div>
@@ -259,4 +306,3 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
 }
 
 export default PaymentHistoryModal;
-

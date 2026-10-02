@@ -1,0 +1,1406 @@
+/* =========================================================================
+   INVENTARIO Y PRODUCTOS (paneles de Admin)
+   ProductsPanel (+ edición y carga masiva), BulkStockArrivalForm, StockArrivalModal,
+   TagsPanel, InventoryHistoryPanel y SalesHistoryPanel.
+
+   - Todo con prefijo inv- (el CSS de CRA es global) y sobre tokens / primitivas .ui-*.
+   - Estos componentes solo se usan en Admin: esta hoja vive en el chunk de Admin.
+   - StockReportPanel también se abre en Owner: tiene su propia hoja
+     (styles/areas/StockReportPanel.css) para no mezclar chunks.
+   ========================================================================= */
+
+/* ---------- Página ---------- */
+.inv-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.inv-page > .ui-page-header {
+  margin-bottom: var(--space-2);
+}
+
+/* Números de la cabecera (Total / Activos / Inactivos): pastillas con el color de su
+   significado (total = azul, activos = verde, inactivos = neutro = "apagado") */
+.inv-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.inv-counts b {
+  font-weight: 700;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-count {
+  --inv-count-bg: var(--color-surface-hover);
+  --inv-count-fg: var(--color-text-secondary);
+  --inv-count-dot: var(--color-border-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  background: var(--inv-count-bg);
+  color: var(--inv-count-fg);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.inv-count::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--inv-count-dot);
+}
+
+.inv-count--primary {
+  --inv-count-bg: var(--color-primary-soft);
+  --inv-count-fg: var(--color-primary-text);
+  --inv-count-dot: var(--color-primary);
+}
+
+.inv-count--success {
+  --inv-count-bg: var(--color-success-soft);
+  --inv-count-fg: var(--color-success-text);
+  --inv-count-dot: var(--color-success);
+}
+
+/* Iconos con tinte de significado dentro de botones, etiquetas y filas del área */
+.material-icons-round.inv-icon--primary { color: var(--color-primary); }
+.material-icons-round.inv-icon--success { color: var(--color-success); }
+.material-icons-round.inv-icon--warning { color: var(--color-warning); }
+.material-icons-round.inv-icon--danger { color: var(--color-danger); }
+
+/* Acciones de la cabecera: buscador + botones que se envuelven */
+.inv-header-actions {
+  flex: 0 1 auto;
+}
+
+.inv-header-search.ui-search {
+  flex: 1 1 240px;
+  max-width: 280px;
+}
+
+/* ---------- Menú desplegable (Descargar inventario) ---------- */
+.inv-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Flecha del botón: gira cuando el menú está abierto (el botón escribe style.display en el
+   menú; sin :has() simplemente no gira) */
+.inv-dropdown-caret.material-icons-round {
+  margin-right: -6px;
+  color: var(--color-text-muted);
+  transition: transform var(--duration) var(--ease);
+}
+
+.inv-dropdown:has(> .inv-dropdown-menu[style*='block']) .inv-dropdown-caret {
+  transform: rotate(180deg);
+}
+
+/* Mientras descarga, el spinner y la barra inferior del botón toman el color del formato */
+.ui-btn.inv-dropdown-trigger--excel { --ui-btn-accent: var(--color-success); }
+.ui-btn.inv-dropdown-trigger--pdf { --ui-btn-accent: var(--color-danger); }
+
+/* Oculto por defecto: el botón lo abre/cierra escribiendo style.display */
+.inv-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: var(--z-dropdown);
+  min-width: 200px;
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  animation: ui-drop-in var(--duration-fast) var(--ease);
+}
+
+/* Opciones del menú = botones de formato (.ui-btn--excel verde / --pdf rojo, tinte suave)
+   a todo el ancho, alineados a la izquierda */
+.ui-btn.inv-dropdown-item {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  text-align: left;
+}
+
+.inv-dropdown-item + .inv-dropdown-item {
+  margin-top: var(--space-2);
+}
+
+/* ---------- Filtros y controles del catálogo ---------- */
+.inv-filter-block {
+  min-width: 0;
+}
+
+.inv-filter-label {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.inv-products .tag-filter-bar {
+  margin-bottom: 0;
+}
+
+.inv-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.inv-controls-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.inv-sort.ui-select {
+  width: auto;
+  min-width: 170px;
+}
+
+/* Selector de columnas: segmentado como .ui-tabs */
+.inv-cols {
+  display: inline-flex;
+  gap: 2px;
+  padding: var(--space-1);
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-md);
+}
+
+.inv-cols .ui-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+
+.inv-cols .ui-icon-btn .material-icons-round {
+  font-size: 18px;
+}
+
+.inv-cols .ui-icon-btn.is-active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ---------- Grilla de productos ---------- */
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.inv-grid--cols-1 { grid-template-columns: minmax(0, 1fr); }
+.inv-grid--cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.inv-grid--cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.inv-grid--cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Tarjeta de producto */
+.inv-product-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-control) var(--ease),
+    box-shadow var(--duration-control) var(--ease);
+  box-shadow: var(--shadow-card);
+}
+
+/* Realce al pasar el mouse: más sombra y borde un tono más fuerte, sin desplazar */
+.inv-product-card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Stock por debajo del punto de reorden */
+.inv-product-card.is-low,
+.inv-product-card.is-low:hover {
+  border-color: var(--color-warning);
+}
+
+/* Esqueleto de carga con la forma de la tarjeta (no reacciona al mouse) */
+.inv-product-card--skeleton:hover {
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+
+.ui-skeleton.inv-skeleton-media {
+  height: 180px;
+  border-radius: 0;
+}
+
+.ui-skeleton.inv-skeleton-short {
+  width: 60%;
+}
+
+.inv-product-flag {
+  position: absolute;
+  top: var(--space-2);
+  z-index: 1;
+}
+
+.inv-product-flag--start {
+  left: var(--space-2);
+}
+
+.inv-product-flag--end {
+  right: var(--space-2);
+}
+
+.inv-product-media {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+  background: var(--color-surface-subtle);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inv-product-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.inv-product-media.is-inactive img {
+  opacity: 0.4;
+}
+
+.inv-product-inactive {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inv-product-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.inv-product-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.inv-product-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: var(--tracking-title);
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.inv-product-tag:empty {
+  display: none;
+}
+
+.inv-product-desc {
+  display: -webkit-box;
+  margin: 0 0 auto;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.inv-product-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.inv-figure--end {
+  text-align: right;
+}
+
+.inv-figure-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.inv-figure--end .inv-figure-label {
+  justify-content: flex-end;
+}
+
+.inv-figure-label .material-icons-round {
+  font-size: 14px;
+}
+
+.inv-figure-value {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Precio = dinero: verde de marca */
+.inv-figure-value--price {
+  color: var(--color-success-text);
+}
+
+.inv-figure-value.is-low {
+  color: var(--color-warning-text);
+}
+
+.inv-figure-value.is-negative {
+  color: var(--color-danger-text);
+}
+
+/* Si la tarjeta es angosta los botones bajan de línea (como el original con
+   flexWrap): nunca se encogen por debajo de su contenido ni se montan. */
+.inv-product-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-subtle);
+  border-top: 1px solid var(--color-border);
+}
+
+.inv-product-actions .ui-btn {
+  flex: 1 1 auto;
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+/* Mismo alto que los botones --sm de al lado; si baja de línea queda a la derecha */
+.inv-product-actions .ui-icon-btn {
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+}
+
+/* Interruptor activo/inactivo de la tarjeta (ui-switch sin caja) */
+.inv-switch.ui-switch {
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 32px;
+}
+
+.inv-switch .ui-switch-track {
+  margin-top: 0;
+}
+
+/* ---------- Formularios masivos (edición, carga, llegada de stock) ---------- */
+.inv-bulk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.inv-bulk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+}
+
+.inv-bulk-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-title);
+  letter-spacing: var(--tracking-title);
+  color: var(--color-text);
+}
+
+/* Icono del título en baldosa de 36px: azul (edición, llegada) o verde (carga = entrada) */
+.inv-bulk-title > .material-icons-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 20px;
+}
+
+.inv-bulk-title--success > .material-icons-round {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.inv-bulk-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.inv-bulk-filter.ui-input {
+  width: 240px;
+}
+
+.inv-inline-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.inv-inline-field .ui-input {
+  width: 250px;
+}
+
+.inv-bulk-search.ui-search {
+  flex: none;
+  max-width: none;
+  width: 100%;
+}
+
+/* La tabla hace scroll dentro de su marco (encabezado fijo) */
+.inv-bulk .ui-table-wrap {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.inv-bulk .ui-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.inv-page .inv-bulk .ui-table td {
+  height: auto;
+  padding: var(--space-2) var(--space-3);
+}
+
+.inv-page .inv-bulk .ui-table th {
+  padding: 10px var(--space-3);
+}
+
+.inv-table-wide {
+  min-width: 1000px;
+}
+
+.inv-table-md {
+  min-width: 800px;
+}
+
+.inv-w-xs { width: 50px; }
+.inv-w-sm { width: 100px; }
+.inv-w-md { width: 120px; }
+.inv-w-lg { width: 150px; }
+.inv-w-xl { width: 200px; }
+.inv-w-8p { width: 8%; }
+.inv-w-10p { width: 10%; }
+.inv-w-15p { width: 15%; }
+.inv-w-20p { width: 20%; }
+
+.inv-cell-input.ui-input,
+.inv-cell-input.ui-select {
+  min-height: 36px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.inv-cell-input.ui-select {
+  padding-right: 32px;
+}
+
+.inv-cell-input--qty.ui-input {
+  text-align: center;
+}
+
+/* Valor cambiado y aún sin guardar. Se repite con :hover para ganarle a
+   .ui-input:hover:not(:disabled):not(:focus) (0,4,0): el aviso no se pierde al pasar el mouse. */
+.inv-cell-input.is-changed,
+.inv-cell-input.is-changed:hover:not(:disabled):not(:focus) {
+  border-color: var(--color-warning);
+}
+
+/* Cantidad escrita en la llegada masiva (mismo motivo para el :hover) */
+.inv-cell-input.is-filled,
+.inv-cell-input.is-filled:hover:not(:disabled):not(:focus) {
+  border-color: var(--color-success);
+}
+
+.inv-cell-input.is-filled {
+  font-weight: 600;
+}
+
+/* Etiqueta en las tablas de edición y carga masiva: selector con buscador (SearchableSelect)
+   compacto. Mismo alto que los demás campos de la fila; sin la lupa (la celda es angosta y al
+   enfocar el placeholder ya dice "Buscar etiqueta…"); la x y la flecha más juntas. */
+.ui-combobox.inv-cell-combobox .ui-combobox-icon {
+  display: none;
+}
+
+.ui-combobox.inv-cell-combobox .ui-combobox-input {
+  min-height: 36px;
+  padding: 6px 34px 6px var(--space-3);
+}
+
+.ui-combobox.inv-cell-combobox.has-clear .ui-combobox-input {
+  padding-right: 62px;
+}
+
+.ui-combobox.inv-cell-combobox .ui-combobox-clear {
+  right: 32px;
+}
+
+/* Cambio sin guardar también en el combobox (gana a su borde base y a su :hover) */
+.ui-combobox .ui-combobox-input.inv-cell-input.is-changed,
+.ui-combobox .ui-combobox-input.inv-cell-input.is-changed:hover:not(:disabled):not(:focus) {
+  border-color: var(--color-warning);
+}
+
+.inv-cell-input--qty:not(.is-filled) {
+  background-color: var(--color-surface-subtle);
+}
+
+.inv-bulk .ui-table tbody tr.is-edited td {
+  background: var(--color-warning-soft);
+}
+
+.inv-bulk .ui-table tbody tr.is-filled td {
+  background: var(--color-success-soft);
+}
+
+.inv-file-input {
+  max-width: 180px;
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.inv-file-input--sm {
+  max-width: 150px;
+}
+
+.inv-file-input::file-selector-button {
+  margin-right: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inv-file-ready {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+.inv-cell-name {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.inv-id {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-cell-muted {
+  color: var(--color-text-muted);
+}
+
+.inv-cell-center {
+  text-align: center;
+}
+
+.inv-stock-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-stock-value.is-negative {
+  color: var(--color-danger-text);
+}
+
+.inv-bulk-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.inv-bulk-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.inv-bulk-empty {
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Tablas del área ---------- */
+.inv-page .ui-table td.inv-table-state {
+  height: auto;
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.inv-table-state-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.inv-nowrap {
+  white-space: nowrap;
+}
+
+.inv-delta {
+  font-weight: 700;
+}
+
+/* Flecha del sentido + número; toma el color en línea de la celda (verde/rojo) */
+.inv-delta-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-delta-value .material-icons-round {
+  font-size: 16px;
+}
+
+.inv-stock-new {
+  font-weight: 600;
+}
+
+.inv-page .ui-table td.inv-stock-negative {
+  color: var(--color-danger-text);
+  font-weight: 600;
+}
+
+.inv-cell-date {
+  color: var(--color-text-secondary);
+}
+
+/* Referencia de factura/pedido en azul (como enlace visual) */
+.inv-order-ref {
+  color: var(--color-primary-text);
+  font-weight: 500;
+}
+
+/* Usuario del movimiento con avatar de iniciales */
+.inv-user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-weight: 500;
+}
+
+/* ---------- Insignias de tipo (movimiento de inventario y línea de factura) ----------
+   Color de significado: entrada = verde, salida/venta = azul, devolución = teal,
+   ajuste = ámbar, eliminación/negativo = rojo, edición de datos / venta normal = celeste.
+   El icono va en el tono sólido; el texto en el *-text sobre el *-soft (> 4.5:1). */
+.ui-badge.inv-type-badge {
+  --inv-type-bg: var(--color-surface-hover);
+  --inv-type-fg: var(--color-text-secondary);
+  --inv-type-icon: var(--color-text-muted);
+  background: var(--inv-type-bg);
+  color: var(--inv-type-fg);
+}
+
+.inv-type-badge .material-icons-round {
+  color: var(--inv-type-icon);
+}
+
+.ui-badge.inv-type-badge--primary {
+  --inv-type-bg: var(--color-primary-soft);
+  --inv-type-fg: var(--color-primary-text);
+  --inv-type-icon: var(--color-primary);
+}
+
+.ui-badge.inv-type-badge--success {
+  --inv-type-bg: var(--color-success-soft);
+  --inv-type-fg: var(--color-success-text);
+  --inv-type-icon: var(--color-success);
+}
+
+.ui-badge.inv-type-badge--warning {
+  --inv-type-bg: var(--color-warning-soft);
+  --inv-type-fg: var(--color-warning-text);
+  --inv-type-icon: var(--color-warning);
+}
+
+.ui-badge.inv-type-badge--danger {
+  --inv-type-bg: var(--color-danger-soft);
+  --inv-type-fg: var(--color-danger-text);
+  --inv-type-icon: var(--color-danger);
+}
+
+.ui-badge.inv-type-badge--teal {
+  --inv-type-bg: var(--color-teal-soft);
+  --inv-type-fg: var(--color-teal-text);
+  --inv-type-icon: var(--color-teal);
+}
+
+.ui-badge.inv-type-badge--sky {
+  --inv-type-bg: var(--color-sky-soft);
+  --inv-type-fg: var(--color-sky-text);
+  --inv-type-icon: var(--color-sky);
+}
+
+/* Esqueleto de carga dentro de la tabla (filas con la forma de un movimiento) */
+.inv-page .ui-table td.inv-table-state--skeleton {
+  padding: var(--space-4);
+  text-align: left;
+}
+
+.inv-skeleton-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 28px;
+}
+
+.ui-skeleton.inv-skeleton-dot {
+  width: 24px;
+  height: 24px;
+}
+
+.ui-skeleton.inv-skeleton-fill {
+  flex: 1 1 auto;
+}
+
+.ui-skeleton.inv-skeleton-tail {
+  flex: 0 0 18%;
+}
+
+.inv-col-actions {
+  text-align: right;
+}
+
+.inv-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* ---------- Etiquetas (TagsPanel) ---------- */
+.inv-tag-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
+}
+
+.inv-tag-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.inv-tag-dot.is-system {
+  background: var(--color-danger);
+}
+
+.inv-tags .ui-table tbody tr.is-system td {
+  background: var(--color-surface-subtle);
+}
+
+/* Formulario que envuelve cuerpo + pie del modal */
+.inv-modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- Filtros (historiales) ---------- */
+.inv-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.inv-filters > .ui-field {
+  flex: 1 1 160px;
+}
+
+.inv-filters > .inv-field-grow {
+  flex: 3 1 240px;
+}
+
+.inv-filters > .ui-btn {
+  flex: 0 0 auto;
+}
+
+/* El buscador vive dentro de un .ui-field (columna): sin flex-basis de alto */
+.inv-field-search.ui-search {
+  flex: none;
+  width: 100%;
+  max-width: none;
+}
+
+.inv-field-grow {
+  position: relative;
+}
+
+/* Sugerencias de producto (historial de inventario) */
+.inv-suggest {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  max-height: 240px;
+  margin-top: var(--space-1);
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  animation: ui-drop-in var(--duration-fast) var(--ease);
+}
+
+.inv-suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.inv-suggest-name {
+  min-width: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.inv-suggest-inactive {
+  margin-left: 6px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.inv-suggest-loading {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Paginación ---------- */
+.inv-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.inv-pagination-info {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary); /* sobre el canvas, muted no llega a 4.5:1 */
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ---------- Historial de ventas (facturas desplegables) ---------- */
+.inv-sales-list {
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.inv-invoice + .inv-invoice {
+  border-top: 1px solid var(--color-border);
+}
+
+.inv-invoice-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: 0;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease);
+}
+
+/* La lista recorta con overflow:hidden (esquinas redondeadas): el anillo de foco
+   va hacia adentro para que se vea completo con teclado. */
+.inv-invoice-toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.inv-invoice-chevron.material-icons-round {
+  color: var(--color-primary);
+  transition: transform var(--duration) var(--ease);
+}
+
+.inv-invoice-toggle.is-expanded .inv-invoice-chevron {
+  transform: rotate(90deg);
+}
+
+/* "Factura #501563 · Pedido P-1681" en una sola línea (antes se partía en dos) */
+.inv-invoice-number {
+  flex-shrink: 0;
+  min-width: 70px;
+  white-space: nowrap;
+  padding: var(--space-1) 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Avatar de iniciales + nombre y vendedor */
+.inv-invoice-client {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.inv-invoice-client-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.inv-invoice-name {
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv-invoice-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.inv-invoice-dates {
+  min-width: 180px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-invoice-dates > div {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.inv-invoice-dates .material-icons-round {
+  font-size: 14px;
+}
+
+.inv-invoice-dates strong {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+/* Total facturado = dinero que entra: verde de marca */
+.inv-invoice-total {
+  min-width: 110px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-success-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Esqueleto de carga con la forma de una factura */
+.inv-sales-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+}
+
+.inv-sales-skeleton-row + .inv-sales-skeleton-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.ui-skeleton.inv-skeleton-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.inv-skeleton-grow {
+  flex: 1 1 auto;
+}
+
+.ui-skeleton.inv-skeleton-amount {
+  flex: 0 0 90px;
+}
+
+.inv-invoice-detail {
+  padding: var(--space-3) var(--space-4) var(--space-5) var(--space-12);
+  background: var(--color-surface-subtle);
+  border-top: 1px solid var(--color-border);
+}
+
+/* ---------- Modal de llegada de mercancía ---------- */
+.inv-stock-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px var(--space-3);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.inv-stock-summary .inv-stock-value {
+  font-size: var(--text-md);
+  color: var(--color-text);
+}
+
+.inv-stock-summary .inv-stock-value.is-negative {
+  color: var(--color-danger-text);
+}
+
+/* ---------- Responsive ---------- */
+/* Escritorio angosto: 4 columnas dejaban tarjetas de ~170-230px */
+@media (max-width: 1280px) {
+  .inv-grid--cols-4 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Tablet (con el menú lateral de 240px): 3 o 4 columnas bajan a 2 */
+@media (max-width: 1024px) {
+  .inv-grid--cols-3,
+  .inv-grid--cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Teléfonos: una tarjeta por fila (con 3 o 4 columnas no se leía nada) */
+@media (max-width: 560px) {
+  .inv-grid--cols-2,
+  .inv-grid--cols-3,
+  .inv-grid--cols-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .inv-page {
+    gap: var(--space-3);
+  }
+
+  .inv-page > .ui-page-header {
+    margin-bottom: var(--space-1);
+  }
+
+  .inv-header-actions,
+  .inv-header-search.ui-search {
+    max-width: none;
+  }
+
+  .inv-header-search.ui-search {
+    flex-basis: 100%;
+  }
+
+  /* Botones de la cabecera: dos por fila, a todo el ancho */
+  .inv-header-actions > .ui-btn,
+  .inv-header-actions > .inv-dropdown {
+    flex: 1 1 calc(50% - var(--space-2));
+  }
+
+  .inv-header-actions > .inv-dropdown > .ui-btn {
+    width: 100%;
+  }
+
+  .ui-btn.inv-dropdown-item {
+    min-height: 44px;
+  }
+
+  .inv-controls,
+  .inv-controls-end {
+    width: 100%;
+  }
+
+  .inv-sort.ui-select {
+    flex: 1 1 auto;
+  }
+
+  .inv-cols .ui-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .inv-product-media,
+  .ui-skeleton.inv-skeleton-media {
+    height: 160px;
+  }
+
+  .inv-product-actions .ui-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .inv-switch.ui-switch {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: flex-end;
+  }
+
+  .inv-bulk {
+    padding: var(--space-4);
+  }
+
+  .inv-bulk-tools,
+  .inv-bulk-tools > *,
+  .inv-inline-field {
+    width: 100%;
+  }
+
+  .inv-bulk-tools > .ui-btn {
+    flex: 1 1 0;
+  }
+
+  .inv-bulk-filter.ui-input,
+  .inv-inline-field .ui-input {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .inv-cell-input.ui-input,
+  .inv-cell-input.ui-select {
+    min-height: 44px;
+  }
+
+  .ui-combobox.inv-cell-combobox .ui-combobox-input {
+    min-height: 44px;
+  }
+
+  .ui-combobox.inv-cell-combobox.has-clear .ui-combobox-input {
+    padding-right: 74px;
+  }
+
+  .inv-file-input::file-selector-button {
+    min-height: 44px;
+  }
+
+  .inv-filters {
+    padding: var(--space-3);
+  }
+
+  .inv-filters > .ui-btn {
+    flex: 1 1 100%;
+  }
+
+  .inv-page .ui-table td,
+  .inv-page .ui-table th {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+
+  /* Factura: número + total arriba, cliente y fechas debajo */
+  .inv-invoice-toggle {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'chev num total'
+      '. client client'
+      '. dates dates';
+    align-items: center;
+    gap: 6px var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .inv-invoice-chevron { grid-area: chev; }
+
+  .inv-invoice-number {
+    grid-area: num;
+    justify-self: start;
+    max-width: 100%;
+  }
+
+  .inv-invoice-total {
+    grid-area: total;
+    min-width: 0;
+  }
+
+  .inv-invoice-client { grid-area: client; }
+
+  .inv-invoice-dates {
+    grid-area: dates;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .inv-invoice-dates > div {
+    justify-content: flex-start;
+  }
+
+  .inv-invoice-detail {
+    padding: var(--space-2) var(--space-3) var(--space-4);
+  }
+
+  /* Historial de inventario: cada movimiento como tarjeta (10 columnas no caben) */
+  .inv-stack-table,
+  .inv-stack-table tbody,
+  .inv-stack-table tr,
+  .inv-stack-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .inv-stack-table thead {
+    display: none;
+  }
+
+  .inv-stack-table tbody tr {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .inv-stack-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .inv-page .inv-stack-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    height: auto;
+    padding: var(--space-1) var(--space-4);
+    border-bottom: 0;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .inv-stack-table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-align: left;
+  }
+
+  .inv-page .inv-stack-table td.inv-table-state {
+    display: block;
+    text-align: center;
+  }
+
+  .inv-page .inv-stack-table td.inv-table-state--skeleton {
+    text-align: left;
+  }
+}
+
+/* Sin movimiento: la flecha del menú y los realces cambian al instante */
+@media (prefers-reduced-motion: reduce) {
+  .inv-dropdown-caret.material-icons-round,
+  .inv-invoice-chevron.material-icons-round,
+  .inv-product-card {
+    transition: none;
+  }
+}

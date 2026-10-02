@@ -120,32 +120,37 @@ function PromotionsPanel() {
     };
 
     if (loading) {
-        return <div className="loading">Cargando promociones...</div>;
+        return (
+            <div className="ui-loading">
+                <span className="ui-spinner" aria-hidden="true" />
+                Cargando promociones...
+            </div>
+        );
     }
 
     return (
         <div className="promotions-panel">
-            <div className="panel-header">
-                <h2>
-                    <span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)' }}>
-                        local_offer
-                    </span>
-                    Gestión de Promociones
-                </h2>
-                <button className="btn-add" onClick={() => setShowForm(true)}>
-                    + Nueva Promoción
-                </button>
-            </div>
+            <header className="ui-page-header">
+                <div className="ui-page-heading">
+                    <h2 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">local_offer</span>
+                        Gestión de Promociones
+                    </h2>
+                    <p className="ui-page-desc">Paquetes y regalos que pueden vender las vendedoras.</p>
+                </div>
+                <div className="ui-page-actions">
+                    <button type="button" className="ui-btn ui-btn--primary" onClick={() => setShowForm(true)}>
+                        <span className="material-icons-round" aria-hidden="true">add</span>
+                        Nueva Promoción
+                    </button>
+                </div>
+            </header>
 
             {promotions.length === 0 ? (
-                <div className="empty-state">
-                    <p>
-                        <span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>
-                            local_offer
-                        </span>
-                        <br />
-                        No hay promociones creadas
-                    </p>
+                <div className="ui-empty">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">local_offer</span>
+                    <p className="ui-empty-title">No hay promociones creadas</p>
+                    <p className="ui-empty-text">Crea la primera con “Nueva Promoción”.</p>
                 </div>
             ) : (
                 <>
@@ -160,20 +165,20 @@ function PromotionsPanel() {
                 />
 
                 {visiblePromotions.length === 0 ? (
-                    <div className="promo-no-results">
-                        <span className="material-icons-round" aria-hidden="true">search_off</span>
-                        <p>
+                    <div className="ui-empty promo-no-results">
+                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                        <p className="ui-empty-text">
                             {searchTerm.trim()
                                 ? `No hay promociones ${statusTab === PROMO_TABS.ACTIVE ? 'activas ' : statusTab === PROMO_TABS.INACTIVE ? 'inactivas ' : ''}que coincidan con "${searchTerm.trim()}".`
                                 : statusTab === PROMO_TABS.ACTIVE ? 'No hay promociones activas.' : 'No hay promociones inactivas.'}
                         </p>
                         {statusTab !== PROMO_TABS.ALL && tabCounts.all > 0 && (
-                            <button type="button" className="promo-link-btn" onClick={() => setStatusTab(PROMO_TABS.ALL)}>
+                            <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm ui-empty-action" onClick={() => setStatusTab(PROMO_TABS.ALL)}>
                                 Ver en Todas ({tabCounts.all})
                             </button>
                         )}
                         {searchTerm && (statusTab === PROMO_TABS.ALL || tabCounts.all === 0) && (
-                            <button type="button" className="promo-link-btn" onClick={() => setSearchTerm('')}>
+                            <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm ui-empty-action" onClick={() => setSearchTerm('')}>
                                 Limpiar búsqueda
                             </button>
                         )}
@@ -187,29 +192,29 @@ function PromotionsPanel() {
                         const vendorNames = Array.isArray(promotion.allowedVendorNames) ? promotion.allowedVendorNames : [];
 
                         return (
-                            <div
+                            <article
                                 key={promotion.id}
-                                className={`promotion-card ${!promotion.active ? 'inactive' : ''}`}
+                                className={`ui-card promotion-card${!promotion.active ? ' inactive' : ''}`}
                             >
-                                <div className="promotion-header">
-                                    <div>
-                                        <h3 className="promotion-title">{promotion.nombre}</h3>
+                                <div className="ui-card-header promotion-header">
+                                    <div className="promotion-heading">
+                                        <h3 className="ui-card-title promotion-title">{promotion.nombre}</h3>
                                         <div className="promotion-badges">
-                                            <span className={`promotion-badge type-${(promotion.type || '').toLowerCase().replace(/_/g, '-')}`}>
+                                            <span className="ui-badge ui-badge--neutral">
                                                 {getPromotionTypeLabel(promotion.type)}
                                             </span>
-                                            <span className={`promotion-badge status-${promotion.active ? 'active' : 'inactive'}`}>
+                                            <span className={`ui-badge ${promotion.active ? 'ui-badge--success' : 'ui-badge--neutral'}`}>
                                                 {promotion.active ? 'Activa' : 'Inactiva'}
                                             </span>
                                             {isValid && promotion.active && (
-                                                <span className="promotion-badge valid-now">
-                                                    <span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span>
+                                                <span className="ui-badge ui-badge--primary">
+                                                    <span className="material-icons-round" aria-hidden="true">check_circle</span>
                                                     Válida Ahora
                                                 </span>
                                             )}
                                             {dateLabel && (
-                                                <span className={`promotion-badge date-${dateLabel === 'Vencida' ? 'expired' : 'scheduled'}`}>
-                                                    <span className="material-icons-round" style={{ fontSize: '14px' }}>
+                                                <span className={`ui-badge ${dateLabel === 'Vencida' ? 'ui-badge--danger' : 'ui-badge--warning'}`}>
+                                                    <span className="material-icons-round" aria-hidden="true">
                                                         {dateLabel === 'Vencida' ? 'event_busy' : 'schedule'}
                                                     </span>
                                                     {dateLabel}
@@ -230,39 +235,39 @@ function PromotionsPanel() {
                                         Vendedoras:
                                     </span>
                                     {isVisibleToAll(promotion) ? (
-                                        <span className="promo-chip all">Todas</span>
+                                        <span className="ui-badge ui-badge--success">Todas</span>
                                     ) : vendorNames.length > 0 ? (
                                         vendorNames.map((name, i) => (
-                                            <span key={`${name}-${i}`} className="promo-chip">{name}</span>
+                                            <span key={`${name}-${i}`} className="ui-badge ui-badge--neutral">{name}</span>
                                         ))
                                     ) : (
-                                        <span className="promo-chip none">Ninguna (solo admin)</span>
+                                        <span className="ui-badge ui-badge--warning">Ninguna (solo admin)</span>
                                     )}
                                 </div>
 
-                                <div className="promotion-info">
-                                    <div className="promotion-info-row">
-                                        <span className="promotion-info-label">Compra:</span>
-                                        <span className="promotion-quantities">
+                                <div className="ui-meta promotion-info">
+                                    <div className="ui-meta-row">
+                                        <span className="ui-meta-label">Compra:</span>
+                                        <span className="ui-meta-value">
                                             {promotion.buyQuantity} {promotion.mainProduct?.nombre}
                                         </span>
                                     </div>
 
-                                    <div className="promotion-info-row" style={{ alignItems: 'flex-start' }}>
-                                        <span className="promotion-info-label">Recibe Gratis:</span>
-                                        <div className="promotion-gifts-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
+                                    <div className="ui-meta-row">
+                                        <span className="ui-meta-label">Recibe Gratis:</span>
+                                        <div className="ui-meta-value promotion-gifts-list">
                                             {promotion.type === PromotionType.PACK ? (
                                                 promotion.giftItems && promotion.giftItems.length > 0 ? (
                                                     promotion.giftItems.map((gift, idx) => (
-                                                        <span key={idx} className="promotion-quantities" style={{ fontSize: '0.85rem' }}>
+                                                        <span key={idx}>
                                                             {gift.quantity}x {gift.product ? gift.product.nombre : 'Producto'}
                                                         </span>
                                                     ))
                                                 ) : (
-                                                    <span className="promotion-quantities" style={{ color: 'var(--text-muted)' }}>Sin regalos definidos</span>
+                                                    <span className="ui-muted">Sin regalos definidos</span>
                                                 )
                                             ) : (
-                                                <span className="promotion-quantities">
+                                                <span>
                                                     {/* Un backend anterior no envía freeQuantity: no mostrar "undefined" */}
                                                     {promotion.freeQuantity != null
                                                         ? `Hasta ${promotion.freeQuantity} a elección`
@@ -273,22 +278,22 @@ function PromotionsPanel() {
                                     </div>
 
                                     {promotion.packPrice != null && promotion.packPrice !== '' && (
-                                        <div className="promotion-info-row price-row">
-                                            <span className="promotion-info-label">Precio del paquete:</span>
-                                            <span className="promotion-price">${formatCurrency(promotion.packPrice)}</span>
+                                        <div className="ui-meta-row promotion-price-row">
+                                            <span className="ui-meta-label">Precio del paquete:</span>
+                                            <span className="ui-meta-value ui-amount promotion-price">${formatCurrency(promotion.packPrice)}</span>
                                         </div>
                                     )}
 
-                                    <div className="promotion-info-row">
-                                        <span className="promotion-info-label">Combinar con descuentos:</span>
-                                        <span className="promotion-info-value">
+                                    <div className="ui-meta-row">
+                                        <span className="ui-meta-label">Combinar con descuentos:</span>
+                                        <span className="ui-meta-value">
                                             {promotion.allowStackWithDiscounts ? 'Sí' : 'No'}
                                         </span>
                                     </div>
 
-                                    <div className="promotion-info-row">
-                                        <span className="promotion-info-label">Surtidos Extra:</span>
-                                        <span className="promotion-info-value">
+                                    <div className="ui-meta-row">
+                                        <span className="ui-meta-label">Surtidos Extra:</span>
+                                        <span className="ui-meta-value">
                                             {promotion.requiresAssortmentSelection ? 'Sí' : 'No'}
                                         </span>
                                     </div>
@@ -302,16 +307,20 @@ function PromotionsPanel() {
                                                     src={promotion.mainProduct.imageUrl}
                                                     alt={promotion.mainProduct.nombre}
                                                     className="promotion-product-image"
+                                                    width="40"
+                                                    height="40"
+                                                    loading="lazy"
+                                                    decoding="async"
                                                     onError={(e) => {
                                                         e.target.style.display = 'none';
                                                     }}
                                                 />
                                             )}
-                                            <div>
+                                            <div className="promotion-product-text">
                                                 <div className="promotion-product-name">
                                                     {promotion.mainProduct.nombre}
                                                 </div>
-                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                                <div className="promotion-product-caption">
                                                     Producto Principal
                                                 </div>
                                             </div>
@@ -323,7 +332,7 @@ function PromotionsPanel() {
                                     (promotion.validFrom || promotion.validUntil) && (
                                         <div className="promotion-validity">
                                             <strong>
-                                                <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>
+                                                <span className="material-icons-round" aria-hidden="true">
                                                     event
                                                 </span>
                                                 {' '}Vigencia
@@ -338,35 +347,38 @@ function PromotionsPanel() {
                                     )
                                 }
 
-                                <div className="promotion-actions">
+                                <div className="ui-card-footer promotion-actions">
                                     <button
-                                        className="btn-promo-action edit"
+                                        type="button"
+                                        className="ui-btn ui-btn--secondary ui-btn--sm"
                                         onClick={() => handleEdit(promotion)}
                                         title="Editar promoción"
                                     >
-                                        <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
+                                        <span className="material-icons-round" aria-hidden="true">edit</span>
                                         Editar
                                     </button>
                                     <button
-                                        className="btn-promo-action toggle"
+                                        type="button"
+                                        className="ui-btn ui-btn--secondary ui-btn--sm"
                                         onClick={() => handleToggleStatus(promotion.id, promotion.active)}
                                         title={promotion.active ? 'Desactivar' : 'Activar'}
                                     >
-                                        <span className="material-icons-round" style={{ fontSize: '16px' }}>
+                                        <span className="material-icons-round" aria-hidden="true">
                                             {promotion.active ? 'visibility_off' : 'visibility'}
                                         </span>
                                         {promotion.active ? 'Desactivar' : 'Activar'}
                                     </button>
                                     <button
-                                        className="btn-promo-action delete"
+                                        type="button"
+                                        className="ui-btn ui-btn--secondary ui-btn--sm promo-action-delete"
                                         onClick={() => handleDelete(promotion)}
                                         title="Eliminar promoción"
                                     >
-                                        <span className="material-icons-round" style={{ fontSize: '16px' }}>delete_outline</span>
+                                        <span className="material-icons-round" aria-hidden="true">delete_outline</span>
                                         Eliminar
                                     </button>
                                 </div>
-                            </div>
+                            </article>
                         );
                     })}
                 </div>

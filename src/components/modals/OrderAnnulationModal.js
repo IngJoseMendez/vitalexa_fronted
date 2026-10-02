@@ -19,36 +19,42 @@ function OrderAnnulationModal({ onClose, onConfirm, isLoading = false }) {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content annulation-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>
-            <span className="material-icons-round" style={{ verticalAlign: 'middle', marginRight: '0.5rem', color: '#dc3545' }}>
-              delete_forever
-            </span>
-            Anular Orden
-          </h3>
-          <button className="btn-close" onClick={onClose} disabled={isLoading}>
-            <span className="material-icons-round">close</span>
+    <div className="ui-modal-overlay annulation-overlay">
+      <div
+        className="ui-modal ui-modal--sm annulation-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="annulation-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ui-modal-header">
+          <span className="ui-modal-icon ui-modal-icon--danger" aria-hidden="true">
+            <span className="material-icons-round">delete_forever</span>
+          </span>
+          <div className="ui-modal-heading">
+            <h3 id="annulation-title" className="ui-modal-title">Anular Orden</h3>
+          </div>
+          <button type="button" className="ui-icon-btn" onClick={onClose} disabled={isLoading} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
           </button>
         </div>
 
-        <div className="modal-body">
-          <div className="warning-section">
-            <span className="material-icons-round warning-icon">warning</span>
-            <p className="warning-text">
+        <div className="ui-modal-body ui-modal-body--plain">
+          <div className="ui-alert ui-alert--warning annulation-warning">
+            <span className="material-icons-round" aria-hidden="true">warning</span>
+            <p className="annulation-warning-text">
               Al anular esta orden, se restaurará el stock y se registrará como anulada.
               Si fue un error, podrás revertir la anulación indicando un motivo.
             </p>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="reason" className="form-label">
-              Motivo de Anulación <span className="required">*</span>
+          <div className="ui-field">
+            <label htmlFor="reason" className="ui-label">
+              Motivo de Anulación <span className="ui-required">*</span>
             </label>
             <textarea
               id="reason"
-              className="form-control"
+              className="ui-textarea"
               rows="4"
               placeholder="Describe el motivo por el cual se anula esta orden..."
               value={reason}
@@ -58,22 +64,24 @@ function OrderAnnulationModal({ onClose, onConfirm, isLoading = false }) {
           </div>
         </div>
 
-        <div className="modal-footer">
+        <div className="ui-modal-footer">
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="ui-btn ui-btn--secondary"
             onClick={onClose}
             disabled={isLoading}
           >
             Cancelar
           </button>
           <button
-            className="btn btn-danger"
+            type="button"
+            className="ui-btn ui-btn--danger"
             onClick={handleConfirm}
             disabled={isLoading || !reason.trim()}
           >
             {isLoading ? (
               <>
-                <span className="spinner-border" style={{ width: '0.9rem', height: '0.9rem', marginRight: '0.5rem' }} />
+                <span className="ui-spinner" aria-hidden="true" />
                 Anulando...
               </>
             ) : (

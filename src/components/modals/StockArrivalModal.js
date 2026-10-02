@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import '../../styles/areas/Inventory.css';
 
 export default function StockArrivalModal({ product, onClose, onSuccess }) {
     const [quantity, setQuantity] = useState('');
@@ -60,65 +61,68 @@ export default function StockArrivalModal({ product, onClose, onSuccess }) {
     if (!product) return null;
 
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '400px', width: '90%' }}>
-                <div className="modal-header">
-                    <h3>Registrar Llegada de Mercancía</h3>
-                    <button className="close-btn" onClick={onClose}>&times;</button>
-                </div>
-
-                <div style={{ padding: '1rem', background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                    <div style={{ fontWeight: 600 }}>{product.nombre}</div>
-                    <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
-                        Stock Actual: <span style={{ color: product.stock < 0 ? '#ef4444' : 'inherit', fontWeight: 'bold' }}>{product.stock}</span>
+        <div className="ui-modal-overlay inv-arrival-overlay">
+            <div className="ui-modal ui-modal--sm inv-arrival" role="dialog" aria-modal="true" aria-labelledby="sam-title">
+                <div className="ui-modal-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">add_box</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="sam-title" className="ui-modal-title">Registrar Llegada de Mercancía</h3>
+                        <p className="ui-modal-subtitle">{product.nombre}</p>
                     </div>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
+                    </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="modal-body">
-                    {error && (
-                        <div style={{
-                            background: '#fee2e2',
-                            color: '#b91c1c',
-                            padding: '0.75rem',
-                            borderRadius: '6px',
-                            marginBottom: '1rem',
-                            fontSize: '0.9rem'
-                        }}>
-                            {error}
+                <form onSubmit={handleSubmit} className="inv-modal-form">
+                    <div className="ui-modal-body ui-modal-body--plain">
+                        <div className="inv-stock-summary">
+                            Stock Actual: <span className={`inv-stock-value${product.stock < 0 ? ' is-negative' : ''}`}>{product.stock}</span>
                         </div>
-                    )}
 
-                    <div className="form-group">
-                        <label>Cantidad a Sumar <span style={{ color: 'red' }}>*</span></label>
-                        <input
-                            type="number"
-                            min="1"
-                            className="form-input"
-                            value={quantity}
-                            onChange={e => setQuantity(e.target.value)}
-                            placeholder="Ej: 50"
-                            required
-                            autoFocus
-                        />
-                        <small style={{ color: '#6b7280' }}>Se sumará al stock actual.</small>
+                        {error && (
+                            <div className="ui-alert ui-alert--danger" role="alert">
+                                <span className="material-icons-round" aria-hidden="true">error_outline</span>
+                                <p>{error}</p>
+                            </div>
+                        )}
+
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="sam-quantity">Cantidad a Sumar <span className="ui-required">*</span></label>
+                            <input
+                                id="sam-quantity"
+                                type="number"
+                                min="1"
+                                className="ui-input"
+                                value={quantity}
+                                onChange={e => setQuantity(e.target.value)}
+                                placeholder="Ej: 50"
+                                required
+                                autoFocus
+                            />
+                            <small className="ui-help">Se sumará al stock actual.</small>
+                        </div>
+
+                        <div className="ui-field">
+                            <label className="ui-label" htmlFor="sam-reason">Motivo / Referencia</label>
+                            <input
+                                id="sam-reason"
+                                type="text"
+                                className="ui-input"
+                                value={reason}
+                                onChange={e => setReason(e.target.value)}
+                                placeholder="Ej: Pedido #123, Reposición..."
+                            />
+                        </div>
                     </div>
 
-                    <div className="form-group">
-                        <label>Motivo / Referencia</label>
-                        <input
-                            type="text"
-                            className="form-input"
-                            value={reason}
-                            onChange={e => setReason(e.target.value)}
-                            placeholder="Ej: Pedido #123, Reposición..."
-                        />
-                    </div>
-
-                    <div className="modal-footer">
-                        <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
+                    <div className="ui-modal-footer">
+                        <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose} disabled={loading}>
                             Cancelar
                         </button>
-                        <button type="submit" className="btn-primary" disabled={loading}>
+                        <button type="submit" className="ui-btn ui-btn--primary" disabled={loading}>
                             {loading ? 'Registrando...' : 'Confirmar Llegada'}
                         </button>
                     </div>

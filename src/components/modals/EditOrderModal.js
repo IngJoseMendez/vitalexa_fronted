@@ -6,8 +6,20 @@ import { useConfirm } from '../ConfirmDialog';
 import PromotionBlockWrapper from '../orders/PromotionBlock';
 import AssortmentSelectionModal from './AssortmentSelectionModal';
 import AssortmentCartDetail from '../AssortmentCartDetail';
+import SearchableSelect from '../SearchableSelect';
 import { buildAssortmentSelections, isAssortmentPromotion, promotionInstancePrice } from '../../utils/assortmentPromotion';
 import './EditOrderModal.css';
+
+// Tono del badge de estado (solo presentación, según el sistema de diseño):
+// PENDIENTE=warning, CONFIRMADO=primary, COMPLETADO=success, ANULADA/CANCELADO=danger, otros=neutral
+const STATUS_BADGE_TONE = {
+    PENDIENTE: 'warning',
+    CONFIRMADO: 'primary',
+    COMPLETADO: 'success',
+    ANULADA: 'danger',
+    CANCELADO: 'danger'
+};
+const statusBadgeClass = (estado) => `ui-badge ui-badge--${STATUS_BADGE_TONE[estado] || 'neutral'}`;
 
 export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [clients, setClients] = useState([]);
@@ -517,7 +529,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             // Verificar si el backend hizo split S/N
             const result = response.data;
             if (result && result.wasSplit) {
-                toast.success('✅ Orden actualizada. Se creó una orden S/N separada con los productos sin registro.');
+                toast.success('Orden actualizada. Se creó una orden S/N separada con los productos sin registro.');
             } else {
                 toast.success('Orden actualizada correctamente');
             }
@@ -536,6 +548,15 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
             .sort((a, b) => a.nombre.localeCompare(b.nombre))
             .slice(0, 20);
     }, [products, productSearch]);
+
+    // Selector de cliente con buscador: mismo texto que tenía cada <option> ("Nombre - Teléfono");
+    // NIT y dirección debajo, y el resto de datos de contacto también encuentran al cliente
+    const clientOptions = useMemo(() => clients.map(c => ({
+        value: c.id,
+        label: `${c.nombre ?? ''} - ${c.telefono ?? ''}`,
+        description: [c.nit && `NIT ${c.nit}`, c.direccion].filter(Boolean).join(' · '),
+        keywords: [c.nit, c.direccion, c.email, c.administrador, c.representanteLegal],
+    })), [clients]);
 
     // Derived states for Freight Search
     const filteredFreightProducts = useMemo(() => {
@@ -583,20 +604,21 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 <td>
                     <div className="eo-item-name">{item.productName}</div>
                     <div className="eo-stock-info">
-                        <span className="stock-available">Stock: {currentStock}</span>
+                        <span className="eo-stock-available">Stock: {currentStock}</span>
                         {hasExcess && (
-                            <span className="stock-excess">
-                                <span className="material-icons-round" style={{ fontSize: '14px' }}>warning</span>
+                            <span className="ui-badge ui-badge--danger">
+                                <span className="material-icons-round" aria-hidden="true">warning</span>
                                 Excede por {stockExcess}
                             </span>
                         )}
                     </div>
                 </td>
-                <td>
+                <td className="eo-col-qty">
                     {!isPromoOrder ? (
                         <input
                             type="number"
-                            className="eo-qty-input"
+                            className="ui-input eo-qty-input"
+                            aria-label={`Cantidad de ${item.productName}`}
                             value={item.cantidad}
                             min="1"
                             onChange={(e) => updateQuantity(item.id, e.target.value)}
@@ -605,13 +627,13 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         <span>x{item.cantidad}</span>
                     )}
                 </td>
-                <td style={{ textAlign: 'right' }}>
+                <td className="ui-num">
                     ${formatCurrency(item.precioUnitario * item.cantidad)}
                 </td>
-                <td>
+                <td className="eo-col-action">
                     {!isPromoOrder && (
-                        <button className="eo-remove-btn" onClick={() => removeItem(item.id)}>
-                            <span className="material-icons-round">delete</span>
+                        <button type="button" className="ui-icon-btn ui-icon-btn--danger eo-remove-btn" onClick={() => removeItem(item.id)} aria-label="Quitar producto">
+                            <span className="material-icons-round" aria-hidden="true">delete</span>
                         </button>
                     )}
                 </td>
@@ -831,261 +853,289 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
 
 
 
-    if (loading) return <div className="edit-modal-loading">Cargando datos...</div>;
+    if (loading) return (
+        <div className="edit-modal-loading ui-modal-overlay">
+            <div className="eo-loading-card" role="status">
+                <span className="ui-spinner" aria-hidden="true" />
+                Cargando datos...
+            </div>
+        </div>
+    );
 
     const totalValue = calculateTotal();
 
     return (
-        <div className="eo-overlay">
-            <div className="eo-modal">
+        <div className="ui-modal-overlay eo-overlay">
+            <div className="ui-modal ui-modal--xl eo-modal" role="dialog" aria-modal="true" aria-labelledby="eo-title">
                 {/* Header */}
-                <div className="eo-header">
-                    <div className="eo-header-info">
-                        <h2>Editar {formatOrderLabel(order)}</h2>
-                        <span className={`status-badge ${order.estado}`}>{order.estado}</span>
-                        {isPromoOrder && <span className="status-badge" style={{ background: '#ecfdf5', color: '#047857' }}>PROMOCIÓN</span>}
+                <div className="ui-modal-header eo-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">edit_note</span>
+                    </span>
+                    <div className="ui-modal-heading eo-header-info">
+                        <h2 id="eo-title" className="ui-modal-title">Editar {formatOrderLabel(order)}</h2>
+                        <div className="eo-header-badges">
+                            <span className={statusBadgeClass(order.estado)}>{order.estado}</span>
+                            {isPromoOrder && <span className="ui-badge ui-badge--primary">PROMOCIÓN</span>}
+                        </div>
                     </div>
-                    <button className="eo-close-btn" onClick={onClose}>
-                        <span className="material-icons-round">close</span>
+                    <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
                     </button>
                 </div>
 
                 <div className="eo-body">
                     {/* Left Column: Config & Search */}
                     <div className="eo-left-col">
-                        <section className="eo-section">
-                            <h3><span className="material-icons-round">person</span> Cliente</h3>
-                            <select
-                                className="eo-input"
-                                value={formData.clientId || ''}
-                                onChange={(e) => {
-                                    setHasChanges(true);
-                                    setFormData(prev => ({ ...prev, clientId: e.target.value || null }));
-                                }}
-                            >
-                                <option value="">Sin cliente</option>
-                                {clients.map(c => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.nombre} - {c.telefono}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <div className="eo-field" style={{ marginTop: '1rem' }}>
-                                <label>Notas</label>
-                                <textarea
-                                    className="eo-textarea"
-                                    value={formData.notas}
-                                    onChange={e => {
+                        <section className="ui-section eo-section">
+                            <div className="ui-section-head">
+                                <h3 className="ui-section-title eo-section-title"><span className="material-icons-round" aria-hidden="true">person</span> Cliente</h3>
+                            </div>
+                            <div className="eo-fields">
+                                <SearchableSelect
+                                    aria-label="Cliente"
+                                    value={formData.clientId || ''}
+                                    onChange={(e) => {
                                         setHasChanges(true);
-                                        setFormData({ ...formData, notas: e.target.value })
+                                        setFormData(prev => ({ ...prev, clientId: e.target.value || null }));
                                     }}
-                                    rows={3}
+                                    options={clientOptions}
+                                    emptyOption={{ label: 'Sin cliente' }}
+                                    placeholder="Sin cliente"
+                                    searchPlaceholder="Nombre, NIT, teléfono o dirección…"
+                                    noResultsText="No se encontraron clientes"
                                 />
+
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="eo-notas">Notas</label>
+                                    <textarea
+                                        id="eo-notas"
+                                        className="ui-textarea"
+                                        value={formData.notas}
+                                        onChange={e => {
+                                            setHasChanges(true);
+                                            setFormData({ ...formData, notas: e.target.value })
+                                        }}
+                                        rows={3}
+                                    />
+                                </div>
                             </div>
                         </section>
 
                         {!isPromoOrder && (
-                            <section className="eo-section">
-                                <h3><span className="material-icons-round">add_shopping_cart</span> Agregar Productos</h3>
-                                <div className="eo-search-wrapper">
-                                    <span className="material-icons-round search-icon">search</span>
-                                    <input
-                                        type="text"
-                                        className="eo-search-input"
-                                        placeholder="Buscar producto..."
-                                        value={productSearch}
-                                        onChange={e => setProductSearch(e.target.value)}
-                                    />
-                                    {productSearch && (
-                                        <button className="eo-search-clear" onClick={() => setProductSearch('')}>
-                                            <span className="material-icons-round">close</span>
-                                        </button>
-                                    )}
+                            <section className="ui-section eo-section">
+                                <div className="ui-section-head">
+                                    <h3 className="ui-section-title eo-section-title"><span className="material-icons-round" aria-hidden="true">add_shopping_cart</span> Agregar Productos</h3>
                                 </div>
+                                <div className="eo-fields">
+                                    <div className="ui-input-group ui-input-group--suffix eo-search-wrapper">
+                                        <span className="material-icons-round ui-input-icon" aria-hidden="true">search</span>
+                                        <input
+                                            type="text"
+                                            className="ui-input eo-search-input"
+                                            aria-label="Buscar producto"
+                                            placeholder="Buscar producto..."
+                                            value={productSearch}
+                                            onChange={e => setProductSearch(e.target.value)}
+                                        />
+                                        {productSearch && (
+                                            <button type="button" className="ui-icon-btn eo-search-clear" onClick={() => setProductSearch('')} aria-label="Limpiar búsqueda">
+                                                <span className="material-icons-round" aria-hidden="true">close</span>
+                                            </button>
+                                        )}
+                                    </div>
 
-                                <div className="eo-mode-toggle">
-                                    <label className={`toggle-label ${isBonifiedMode ? 'active' : ''}`}>
+                                    <label className={`ui-switch eo-mode-toggle${isBonifiedMode ? ' is-active' : ''}`}>
                                         <input
                                             type="checkbox"
                                             checked={isBonifiedMode}
                                             onChange={() => setIsBonifiedMode(!isBonifiedMode)}
-                                            style={{ display: 'none' }}
                                         />
-                                        <span className="toggle-switch"></span>
-                                        <span className="toggle-text">
-                                            {isBonifiedMode ? 'Modo Bonificado (Regalo)' : 'Modo Venta Normal'}
+                                        <span className="ui-switch-track" aria-hidden="true"><span className="ui-switch-thumb" /></span>
+                                        <span className="ui-switch-text">
+                                            <span className="ui-switch-title">
+                                                {isBonifiedMode ? 'Modo Bonificado (Regalo)' : 'Modo Venta Normal'}
+                                            </span>
                                         </span>
                                     </label>
-                                </div>
 
-                                {/* Product Grid */}
-                                {filteredProducts.length > 0 ? (
-                                    <div className="eo-search-results">
-                                        {filteredProducts.map(p => {
-                                            const hasStock = p.stock > 0;
-                                            return (
-                                                <div
-                                                    key={p.id}
-                                                    className={`eo-search-item ${!hasStock ? 'out-of-stock' : ''}`}
-                                                    onClick={() => addItem(p, false, isBonifiedMode)}
-                                                >
-                                                    <div className="item-info">
-                                                        <span className="item-name">{p.nombre}</span>
-                                                        <span className={`item-stock ${hasStock ? 'instock' : 'nostock'}`}>
-                                                            Stock: {p.stock}
+                                    {/* Product Grid */}
+                                    {filteredProducts.length > 0 ? (
+                                        <div className="eo-search-results">
+                                            {filteredProducts.map(p => {
+                                                const hasStock = p.stock > 0;
+                                                return (
+                                                    <div
+                                                        key={p.id}
+                                                        className={`eo-search-item ${!hasStock ? 'is-out-of-stock' : ''}`}
+                                                        onClick={() => addItem(p, false, isBonifiedMode)}
+                                                    >
+                                                        <div className="eo-item-info">
+                                                            <span className="item-name eo-result-name">{p.nombre}</span>
+                                                            <span className={`eo-item-stock ${hasStock ? 'is-in-stock' : 'is-no-stock'}`}>
+                                                                Stock: {p.stock}
+                                                            </span>
+                                                        </div>
+                                                        <span className="eo-item-price">
+                                                            {isBonifiedMode ? '$0.00' : `$${formatCurrency(p.precio)}`}
                                                         </span>
                                                     </div>
-                                                    <span className="item-price">
-                                                        {isBonifiedMode ? '$0.00' : `$${formatCurrency(p.precio)}`}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    productSearch && <div className="no-results">No se encontraron productos</div>
-                                )}
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        productSearch && <div className="eo-no-results">No se encontraron productos</div>
+                                    )}
+                                </div>
                             </section>
                         )}
 
                         {isPromoOrder && (
-                            <section className="eo-section" style={{ marginTop: '1rem' }}>
-                                <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <span className="material-icons-round" style={{ color: '#7c3aed' }}>add_circle</span>
-                                    Agregar Promociones
-                                </h3>
-                                <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 0.75rem' }}>
-                                    Los ítems existentes <strong>no se modifican</strong>. Solo se añaden nuevas instancias.
-                                </p>
-
-                                {/* Toggle: agregar como bonificadas (regalo) */}
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: addAsBonified ? '#15803d' : '#6b7280' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={addAsBonified}
-                                        onChange={() => setAddAsBonified(v => !v)}
-                                    />
-                                    <span className="material-icons-round" style={{ fontSize: '18px' }}>card_giftcard</span>
-                                    Agregar como bonificadas (regalo, pack a $0)
-                                </label>
-
-                                {/* Buscador */}
-                                <div className="eo-search-wrapper" style={{ marginBottom: '0.5rem' }}>
-                                    <span className="material-icons-round search-icon">search</span>
-                                    <input
-                                        type="text"
-                                        className="eo-search-input"
-                                        placeholder="Buscar promoción..."
-                                        value={promoSearch}
-                                        onChange={e => setPromoSearch(e.target.value)}
-                                    />
-                                    {promoSearch && (
-                                        <button className="eo-search-clear" onClick={() => setPromoSearch('')}>
-                                            <span className="material-icons-round">close</span>
-                                        </button>
-                                    )}
+                            <section className="ui-section eo-section">
+                                <div className="ui-section-head">
+                                    <div>
+                                        <h3 className="ui-section-title eo-section-title">
+                                            <span className="material-icons-round" aria-hidden="true">add_circle</span>
+                                            Agregar Promociones
+                                        </h3>
+                                        <p className="ui-section-desc">
+                                            Los ítems existentes <strong>no se modifican</strong>. Solo se añaden nuevas instancias.
+                                        </p>
+                                    </div>
                                 </div>
 
-                                {/* Resultados */}
-                                {promoSearch && (
-                                    <div className="eo-search-results" style={{ marginBottom: '0.75rem' }}>
-                                        {availablePromotions
-                                            .filter(p => p.nombre.toLowerCase().includes(promoSearch.toLowerCase()))
-                                            .slice(0, 10)
-                                            .map(p => (
-                                                <div
-                                                    key={p.id}
-                                                    className="eo-search-item"
-                                                    onClick={() => {
-                                                        // Surtido: cada paquete lleva SUS gratis; se escogen antes de ponerlo en la cola
-                                                        if (isAssortmentPromotion(p)) {
-                                                            setAssortmentPromo({ ...p, isBonified: addAsBonified });
-                                                            setPromoSearch('');
-                                                            return;
-                                                        }
-                                                        // Clave compuesta: la MISMA promo puede ir pagada Y bonificada
-                                                        // (dos entradas distintas en la cola).
-                                                        const qKey = `${p.id}|${addAsBonified ? 'bon' : 'paid'}`;
-                                                        setPromoQueue(prev => {
-                                                            const existing = prev.find(x => x.key === qKey);
-                                                            if (existing) {
-                                                                return prev.map(x => x.key === qKey ? { ...x, qty: x.qty + 1 } : x);
-                                                            }
-                                                            return [...prev, { key: qKey, id: p.id, nombre: p.nombre, qty: 1, bonified: addAsBonified }];
-                                                        });
-                                                        setPromoSearch('');
-                                                        toast.success(`"${p.nombre}" agregada a la cola${addAsBonified ? ' (regalo)' : ''}`);
-                                                    }}
-                                                >
-                                                    <div className="item-info">
-                                                        <span className="item-name">{p.nombre}</span>
-                                                        <span className="item-stock instock">{p.type}</span>
-                                                    </div>
-                                                    <span className="material-icons-round" style={{ color: '#7c3aed', fontSize: '20px' }}>add</span>
-                                                </div>
-                                            ))
-                                        }
-                                        {availablePromotions.filter(p => p.nombre.toLowerCase().includes(promoSearch.toLowerCase())).length === 0 && (
-                                            <div className="no-results">No se encontraron promociones</div>
+                                <div className="eo-fields">
+                                    {/* Toggle: agregar como bonificadas (regalo) */}
+                                    <label className={`ui-switch eo-mode-toggle${addAsBonified ? ' is-active' : ''}`}>
+                                        <input
+                                            type="checkbox"
+                                            checked={addAsBonified}
+                                            onChange={() => setAddAsBonified(v => !v)}
+                                        />
+                                        <span className="ui-switch-track" aria-hidden="true"><span className="ui-switch-thumb" /></span>
+                                        <span className="ui-switch-text">
+                                            <span className="ui-switch-title">Agregar como bonificadas (regalo, pack a $0)</span>
+                                        </span>
+                                    </label>
+
+                                    {/* Buscador */}
+                                    <div className="ui-input-group ui-input-group--suffix eo-search-wrapper">
+                                        <span className="material-icons-round ui-input-icon" aria-hidden="true">search</span>
+                                        <input
+                                            type="text"
+                                            className="ui-input eo-search-input"
+                                            aria-label="Buscar promoción"
+                                            placeholder="Buscar promoción..."
+                                            value={promoSearch}
+                                            onChange={e => setPromoSearch(e.target.value)}
+                                        />
+                                        {promoSearch && (
+                                            <button type="button" className="ui-icon-btn eo-search-clear" onClick={() => setPromoSearch('')} aria-label="Limpiar búsqueda">
+                                                <span className="material-icons-round" aria-hidden="true">close</span>
+                                            </button>
                                         )}
                                     </div>
-                                )}
 
-                                {/* Cola de promociones a agregar */}
-                                {promoQueue.length > 0 && (
-                                    <div style={{ background: '#f5f3ff', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.75rem', border: '1px solid #ddd6fe' }}>
-                                        <p style={{ fontSize: '0.82rem', fontWeight: 600, color: '#5b21b6', margin: '0 0 0.5rem' }}>
-                                            Cola ({promoQueue.reduce((s, x) => s + x.qty, 0)} instancia/s):
-                                        </p>
-                                        {promoQueue.map(p => (
-                                            <div key={p.key || p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                                                <span style={{ flex: 1, fontSize: '0.85rem', color: p.bonified ? '#15803d' : '#374151' }}>
-                                                    {p.nombre}
-                                                    {p.bonified && (
-                                                        <span style={{ marginLeft: '6px', fontSize: '0.62rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', borderRadius: '4px', padding: '1px 5px' }}>REGALO</span>
+                                    {/* Resultados */}
+                                    {promoSearch && (
+                                        <div className="eo-search-results">
+                                            {availablePromotions
+                                                .filter(p => p.nombre.toLowerCase().includes(promoSearch.toLowerCase()))
+                                                .slice(0, 10)
+                                                .map(p => (
+                                                    <div
+                                                        key={p.id}
+                                                        className="eo-search-item"
+                                                        onClick={() => {
+                                                            // Surtido: cada paquete lleva SUS gratis; se escogen antes de ponerlo en la cola
+                                                            if (isAssortmentPromotion(p)) {
+                                                                setAssortmentPromo({ ...p, isBonified: addAsBonified });
+                                                                setPromoSearch('');
+                                                                return;
+                                                            }
+                                                            // Clave compuesta: la MISMA promo puede ir pagada Y bonificada
+                                                            // (dos entradas distintas en la cola).
+                                                            const qKey = `${p.id}|${addAsBonified ? 'bon' : 'paid'}`;
+                                                            setPromoQueue(prev => {
+                                                                const existing = prev.find(x => x.key === qKey);
+                                                                if (existing) {
+                                                                    return prev.map(x => x.key === qKey ? { ...x, qty: x.qty + 1 } : x);
+                                                                }
+                                                                return [...prev, { key: qKey, id: p.id, nombre: p.nombre, qty: 1, bonified: addAsBonified }];
+                                                            });
+                                                            setPromoSearch('');
+                                                            toast.success(`"${p.nombre}" agregada a la cola${addAsBonified ? ' (regalo)' : ''}`);
+                                                        }}
+                                                    >
+                                                        <div className="eo-item-info">
+                                                            <span className="item-name eo-result-name">{p.nombre}</span>
+                                                            <span className="eo-item-stock">{p.type}</span>
+                                                        </div>
+                                                        <span className="material-icons-round eo-add-icon" aria-hidden="true">add</span>
+                                                    </div>
+                                                ))
+                                            }
+                                            {availablePromotions.filter(p => p.nombre.toLowerCase().includes(promoSearch.toLowerCase())).length === 0 && (
+                                                <div className="eo-no-results">No se encontraron promociones</div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Cola de promociones a agregar */}
+                                    {promoQueue.length > 0 && (
+                                        <div className="eo-queue">
+                                            <p className="eo-queue-title">
+                                                Cola ({promoQueue.reduce((s, x) => s + x.qty, 0)} instancia/s):
+                                            </p>
+                                            {promoQueue.map(p => (
+                                                <div key={p.key || p.id} className="eo-queue-row">
+                                                    <span className={`eo-queue-name${p.bonified ? ' is-bonified' : ''}`}>
+                                                        {p.nombre}
+                                                        {p.bonified && (
+                                                            <span className="ui-badge ui-badge--success eo-queue-badge">REGALO</span>
+                                                        )}
+                                                        {/* Surtido: un paquete por entrada, con sus gratis escogidos */}
+                                                        {p.freeItems && <AssortmentCartDetail promo={p} />}
+                                                    </span>
+                                                    {!p.freeItems && (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                className="ui-icon-btn ui-icon-btn--bordered eo-step-btn"
+                                                                aria-label={`Disminuir cantidad de ${p.nombre}`}
+                                                                onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
+                                                            >−</button>
+                                                            <span className="eo-queue-qty">{p.qty}</span>
+                                                            <button
+                                                                type="button"
+                                                                className="ui-icon-btn ui-icon-btn--bordered eo-step-btn"
+                                                                aria-label={`Aumentar cantidad de ${p.nombre}`}
+                                                                onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key ? { ...x, qty: x.qty + 1 } : x))}
+                                                            >+</button>
+                                                        </>
                                                     )}
-                                                    {/* Surtido: un paquete por entrada, con sus gratis escogidos */}
-                                                    {p.freeItems && <AssortmentCartDetail promo={p} />}
+                                                    <button
+                                                        type="button"
+                                                        className="ui-icon-btn ui-icon-btn--danger"
+                                                        aria-label={`Quitar ${p.nombre} de la cola`}
+                                                        onClick={() => setPromoQueue(prev => prev.filter(x => x.key !== p.key))}
+                                                    ><span className="material-icons-round" aria-hidden="true">delete</span></button>
+                                                </div>
+                                            ))}
+                                            <button
+                                                type="button"
+                                                className="ui-btn ui-btn--primary ui-btn--block eo-queue-confirm"
+                                                onClick={handleAddPromotions}
+                                                disabled={addingPromos}
+                                            >
+                                                <span className="material-icons-round" aria-hidden="true">
+                                                    {addingPromos ? 'sync' : 'add_shopping_cart'}
                                                 </span>
-                                                {!p.freeItems && (
-                                                    <>
-                                                        <button
-                                                            onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
-                                                            style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
-                                                        >−</button>
-                                                        <span style={{ fontWeight: 700, minWidth: '20px', textAlign: 'center', color: '#7c3aed' }}>{p.qty}</span>
-                                                        <button
-                                                            onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key ? { ...x, qty: x.qty + 1 } : x))}
-                                                            style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
-                                                        >+</button>
-                                                    </>
-                                                )}
-                                                <button
-                                                    aria-label={`Quitar ${p.nombre} de la cola`}
-                                                    onClick={() => setPromoQueue(prev => prev.filter(x => x.key !== p.key))}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
-                                                ><span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span></button>
-                                            </div>
-                                        ))}
-                                        <button
-                                            onClick={handleAddPromotions}
-                                            disabled={addingPromos}
-                                            style={{
-                                                marginTop: '0.5rem', width: '100%',
-                                                padding: '0.6rem', background: addingPromos ? '#a78bfa' : '#7c3aed',
-                                                color: 'white', border: 'none', borderRadius: '8px',
-                                                fontWeight: 700, cursor: addingPromos ? 'not-allowed' : 'pointer',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
-                                            }}
-                                        >
-                                            <span className="material-icons-round" style={{ fontSize: '18px' }}>
-                                                {addingPromos ? 'sync' : 'add_shopping_cart'}
-                                            </span>
-                                            {addingPromos ? 'Agregando...' : 'Confirmar y Agregar'}
-                                        </button>
-                                    </div>
-                                )}
+                                                {addingPromos ? 'Agregando...' : 'Confirmar y Agregar'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </section>
                         )}
                     </div>
@@ -1093,7 +1143,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     {/* Right Column: Items & Totals */}
                     <div className="eo-right-col">
                         <div className="eo-items-container">
-                            <h3>Productos en la Orden</h3>
+                            <h3 className="eo-items-title">Productos en la Orden</h3>
 
                             {/* Promociones Groups */}
                             {itemsByPromo.size > 0 && (
@@ -1133,120 +1183,125 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                             {/* Standalone Items */}
                             {noPromoItems.length > 0 && (
                                 <div className="eo-table-section">
-                                    <h4>Venta Normal / Otros</h4>
-                                    <table className="eo-items-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Producto</th>
-                                                <th style={{ width: '80px' }}>Cant.</th>
-                                                <th style={{ textAlign: 'right' }}>Total</th>
-                                                <th style={{ width: '40px' }}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {noPromoItems.map(renderRow)}
-                                        </tbody>
-                                    </table>
+                                    <h4 className="eo-table-title">Venta Normal / Otros</h4>
+                                    <div className="ui-table-wrap">
+                                        <table className="ui-table ui-table--compact eo-items-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Producto</th>
+                                                    <th className="eo-col-qty">Cant.</th>
+                                                    <th className="ui-num">Total</th>
+                                                    <th className="eo-col-action"><span className="ui-sr-only">Acciones</span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {noPromoItems.map(renderRow)}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
 
                             {/* Bonified Items - AGGREGATED VIEW */}
                             {formData.bonifiedItems.length > 0 && (
-                                <div className="eo-table-section bonified-section">
-                                    <h4 className="bonified-header"><span className="material-icons-round">card_giftcard</span> Bonificados (Regalo)</h4>
-                                    <table className="eo-items-table">
-                                        <tbody>
-                                            {(() => {
-                                                // Aggregate bonified items by Product ID
-                                                const aggregatedBonified = new Map();
+                                <div className="eo-table-section eo-bonified-section">
+                                    <h4 className="eo-table-title"><span className="material-icons-round" aria-hidden="true">card_giftcard</span> Bonificados (Regalo)</h4>
+                                    <div className="ui-table-wrap">
+                                        <table className="ui-table ui-table--compact eo-items-table">
+                                            <tbody>
+                                                {(() => {
+                                                    // Aggregate bonified items by Product ID
+                                                    const aggregatedBonified = new Map();
 
-                                                formData.bonifiedItems.forEach(item => {
-                                                    if (!aggregatedBonified.has(item.productId)) {
-                                                        aggregatedBonified.set(item.productId, {
-                                                            ...item,
-                                                            cantidad: 0,
-                                                            cantidadPendiente: 0
-                                                        });
-                                                    }
-                                                    const existing = aggregatedBonified.get(item.productId);
-                                                    existing.cantidad += (parseInt(item.cantidad) || 0);
-                                                    existing.cantidadPendiente += (parseInt(item.cantidadPendiente) || 0);
-                                                });
+                                                    formData.bonifiedItems.forEach(item => {
+                                                        if (!aggregatedBonified.has(item.productId)) {
+                                                            aggregatedBonified.set(item.productId, {
+                                                                ...item,
+                                                                cantidad: 0,
+                                                                cantidadPendiente: 0
+                                                            });
+                                                        }
+                                                        const existing = aggregatedBonified.get(item.productId);
+                                                        existing.cantidad += (parseInt(item.cantidad) || 0);
+                                                        existing.cantidadPendiente += (parseInt(item.cantidadPendiente) || 0);
+                                                    });
 
-                                                return Array.from(aggregatedBonified.values()).map((item) => {
-                                                    const currentStock = getProductStock(item.productId);
-                                                    const originalUsage = getOriginalUsage(item.productId);
-                                                    const totalUsage = getStockUsage(item.productId);
-                                                    const stockExcess = totalUsage - (currentStock + originalUsage);
-                                                    const hasExcess = stockExcess > 0;
+                                                    return Array.from(aggregatedBonified.values()).map((item) => {
+                                                        const currentStock = getProductStock(item.productId);
+                                                        const originalUsage = getOriginalUsage(item.productId);
+                                                        const totalUsage = getStockUsage(item.productId);
+                                                        const stockExcess = totalUsage - (currentStock + originalUsage);
+                                                        const hasExcess = stockExcess > 0;
 
-                                                    return (
-                                                        <tr key={item.productId} className={`is-bonified ${hasExcess ? 'stock-warning' : ''}`}>
-                                                            <td>
-                                                                <div className="eo-item-name">{item.productName}</div>
-                                                                <div className="eo-stock-info">
-                                                                    <span className="stock-available">Stock: {currentStock}</span>
-                                                                    {hasExcess && (
-                                                                        <span className="stock-excess">
-                                                                            <span className="material-icons-round" style={{ fontSize: '14px' }}>warning</span>
-                                                                            Excede por {stockExcess}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                {/* Negative Stock / Pending Display */}
-                                                                {item.cantidadPendiente > 0 && (
-                                                                    <div style={{ color: '#d9534f', fontSize: '0.85rem', marginTop: '4px', fontWeight: 'bold' }}>
-                                                                        [{item.cantidadPendiente} pendiente]
+                                                        return (
+                                                            <tr key={item.productId} className={`is-bonified ${hasExcess ? 'stock-warning' : ''}`}>
+                                                                <td>
+                                                                    <div className="eo-item-name">{item.productName}</div>
+                                                                    <div className="eo-stock-info">
+                                                                        <span className="eo-stock-available">Stock: {currentStock}</span>
+                                                                        {hasExcess && (
+                                                                            <span className="ui-badge ui-badge--danger">
+                                                                                <span className="material-icons-round" aria-hidden="true">warning</span>
+                                                                                Excede por {stockExcess}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-                                                                )}
-                                                            </td>
-                                                            <td style={{ width: '80px' }}>
-                                                                {!isPromoOrder ? (
-                                                                    <input
-                                                                        type="number"
-                                                                        className="eo-qty-input"
-                                                                        value={item.cantidad}
-                                                                        min="1"
-                                                                        onChange={(e) => updateQuantity(item.id, e.target.value, true)}
-                                                                    // Note: Aggregated view editing might be tricky if IDs differ.
-                                                                    // But `updateQuantity` uses `item.id`.
-                                                                    // If we aggregated, which ID do we use? The first one.
-                                                                    // If user changes quantity, we might need to update the underlying item.
-                                                                    // For simplicity in this aggregated view:
-                                                                    // If there's only 1 underlying item, it works.
-                                                                    // If there are multiple (split), editing might be complex.
-                                                                    // BUT usually bonified items for same product are matched.
-                                                                    // If I edit quantity here, I should probably edit the main item.
-                                                                    // For now, let's assume 1 item per product for bonified is standard in this UI.
-                                                                    />
-                                                                ) : (
-                                                                    <span>x{item.cantidad}</span>
-                                                                )}
-                                                            </td>
-                                                            <td style={{ textAlign: 'right' }}>
-                                                                <span className="free-text">Gratis</span>
-                                                            </td>
-                                                            <td style={{ width: '40px' }}>
-                                                                {!isPromoOrder && (
-                                                                    <button className="eo-remove-btn" onClick={() => removeItem(item.id, true)}>
-                                                                        <span className="material-icons-round">delete</span>
-                                                                    </button>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                });
-                                            })()}
-                                        </tbody>
-                                    </table>
+                                                                    {/* Negative Stock / Pending Display */}
+                                                                    {item.cantidadPendiente > 0 && (
+                                                                        <div className="eo-pending">
+                                                                            [{item.cantidadPendiente} pendiente]
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="eo-col-qty">
+                                                                    {!isPromoOrder ? (
+                                                                        <input
+                                                                            type="number"
+                                                                            className="ui-input eo-qty-input"
+                                                                            aria-label={`Cantidad de ${item.productName}`}
+                                                                            value={item.cantidad}
+                                                                            min="1"
+                                                                            onChange={(e) => updateQuantity(item.id, e.target.value, true)}
+                                                                        // Note: Aggregated view editing might be tricky if IDs differ.
+                                                                        // But `updateQuantity` uses `item.id`.
+                                                                        // If we aggregated, which ID do we use? The first one.
+                                                                        // If user changes quantity, we might need to update the underlying item.
+                                                                        // For simplicity in this aggregated view:
+                                                                        // If there's only 1 underlying item, it works.
+                                                                        // If there are multiple (split), editing might be complex.
+                                                                        // BUT usually bonified items for same product are matched.
+                                                                        // If I edit quantity here, I should probably edit the main item.
+                                                                        // For now, let's assume 1 item per product for bonified is standard in this UI.
+                                                                        />
+                                                                    ) : (
+                                                                        <span>x{item.cantidad}</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="ui-num">
+                                                                    <span className="eo-free-text">Gratis</span>
+                                                                </td>
+                                                                <td className="eo-col-action">
+                                                                    {!isPromoOrder && (
+                                                                        <button type="button" className="ui-icon-btn ui-icon-btn--danger eo-remove-btn" onClick={() => removeItem(item.id, true)} aria-label="Quitar producto bonificado">
+                                                                            <span className="material-icons-round" aria-hidden="true">delete</span>
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
 
 
                             {/* FREIGHT SECTION - Disabled for Historical orders only */}
                             {!isHistorical && (
-                                <div className="eo-freight-section">
-                                    <label className="freight-toggle">
+                                <section className="ui-section eo-freight-section">
+                                    <label className="ui-checkbox eo-freight-toggle">
                                         <input
                                             type="checkbox"
                                             checked={formData.includeFreight}
@@ -1255,15 +1310,17 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                 setFormData(p => ({ ...p, includeFreight: e.target.checked }));
                                             }}
                                         />
+                                        Incluir flete
                                     </label>
 
 
                                     {formData.includeFreight && (
-                                        <div className="freight-details">
-                                            <div className="freight-row">
+                                        <div className="eo-freight-details">
+                                            <div className="eo-freight-row">
                                                 <input
                                                     type="text"
-                                                    className="eo-input"
+                                                    className="ui-input"
+                                                    aria-label="Texto del flete"
                                                     placeholder="Texto (ej: Envío Express)"
                                                     value={formData.freightCustomText || ''}
                                                     onChange={(e) => {
@@ -1273,8 +1330,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                 />
                                                 <input
                                                     type="number"
-                                                    className="eo-input"
-                                                    style={{ width: '80px' }}
+                                                    className="ui-input eo-freight-qty"
+                                                    aria-label="Cantidad de flete"
                                                     value={formData.freightQuantity || 1}
                                                     onChange={(e) => {
                                                         setHasChanges(true);
@@ -1282,7 +1339,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                     }}
                                                 />
                                             </div>
-                                            <label className="checkbox-label">
+                                            <label className="ui-checkbox">
                                                 <input
                                                     type="checkbox"
                                                     checked={formData.isFreightBonified}
@@ -1294,18 +1351,19 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                 Bonificar Flete ($0)
                                             </label>
 
-                                            <div className="freight-products">
-                                                <h5>Productos por cuenta del flete</h5>
-                                                <div className="eo-search-wrapper short">
+                                            <div className="eo-freight-products">
+                                                <h5 className="eo-subtitle">Productos por cuenta del flete</h5>
+                                                <div className="eo-search-wrapper">
                                                     <input
                                                         type="text"
-                                                        className="eo-search-input small"
+                                                        className="ui-input"
+                                                        aria-label="Buscar producto por cuenta del flete"
                                                         placeholder="Buscar..."
                                                         value={freightProductSearch}
                                                         onChange={(e) => setFreightProductSearch(e.target.value)}
                                                     />
                                                     {filteredFreightProducts.length > 0 && (
-                                                        <div className="eo-search-results small">
+                                                        <div className="eo-search-results">
                                                             {filteredFreightProducts.map(p => (
                                                                 <div key={p.id} className="eo-search-item" onClick={() => { addItem(p, true); setFreightProductSearch(''); }}>
                                                                     {p.nombre}
@@ -1316,38 +1374,42 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                 </div>
 
                                                 {formData.items.filter(i => i.isFreightItem).map(item => (
-                                                    <div key={item.id} className="freight-item-row">
-                                                        <span>{item.productName}</span>
-                                                        <div className="controls">
+                                                    <div key={item.id} className="eo-freight-item">
+                                                        <span className="eo-freight-item-name">{item.productName}</span>
+                                                        <div className="eo-freight-controls">
                                                             <input
                                                                 type="number"
+                                                                aria-label={`Cantidad de ${item.productName}`}
                                                                 value={item.cantidad}
                                                                 onChange={(e) => updateQuantity(item.id, e.target.value)}
-                                                                className="eo-qty-input small"
+                                                                className="ui-input eo-qty-input"
                                                             />
-                                                            <button onClick={() => removeItem(item.id)} className="eo-remove-btn">&times;</button>
+                                                            <button type="button" onClick={() => removeItem(item.id)} className="ui-icon-btn ui-icon-btn--danger eo-remove-btn" aria-label="Quitar producto del flete">
+                                                                <span className="material-icons-round" aria-hidden="true">close</span>
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                </section>
                             )}
                         </div>
+                    </div>
+                </div>
 
-                        <div className="eo-footer-summary">
-                            <div className="summary-row total">
-                                <span>Total Estimado</span>
-                                <span>${totalValue}</span>
-                            </div>
-                            <div className="eo-actions">
-                                <button className="eo-btn secondary" onClick={onClose}>Cancelar</button>
-                                <button className="eo-btn primary" onClick={handleSubmit} disabled={loading || !hasChanges}>
-                                    Guardar Cambios
-                                </button>
-                            </div>
-                        </div>
+                {/* Pie fijo: total + acciones */}
+                <div className="ui-modal-footer eo-footer-summary">
+                    <div className="summary-row total eo-total">
+                        <span>Total Estimado</span>
+                        <span>${totalValue}</span>
+                    </div>
+                    <div className="eo-actions">
+                        <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose}>Cancelar</button>
+                        <button type="button" className="ui-btn ui-btn--primary" onClick={handleSubmit} disabled={loading || !hasChanges}>
+                            Guardar Cambios
+                        </button>
                     </div>
                 </div>
             </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
 import productService from '../api/productService';
+import '../styles/areas/Inventory.css';
 
 export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
     const toast = useToast();
@@ -83,31 +84,33 @@ export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
     };
 
     return (
-        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-icons-round" style={{ color: 'var(--primary)' }}>inventory</span>
+        <section className="inv-bulk">
+            <div className="inv-bulk-head">
+                <h3 className="inv-bulk-title">
+                    <span className="material-icons-round" aria-hidden="true">inventory</span>
                     Llegada Masiva de Stock
                 </h3>
 
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontWeight: 600, fontSize: '0.9rem' }}>Motivo:</label>
+                <div className="inv-bulk-tools">
+                    <div className="inv-inline-field">
+                        <label className="ui-label" htmlFor="bsa-reason">Motivo:</label>
                         <input
+                            id="bsa-reason"
                             type="text"
+                            className="ui-input"
                             placeholder="Ej: Llegada Contenedor #123"
                             value={reason}
                             onChange={e => setReason(e.target.value)}
-                            style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db', width: '250px' }}
                         />
                     </div>
 
-                    <button onClick={onClose} className="btn-secondary" disabled={loading}>
+                    <button type="button" onClick={onClose} className="ui-btn ui-btn--secondary" disabled={loading}>
                         Cancelar
                     </button>
                     <button
+                        type="button"
                         onClick={handleSubmit}
-                        className="btn-primary"
+                        className="ui-btn ui-btn--primary"
                         disabled={loading}
                     >
                         {loading ? 'Procesando...' : `Confirmar (${Object.values(quantities).filter(v => parseInt(v) > 0).length})`}
@@ -115,25 +118,27 @@ export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
                 </div>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
+            <div className="ui-search inv-bulk-search">
+                <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                 <input
                     type="text"
+                    className="ui-input"
+                    aria-label="Buscar producto para agregar stock"
                     placeholder="Buscar producto para agregar stock..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '1rem' }}
                     autoFocus
                 />
             </div>
 
-            <div style={{ overflow: 'auto', flex: 1, border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
-                    <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+            <div className="ui-table-wrap">
+                <table className="ui-table inv-table-md">
+                    <thead>
                         <tr>
-                            <th style={{ padding: '0.8rem', textAlign: 'left' }}>Producto</th>
-                            <th style={{ padding: '0.8rem', width: '150px' }}>Categoría</th>
-                            <th style={{ padding: '0.8rem', width: '120px' }}>Stock Actual</th>
-                            <th style={{ padding: '0.8rem', width: '150px' }}>Cantidad a Sumar</th>
+                            <th>Producto</th>
+                            <th className="inv-w-lg">Categoría</th>
+                            <th className="inv-w-md ui-num">Stock Actual</th>
+                            <th className="inv-w-lg">Cantidad a Sumar</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -141,33 +146,28 @@ export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
                             const qty = quantities[p.id] || '';
                             const hasValue = parseInt(qty) > 0;
                             return (
-                                <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6', background: hasValue ? '#f0fdf4' : 'white' }}>
-                                    <td style={{ padding: '0.5rem' }}>
-                                        <div style={{ fontWeight: 500 }}>{p.nombre}</div>
-                                        <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>ID: {p.id.substring(0, 8)}...</div>
+                                <tr key={p.id} className={hasValue ? 'is-filled' : undefined}>
+                                    <td>
+                                        <div className="inv-cell-name">{p.nombre}</div>
+                                        <div className="inv-id">ID: {p.id.substring(0, 8)}...</div>
                                     </td>
-                                    <td style={{ padding: '0.5rem', color: '#6b7280' }}>{p.tagName || '-'}</td>
-                                    <td style={{ padding: '0.5rem' }}>
-                                        <span style={{ fontWeight: 600, color: p.stock < 0 ? '#ef4444' : 'inherit' }}>{p.stock}</span>
+                                    <td className="inv-cell-muted">{p.tagName || '-'}</td>
+                                    <td className="ui-num">
+                                        <span className={`inv-stock-value${p.stock < 0 ? ' is-negative' : ''}`}>{p.stock}</span>
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
+                                    <td>
                                         <input
                                             type="number"
                                             min="0"
-                                            className="form-input"
+                                            className={`ui-input inv-cell-input inv-cell-input--qty${hasValue ? ' is-filled' : ''}`}
+                                            aria-label={`Cantidad a sumar de ${p.nombre}`}
                                             placeholder="0"
                                             value={qty}
                                             onChange={e => handleQuantityChange(p.id, e.target.value)}
-                                            style={{
-                                                borderColor: hasValue ? '#10b981' : '',
-                                                background: hasValue ? 'white' : '#f9fafb',
-                                                fontWeight: hasValue ? 'bold' : 'normal',
-                                                textAlign: 'center'
-                                            }}
                                             onWheel={(e) => e.target.blur()}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
-                                                    // Optional: auto-focus next input? 
+                                                    // Optional: auto-focus next input?
                                                 }
                                             }}
                                         />
@@ -178,11 +178,11 @@ export default function BulkStockArrivalForm({ products, onClose, onSuccess }) {
                     </tbody>
                 </table>
                 {displayedProducts.length === 0 && (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
+                    <div className="inv-bulk-empty">
                         No se encontraron productos.
                     </div>
                 )}
             </div>
-        </div>
+        </section>
     );
 }

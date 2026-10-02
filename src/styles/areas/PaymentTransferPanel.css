@@ -1,0 +1,559 @@
+/* ==========================================================================
+   PaymentTransferPanel — Transferencias de pagos entre vendedores (Owner)
+   Raíz .pt-panel (prefijo pt-). Antes se inyectaba con <style> desde el JS
+   (azul, degradados y blur); ahora usa tokens y primitivas .ui-*.
+   ========================================================================== */
+
+.pt-panel {
+  color: var(--color-text);
+}
+
+.pt-panel .pt-header {
+  margin-bottom: var(--space-5);
+}
+
+.pt-panel .pt-body {
+  min-height: 240px;
+}
+
+/* ---------- Avisos (clic para cerrar) ---------- */
+.pt-panel .pt-alert {
+  align-items: center;
+  margin-bottom: var(--space-4);
+  cursor: pointer;
+}
+
+.pt-panel .pt-alert-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pt-panel .pt-alert-close {
+  width: 32px;
+  height: 32px;
+  color: inherit;
+}
+
+.pt-panel .pt-alert-close .material-icons-round {
+  font-size: 18px;
+}
+
+.pt-panel .pt-alert-close:hover:not(:disabled) {
+  background: transparent;
+  color: inherit;
+}
+
+/* ---------- Historial ---------- */
+.pt-panel .pt-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pt-panel .pt-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.pt-panel .pt-table td {
+  white-space: normal;
+}
+
+.pt-panel .pt-row-revoked td {
+  color: var(--color-text-muted);
+}
+
+/* Transferencia revocada: el monto en rojo tachado (activa = verde, .ui-amount--success) */
+.pt-panel .pt-row-revoked .pt-amount {
+  color: var(--color-danger-text);
+  text-decoration: line-through;
+}
+
+/* Valor total del pago original: secundario (no gris tenue) */
+.pt-panel .pt-payment-total {
+  color: var(--color-text-secondary);
+}
+
+.pt-panel .pt-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pt-panel .pt-muted {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pt-panel .pt-nowrap {
+  white-space: nowrap;
+}
+
+.pt-panel .pt-td-ellipsis {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-panel .pt-td-route {
+  white-space: nowrap;
+}
+
+.pt-panel .pt-arrow {
+  margin: 0 var(--space-1);
+  font-size: 16px;
+  vertical-align: middle;
+  color: var(--color-primary);
+}
+
+.pt-panel .pt-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Fila de revocación en línea */
+.pt-panel .pt-table tbody tr.pt-revoke-row,
+.pt-panel .pt-table tbody tr.pt-revoke-row:hover {
+  background: var(--color-warning-soft);
+}
+
+.pt-panel .pt-revoke-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pt-panel .pt-revoke-text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text);
+}
+
+.pt-panel .pt-revoke-text .material-icons-round {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--color-warning-text);
+}
+
+/* Monto a revocar en ámbar (saldo que vuelve al origen) */
+.pt-panel .pt-revoke-text strong:first-of-type {
+  color: var(--color-warning-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-panel .pt-revoke-input {
+  flex: 1 1 240px;
+  width: auto;
+  min-width: 0;
+}
+
+.pt-panel .pt-revoke-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ---------- Crear transferencia ---------- */
+.pt-panel .pt-create {
+  max-width: 760px;
+}
+
+/* Indicador de pasos */
+.pt-panel .pt-steps {
+  display: flex;
+  align-items: flex-start;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+  list-style: none;
+}
+
+.pt-panel .pt-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pt-panel .pt-step-dot {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.pt-panel .pt-step-dot .material-icons-round {
+  font-size: 18px;
+}
+
+.pt-panel .pt-step.current .pt-step-dot {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.pt-panel .pt-step.done .pt-step-dot {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.pt-panel .pt-step-label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pt-panel .pt-step.current .pt-step-label {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.pt-panel .pt-step-line {
+  flex: 1;
+  height: 2px;
+  margin: 15px var(--space-2) 0;
+  background: var(--color-border);
+  transition: background-color var(--duration) var(--ease);
+}
+
+.pt-panel .pt-step-line.done {
+  background: var(--color-primary);
+}
+
+.pt-panel .pt-card {
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.pt-panel .pt-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.pt-panel .pt-step-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+/* El icono del paso va en una baldosa azul (.ui-icon-tile--primary) */
+
+.pt-panel .pt-step-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pt-panel .pt-btn-back {
+  align-self: flex-start;
+  margin-left: calc(-1 * var(--space-3));
+}
+
+.pt-panel .pt-step-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pt-panel .pt-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Tarjetas de vendedor (origen / destino) */
+.pt-panel .pt-vendor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: var(--space-2);
+}
+
+/* Tarjetas clicables (vendedora y pago): al pasar el mouse más sombra y borde un tono más
+   fuerte, sin desplazarse; al presionar escala 0.98; elegida = borde y fondo azul */
+.pt-panel .pt-vendor-card,
+.pt-panel .pt-payment-card {
+  box-shadow: var(--shadow-card);
+  outline-offset: 2px;
+  transition: border-color var(--duration-control) var(--ease),
+    background-color var(--duration-control) var(--ease),
+    box-shadow var(--duration-control) var(--ease),
+    scale var(--duration-press) var(--ease);
+}
+
+.pt-panel .pt-vendor-card:hover,
+.pt-panel .pt-payment-card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.pt-panel .pt-vendor-card:active,
+.pt-panel .pt-payment-card:active {
+  scale: 0.98;
+}
+
+.pt-panel .pt-vendor-card:focus-visible,
+.pt-panel .pt-payment-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+}
+
+.pt-panel .pt-vendor-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pt-panel .pt-vendor-card.selected,
+.pt-panel .pt-vendor-card.selected:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+/* Avatar de iniciales con tono por nombre (.ui-avatar--sm); elegida = anillo azul */
+.pt-panel .pt-vendor-avatar {
+  font-weight: 700;
+}
+
+.pt-panel .pt-vendor-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pt-panel .pt-vendor-check {
+  font-size: 20px;
+  color: var(--color-primary);
+}
+
+/* Pagos de la orden */
+.pt-panel .pt-payments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: var(--space-2);
+}
+
+.pt-panel .pt-payment-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pt-panel .pt-payment-card.selected,
+.pt-panel .pt-payment-card.selected:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+/* Monto cobrado en verde junto a su baldosa; check azul en el pago elegido */
+.pt-panel .pt-payment-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.pt-panel .pt-payment-amount {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-success-text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.pt-panel .pt-payment-check {
+  flex-shrink: 0;
+  font-size: 20px;
+  color: var(--color-primary);
+}
+
+.pt-panel .pt-payment-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.pt-panel .pt-payment-method {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Pago elegido (fondo primario suave): muted no llega a 4.5:1 */
+.pt-panel .pt-payment-card.selected .pt-payment-method {
+  color: var(--color-text-secondary);
+}
+
+/* Resumen del pago elegido: pago (baldosa azul) y disponible (baldosa y monto verdes) */
+.pt-panel .pt-summary-bar {
+  display: flex;
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.pt-panel .pt-summary-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.pt-panel .pt-summary-text {
+  min-width: 0;
+}
+
+.pt-panel .pt-summary-label {
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pt-panel .pt-summary-value {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.pt-panel .pt-summary-highlight {
+  font-size: var(--text-xl);
+}
+
+.pt-panel .pt-summary-sep {
+  align-self: stretch;
+  width: 1px;
+  margin: 0 var(--space-5);
+  background: var(--color-border);
+}
+
+.pt-panel .pt-amount-input {
+  margin-top: var(--space-2);
+}
+
+.pt-panel .pt-confirm-note {
+  color: var(--color-text-secondary);
+}
+
+/* ---------- Tablet ---------- */
+@media (max-width: 1024px) {
+  .pt-panel .pt-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Móvil ---------- */
+@media (max-width: 640px) {
+  .pt-panel .pt-filters {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-3);
+  }
+
+  .pt-panel .pt-card {
+    padding: var(--space-4);
+  }
+
+  .pt-panel .pt-step-label {
+    white-space: normal;
+    max-width: 80px;
+  }
+
+  .pt-panel .pt-step-actions .ui-btn {
+    flex: 1;
+  }
+
+  .pt-panel .pt-summary-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .pt-panel .pt-summary-sep {
+    width: auto;
+    height: 1px;
+    margin: 0;
+  }
+
+  .pt-panel .pt-revoke-actions {
+    flex: 1 1 100%;
+  }
+
+  .pt-panel .pt-revoke-actions .ui-btn {
+    flex: 1;
+  }
+
+  .pt-panel .pt-header .ui-tabs {
+    width: 100%;
+  }
+
+  .pt-panel .pt-header .ui-tab {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ---------- Sin movimiento ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .pt-panel .pt-vendor-card:active,
+  .pt-panel .pt-payment-card:active {
+    scale: none;
+  }
+}

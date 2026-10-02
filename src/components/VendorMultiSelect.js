@@ -88,7 +88,7 @@ export default function VendorMultiSelect({
 
     return (
         <div className="vms" ref={wrapperRef}>
-            {label && <span id={labelId} className="vms-label">{label}</span>}
+            {label && <span id={labelId} className="ui-label vms-label">{label}</span>}
             <div className="sp-vendor-wrapper vms-wrapper">
                 <div
                     role="button"
@@ -104,7 +104,7 @@ export default function VendorMultiSelect({
                     }}
                 >
                     {selectedIds.length === 0 && (
-                        <span className="vms-placeholder">{loading ? 'Cargando vendedoras...' : placeholder}</span>
+                        <span className="sp-vendor-placeholder">{loading ? 'Cargando vendedoras...' : placeholder}</span>
                     )}
                     {selectedIds.map(id => {
                         const name = nameFor(id);
@@ -117,22 +117,23 @@ export default function VendorMultiSelect({
                                         aria-label={`Quitar ${name}`}
                                         onClick={e => { e.stopPropagation(); toggleVendor(id); }}
                                     >
-                                        <span className="material-icons-round" style={{ fontSize: '14px' }}>close</span>
+                                        <span className="material-icons-round" aria-hidden="true">close</span>
                                     </button>
                                 )}
                             </span>
                         );
                     })}
-                    <span className="material-icons-round vms-caret" aria-hidden="true">
+                    <span className="material-icons-round sp-vendor-caret" aria-hidden="true">
                         {open ? 'expand_less' : 'expand_more'}
                     </span>
                 </div>
 
                 {open && (
                     <div className="sp-vendor-dropdown vms-dropdown" role="listbox" aria-multiselectable="true">
-                        <div className="vms-filter">
+                        <div className="sp-vendor-filter">
                             <input
                                 type="text"
+                                className="ui-input"
                                 placeholder="Filtrar vendedoras..."
                                 aria-label="Filtrar vendedoras"
                                 value={search}
@@ -154,7 +155,7 @@ export default function VendorMultiSelect({
                                         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleVendor(v.id); }
                                     }}
                                 >
-                                    <span className="material-icons-round vms-check" aria-hidden="true">
+                                    <span className="material-icons-round sp-vendor-check" aria-hidden="true">
                                         {selected ? 'check_box' : 'check_box_outline_blank'}
                                     </span>
                                     {v.username}
@@ -162,23 +163,23 @@ export default function VendorMultiSelect({
                             );
                         })}
                         {!loading && filteredVendors.length === 0 && (
-                            <div className="vms-empty">Sin resultados</div>
+                            <div className="sp-vendor-empty">Sin resultados</div>
                         )}
                     </div>
                 )}
             </div>
 
             {loadError && (
-                <p className="vms-message vms-error">No se pudo cargar la lista de vendedoras. Cierra y vuelve a abrir el formulario.</p>
+                <p className="vms-message ui-error vms-error">No se pudo cargar la lista de vendedoras. Cierra y vuelve a abrir el formulario.</p>
             )}
             {emptyWarning && selectedIds.length === 0 && (
-                <p className="vms-message vms-warning">
+                <p className="vms-message ui-alert ui-alert--warning vms-warning">
                     <span className="material-icons-round" aria-hidden="true">warning_amber</span>
                     {emptyWarning}
                 </p>
             )}
             {sharedUsersHint && hasSharedSelected && (
-                <p className="vms-message vms-hint">
+                <p className="vms-message ui-help vms-hint">
                     <span className="material-icons-round" aria-hidden="true">info</span>
                     NinaTorres y YicelaSandoval comparten asignación: si eliges una, la otra también la verá.
                 </p>

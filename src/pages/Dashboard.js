@@ -210,33 +210,42 @@ export default function Dashboard() {
     <div className="dashboard">
       <header className="dashboard-header">
         <h1>Dashboard Admin - {username}</h1>
-        <button onClick={handleLogout} className="logout-btn">Cerrar sesión</button>
+        <button type="button" onClick={handleLogout} className="logout-btn ui-btn ui-btn--secondary ui-btn--sm">Cerrar sesión</button>
       </header>
 
-      <div className="tabs">
+      <div className="tabs" role="group" aria-label="Secciones de productos">
         <button
-          className={`tab-btn ${activeTab === 'productos' ? 'active' : ''}`}
+          type="button"
+          className={`tab-btn ui-tab ${activeTab === 'productos' ? 'active' : ''}`}
+          aria-pressed={activeTab === 'productos'}
           onClick={() => { setActiveTab('productos'); setSelectedProducto(null); }}
         >
-          📦 Ver Productos
+          <span className="material-icons-round" aria-hidden="true">inventory_2</span>
+          Ver Productos
         </button>
         <button
-          className={`tab-btn ${activeTab === 'crear' ? 'active' : ''}`}
+          type="button"
+          className={`tab-btn ui-tab ${activeTab === 'crear' ? 'active' : ''}`}
+          aria-pressed={activeTab === 'crear'}
           onClick={() => { setActiveTab('crear'); setSelectedProducto(null); setFormData({ nombre: '', descripcion: '', precio: '', stock: '', image: null }); }}
         >
-          ➕ Crear Producto
+          <span className="material-icons-round" aria-hidden="true">add</span>
+          Crear Producto
         </button>
         {selectedProducto && (
           <button
-            className={`tab-btn ${activeTab === 'editar' ? 'active' : ''}`}
+            type="button"
+            className={`tab-btn ui-tab ${activeTab === 'editar' ? 'active' : ''}`}
+            aria-pressed={activeTab === 'editar'}
             onClick={() => setActiveTab('editar')}
           >
-            ✏️ Editar Producto
+            <span className="material-icons-round" aria-hidden="true">edit</span>
+            Editar Producto
           </button>
         )}
       </div>
 
-      {message && <div className={`message ${message.includes('✅') ? 'success' : 'error'}`}>{message}</div>}
+      {message && <div className={`message ${message.includes('✅') ? 'success' : 'error'}`} role="status">{message}</div>}
 
       <div className="dashboard-content">
         {/* Tab: Ver Productos */}
@@ -244,9 +253,9 @@ export default function Dashboard() {
           <div className="tab-content">
             <h2>Catálogo de Productos</h2>
             {loading ? (
-              <p>Cargando...</p>
+              <p className="ui-loading"><span className="ui-spinner" aria-hidden="true"></span>Cargando...</p>
             ) : productos.length === 0 ? (
-              <p>No hay productos aún</p>
+              <p className="ui-empty-text">No hay productos aún</p>
             ) : (
               <div className="productos-grid">
                 {productos.map(prod => (
@@ -258,8 +267,9 @@ export default function Dashboard() {
                         className="producto-imagen"
                       />
                     ) : (
-                      <div className="producto-imagen-placeholder">
-                        📷 Sin Imagen
+                      <div className="producto-imagen-placeholder ui-empty ui-empty--plain">
+                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">image</span>
+                        <span className="ui-empty-text">Sin Imagen</span>
                       </div>
                     )}
                     <div className="producto-info">
@@ -267,27 +277,32 @@ export default function Dashboard() {
                       <p className="descripcion">{prod.descripcion}</p>
                       <p className="precio">${formatCurrency(prod.precio)}</p>
                       <p className="stock">Stock: {prod.stock}</p>
-                      <p className={`estado ${prod.active ? 'activo' : 'inactivo'}`}>
-                        {prod.active ? '✅ Activo' : '❌ Inactivo'}
+                      <p className={`estado ui-badge ${prod.active ? 'activo ui-badge--success' : 'inactivo ui-badge--danger'}`}>
+                        {prod.active
+                          ? <><span className="material-icons-round" aria-hidden="true">check_circle</span> Activo</>
+                          : <><span className="material-icons-round" aria-hidden="true">cancel</span> Inactivo</>}
                       </p>
                       <div className="acciones">
                         <button
+                          type="button"
                           onClick={() => handleEditarProducto(prod)}
-                          className="btn-editar"
+                          className="btn-editar ui-btn ui-btn--primary ui-btn--sm"
                           disabled={loading}
                         >
                           Editar
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleCambiarEstado(prod.id, prod.active)}
-                          className="btn-estado"
+                          className="btn-estado ui-btn ui-btn--secondary ui-btn--sm"
                           disabled={loading}
                         >
                           {prod.active ? 'Desactivar' : 'Activar'}
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleEliminarProducto(prod.id)}
-                          className="btn-eliminar"
+                          className="btn-eliminar ui-btn ui-btn--danger-ghost ui-btn--sm"
                           disabled={loading}
                         >
                           Eliminar
@@ -307,8 +322,10 @@ export default function Dashboard() {
             <h2>Crear Nuevo Producto</h2>
             <form onSubmit={handleCrearProducto} className="producto-form">
               <div className="form-group">
-                <label>Nombre *</label>
+                <label className="ui-label" htmlFor="dash-crear-nombre">Nombre <span className="ui-required">*</span></label>
                 <input
+                  id="dash-crear-nombre"
+                  className="ui-input"
                   type="text"
                   name="nombre"
                   value={formData.nombre}
@@ -319,8 +336,10 @@ export default function Dashboard() {
               </div>
 
               <div className="form-group">
-                <label>Descripción *</label>
+                <label className="ui-label" htmlFor="dash-crear-descripcion">Descripción <span className="ui-required">*</span></label>
                 <textarea
+                  id="dash-crear-descripcion"
+                  className="ui-textarea"
                   name="descripcion"
                   value={formData.descripcion}
                   onChange={handleInputChange}
@@ -332,8 +351,10 @@ export default function Dashboard() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Precio *</label>
+                  <label className="ui-label" htmlFor="dash-crear-precio">Precio <span className="ui-required">*</span></label>
                   <input
+                    id="dash-crear-precio"
+                    className="ui-input"
                     type="number"
                     name="precio"
                     value={formData.precio}
@@ -344,8 +365,10 @@ export default function Dashboard() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Stock *</label>
+                  <label className="ui-label" htmlFor="dash-crear-stock">Stock <span className="ui-required">*</span></label>
                   <input
+                    id="dash-crear-stock"
+                    className="ui-input"
                     type="number"
                     name="stock"
                     value={formData.stock}
@@ -357,8 +380,9 @@ export default function Dashboard() {
               </div>
 
               <div className="form-group">
-                <label>Imagen (Opcional)</label>
+                <label className="ui-label" htmlFor="dash-crear-image">Imagen (Opcional)</label>
                 <input
+                  id="dash-crear-image"
                   type="file"
                   name="image"
                   onChange={handleImageChange}
@@ -367,7 +391,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              <button type="submit" className="btn-submit" disabled={loading}>
+              <button type="submit" className="btn-submit ui-btn ui-btn--primary ui-btn--lg ui-btn--block" disabled={loading}>
                 {loading ? 'Creando...' : 'Crear Producto'}
               </button>
             </form>
@@ -380,8 +404,10 @@ export default function Dashboard() {
             <h2>Editar Producto: {selectedProducto.nombre}</h2>
             <form onSubmit={handleActualizarProducto} className="producto-form">
               <div className="form-group">
-                <label>Nombre *</label>
+                <label className="ui-label" htmlFor="dash-editar-nombre">Nombre <span className="ui-required">*</span></label>
                 <input
+                  id="dash-editar-nombre"
+                  className="ui-input"
                   type="text"
                   name="nombre"
                   value={formData.nombre}
@@ -392,8 +418,10 @@ export default function Dashboard() {
               </div>
 
               <div className="form-group">
-                <label>Descripción *</label>
+                <label className="ui-label" htmlFor="dash-editar-descripcion">Descripción <span className="ui-required">*</span></label>
                 <textarea
+                  id="dash-editar-descripcion"
+                  className="ui-textarea"
                   name="descripcion"
                   value={formData.descripcion}
                   onChange={handleInputChange}
@@ -405,8 +433,10 @@ export default function Dashboard() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Precio *</label>
+                  <label className="ui-label" htmlFor="dash-editar-precio">Precio <span className="ui-required">*</span></label>
                   <input
+                    id="dash-editar-precio"
+                    className="ui-input"
                     type="number"
                     name="precio"
                     value={formData.precio}
@@ -417,8 +447,10 @@ export default function Dashboard() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Stock *</label>
+                  <label className="ui-label" htmlFor="dash-editar-stock">Stock <span className="ui-required">*</span></label>
                   <input
+                    id="dash-editar-stock"
+                    className="ui-input"
                     type="number"
                     name="stock"
                     value={formData.stock}
@@ -430,8 +462,9 @@ export default function Dashboard() {
               </div>
 
               <div className="form-group">
-                <label>Cambiar Imagen (Opcional)</label>
+                <label className="ui-label" htmlFor="dash-editar-image">Cambiar Imagen (Opcional)</label>
                 <input
+                  id="dash-editar-image"
                   type="file"
                   name="image"
                   onChange={handleImageChange}
@@ -440,7 +473,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              <button type="submit" className="btn-submit" disabled={loading}>
+              <button type="submit" className="btn-submit ui-btn ui-btn--primary ui-btn--lg ui-btn--block" disabled={loading}>
                 {loading ? 'Actualizando...' : 'Actualizar Producto'}
               </button>
             </form>

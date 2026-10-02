@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { formatCreatedOrdersSummary, formatCurrency, formatOrderLabel } from '../utils/formatters';
+import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
 import { idempotencyKeyFor } from '../utils/idempotency';
 import apiClient from '../api/client';
 import { tagService } from '../api/tagService';
@@ -7,21 +8,35 @@ import { useToast } from '../components/ToastContainer';
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import NotificationService from '../services/NotificationService';
 import VendedorPromotionsCatalog from '../components/VendedorPromotionsCatalog';
+// "Especiales" y "Mi Nómina" se cargan bajo demanda (ver los lazyWithRetry() debajo de los imports).
+// Sus hojas de estilo se importan AQUÍ para que la cascada no cambie y los chunks diferidos no
+// traigan CSS. SpecialProducts.css va antes de los CSS de surtidos, en el mismo orden que en el
+// panel de admin: si el orden difiere entre dashboards el build de producción falla (CI) por
+// "Conflicting order" en el chunk compartido. Son selectores disjuntos (.sp-*, .vendor-sp-* vs
+// .asm-*, .assortment-cart-detail*), así que moverlo no cambia ningún estilo.
+import '../styles/SpecialProducts.css';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
 import AssortmentCartDetail from '../components/AssortmentCartDetail';
-import VendorSpecialProductsPanel from '../components/VendorSpecialProductsPanel';
 import VendorProductCard from '../components/VendorProductCard';
-import MiNominaPanel from '../components/MiNominaPanel';
+import SearchableSelect from '../components/SearchableSelect';
+import '../components/MiNominaPanel.css';
+import { PanelFallback, LazyErrorBoundary, lazyWithRetry } from '../components/LazyFallbacks';
 import vendedorInitService from '../api/vendedorInitService';
 import { mergeVendorPromotions } from '../utils/vendorPromotionCatalog';
 import { buildAssortmentSelections, isAssortmentPromotion } from '../utils/assortmentPromotion';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
 import '../styles/VendedorDashboard.css';
 
+// Carga bajo demanda ("prefetch": se descarga en segundo plano cuando el navegador está libre,
+// así el primer clic casi no espera y el arranque en celulares lentos procesa menos código).
+// lazyWithRetry = React.lazy con un reintento si la red falla (ver LazyFallbacks.js).
+const VendorSpecialProductsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/VendorSpecialProductsPanel'));
+const MiNominaPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/MiNominaPanel'));
 
 
 
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
+
 
 // Pestañas del panel de vendedor. Mismo orden y comportamiento que antes;
 // se define como dato para renderizar el nav (escritorio) y el menú lateral (móvil) sin duplicar markup.
@@ -35,6 +50,86 @@ const NAV_TABS = [
   { id: 'special-products', label: 'Especiales', icon: 'star' },
   { id: 'mi-nomina', label: 'Mi Nómina', icon: 'payments' },
 ];
+
+// Color con significado del estado de una venta (franja izquierda y badge):
+// pendiente = ámbar, confirmada = azul, completada = verde, anulada/cancelada = rojo.
+// Solo presentación: no cambia qué ventas se muestran ni sus datos.
+const ESTADO_TONE = {
+  PENDIENTE: 'warning',
+  PENDING_PROMOTION_COMPLETION: 'warning',
+  CONFIRMADO: 'primary',
+  COMPLETADO: 'success',
+  CANCELADO: 'danger',
+  ANULADA: 'danger',
+};
+
+const ESTADO_ICON = {
+  PENDIENTE: 'schedule',
+  CONFIRMADO: 'task_alt',
+  COMPLETADO: 'check_circle',
+  CANCELADO: 'cancel',
+  ANULADA: 'block',
+};
+
+const estadoTone = (estado) => ESTADO_TONE[estado || 'PENDIENTE'] || 'neutral';
+
+// Progreso de una meta (0–100, protegido contra valores no numéricos) y su tono:
+// meta cumplida = verde, desde 25 % = azul, arrancando = ámbar.
+const goalProgressValue = (percentage) => {
+  const pct = parseFloat(percentage);
+  return Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
+};
+
+const goalTone = (percentage, completed) => {
+  const pct = parseFloat(percentage);
+  if (completed || pct >= 100) return 'success';
+  if (pct >= 50) return 'primary';
+  return 'warning';
+};
+
+// Esqueletos de carga con la forma del contenido (premium-polish-SPEC §2). El texto
+// "Cargando..." se conserva para lectores de pantalla; aria-busy hace que el panel entre
+// solo con fade y el contenido, al llegar, con la subida.
+function PanelSkeleton({ label, text = 'Cargando...', variant = 'cards', count = 4 }) {
+  return (
+    <div className="vd-skeleton" role="status" aria-busy="true" aria-label={label}>
+      <span className="ui-sr-only">{text}</span>
+      <span className="ui-skeleton ui-skeleton--title vd-skeleton-heading" />
+      {variant === 'stats' ? (
+        <div className="vd-skeleton-stats">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="vd-skeleton-card">
+              <div className="vd-skeleton-row">
+                <span className="ui-skeleton vd-skeleton-tile" />
+                <div className="ui-skeleton-stack vd-skeleton-grow">
+                  <span className="ui-skeleton ui-skeleton--title" />
+                  <span className="ui-skeleton ui-skeleton--text" />
+                </div>
+              </div>
+            </div>
+          ))}
+          <span className="ui-skeleton ui-skeleton--block vd-skeleton-wide" />
+        </div>
+      ) : (
+        <div className={`vd-skeleton-grid vd-skeleton-grid--${variant}`}>
+          {Array.from({ length: count }, (_, i) => (
+            <div key={i} className="vd-skeleton-card">
+              {variant === 'products' && <span className="ui-skeleton ui-skeleton--block vd-skeleton-media" />}
+              <div className="vd-skeleton-row">
+                {variant === 'clients' && <span className="ui-skeleton ui-skeleton--circle vd-skeleton-avatar" />}
+                <div className="ui-skeleton-stack vd-skeleton-grow">
+                  <span className="ui-skeleton ui-skeleton--title" />
+                  <span className="ui-skeleton ui-skeleton--text" />
+                  <span className="ui-skeleton ui-skeleton--text vd-skeleton-short" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function VendedorDashboard() {
   const [activeTab, setActiveTab] = useState('nueva-venta');
@@ -78,23 +173,25 @@ function VendedorDashboard() {
       {/* Barra superior móvil: hamburguesa + sección actual + refrescar (solo visible en móvil) */}
       <div className="vendedor-mobile-bar">
         <button
-          className="vendedor-hamburger"
+          type="button"
+          className="vendedor-hamburger ui-icon-btn"
           onClick={() => setMenuOpen(true)}
           aria-label="Abrir menú"
           aria-expanded={menuOpen}
         >
-          <span className="material-icons-round">menu</span>
+          <span className="material-icons-round" aria-hidden="true">menu</span>
         </button>
         <span className="vendedor-mobile-title">
-          {activeMeta && <span className="material-icons-round">{activeMeta.icon}</span>}
+          {activeMeta && <span className="material-icons-round" aria-hidden="true">{activeMeta.icon}</span>}
           {activeMeta ? activeMeta.label : 'Menú'}
         </span>
         <button
-          className="btn-refresh-dashboard vendedor-mobile-refresh"
+          type="button"
+          className="vendedor-mobile-refresh ui-icon-btn"
           onClick={() => setRefreshTrigger(Date.now())}
           aria-label="Actualizar datos"
         >
-          <span className="material-icons-round">sync</span>
+          <span className="material-icons-round" aria-hidden="true">sync</span>
         </button>
       </div>
 
@@ -105,48 +202,58 @@ function VendedorDashboard() {
         aria-hidden="true"
       />
 
-      <nav className={`dashboard-nav ${menuOpen ? 'open' : ''}`}>
+      <nav className={`dashboard-nav ${menuOpen ? 'open' : ''}`} aria-label="Secciones del panel">
         {/* Cabecera del drawer — solo visible en móvil */}
         <div className="vendedor-nav-head">
           <span>Menú</span>
           <button
-            className="vendedor-nav-close"
+            type="button"
+            className="vendedor-nav-close ui-icon-btn"
             onClick={() => setMenuOpen(false)}
             aria-label="Cerrar menú"
           >
-            <span className="material-icons-round">close</span>
+            <span className="material-icons-round" aria-hidden="true">close</span>
           </button>
         </div>
 
         {NAV_TABS.map(tab => (
           <button
+            type="button"
             key={tab.id}
             className={activeTab === tab.id ? 'active' : ''}
+            aria-current={activeTab === tab.id ? 'page' : undefined}
             onClick={() => selectTab(tab.id)}
           >
-            <span className="material-icons-round">{tab.icon}</span> {tab.label}
+            <span className="material-icons-round" aria-hidden="true">{tab.icon}</span> {tab.label}
           </button>
         ))}
         <button
+          type="button"
           className="nav-external"
           onClick={() => window.location.href = '/balances'}
         >
-          <span className="material-icons-round">account_balance_wallet</span> Saldos
+          <span className="material-icons-round" aria-hidden="true">account_balance_wallet</span> Saldos
         </button>
-        <button className="btn-refresh-dashboard vendedor-nav-refresh" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
-          <span className="material-icons-round">sync</span>
+        <button type="button" className="vendedor-nav-refresh ui-icon-btn ui-icon-btn--bordered" onClick={() => setRefreshTrigger(Date.now())} title="Actualizar datos">
+          <span className="material-icons-round" aria-hidden="true">sync</span>
         </button>
       </nav>
 
       <div className="dashboard-content">
-        {activeTab === 'nueva-venta' && <NuevaVentaPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'mis-ventas' && <MisVentasPanel key={refreshTrigger} />}
-        {activeTab === 'ventas-completadas' && <VentasCompletadasPanel key={refreshTrigger} />}
-        {activeTab === 'mis-metas' && <MisMetasPanel key={refreshTrigger} />}
-        {activeTab === 'clientes' && <ClientesPanel key={refreshTrigger} />}
-        {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'special-products' && <VendorSpecialProductsPanel refreshTrigger={refreshTrigger} />}
-        {activeTab === 'mi-nomina' && <MiNominaPanel />}
+        {/* Mientras llega el código de una pestaña diferida se ve "Cargando…" en su lugar; si no
+            se pudo descargar, un aviso con "Reintentar" (las demás pestañas siguen funcionando) */}
+        <LazyErrorBoundary resetKey={activeTab}>
+        <React.Suspense fallback={<PanelFallback />}>
+          {activeTab === 'nueva-venta' && <NuevaVentaPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'mis-ventas' && <MisVentasPanel key={refreshTrigger} />}
+          {activeTab === 'ventas-completadas' && <VentasCompletadasPanel key={refreshTrigger} />}
+          {activeTab === 'mis-metas' && <MisMetasPanel key={refreshTrigger} />}
+          {activeTab === 'clientes' && <ClientesPanel key={refreshTrigger} />}
+          {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'special-products' && <VendorSpecialProductsPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'mi-nomina' && <MiNominaPanel />}
+        </React.Suspense>
+        </LazyErrorBoundary>
       </div>
     </div>
   );
@@ -239,6 +346,21 @@ function NuevaVentaPanel({ refreshTrigger }) {
     }
   }, []);
 
+  // Opciones de los selectores con buscador (carrito y hoja del celular). Mismo valor y mismo
+  // texto visible que las <option> de antes; se arman una vez por lista (celulares de gama baja).
+  // Cliente: se encuentra por nombre, teléfono (también sin espacios), NIT o correo.
+  const clientOptions = useMemo(() => (Array.isArray(clients) ? clients : []).map(c => ({
+    value: c.id,
+    label: `${c.nombre ?? ''} - ${c.telefono ?? ''}`,
+    description: [c.nit && `NIT ${c.nit}`, c.direccion].filter(Boolean).join(' · '),
+    keywords: [c.telefono, c.telefono && String(c.telefono).replace(/\D/g, ''), c.nit, c.email],
+  })), [clients]);
+
+  const vendedorOptions = useMemo(
+    () => (Array.isArray(vendedores) ? vendedores : []).map(v => ({ value: v.id, label: v.username })),
+    [vendedores]
+  );
+
 
   // ✅ Carga inicial unificada: 1 sola petición para productos + promociones + promos especiales
   // Con caché local para funcionar con internet débil o sin conexión
@@ -299,7 +421,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           isSpecialProduct: product.isSpecialProduct || false
         }]);
       }
-      toast.success(`Agregado (+${quantity}) como Bonificado 🎁`);
+      toast.success(`Agregado (+${quantity}) como Bonificado`);
       return;
     }
 
@@ -542,7 +664,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
         idempotencyRef.current = null;
       }
       if (status === 403 && error.response?.data?.message?.includes('Límite de crédito')) {
-        toast.error('⛔ ' + error.response.data.message);
+        toast.error(error.response.data.message);
       } else if (!error.response) {
         // Timeout o sin conexión: la venta pudo quedar registrada; reintentar el mismo carrito no la duplica
         toast.error('No se pudo confirmar la venta por la conexión. Revisa "Mis Ventas" o vuelve a intentar: no se duplicará.');
@@ -557,7 +679,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return <div className="ui-loading vd-loading" role="status"><span className="ui-spinner" aria-hidden="true" />Cargando...</div>;
   }
 
   const filteredProducts = (products || []).filter(p => {
@@ -572,8 +694,11 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
   return (
     <div className="nueva-venta-panel">
-      <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>add_shopping_cart</span> Nueva Venta</h2>
-
+      <header className="ui-page-header vd-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title"><span className="material-icons-round" aria-hidden="true">add_shopping_cart</span> Nueva Venta</h2>
+        </div>
+      </header>
 
       <div className="venta-layout">
         {/* ✅ SECCIÓN IZQUIERDA - PRODUCTOS CON IMÁGENES CORREGIDAS */}
@@ -581,41 +706,43 @@ function NuevaVentaPanel({ refreshTrigger }) {
           <div className="products-header">
             {/* Selector segmentado: por defecto "Productos" (se ven de inmediato) y las
                 "Promociones" a un toque, para que NO empujen los productos hacia abajo. */}
-            <div className="catalog-switch" role="tablist" aria-label="Catálogo">
+            <div className="catalog-switch ui-tabs" role="tablist" aria-label="Catálogo">
               <button
                 type="button"
                 role="tab"
                 aria-selected={catalogView === 'productos'}
-                className={`catalog-switch-btn ${catalogView === 'productos' ? 'active' : ''}`}
+                className={`catalog-switch-btn ui-tab ${catalogView === 'productos' ? 'active' : ''}`}
                 onClick={() => setCatalogView('productos')}
               >
-                <span className="material-icons-round">inventory_2</span>
+                <span className="material-icons-round" aria-hidden="true">inventory_2</span>
                 Productos
               </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={catalogView === 'promociones'}
-                className={`catalog-switch-btn ${catalogView === 'promociones' ? 'active' : ''}`}
+                className={`catalog-switch-btn ui-tab ${catalogView === 'promociones' ? 'active' : ''}`}
                 onClick={() => setCatalogView('promociones')}
               >
-                <span className="material-icons-round">local_offer</span>
+                <span className="material-icons-round" aria-hidden="true">local_offer</span>
                 Promociones
-                {promoCount > 0 && <span className="catalog-switch-badge">{promoCount}</span>}
+                {promoCount > 0 && <span className="catalog-switch-badge ui-tab-count">{promoCount}</span>}
               </button>
             </div>
             <div className="products-header-toolbar">
               {/* Selector de columnas (solo aplica a la vista de productos) */}
               {catalogView === 'productos' && (
-                <div className="grid-columns-selector">
+                <div className="grid-columns-selector ui-tabs" role="group" aria-label="Columnas del catálogo">
                   {[1, 2, 3].map(cols => (
                     <button
+                      type="button"
                       key={cols}
-                      className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                      className={`grid-btn ui-tab ${gridColumns === cols ? 'active is-active' : ''}`}
                       onClick={() => setGridColumns(cols)}
                       title={`${cols} columnas`}
+                      aria-pressed={gridColumns === cols}
                     >
-                      <span className="material-icons-round">dashboard</span>
+                      <span className="material-icons-round" aria-hidden="true">dashboard</span>
                       {cols}
                     </button>
                   ))}
@@ -630,24 +757,25 @@ function NuevaVentaPanel({ refreshTrigger }) {
           ) : (
             <>
               {/* Buscador de Productos con botón limpiar */}
-              <div className="search-container search-container-sm">
-                <span className="material-icons-round search-icon">search</span>
+              <div className="ui-search vd-catalog-search">
+                <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                 <input
                   type="text"
                   placeholder="Buscar productos..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="search-input search-input-sm"
+                  className="ui-input"
+                  aria-label="Buscar productos"
                 />
                 {searchTerm && (
                   <button
                     type="button"
-                    className="search-clear-btn"
+                    className="ui-icon-btn ui-search-clear"
                     onClick={() => setSearchTerm('')}
                     title="Limpiar búsqueda"
                     aria-label="Limpiar búsqueda"
                   >
-                    <span className="material-icons-round">close</span>
+                    <span className="material-icons-round" aria-hidden="true">close</span>
                   </button>
                 )}
               </div>
@@ -659,13 +787,15 @@ function NuevaVentaPanel({ refreshTrigger }) {
                 onClear={() => setActiveTagId(null)}
               />
 
-              <div className="productos-grid" style={{
-                gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
-              }}>
+              {/* El número de columnas viaja como variable CSS; en teléfonos el CSS fuerza 1 columna */}
+              <div
+                className={`productos-grid ${gridColumns === 1 ? 'vpc-grid--row' : ''}`}
+                style={{ '--vd-grid-cols': gridColumns }}
+              >
                 {filteredProducts.length === 0 ? (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                    <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>inventory_2</span>
-                    <p style={{ marginTop: '1rem', fontSize: '0.95rem' }}>No se encontraron productos</p>
+                  <div className="ui-empty ui-empty--plain vd-grid-empty">
+                    <span className="material-icons-round ui-empty-icon" aria-hidden="true">inventory_2</span>
+                    <p className="ui-empty-text">No se encontraron productos</p>
                   </div>
                 ) : (
                   filteredProducts.map(product => (
@@ -684,378 +814,352 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
         {/* SECCIÓN DERECHA - CARRITO */}
         <div className="carrito-section">
-          <h3>
-            <span className="material-icons-round" style={{ fontSize: '1.25rem' }}>shopping_cart</span>
-            Carrito
-          </h3>
+          <div className="vd-cart-head">
+            <h3 className="vd-cart-title">
+              <span className="material-icons-round" aria-hidden="true">shopping_cart</span>
+              Carrito
+            </h3>
+          </div>
 
-          <div className="form-group">
-            <label htmlFor="cliente-select">
-              <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>person</span>
-              Cliente
-            </label>
-            <div className="client-search-wrapper" style={{ position: 'relative', marginBottom: '0.5rem' }}>
-              <span className="material-icons-round" style={{
-                position: 'absolute',
-                left: '10px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: '#9ca3af',
-                fontSize: '18px'
-              }}>search</span>
-              <input
-                type="text"
-                placeholder="Buscar cliente..."
-                className="client-search-input"
-                value={clientSearchTerm}
-                onChange={(e) => setClientSearchTerm(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.6rem 0.6rem 0.6rem 2.2rem',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  fontSize: '0.9rem'
+          <div className="vd-cart-body">
+            <div className="ui-field vd-field">
+              <label htmlFor="cliente-select" className="ui-label vd-label">
+                <span className="material-icons-round" aria-hidden="true">person</span>
+                Cliente
+              </label>
+              {/* Un solo campo: se escribe nombre o teléfono y la lista se va filtrando */}
+              <SearchableSelect
+                id="cliente-select"
+                value={selectedClient}
+                onChange={(e) => {
+                  setSelectedClient(e.target.value);
+                  setAllowNoClient(false);
                 }}
+                disabled={allowNoClient}
+                options={clientOptions}
+                query={clientSearchTerm}
+                onQueryChange={setClientSearchTerm}
+                placeholder="Selecciona un cliente"
+                searchPlaceholder="Nombre, teléfono o NIT…"
+                noResultsText="Ningún cliente coincide"
+                aria-label="Buscar cliente"
               />
             </div>
 
-            <select
-              id="cliente-select"
-              value={selectedClient}
-              onChange={(e) => {
-                setSelectedClient(e.target.value);
-                setAllowNoClient(false);
-              }}
-              disabled={allowNoClient}
-            >
-              <option value="">Selecciona un cliente</option>
-              {clients
-                .filter(c => {
-                  if (!clientSearchTerm) return true;
-                  const term = clientSearchTerm.toLowerCase();
-                  return c.nombre.toLowerCase().includes(term) ||
-                    (c.telefono && c.telefono.includes(term));
-                })
-                .map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre} - {c.telefono}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div className="checkbox-group">
-            <input
-              id="sin-cliente"
-              type="checkbox"
-              checked={allowNoClient}
-              onChange={(e) => {
-                setAllowNoClient(e.target.checked);
-                if (e.target.checked) {
-                  setSelectedClient('');
-                }
-              }}
-            />
-            <label htmlFor="sin-cliente">
-              Venta sin cliente (confirmo que estoy seguro)
-            </label>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="notas">
-              <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>notes</span>
-              Notas / Productos sin stock
-            </label>
-            <textarea
-              id="notas"
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              rows="3"
-              placeholder="Ej: Cliente solicita producto X sin stock, contactar proveedor..."
-            />
-            <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span className="material-icons-round" style={{ fontSize: '14px' }}>lightbulb</span> Use este campo para solicitudes sin stock o instrucciones especiales
-            </small>
-          </div>
-
-          {/* ADMIN/OWNER ONLY: Asignar Vendedor */}
-          {isAdminOrOwner && (
-            <div className="form-group">
-              <label htmlFor="vendedor-select">
-                <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>badge</span>
-                Asignar Vendedor <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <select
-                id="vendedor-select"
-                value={assignedVendor}
-                onChange={(e) => setAssignedVendor(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  fontSize: '0.95rem',
-                  background: assignedVendor ? '#f0fdf4' : 'white'
+            <div className="vd-check">
+              <input
+                id="sin-cliente"
+                type="checkbox"
+                checked={allowNoClient}
+                onChange={(e) => {
+                  setAllowNoClient(e.target.checked);
+                  if (e.target.checked) {
+                    setSelectedClient('');
+                  }
                 }}
-              >
-                <option value="">-- Seleccionar vendedor --</option>
-                {vendedores.map(v => (
-                  <option key={v.id} value={v.id}>{v.username}</option>
-                ))}
-              </select>
+              />
+              <label htmlFor="sin-cliente">
+                Venta sin cliente (confirmo que estoy seguro)
+              </label>
             </div>
-          )}
 
-          {/* ADMIN/OWNER ONLY: Incluir Flete */}
-          {isAdminOrOwner && (
-            <div className="form-group" style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-              <div className="checkbox-group" style={{ marginBottom: '0.5rem' }}>
-                <input
-                  id="incluir-flete"
-                  type="checkbox"
-                  checked={includeFreight}
-                  onChange={(e) => setIncludeFreight(e.target.checked)}
-                />
-                <label htmlFor="incluir-flete">
-                  <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>local_shipping</span>
-                  Incluir Flete en Orden
+            <div className="ui-field vd-field">
+              <label htmlFor="notas" className="ui-label vd-label">
+                <span className="material-icons-round" aria-hidden="true">notes</span>
+                Notas / Productos sin stock
+              </label>
+              <textarea
+                id="notas"
+                className="ui-textarea"
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                rows="3"
+                placeholder="Ej: Cliente solicita producto X sin stock, contactar proveedor..."
+              />
+              <small className="ui-help vd-help">
+                <span className="material-icons-round" aria-hidden="true">lightbulb</span> Use este campo para solicitudes sin stock o instrucciones especiales
+              </small>
+            </div>
+
+            {/* ADMIN/OWNER ONLY: Asignar Vendedor */}
+            {isAdminOrOwner && (
+              <div className="ui-field vd-field">
+                <label id="vendedor-select-label" htmlFor="vendedor-select" className="ui-label vd-label">
+                  <span className="material-icons-round" aria-hidden="true">badge</span>
+                  Asignar Vendedor <span className="ui-required">*</span>
                 </label>
+                {/* aria-labelledby: la lista se anuncia con la etiqueta sin el nombre del icono */}
+                <SearchableSelect
+                  id="vendedor-select"
+                  value={assignedVendor}
+                  onChange={(e) => setAssignedVendor(e.target.value)}
+                  options={vendedorOptions}
+                  placeholder="Selecciona un vendedor"
+                  searchPlaceholder="Buscar vendedor…"
+                  noResultsText="Ningún vendedor coincide"
+                  aria-labelledby="vendedor-select-label"
+                />
               </div>
+            )}
 
-              {includeFreight && (
-                <div className="freight-custom-section" style={{ marginTop: '0.5rem', paddingLeft: '1.5rem' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-                      <input
-                        type="checkbox"
-                        checked={isFreightBonified}
-                        onChange={(e) => setIsFreightBonified(e.target.checked)}
-                      />
-                      Bonificar ($0)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Texto personalizado (ej: Envío Express)"
-                      value={freightCustomText}
-                      onChange={(e) => setFreightCustomText(e.target.value)}
-                      style={{ flex: 1, padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Cant."
-                      value={freightQuantity}
-                      onChange={(e) => setFreightQuantity(e.target.value)}
-                      style={{ width: '60px', padding: '0.4rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', textAlign: 'center' }}
-                      onWheel={(e) => e.target.blur()}
-                    />
-                  </div>
+            {/* ADMIN/OWNER ONLY: Incluir Flete */}
+            {isAdminOrOwner && (
+              <div className="vd-freight">
+                <div className="vd-check">
+                  <input
+                    id="incluir-flete"
+                    type="checkbox"
+                    checked={includeFreight}
+                    onChange={(e) => setIncludeFreight(e.target.checked)}
+                  />
+                  <label htmlFor="incluir-flete" className="vd-label">
+                    <span className="material-icons-round" aria-hidden="true">local_shipping</span>
+                    Incluir Flete en Orden
+                  </label>
+                </div>
 
-                  {/* Freight Search */}
-                  <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
-                    <input
-                      type="text"
-                      placeholder="Buscar producto flete..."
-                      value={freightProductSearch}
-                      onChange={(e) => setFreightProductSearch(e.target.value)}
-                      style={{ width: '100%', padding: '0.3rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-                    />
-                    {freightProductSearch && (
-                      <div style={{ position: 'absolute', background: 'white', border: '1px solid #ddd', borderRadius: '4px', maxHeight: '150px', overflowY: 'auto', width: '100%', zIndex: 10, marginTop: '2px' }}>
-                        {products
-                          .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
-                          .slice(0, 5)
-                          .map(p => (
-                            <div
-                              key={p.id}
-                              onClick={() => { addFreightItem(p); setFreightProductSearch(''); }}
-                              style={{ padding: '4px 8px', cursor: 'pointer', borderBottom: '1px solid #eee', fontSize: '0.8rem' }}
-                            >
-                              {p.nombre}
-                            </div>
-                          ))
-                        }
-                      </div>
-                    )}
-                  </div>
-
-                  {/* List Freight Items */}
-                  {freightItems.map(item => (
-                    <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '4px 8px', marginBottom: '4px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-                      <span style={{ fontSize: '0.8rem' }}>{item.nombre}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {includeFreight && (
+                  <div className="freight-custom-section vd-freight-body">
+                    <div className="vd-freight-row">
+                      <label className="vd-check vd-check--inline">
                         <input
-                          type="number"
-                          value={item.cantidad}
-                          onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
-                          style={{ width: '40px', textAlign: 'center', padding: '2px', fontSize: '0.8rem' }}
-                          onWheel={(e) => e.target.blur()}
+                          type="checkbox"
+                          checked={isFreightBonified}
+                          onChange={(e) => setIsFreightBonified(e.target.checked)}
                         />
-                        <button onClick={() => removeFreightItem(item.productId)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}>&times;</button>
+                        Bonificar ($0)
+                      </label>
+                      <input
+                        type="text"
+                        className="ui-input vd-freight-text"
+                        placeholder="Texto personalizado (ej: Envío Express)"
+                        value={freightCustomText}
+                        onChange={(e) => setFreightCustomText(e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        className="ui-input vd-freight-qty"
+                        placeholder="Cant."
+                        value={freightQuantity}
+                        onChange={(e) => setFreightQuantity(e.target.value)}
+                        onWheel={(e) => e.target.blur()}
+                      />
+                    </div>
+
+                    {/* Freight Search */}
+                    <div className="vd-freight-search">
+                      <input
+                        type="text"
+                        className="ui-input"
+                        placeholder="Buscar producto flete..."
+                        value={freightProductSearch}
+                        onChange={(e) => setFreightProductSearch(e.target.value)}
+                      />
+                      {freightProductSearch && (
+                        <div className="vd-freight-results">
+                          {products
+                            .filter(p => p.active && p.nombre.toLowerCase().includes(freightProductSearch.toLowerCase()))
+                            .slice(0, 5)
+                            .map(p => (
+                              <div
+                                key={p.id}
+                                className="vd-freight-option"
+                                onClick={() => { addFreightItem(p); setFreightProductSearch(''); }}
+                              >
+                                {p.nombre}
+                              </div>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </div>
+
+                    {/* List Freight Items */}
+                    {freightItems.map(item => (
+                      <div key={item.productId} className="vd-freight-item">
+                        <span className="vd-freight-item-name">{item.nombre}</span>
+                        <div className="vd-freight-item-controls">
+                          <input
+                            type="number"
+                            className="ui-input vd-freight-item-qty"
+                            value={item.cantidad}
+                            onChange={(e) => updateFreightItemQty(item.productId, parseInt(e.target.value) || 0)}
+                            onWheel={(e) => e.target.blur()}
+                            aria-label={`Cantidad de ${item.nombre}`}
+                          />
+                          <button type="button" className="ui-icon-btn ui-icon-btn--danger vd-freight-remove" onClick={() => removeFreightItem(item.productId)} aria-label={`Quitar ${item.nombre}`}>&times;</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="cart-items">
+              {cart.length === 0 && promotionsCart.length === 0 ? (
+                <div className="empty-cart">
+                  <span className="material-icons-round" aria-hidden="true">shopping_bag</span>
+                  <span>El carrito está vacío</span>
+                </div>
+              ) : (
+                <>
+                  {/* PROMOTIONS IN CART */}
+                  {promotionsCart.map(promo => (
+                    <div key={promo.cartId} className="cart-item promotion-item">
+                      <div className="cart-item-info">
+                        <h4>
+                          <span className="material-icons-round" aria-hidden="true">local_offer</span>
+                          {promo.nombre}
+                        </h4>
+                        <p>{promo.type === 'PACK' ? 'Pack' : isAssortmentPromotion(promo) ? 'Paquete surtido' : 'Oferta'}</p>
+                        {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
+                      </div>
+                      <div className="cart-item-controls">
+                        {promo.packPrice && (
+                          <span className="vd-promo-price">${promo.packPrice}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="vd-remove ui-icon-btn ui-icon-btn--danger"
+                          onClick={() => removePromotionFromCart(promo.cartId)}
+                          title="Eliminar promoción"
+                        >
+                          <span className="material-icons-round" aria-hidden="true">delete_outline</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* PRODUCTS IN CART */}
+                  {cart.map(item => {
+                    const isOutOfStock = item.cantidad > item.stockDisponible;
+
+
+                    return (
+                      <div key={item.productId} className={`cart-item ${isOutOfStock ? 'has-warning' : ''}`}>
+                        <div className={`cart-item-avatar ui-avatar ui-avatar--${avatarTone(item.nombre)}`} aria-hidden="true">
+                          {(item.nombre || '?').trim().charAt(0).toUpperCase()}
+                        </div>
+                        <div className="cart-item-info">
+                          <h4>{item.nombre}</h4>
+                          <p>${formatCurrency(item.precio)} c/u</p>
+                          {isOutOfStock && (
+                            <div className="out-of-stock-controls">
+                              <label className="vd-check vd-check--inline vd-check--warning">
+                                <input
+                                  type="checkbox"
+                                  checked={item.allowOutOfStock}
+                                  onChange={() => toggleAllowOutOfStock(item.productId)}
+                                />
+                                Permitir sin stock
+                              </label>
+                              {!item.allowOutOfStock && (
+                                <div className="ui-error vd-stock-error">
+                                  <span className="material-icons-round" aria-hidden="true">warning</span>
+                                  Excede stock ({item.stockDisponible})
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="cart-item-controls">
+                          <div className="vd-stepper">
+                            <button type="button" onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1))} title="Reducir cantidad">−</button>
+                            <input
+                              type="number"
+                              value={item.cantidad}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                updateQuantity(item.productId, val === '' ? '' : parseInt(val) || 0);
+                              }}
+                              onBlur={(e) => {
+                                if (e.target.value === '' || parseInt(e.target.value) <= 0) {
+                                  updateQuantity(item.productId, 1);
+                                }
+                              }}
+                              min="1"
+                              onWheel={(e) => e.target.blur()}
+                            />
+                            <button type="button" onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)} title="Aumentar cantidad">+</button>
+                          </div>
+                        </div>
+                        <div className="cart-item-subtotal">
+                          ${formatCurrency(item.precio * item.cantidad)}
+                        </div>
+                        <button
+                          type="button"
+                          className="vd-remove ui-icon-btn ui-icon-btn--danger"
+                          onClick={() => removeFromCart(item.productId)}
+                          title="Eliminar del carrito"
+                        >
+                          <span className="material-icons-round" aria-hidden="true">delete_outline</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+              {/* Bonified Items Section */}
+              {bonifiedCart.length > 0 && (
+                <div className="bonified-section">
+                  <h4 className="bonified-title">
+                    <span className="material-icons-round" aria-hidden="true">card_giftcard</span>
+                    Bonificados
+                  </h4>
+                  {bonifiedCart.map(item => (
+                    <div key={item.productId} className="cart-item cart-item--bonified">
+                      <div className="cart-item-info">
+                        <h5>{item.nombre}</h5>
+                        <p className="vd-free-price">$0.00</p>
+                      </div>
+                      <div className="cart-item-controls">
+                        <div className="vd-stepper">
+                          <button type="button" onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1), true)} aria-label="Reducir cantidad">−</button>
+                          <input
+                            type="number"
+                            value={item.cantidad}
+                            onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
+                            min="1"
+                            onWheel={(e) => e.target.blur()}
+                            aria-label={`Cantidad de ${item.nombre}`}
+                          />
+                          <button type="button" onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)} aria-label="Aumentar cantidad">+</button>
+                        </div>
+                        <button type="button" className="vd-remove ui-icon-btn ui-icon-btn--danger" onClick={() => removeFromCart(item.productId, true)} aria-label="Eliminar bonificado">
+                          <span className="material-icons-round" aria-hidden="true">delete_outline</span>
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          )}
-
-          <div className="cart-items">
-            {cart.length === 0 && promotionsCart.length === 0 ? (
-              <div className="empty-cart">
-                <span className="material-icons-round" style={{ fontSize: '2.5rem', opacity: 0.5 }}>shopping_bag</span>
-                <span>El carrito está vacío</span>
-              </div>
-            ) : (
-              <>
-                {/* PROMOTIONS IN CART */}
-                {promotionsCart.map(promo => (
-                  <div key={promo.cartId} className="cart-item promotion-item" style={{ background: '#fff1f2', border: '1px solid #fecdd3' }}>
-                    <div className="cart-item-info">
-                      <h4 style={{ color: '#be123c' }}>
-                        <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>local_offer</span>
-                        {promo.nombre}
-                      </h4>
-                      <p style={{ fontSize: '0.8rem' }}>{promo.type === 'PACK' ? 'Pack' : isAssortmentPromotion(promo) ? 'Paquete surtido' : 'Oferta'}</p>
-                      {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
-                    </div>
-                    <div className="cart-item-controls">
-                      {promo.packPrice && (
-                        <span style={{ fontWeight: 700, color: '#059669', marginRight: '0.5rem' }}>${promo.packPrice}</span>
-                      )}
-                      <button
-                        className="btn-remove"
-                        onClick={() => removePromotionFromCart(promo.cartId)}
-                        title="Eliminar promoción"
-                      >
-                        <span className="material-icons-round">delete_outline</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* PRODUCTS IN CART */}
-                {cart.map(item => {
-                  const isOutOfStock = item.cantidad > item.stockDisponible;
-
-
-                  return (
-                    <div key={item.productId} className={`cart-item ${isOutOfStock ? 'has-warning' : ''}`}>
-                      <div className="cart-item-avatar" aria-hidden="true">
-                        {(item.nombre || '?').trim().charAt(0).toUpperCase()}
-                      </div>
-                      <div className="cart-item-info">
-                        <h4>{item.nombre}</h4>
-                        <p>${formatCurrency(item.precio)} c/u</p>
-                        {isOutOfStock && (
-                          <div className="out-of-stock-controls" style={{ marginTop: '0.5rem' }}>
-                            <label className="checkbox-small" style={{ color: '#d97706', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer' }}>
-                              <input
-                                type="checkbox"
-                                checked={item.allowOutOfStock}
-                                onChange={() => toggleAllowOutOfStock(item.productId)}
-                              />
-                              Permitir sin stock
-                            </label>
-                            {!item.allowOutOfStock && (
-                              <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
-                                ⚠️ Excede stock ({item.stockDisponible})
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="cart-item-controls">
-                        <div>
-                          <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1))} title="Reducir cantidad">−</button>
-                          <input
-                            type="number"
-                            value={item.cantidad}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              updateQuantity(item.productId, val === '' ? '' : parseInt(val) || 0);
-                            }}
-                            onBlur={(e) => {
-                              if (e.target.value === '' || parseInt(e.target.value) <= 0) {
-                                updateQuantity(item.productId, 1);
-                              }
-                            }}
-                            min="1"
-                            onWheel={(e) => e.target.blur()}
-                          />
-                          <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)} title="Aumentar cantidad">+</button>
-                        </div>
-                      </div>
-                      <div className="cart-item-subtotal">
-                        ${formatCurrency(item.precio * item.cantidad)}
-                      </div>
-                      <button
-                        className="btn-remove"
-                        onClick={() => removeFromCart(item.productId)}
-                        title="Eliminar del carrito"
-                      >
-                        <span className="material-icons-round">delete_outline</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </>
-            )}
-            {/* Bonified Items Section */}
-            {bonifiedCart.length > 0 && (
-              <div className="bonified-section" style={{ marginTop: '1rem', padding: '0.5rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
-                <h4 style={{ color: '#15803d', fontSize: '0.9rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
-                  Bonificados
-                </h4>
-                {bonifiedCart.map(item => (
-                  <div key={item.productId} className="cart-item" style={{ background: 'white' }}>
-                    <div className="cart-item-info">
-                      <h5>{item.nombre}</h5>
-                      <p style={{ color: '#15803d', fontWeight: 'bold' }}>$0.00</p>
-                    </div>
-                    <div className="cart-item-controls">
-                      <div>
-                        <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1), true)}>−</button>
-                        <input
-                          type="number"
-                          value={item.cantidad}
-                          onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
-                          min="1"
-                          onWheel={(e) => e.target.blur()}
-                        />
-                        <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)}>+</button>
-                      </div>
-                      <button className="btn-remove" onClick={() => removeFromCart(item.productId, true)}>
-                        <span className="material-icons-round">delete_outline</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
+          {/* Total y "Finalizar Venta" siempre visibles al pie del carrito */}
+          <div className="vd-cart-footer">
+            <div className="cart-total">
+              Total: <span className="cart-total-amount">${formatCurrency(calculateTotal())}</span>
+            </div>
 
-
-          <div className="cart-total">
-            Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${formatCurrency(calculateTotal())}</span>
+            <button
+              type="button"
+              className="btn-finalizar-venta ui-btn ui-btn--primary ui-btn--lg ui-btn--block"
+              onClick={handleSubmitOrder}
+              disabled={
+                submitting ||
+                (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
+                (!selectedClient && !allowNoClient) ||
+                cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
+                cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
+              }
+            >
+              <span className="material-icons-round" aria-hidden="true">check_circle</span>
+              {submitting ? 'Registrando…' : 'Finalizar Venta'}
+            </button>
           </div>
-
-          <button
-            className="btn-finalizar-venta"
-            onClick={handleSubmitOrder}
-            disabled={
-              submitting ||
-              (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
-              (!selectedClient && !allowNoClient) ||
-              cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
-              cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
-            }
-          >
-            <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
-            {submitting ? 'Registrando…' : 'Finalizar Venta'}
-          </button>
         </div>
       </div>
 
@@ -1077,59 +1181,48 @@ function NuevaVentaPanel({ refreshTrigger }) {
       {/* Sticky Cart Footer - Mobile Only */}
       <div className="sticky-cart-footer">
         <div className="cart-summary">
-          <div className="label">{(cart.length || 0) + (promotionsCart.length || 0)} Productos</div>
-          <div className="total">${formatCurrency(calculateTotal())}</div>
+          <div className="cart-summary-label">{(cart.length || 0) + (promotionsCart.length || 0)} Productos</div>
+          <div className="cart-summary-total">${formatCurrency(calculateTotal())}</div>
         </div>
-        <button className="btn-show-cart" onClick={() => setShowMobileCart(true)}>
-          <span className="material-icons-round">shopping_cart</span>
+        <button type="button" className="btn-show-cart ui-btn ui-btn--primary ui-btn--lg" onClick={() => setShowMobileCart(true)}>
+          <span className="material-icons-round" aria-hidden="true">shopping_cart</span>
           Ver Carrito
         </button>
       </div>
 
       {/* Mobile Cart Modal */}
       {/* Mientras se registra la venta el carrito no se cierra (evita reabrirlo y reenviar) */}
-      <div className={`mobile-cart-modal-overlay ${!showMobileCart ? 'hidden' : ''}`} onClick={() => { if (!submitting) setShowMobileCart(false); }}>
-        <div className="mobile-cart-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="modal-header">
-            <h3>
+      <div className={`mobile-cart-modal-overlay ui-modal-overlay ${!showMobileCart ? 'hidden' : ''}`} onClick={() => { if (!submitting) setShowMobileCart(false); }}>
+        <div
+          className="mobile-cart-modal ui-modal ui-modal--md"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vd-mobile-cart-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="ui-modal-header">
+            <span className="ui-modal-icon" aria-hidden="true">
               <span className="material-icons-round">shopping_cart</span>
-              Carrito
-            </h3>
-            <button className="modal-close" onClick={() => setShowMobileCart(false)} disabled={submitting}>
-              <span className="material-icons-round">close</span>
+            </span>
+            <div className="ui-modal-heading">
+              <h3 id="vd-mobile-cart-title" className="ui-modal-title">
+                Carrito
+              </h3>
+            </div>
+            <button type="button" className="modal-close ui-icon-btn" onClick={() => setShowMobileCart(false)} disabled={submitting} aria-label="Cerrar carrito">
+              <span className="material-icons-round" aria-hidden="true">close</span>
             </button>
           </div>
-          <div className="modal-body">
+          <div className="ui-modal-body ui-modal-body--plain vd-sheet-body">
             {/* Render the same cart content */}
-            <div className="carrito-section" style={{ display: 'block', width: '100%', padding: 0 }}>
-              <div className="form-group">
-                <label htmlFor="cliente-select-mobile">
-                  <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>person</span>
+            <div className="carrito-section carrito-section--sheet">
+              <div className="ui-field vd-field">
+                <label htmlFor="cliente-select-mobile" className="ui-label vd-label">
+                  <span className="material-icons-round" aria-hidden="true">person</span>
                   Cliente
                 </label>
-                <div className="client-search-wrapper" style={{ position: 'relative', marginBottom: '0.5rem' }}>
-                  <span className="material-icons-round" style={{
-                    position: 'absolute',
-                    left: '10px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#9ca3af',
-                    fontSize: '18px'
-                  }}>search</span>
-                  <input
-                    type="text"
-                    placeholder="Buscar cliente..."
-                    className="client-search-input"
-                    value={clientSearchTerm}
-                    onChange={(e) => setClientSearchTerm(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.6rem 0.6rem 0.6rem 2.2rem'
-                    }}
-                  />
-                </div>
-
-                <select
+                {/* Un solo campo: se escribe nombre o teléfono y la lista se va filtrando */}
+                <SearchableSelect
                   id="cliente-select-mobile"
                   value={selectedClient}
                   onChange={(e) => {
@@ -1137,24 +1230,17 @@ function NuevaVentaPanel({ refreshTrigger }) {
                     setAllowNoClient(false);
                   }}
                   disabled={allowNoClient}
-                >
-                  <option value="">Selecciona un cliente</option>
-                  {clients
-                    .filter(c => {
-                      if (!clientSearchTerm) return true;
-                      const term = clientSearchTerm.toLowerCase();
-                      return c.nombre.toLowerCase().includes(term) ||
-                        (c.telefono && c.telefono.includes(term));
-                    })
-                    .map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.nombre} - {c.telefono}
-                      </option>
-                    ))}
-                </select>
+                  options={clientOptions}
+                  query={clientSearchTerm}
+                  onQueryChange={setClientSearchTerm}
+                  placeholder="Selecciona un cliente"
+                  searchPlaceholder="Nombre, teléfono o NIT…"
+                  noResultsText="Ningún cliente coincide"
+                  aria-label="Buscar cliente"
+                />
               </div>
 
-              <div className="checkbox-group">
+              <div className="vd-check">
                 <input
                   id="sin-cliente-mobile"
                   type="checkbox"
@@ -1171,13 +1257,14 @@ function NuevaVentaPanel({ refreshTrigger }) {
                 </label>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="notas-mobile">
-                  <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>notes</span>
+              <div className="ui-field vd-field">
+                <label htmlFor="notas-mobile" className="ui-label vd-label">
+                  <span className="material-icons-round" aria-hidden="true">notes</span>
                   Notas / Productos sin stock
                 </label>
                 <textarea
                   id="notas-mobile"
+                  className="ui-textarea"
                   value={notas}
                   onChange={(e) => setNotas(e.target.value)}
                   rows="3"
@@ -1187,29 +1274,22 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
               {/* ADMIN/OWNER ONLY: Asignar Vendedor */}
               {isAdminOrOwner && (
-                <div className="form-group">
-                  <label htmlFor="vendedor-select-mobile">
-                    <span className="material-icons-round" style={{ fontSize: '1rem', marginRight: '0.35rem', verticalAlign: 'middle' }}>badge</span>
-                    Asignar Vendedor <span style={{ color: '#ef4444' }}>*</span>
+                <div className="ui-field vd-field">
+                  <label id="vendedor-select-mobile-label" htmlFor="vendedor-select-mobile" className="ui-label vd-label">
+                    <span className="material-icons-round" aria-hidden="true">badge</span>
+                    Asignar Vendedor <span className="ui-required">*</span>
                   </label>
-                  <select
+                  {/* aria-labelledby: la lista se anuncia con la etiqueta sin el nombre del icono */}
+                  <SearchableSelect
                     id="vendedor-select-mobile"
                     value={assignedVendor}
                     onChange={(e) => setAssignedVendor(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                      fontSize: '0.95rem',
-                      background: assignedVendor ? '#f0fdf4' : 'white'
-                    }}
-                  >
-                    <option value="">-- Seleccionar vendedor --</option>
-                    {vendedores.map(v => (
-                      <option key={v.id} value={v.id}>{v.username}</option>
-                    ))}
-                  </select>
+                    options={vendedorOptions}
+                    placeholder="Selecciona un vendedor"
+                    searchPlaceholder="Buscar vendedor…"
+                    noResultsText="Ningún vendedor coincide"
+                    aria-labelledby="vendedor-select-mobile-label"
+                  />
                 </div>
               )}
 
@@ -1217,7 +1297,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
               <div className="cart-items">
                 {cart.length === 0 && promotionsCart.length === 0 ? (
                   <div className="empty-cart">
-                    <span className="material-icons-round" style={{ fontSize: '2.5rem', opacity: 0.5 }}>shopping_bag</span>
+                    <span className="material-icons-round" aria-hidden="true">shopping_bag</span>
                     <span>El carrito está vacío</span>
                   </div>
                 ) : (
@@ -1225,7 +1305,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                     {/* Regular Items */}
                     {cart.map(item => (
                       <div key={item.productId} className="cart-item">
-                        <div className="cart-item-avatar" aria-hidden="true">
+                        <div className={`cart-item-avatar ui-avatar ui-avatar--${avatarTone(item.nombre)}`} aria-hidden="true">
                           {(item.nombre || '?').trim().charAt(0).toUpperCase()}
                         </div>
                         <div className="cart-item-info">
@@ -1233,23 +1313,24 @@ function NuevaVentaPanel({ refreshTrigger }) {
                           <p>${formatCurrency(item.precio)} c/u</p>
                         </div>
                         <div className="cart-item-controls">
-                          <div>
-                            <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1))}>−</button>
+                          <div className="vd-stepper">
+                            <button type="button" onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1))} aria-label="Reducir cantidad">−</button>
                             <input
                               type="number"
                               value={item.cantidad}
                               onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0)}
                               min="1"
                               onWheel={(e) => e.target.blur()}
+                              aria-label={`Cantidad de ${item.nombre}`}
                             />
-                            <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)}>+</button>
+                            <button type="button" onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1)} aria-label="Aumentar cantidad">+</button>
                           </div>
                         </div>
                         <div className="cart-item-subtotal">
                           ${formatCurrency((parseFloat(item.precio) || 0) * (parseFloat(item.cantidad) || 0))}
                         </div>
-                        <button className="btn-remove" onClick={() => removeFromCart(item.productId)}>
-                          <span className="material-icons-round">delete_outline</span>
+                        <button type="button" className="vd-remove ui-icon-btn ui-icon-btn--danger" onClick={() => removeFromCart(item.productId)} aria-label="Eliminar del carrito">
+                          <span className="material-icons-round" aria-hidden="true">delete_outline</span>
                         </button>
                       </div>
                     ))}
@@ -1258,40 +1339,41 @@ function NuevaVentaPanel({ refreshTrigger }) {
                     {promotionsCart.map(promo => (
                       <div key={promo.cartId} className="cart-item promotion-item">
                         <div className="cart-item-info">
-                          <h5>🎁 {promo.nombre}</h5>
+                          <h5><span className="material-icons-round" aria-hidden="true">local_offer</span>{promo.nombre}</h5>
                           <p>${formatCurrency(parseFloat(promo.packPrice || 0))}</p>
                           {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
                         </div>
-                        <button className="btn-remove" onClick={() => removePromotionFromCart(promo.cartId)}>
-                          <span className="material-icons-round">delete_outline</span>
+                        <button type="button" className="vd-remove ui-icon-btn ui-icon-btn--danger" onClick={() => removePromotionFromCart(promo.cartId)} aria-label="Eliminar promoción">
+                          <span className="material-icons-round" aria-hidden="true">delete_outline</span>
                         </button>
                       </div>
                     ))}
 
                     {/* Bonified Items */}
                     {bonifiedCart.length > 0 && (
-                      <div style={{ marginTop: '1rem', borderTop: '2px solid #10b981', paddingTop: '1rem' }}>
-                        <h4 style={{ color: '#047857', marginBottom: '0.5rem', fontSize: '0.9rem' }}>🎁 Bonificaciones</h4>
+                      <div className="bonified-section">
+                        <h4 className="bonified-title"><span className="material-icons-round" aria-hidden="true">card_giftcard</span>Bonificaciones</h4>
                         {bonifiedCart.map(item => (
-                          <div key={item.productId} className="cart-item" style={{ background: 'white' }}>
+                          <div key={item.productId} className="cart-item cart-item--bonified">
                             <div className="cart-item-info">
                               <h5>{item.nombre}</h5>
-                              <p style={{ color: '#15803d', fontWeight: 'bold' }}>$0.00</p>
+                              <p className="vd-free-price">$0.00</p>
                             </div>
                             <div className="cart-item-controls">
-                              <div>
-                                <button onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1), true)}>−</button>
+                              <div className="vd-stepper">
+                                <button type="button" onClick={() => updateQuantity(item.productId, Math.max(0, (parseInt(item.cantidad) || 0) - 1), true)} aria-label="Reducir cantidad">−</button>
                                 <input
                                   type="number"
                                   value={item.cantidad}
                                   onChange={(e) => updateQuantity(item.productId, parseInt(e.target.value) || 0, true)}
                                   min="1"
                                   onWheel={(e) => e.target.blur()}
+                                  aria-label={`Cantidad de ${item.nombre}`}
                                 />
-                                <button onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)}>+</button>
+                                <button type="button" onClick={() => updateQuantity(item.productId, (parseInt(item.cantidad) || 0) + 1, true)} aria-label="Aumentar cantidad">+</button>
                               </div>
-                              <button className="btn-remove" onClick={() => removeFromCart(item.productId, true)}>
-                                <span className="material-icons-round">delete_outline</span>
+                              <button type="button" className="vd-remove ui-icon-btn ui-icon-btn--danger" onClick={() => removeFromCart(item.productId, true)} aria-label="Eliminar bonificado">
+                                <span className="material-icons-round" aria-hidden="true">delete_outline</span>
                               </button>
                             </div>
                           </div>
@@ -1301,32 +1383,34 @@ function NuevaVentaPanel({ refreshTrigger }) {
                   </>
                 )}
               </div>
-
-              <div className="mobile-cart-actions">
-                <div className="cart-total">
-                  Total: <span style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 900 }}>${formatCurrency(calculateTotal())}</span>
-                </div>
-
-                <button
-                  className="btn-finalizar-venta"
-                  onClick={async () => {
-                    // El carrito se cierra solo cuando la venta quedó registrada; mientras tanto
-                    // el botón queda deshabilitado mostrando "Registrando…"
-                    if (await handleSubmitOrder()) setShowMobileCart(false);
-                  }}
-                  disabled={
-                    submitting ||
-                    (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
-                    (!selectedClient && !allowNoClient) ||
-                    cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
-                    cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
-                  }
-                >
-                  <span className="material-icons-round" style={{ fontSize: '1.2rem' }}>check_circle</span>
-                  {submitting ? 'Registrando…' : 'Finalizar Venta'}
-                </button>
-              </div>
             </div>
+          </div>
+
+          {/* Pie fijo: total + "Finalizar Venta" siempre visibles mientras se revisa el carrito */}
+          <div className="mobile-cart-actions ui-modal-footer">
+            <div className="cart-total">
+              Total: <span className="cart-total-amount">${formatCurrency(calculateTotal())}</span>
+            </div>
+
+            <button
+              type="button"
+              className="btn-finalizar-venta ui-btn ui-btn--primary ui-btn--lg"
+              onClick={async () => {
+                // El carrito se cierra solo cuando la venta quedó registrada; mientras tanto
+                // el botón queda deshabilitado mostrando "Registrando…"
+                if (await handleSubmitOrder()) setShowMobileCart(false);
+              }}
+              disabled={
+                submitting ||
+                (cart.length === 0 && promotionsCart.length === 0 && bonifiedCart.length === 0) ||
+                (!selectedClient && !allowNoClient) ||
+                cart.some(i => (parseFloat(i.cantidad) || 0) <= 0) ||
+                cart.some(i => i.cantidad > i.stockDisponible && !i.allowOutOfStock)
+              }
+            >
+              <span className="material-icons-round" aria-hidden="true">check_circle</span>
+              {submitting ? 'Registrando…' : 'Finalizar Venta'}
+            </button>
           </div>
         </div>
       </div>
@@ -1388,51 +1472,56 @@ function VentasCompletadasPanel() {
     });
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return <PanelSkeleton label="Cargando ventas completadas" />;
   }
 
   return (
     <div className="ventas-completadas-panel">
-      <h2><span className="material-icons-round" style={{ color: 'var(--success)', verticalAlign: 'middle' }}>check_circle</span> Ventas Completadas</h2>
+      <header className="ui-page-header vd-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title"><span className="material-icons-round" aria-hidden="true">check_circle</span> Ventas Completadas</h2>
+        </div>
+      </header>
 
-      <div className="ventas-filter-toolbar">
-        <div className="ventas-search-container">
-          <span className="material-icons-round ventas-search-icon">search</span>
+      <div className="ventas-filter-toolbar ui-toolbar">
+        <div className="ventas-search-container ui-search">
+          <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
           <input
             type="text"
-            className="ventas-search-input"
+            className="ventas-search-input ui-input"
             placeholder="Buscar por cliente, factura, pedido (P-123), producto, estado, nota..."
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(0); }}
+            aria-label="Buscar ventas completadas"
           />
           {searchTerm && (
-            <button className="ventas-search-clear" onClick={() => { setSearchTerm(''); setCurrentPage(0); }}>
-              <span className="material-icons-round">close</span>
+            <button type="button" className="ui-icon-btn ui-search-clear" onClick={() => { setSearchTerm(''); setCurrentPage(0); }} aria-label="Limpiar búsqueda">
+              <span className="material-icons-round" aria-hidden="true">close</span>
             </button>
           )}
         </div>
-        <div className="ventas-date-container" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }} title="Filtrar por fecha de completado">event</span>
+        <div className="ventas-date-container vd-filter">
+          <span className="material-icons-round vd-filter-icon" title="Filtrar por fecha de completado">event</span>
           <input
             type="date"
-            className="ventas-date-input"
+            className="ventas-date-input ui-input"
             value={filterDate}
             onChange={e => { setFilterDate(e.target.value); setCurrentPage(0); }}
             title="Mostrar solo ventas completadas en esta fecha exacta"
-            style={{ padding: '0.5rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '0.9rem' }}
           />
           {filterDate && (
-            <button className="ventas-search-clear" onClick={() => { setFilterDate(''); setCurrentPage(0); }} title="Limpiar fecha">
-              <span className="material-icons-round">close</span>
+            <button type="button" className="ui-icon-btn" onClick={() => { setFilterDate(''); setCurrentPage(0); }} title="Limpiar fecha">
+              <span className="material-icons-round" aria-hidden="true">close</span>
             </button>
           )}
         </div>
-        <div className="ventas-sort-container">
-          <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }}>sort</span>
+        <div className="ventas-sort-container vd-filter">
+          <span className="material-icons-round vd-filter-icon" aria-hidden="true">sort</span>
           <select
-            className="ventas-sort-select"
+            className="ventas-sort-select ui-select"
             value={dateSort}
             onChange={e => setDateSort(e.target.value)}
+            aria-label="Ordenar por fecha"
           >
             <option value="desc">Más recientes primero</option>
             <option value="asc">Más antiguas primero</option>
@@ -1441,33 +1530,44 @@ function VentasCompletadasPanel() {
       </div>
 
       {filteredAndSortedOrders.length === 0 ? (
-        <div className="empty-state">
-          <p>{(searchTerm || filterDate) ? 'No se encontraron ventas con esos filtros' : 'No tienes ventas completadas aún'}</p>
+        <div className="ui-empty vd-list-empty">
+          <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
+          <p className="ui-empty-text">{(searchTerm || filterDate) ? 'No se encontraron ventas con esos filtros' : 'No tienes ventas completadas aún'}</p>
         </div>
       ) : (
-        <div className="ventas-list">
+        <div className="ventas-list ui-stagger">
           {filteredAndSortedOrders.map(order => (
-            <div key={order.id} className={`venta-card completed payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
+            <div key={order.id} className={`venta-card completed ui-stripe ui-stripe--success payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
                 <span className="venta-id">{formatOrderLabel(order)}</span>
-                <span className="venta-status status-completado">
-                  <span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span> COMPLETADO
+                <span className="venta-status status-completado ui-badge ui-badge--success">
+                  <span className="material-icons-round" aria-hidden="true">check_circle</span> COMPLETADO
                 </span>
               </div>
 
               <div className="venta-info">
-                <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
+                <p>
+                  <strong>Cliente:</strong>{' '}
+                  <span className="venta-client">
+                    {order.cliente && (
+                      <span className={`ui-avatar ui-avatar--sm ui-avatar--${avatarTone(order.cliente)} venta-client-avatar`} aria-hidden="true">
+                        {avatarInitials(order.cliente)}
+                      </span>
+                    )}
+                    {order.cliente || 'Sin cliente'}
+                  </span>
+                </p>
                 <p>
                   <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
                   {order.estado === 'COMPLETADO' && order.completedAt
                     ? new Date(order.completedAt).toLocaleDateString('es-ES')
                     : new Date(order.fecha).toLocaleString()}
                 </p>
-                <p><strong>Total:</strong> ${formatCurrency(parseFloat(order.total))}</p>
+                <p className="venta-total-row"><strong>Total:</strong> <span className="venta-total ui-amount--success">${formatCurrency(parseFloat(order.total))}</span></p>
 
                 {order.notas && (
                   <div className="venta-notes">
-                    <strong><span className="material-icons-round" style={{ fontSize: '14px' }}>note</span> Notes:</strong>
+                    <strong><span className="material-icons-round" aria-hidden="true">note</span> Notes:</strong>
                     <p>{order.notas}</p>
                   </div>
                 )}
@@ -1489,40 +1589,42 @@ function VentasCompletadasPanel() {
       )}
       {/* ─ PAGINACIÓN VENTAS COMPLETADAS ─ */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', padding: '1rem 0 0.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+        <nav className="vd-pagination" aria-label="Paginación">
+          <div className="vd-pagination-size">
             Mostrar
             <select
+              className="ui-select vd-pagination-select"
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
-              style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.82rem' }}
+              aria-label="Ventas por página"
             >
               {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             por página &bull; {totalElements} total
           </div>
-          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
-              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage === 0 ? 'var(--bg-secondary)' : 'white', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
-              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_left</span>
+          <div className="vd-pagination-pages">
+            <button type="button" className="ui-icon-btn ui-icon-btn--bordered" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
+              aria-label="Página anterior">
+              <span className="material-icons-round" aria-hidden="true">chevron_left</span>
             </button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
               const pageNum = start + i;
               return (
-                <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
-                  style={{ padding: '0.3rem 0.55rem', border: '1px solid var(--border)', borderRadius: '6px', background: pageNum === currentPage ? 'var(--primary)' : 'white', color: pageNum === currentPage ? 'white' : 'var(--text-primary)', fontWeight: pageNum === currentPage ? 700 : 400, cursor: 'pointer', minWidth: '32px', fontSize: '0.82rem' }}>
+                <button type="button" key={pageNum} onClick={() => setCurrentPage(pageNum)}
+                  className={`vd-page-btn ${pageNum === currentPage ? 'is-active' : ''}`}
+                  aria-current={pageNum === currentPage ? 'page' : undefined}>
                   {pageNum + 1}
                 </button>
               );
             })}
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
-              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white', cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer', color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
-              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_right</span>
+            <button type="button" className="ui-icon-btn ui-icon-btn--bordered" onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
+              aria-label="Página siguiente">
+              <span className="material-icons-round" aria-hidden="true">chevron_right</span>
             </button>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Pág. {currentPage + 1}/{totalPages}</span>
+            <span className="vd-pagination-info">Pág. {currentPage + 1}/{totalPages}</span>
           </div>
-        </div>
+        </nav>
       )}
     </div>
   );
@@ -1572,70 +1674,80 @@ function ClientesPanel() {
   });
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return <PanelSkeleton label="Cargando clientes" variant="clients" />;
   }
 
   return (
     <div className="clientes-panel">
-      <div className="panel-header">
-        <h2><span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>people</span> Clientes</h2>
-        <button className="btn-add" onClick={() => setShowModal(true)}>
-          + Nuevo Cliente
-        </button>
-      </div>
+      <header className="ui-page-header vd-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title"><span className="material-icons-round" aria-hidden="true">people</span> Clientes</h2>
+        </div>
+        <div className="ui-page-actions">
+          <button type="button" className="ui-btn ui-btn--primary vd-page-cta" onClick={() => setShowModal(true)}>
+            + Nuevo Cliente
+          </button>
+        </div>
+      </header>
 
       {/* Modal de Detalle de Venta */}
-      <div className="search-container" style={{ marginBottom: '1rem' }}>
-        <span className="material-icons-round search-icon">search</span>
-        <input
-          type="text"
-          placeholder="Buscar por nombre, administrador o representante legal..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-          style={{ width: '100%', maxWidth: '400px' }}
-        />
+      <div className="ui-toolbar vd-list-toolbar">
+        <div className="ui-search">
+          <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
+          <input
+            type="text"
+            placeholder="Buscar por nombre, administrador o representante legal..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="ui-input"
+            aria-label="Buscar clientes"
+          />
+        </div>
       </div>
 
-      <div className="clientes-grid">
+      <div className="clientes-grid ui-stagger">
         {filteredClients.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-            <span className="material-icons-round" style={{ fontSize: '3rem', opacity: 0.3 }}>person_search</span>
-            <p style={{ marginTop: '0.5rem' }}>No se encontraron clientes</p>
+          <div className="ui-empty vd-grid-empty">
+            <span className="material-icons-round ui-empty-icon" aria-hidden="true">person_search</span>
+            <p className="ui-empty-text">No se encontraron clientes</p>
           </div>
         ) : (
           filteredClients.map(cliente => (
             <div key={cliente.id} className="cliente-card">
-              <h3>{cliente.nombre}</h3>
-              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>email</span> {cliente.email}</p>
-              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>phone</span> {cliente.telefono}</p>
-              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>place</span> {cliente.direccion || 'Sin dirección'}</p>
-              <p><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>home_work</span> {cliente.nit}</p>
+              <div className="cliente-card-head">
+                <span className={`ui-avatar ui-avatar--${avatarTone(cliente.nombre)}`} aria-hidden="true">
+                  {avatarInitials(cliente.nombre)}
+                </span>
+                <h3>{cliente.nombre}</h3>
+              </div>
+              {/* Contacto con icono de color por categoría; el dato vacío en texto tenue */}
+              <ul className="ui-info-list cliente-info">
+                <li className={`ui-info-row${cliente.email ? '' : ' is-empty'}`}>
+                  <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true"><span className="material-icons-round">email</span></span>
+                  <span>{cliente.email || 'Sin correo'}</span>
+                </li>
+                <li className={`ui-info-row${cliente.telefono ? '' : ' is-empty'}`}>
+                  <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true"><span className="material-icons-round">phone</span></span>
+                  <span>{cliente.telefono || 'Sin teléfono'}</span>
+                </li>
+                <li className={`ui-info-row${cliente.direccion ? '' : ' is-empty'}`}>
+                  <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--warning" aria-hidden="true"><span className="material-icons-round">place</span></span>
+                  <span>{cliente.direccion || 'Sin dirección'}</span>
+                </li>
+                <li className={`ui-info-row${cliente.nit ? '' : ' is-empty'}`}>
+                  <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--teal" aria-hidden="true"><span className="material-icons-round">home_work</span></span>
+                  <span>{cliente.nit || 'Sin NIT'}</span>
+                </li>
+              </ul>
               <div className="cliente-stats">
-                <span><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>shopping_bag</span> Compras: ${formatCurrency(parseFloat(cliente.totalCompras || 0))}</span>
+                <span><span className="material-icons-round" aria-hidden="true">shopping_bag</span> Compras: <span className="ui-amount--success">${formatCurrency(parseFloat(cliente.totalCompras || 0))}</span></span>
               </div>
               <button
-                className="btn-edit-client"
+                type="button"
+                className="btn-edit-client ui-btn ui-btn--secondary ui-btn--sm ui-btn--block"
                 onClick={() => handleEdit(cliente)}
-                style={{
-                  marginTop: '12px',
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '8px 16px',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
               >
-                <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span>
+                <span className="material-icons-round" aria-hidden="true">edit</span>
                 Editar
               </button>
             </div>
@@ -1700,119 +1812,165 @@ function ClientFormModal({ onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Nuevo Cliente</h3>
-          <button className="btn-close" onClick={onClose}><span className="material-icons-round">close</span></button>
+    <div className="ui-modal-overlay vd-modal-overlay" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="ui-modal ui-modal--md"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vd-client-new-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ui-modal-header">
+          <span className="ui-modal-icon" aria-hidden="true">
+            <span className="material-icons-round">person_add</span>
+          </span>
+          <div className="ui-modal-heading">
+            <h3 id="vd-client-new-title" className="ui-modal-title">Nuevo Cliente</h3>
+            <p className="ui-modal-subtitle">Datos del establecimiento y de contacto.</p>
+          </div>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
+          </button>
         </div>
 
-        {/* Información sobre credenciales del cliente */}
-        <div className="client-credentials-info" style={{
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          margin: '0 0 16px 0',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '10px'
-        }}>
-          <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '20px', marginTop: '2px' }}>info</span>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            <strong style={{ color: 'var(--text-primary)' }}>Credenciales del cliente:</strong>
-            <br />
-            El cliente podrá acceder al sistema usando su <strong>NIT</strong> como usuario y contraseña.
-          </div>
-        </div>
+        <form onSubmit={handleSubmit} className="client-form vd-modal-form">
+          <div className="ui-modal-body">
+            {/* Información sobre credenciales del cliente */}
+            <div className="client-credentials-info ui-alert ui-alert--info">
+              <span className="material-icons-round" aria-hidden="true">info</span>
+              <div>
+                <strong className="ui-alert-title">Credenciales del cliente:</strong>
+                El cliente podrá acceder al sistema usando su <strong>NIT</strong> como usuario y contraseña.
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit} className="client-form">
-          <div className="form-group">
-            <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.nit}
-              onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
-              placeholder="Ej: 123456789"
-              required
-            />
-            <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-              <span className="material-icons-round" style={{ fontSize: '12px', verticalAlign: 'middle', marginRight: '4px' }}>vpn_key</span>
-              Este será el usuario y contraseña del cliente
-            </small>
+            <section className="ui-section">
+              <div className="ui-section-head">
+                <span className="ui-icon-tile ui-icon-tile--primary" aria-hidden="true">
+                  <span className="material-icons-round">storefront</span>
+                </span>
+                <div>
+                  <h4 className="ui-section-title">Establecimiento</h4>
+                  <p className="ui-section-desc">Identificación y responsables del negocio.</p>
+                </div>
+              </div>
+              <div className="ui-grid">
+                <div className="ui-field ui-span-full">
+                  <label className="ui-label" htmlFor="vd-new-nit">NIT <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-new-nit"
+                    className="ui-input"
+                    type="text"
+                    value={formData.nit}
+                    onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+                    placeholder="Ej: 123456789"
+                    required
+                  />
+                  <small className="ui-help vd-help">
+                    <span className="material-icons-round" aria-hidden="true">vpn_key</span>
+                    Este será el usuario y contraseña del cliente
+                  </small>
+                </div>
+
+                <div className="ui-field ui-span-full">
+                  <label className="ui-label" htmlFor="vd-new-nombre">Nombre de Establecimiento <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-new-nombre"
+                    className="ui-input"
+                    type="text"
+                    value={formData.nombre}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                    placeholder="Nombre del establecimiento"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-new-admin">Administrador <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-new-admin"
+                    className="ui-input"
+                    type="text"
+                    value={formData.administrador}
+                    onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+                    placeholder="Nombre del administrador"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-new-rep">Representante Legal <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-new-rep"
+                    className="ui-input"
+                    type="text"
+                    value={formData.representanteLegal}
+                    onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+                    placeholder="Nombre del representante legal"
+                    required
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="ui-section">
+              <div className="ui-section-head">
+                <span className="ui-icon-tile ui-icon-tile--success" aria-hidden="true">
+                  <span className="material-icons-round">contact_phone</span>
+                </span>
+                <div>
+                  <h4 className="ui-section-title">Contacto</h4>
+                  <p className="ui-section-desc">Para comunicarte con el cliente y entregar los pedidos.</p>
+                </div>
+              </div>
+              <div className="ui-grid">
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-new-email">Email <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-new-email"
+                    className="ui-input"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="correo@ejemplo.com"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-new-tel">Teléfono <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-new-tel"
+                    className="ui-input"
+                    type="tel"
+                    value={formData.telefono}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    placeholder="Número de teléfono"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field ui-span-full">
+                  <label className="ui-label" htmlFor="vd-new-dir">Dirección <span className="ui-required">*</span></label>
+                  <textarea
+                    id="vd-new-dir"
+                    className="ui-textarea"
+                    value={formData.direccion}
+                    onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                    rows="2"
+                    placeholder="Dirección del cliente"
+                    required
+                  />
+                </div>
+              </div>
+            </section>
           </div>
 
-          <div className="form-group">
-            <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              placeholder="Nombre del establecimiento"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.administrador}
-              onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
-              placeholder="Nombre del administrador"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.representanteLegal}
-              onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
-              placeholder="Nombre del representante legal"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Email <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="correo@ejemplo.com"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Teléfono <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="tel"
-              value={formData.telefono}
-              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              placeholder="Número de teléfono"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Dirección <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <textarea
-              value={formData.direccion}
-              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-              rows="2"
-              placeholder="Dirección del cliente"
-              required
-            />
-          </div>
-
-          <div className="form-actions">
-            <button type="button" onClick={onClose} className="btn-cancel">
+          <div className="ui-modal-footer">
+            <button type="button" onClick={onClose} className="ui-btn ui-btn--secondary">
               Cancelar
             </button>
-            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim()} className="btn-save">
+            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim()} className="ui-btn ui-btn--primary">
               {saving ? 'Guardando...' : 'Crear Cliente'}
             </button>
           </div>
@@ -1855,96 +2013,151 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.stopPropagation()}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>
-            <span className="material-icons-round" style={{ fontSize: '20px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--primary)' }}>edit</span>
-            Editar Cliente
-          </h3>
-          <button className="btn-close" onClick={onClose}><span className="material-icons-round">close</span></button>
+    <div className="ui-modal-overlay vd-modal-overlay" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="ui-modal ui-modal--md"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vd-client-edit-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ui-modal-header">
+          <span className="ui-modal-icon" aria-hidden="true">
+            <span className="material-icons-round">edit</span>
+          </span>
+          <div className="ui-modal-heading">
+            <h3 id="vd-client-edit-title" className="ui-modal-title">
+              Editar Cliente
+            </h3>
+            <p className="ui-modal-subtitle">{clientData.nombre}</p>
+          </div>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="client-form">
-          <div className="form-group">
-            <label>NIT <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.nit}
-              onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
-              placeholder="Ej: 123456789"
-              required
-            />
+        <form onSubmit={handleSubmit} className="client-form vd-modal-form">
+          <div className="ui-modal-body">
+            <section className="ui-section">
+              <div className="ui-section-head">
+                <span className="ui-icon-tile ui-icon-tile--primary" aria-hidden="true">
+                  <span className="material-icons-round">storefront</span>
+                </span>
+                <div>
+                  <h4 className="ui-section-title">Establecimiento</h4>
+                  <p className="ui-section-desc">Identificación y responsables del negocio.</p>
+                </div>
+              </div>
+              <div className="ui-grid">
+                <div className="ui-field ui-span-full">
+                  <label className="ui-label" htmlFor="vd-edit-nit">NIT <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-edit-nit"
+                    className="ui-input"
+                    type="text"
+                    value={formData.nit}
+                    onChange={(e) => setFormData({ ...formData, nit: e.target.value })}
+                    placeholder="Ej: 123456789"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field ui-span-full">
+                  <label className="ui-label" htmlFor="vd-edit-nombre">Nombre de Establecimiento <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-edit-nombre"
+                    className="ui-input"
+                    type="text"
+                    value={formData.nombre}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                    placeholder="Nombre del establecimiento"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-edit-admin">Administrador <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-edit-admin"
+                    className="ui-input"
+                    type="text"
+                    value={formData.administrador}
+                    onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
+                    placeholder="Nombre del administrador"
+                    required
+                  />
+                </div>
+
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-edit-rep">Representante Legal <span className="ui-required">*</span></label>
+                  <input
+                    id="vd-edit-rep"
+                    className="ui-input"
+                    type="text"
+                    value={formData.representanteLegal}
+                    onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
+                    placeholder="Nombre del representante legal"
+                    required
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="ui-section">
+              <div className="ui-section-head">
+                <span className="ui-icon-tile ui-icon-tile--success" aria-hidden="true">
+                  <span className="material-icons-round">contact_phone</span>
+                </span>
+                <div>
+                  <h4 className="ui-section-title">Contacto</h4>
+                  <p className="ui-section-desc">Para comunicarte con el cliente y entregar los pedidos.</p>
+                </div>
+              </div>
+              <div className="ui-grid">
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-edit-email">Email</label>
+                  <input
+                    id="vd-edit-email"
+                    className="ui-input"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="correo@ejemplo.com (Opcional)"
+                  />
+                </div>
+
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="vd-edit-tel">Teléfono</label>
+                  <input
+                    id="vd-edit-tel"
+                    className="ui-input"
+                    type="tel"
+                    value={formData.telefono}
+                    onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+                    placeholder="Número de teléfono (Opcional)"
+                  />
+                </div>
+
+                <div className="ui-field ui-span-full">
+                  <label className="ui-label" htmlFor="vd-edit-dir">Dirección</label>
+                  <textarea
+                    id="vd-edit-dir"
+                    className="ui-textarea"
+                    value={formData.direccion}
+                    onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                    rows="2"
+                    placeholder="Dirección del cliente (Opcional)"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
 
-          <div className="form-group">
-            <label>Nombre de Establecimiento <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              placeholder="Nombre del establecimiento"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Administrador <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.administrador}
-              onChange={(e) => setFormData({ ...formData, administrador: e.target.value })}
-              placeholder="Nombre del administrador"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Representante Legal <span style={{ color: '#ef4444', fontWeight: 'bold' }}>*</span></label>
-            <input
-              type="text"
-              value={formData.representanteLegal}
-              onChange={(e) => setFormData({ ...formData, representanteLegal: e.target.value })}
-              placeholder="Nombre del representante legal"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="correo@ejemplo.com (Opcional)"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Teléfono</label>
-            <input
-              type="tel"
-              value={formData.telefono}
-              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              placeholder="Número de teléfono (Opcional)"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Dirección</label>
-            <textarea
-              value={formData.direccion}
-              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-              rows="2"
-              placeholder="Dirección del cliente (Opcional)"
-            />
-          </div>
-
-          <div className="form-actions">
-            <button type="button" onClick={onClose} className="btn-cancel">
+          <div className="ui-modal-footer">
+            <button type="button" onClick={onClose} className="ui-btn ui-btn--secondary">
               Cancelar
             </button>
-            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim()} className="btn-save">
+            <button type="submit" disabled={saving || !formData.nit.trim() || !formData.nombre.trim() || !formData.administrador.trim() || !formData.representanteLegal.trim()} className="ui-btn ui-btn--primary">
               {saving ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
@@ -2006,35 +2219,41 @@ function MisVentasPanel() {
     });
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return <PanelSkeleton label="Cargando mis ventas" />;
   }
 
   return (
     <div className="mis-ventas-panel">
-      <h2><span className="material-icons-round" style={{ verticalAlign: 'middle' }}>receipt_long</span> Mis Ventas (En Progreso)</h2>
+      <header className="ui-page-header vd-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title"><span className="material-icons-round" aria-hidden="true">receipt_long</span> Mis Ventas (En Progreso)</h2>
+        </div>
+      </header>
 
-      <div className="ventas-filter-toolbar">
-        <div className="ventas-search-container">
-          <span className="material-icons-round ventas-search-icon">search</span>
+      <div className="ventas-filter-toolbar ui-toolbar">
+        <div className="ventas-search-container ui-search">
+          <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
           <input
             type="text"
-            className="ventas-search-input"
+            className="ventas-search-input ui-input"
             placeholder="Buscar por cliente, factura, pedido (P-123), producto, estado, nota..."
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(0); }}
+            aria-label="Buscar mis ventas"
           />
           {searchTerm && (
-            <button className="ventas-search-clear" onClick={() => { setSearchTerm(''); setCurrentPage(0); }}>
-              <span className="material-icons-round">close</span>
+            <button type="button" className="ui-icon-btn ui-search-clear" onClick={() => { setSearchTerm(''); setCurrentPage(0); }} aria-label="Limpiar búsqueda">
+              <span className="material-icons-round" aria-hidden="true">close</span>
             </button>
           )}
         </div>
-        <div className="ventas-sort-container">
-          <span className="material-icons-round" style={{ color: 'var(--text-muted)', fontSize: '18px' }}>sort</span>
+        <div className="ventas-sort-container vd-filter">
+          <span className="material-icons-round vd-filter-icon" aria-hidden="true">sort</span>
           <select
-            className="ventas-sort-select"
+            className="ventas-sort-select ui-select"
             value={dateSort}
             onChange={e => setDateSort(e.target.value)}
+            aria-label="Ordenar por fecha"
           >
             <option value="desc">Más recientes primero</option>
             <option value="asc">Más antiguas primero</option>
@@ -2043,45 +2262,63 @@ function MisVentasPanel() {
       </div>
 
       {filteredAndSortedOrders.length === 0 ? (
-        <div className="empty-state">
-          <p>{searchTerm ? 'No se encontraron ventas con esa búsqueda' : 'No tienes ventas en proceso'}</p>
+        <div className="ui-empty vd-list-empty">
+          <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
+          <p className="ui-empty-text">{searchTerm ? 'No se encontraron ventas con esa búsqueda' : 'No tienes ventas en proceso'}</p>
         </div>
       ) : (
-        <div className="ventas-list">
+        <div className="ventas-list ui-stagger">
           {filteredAndSortedOrders.map(order => (
-            <div key={order.id} className={`venta-card ${order.isSROrder ? 'is-sr' : 'is-normal'} payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
+            <div key={order.id} className={`venta-card ui-stripe ui-stripe--${estadoTone(order.estado)} ${order.isSROrder ? 'is-sr' : 'is-normal'} payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem 0.75rem', flexWrap: 'wrap' }}>
+                <div className="venta-header-main">
                   <span className="venta-id">
                     {formatOrderLabel(order)}
                   </span>
                   {order.isSROrder && (
-                    <span className="tag-badge tag-sr" style={{ padding: '0.15rem 0.5rem', fontSize: '0.65rem' }}>S/N</span>
+                    <span className="tag-badge tag-sr">S/N</span>
                   )}
                 </div>
-                <span className={`venta-status status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
+                <span className={`venta-status ui-badge status-${order.estado ? order.estado.toLowerCase() : 'pendiente'}`}>
                   {order.estado === 'PENDING_PROMOTION_COMPLETION' ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span className="material-icons-round" style={{ fontSize: '14px' }}>warning_amber</span>
+                    <span className="venta-status-inline">
+                      <span className="material-icons-round" aria-hidden="true">warning_amber</span>
                       PENDIENTE SURTIDO
                     </span>
-                  ) : (order.estado || 'PENDIENTE')}
+                  ) : (
+                    <>
+                      {ESTADO_ICON[order.estado || 'PENDIENTE'] && (
+                        <span className="material-icons-round" aria-hidden="true">{ESTADO_ICON[order.estado || 'PENDIENTE']}</span>
+                      )}
+                      {order.estado || 'PENDIENTE'}
+                    </>
+                  )}
                 </span>
               </div>
 
               <div className="venta-info">
-                <p><strong>Cliente:</strong> {order.cliente || 'Sin cliente'}</p>
+                <p>
+                  <strong>Cliente:</strong>{' '}
+                  <span className="venta-client">
+                    {order.cliente && (
+                      <span className={`ui-avatar ui-avatar--sm ui-avatar--${avatarTone(order.cliente)} venta-client-avatar`} aria-hidden="true">
+                        {avatarInitials(order.cliente)}
+                      </span>
+                    )}
+                    {order.cliente || 'Sin cliente'}
+                  </span>
+                </p>
                 <p>
                   <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
                   {order.estado === 'COMPLETADO' && order.completedAt
                     ? new Date(order.completedAt).toLocaleDateString('es-ES')
                     : new Date(order.fecha).toLocaleString()}
                 </p>
-                <p><strong>Total:</strong> ${formatCurrency(parseFloat(order.total))}</p>
+                <p className="venta-total-row"><strong>Total:</strong> <span className="venta-total ui-amount--success">${formatCurrency(parseFloat(order.total))}</span></p>
 
                 {order.notas && (
                   <div className="venta-notes">
-                    <strong><span className="material-icons-round" style={{ fontSize: '14px' }}>note</span> Notes:</strong>
+                    <strong><span className="material-icons-round" aria-hidden="true">note</span> Notes:</strong>
                     <p>{order.notas}</p>
                   </div>
                 )}
@@ -2092,19 +2329,19 @@ function MisVentasPanel() {
                 <ul>
                   {order.items.map((item, idx) => (
                     <li key={idx}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div className="venta-item">
                         <div>
                           {item.productName} - {item.cantidad} x ${formatCurrency(parseFloat(item.precioUnitario))}
                         </div>
-                        <div className="order-item-badges" style={{ marginTop: '2px', gap: '0.25rem', display: 'flex', flexWrap: 'wrap' }}>
+                        <div className="venta-item-badges">
                           {item.outOfStock && (
-                            <span className="tag-badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontSize: '0.7rem', padding: '0 0.3rem' }}>Sin Stock</span>
+                            <span className="ui-badge ui-badge--danger">Sin Stock</span>
                           )}
                           {item.isPromotionItem && (
-                            <span className="tag-badge" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #93c5fd', fontSize: '0.7rem', padding: '0 0.3rem' }}>Promo</span>
+                            <span className="ui-badge ui-badge--primary">Promo</span>
                           )}
                           {item.isFreeItem && (
-                            <span className="tag-badge" style={{ background: '#ecfdf5', color: '#059669', border: '1px solid #6ee7b7', fontSize: '0.7rem', padding: '0 0.3rem' }}>Bonificado</span>
+                            <span className="ui-badge ui-badge--success">Bonificado</span>
                           )}
                         </div>
                       </div>
@@ -2118,40 +2355,42 @@ function MisVentasPanel() {
       )}
       {/* ─ PAGINACIÓN MIS VENTAS ─ */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', padding: '1rem 0 0.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+        <nav className="vd-pagination" aria-label="Paginación">
+          <div className="vd-pagination-size">
             Mostrar
             <select
+              className="ui-select vd-pagination-select"
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
-              style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.82rem' }}
+              aria-label="Ventas por página"
             >
               {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             por página &bull; {totalElements} total
           </div>
-          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
-              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage === 0 ? 'var(--bg-secondary)' : 'white', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
-              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_left</span>
+          <div className="vd-pagination-pages">
+            <button type="button" className="ui-icon-btn ui-icon-btn--bordered" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
+              aria-label="Página anterior">
+              <span className="material-icons-round" aria-hidden="true">chevron_left</span>
             </button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               const start = Math.max(0, Math.min(currentPage - 2, totalPages - 5));
               const pageNum = start + i;
               return (
-                <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
-                  style={{ padding: '0.3rem 0.55rem', border: '1px solid var(--border)', borderRadius: '6px', background: pageNum === currentPage ? 'var(--primary)' : 'white', color: pageNum === currentPage ? 'white' : 'var(--text-primary)', fontWeight: pageNum === currentPage ? 700 : 400, cursor: 'pointer', minWidth: '32px', fontSize: '0.82rem' }}>
+                <button type="button" key={pageNum} onClick={() => setCurrentPage(pageNum)}
+                  className={`vd-page-btn ${pageNum === currentPage ? 'is-active' : ''}`}
+                  aria-current={pageNum === currentPage ? 'page' : undefined}>
                   {pageNum + 1}
                 </button>
               );
             })}
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
-              style={{ padding: '0.3rem 0.6rem', border: '1px solid var(--border)', borderRadius: '6px', background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white', cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer', color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
-              <span className="material-icons-round" style={{ fontSize: '16px' }}>chevron_right</span>
+            <button type="button" className="ui-icon-btn ui-icon-btn--bordered" onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
+              aria-label="Página siguiente">
+              <span className="material-icons-round" aria-hidden="true">chevron_right</span>
             </button>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Pág. {currentPage + 1}/{totalPages}</span>
+            <span className="vd-pagination-info">Pág. {currentPage + 1}/{totalPages}</span>
           </div>
-        </div>
+        </nav>
       )}
     </div>
   );
@@ -2208,24 +2447,27 @@ function ProductosPanel() {
   });
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return <PanelSkeleton label="Cargando productos" variant="products" count={6} />;
   }
 
   return (
     <div className="productos-catalogo">
-      <div className="panel-header-catalogo">
-        <h2><span className="material-icons-round" style={{ fontSize: '32px', verticalAlign: 'middle' }}>inventory_2</span> Catálogo de Productos</h2>
-        <div className="search-container-catalogo">
-          <span className="material-icons-round search-icon">search</span>
+      <header className="ui-page-header vd-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title"><span className="material-icons-round" aria-hidden="true">inventory_2</span> Catálogo de Productos</h2>
+        </div>
+        <div className="ui-search vd-header-search">
+          <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
           <input
             type="text"
             placeholder="Buscar productos..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input-catalogo"
+            className="ui-input"
+            aria-label="Buscar productos"
           />
         </div>
-      </div>
+      </header>
 
       <TagFilterBar
         tags={tags}
@@ -2234,7 +2476,13 @@ function ProductosPanel() {
         onClear={() => setActiveTagId(null)}
       />
 
-      <div className="productos-grid-catalogo">
+      <div className="productos-grid-catalogo ui-stagger">
+        {filteredProducts.length === 0 && (
+          <div className="ui-empty vd-grid-empty">
+            <span className="material-icons-round ui-empty-icon" aria-hidden="true">inventory_2</span>
+            <p className="ui-empty-text">No se encontraron productos</p>
+          </div>
+        )}
         {filteredProducts.map(product => (
           <div key={product.id} className="producto-card">
             {/* ✅ IMAGEN CORREGIDA */}
@@ -2247,17 +2495,18 @@ function ProductosPanel() {
                   e.target.src = PLACEHOLDER_IMAGE;
                 }}
                 loading="lazy"
+                decoding="async"
               />
             </div>
             <div className="producto-info">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <h3 style={{ margin: 0 }}>{product.nombre}</h3>
+              <div className="producto-title-row">
+                <h3>{product.nombre}</h3>
                 {product.tagName && <TagBadge tagName={product.tagName} />}
               </div>
               <p className="producto-descripcion">{product.descripcion}</p>
               <div className="producto-details">
                 <span className="producto-precio">${formatCurrency(product.precio)}</span>
-                <span className={`producto-stock ${product.stock <= 5 ? 'low' : ''}`}>
+                <span className={`producto-stock ui-badge ${product.stock <= 5 ? 'low ui-badge--danger' : 'ui-badge--success'}`}>
                   Stock: {product.stock}
                 </span>
               </div>
@@ -2342,7 +2591,7 @@ function MisMetasPanel() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success('✅ Reporte Excel descargado exitosamente');
+      toast.success('Reporte Excel descargado exitosamente');
     } catch (err) {
       console.error('Error al descargar Excel:', err);
       toast.error('Error al descargar el reporte Excel');
@@ -2352,149 +2601,163 @@ function MisMetasPanel() {
   };
 
   if (loading) {
-    return <div className="loading">Cargando tu meta...</div>;
+    return <PanelSkeleton label="Cargando tu meta" text="Cargando tu meta..." variant="stats" />;
   }
 
   return (
     <div className="mis-metas-panel">
-      <div className="panel-header">
-        <h2>
-          <span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)', verticalAlign: 'middle' }}>
-            show_chart
-          </span>
-          {' '}Mis Metas de Ventas
-        </h2>
-      </div>
+      <header className="ui-page-header vd-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title">
+            <span className="material-icons-round" aria-hidden="true">
+              show_chart
+            </span>
+            {' '}Mis Metas de Ventas
+          </h2>
+        </div>
+      </header>
 
       {/* ✅ SECCIÓN DESCARGA EXCEL */}
-      <div style={{
-        background: 'white', borderRadius: '12px', border: '1px solid #d1fae5',
-        padding: '1.25rem', marginBottom: '1.5rem',
-        boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
-      }}>
-        <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#065f46' }}>
-          <span className="material-icons-round" style={{ fontSize: '22px', color: '#10b981' }}>download</span>
-          Descargar Mi Reporte Excel
-        </h3>
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <section className="ui-section vd-export">
+        <div className="ui-section-head">
+          <span className="ui-icon-tile ui-icon-tile--success" aria-hidden="true">
+            <span className="material-icons-round">download</span>
+          </span>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>Desde:</label>
+            <h3 className="ui-section-title">
+              Descargar Mi Reporte Excel
+            </h3>
+            <p className="ui-section-desc">Elige el rango de fechas del reporte.</p>
+          </div>
+        </div>
+        <div className="vd-export-row">
+          <div className="ui-field">
+            <label className="ui-label" htmlFor="vd-excel-desde">Desde:</label>
             <input
+              id="vd-excel-desde"
               type="date"
+              className="ui-input"
               value={dateRange.startDate}
               onChange={e => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-              style={{ padding: '0.45rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
             />
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }}>Hasta:</label>
+          <div className="ui-field">
+            <label className="ui-label" htmlFor="vd-excel-hasta">Hasta:</label>
             <input
+              id="vd-excel-hasta"
               type="date"
+              className="ui-input"
               value={dateRange.endDate}
               onChange={e => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-              style={{ padding: '0.45rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
             />
           </div>
+          {/* Botón de formato Excel (verde), mismo marcado que ExportButton: mientras descarga,
+              spinner en lugar del icono, "Descargando..." sin que el botón cambie de ancho y
+              barra fina inferior. Mismo handler y misma guarda (exportingExcel) que antes. */}
           <button
+            type="button"
+            className={`ui-btn ui-btn--excel vd-export-btn${exportingExcel ? ' is-loading' : ''}`}
             onClick={handleDownloadExcel}
             disabled={exportingExcel}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '0.4rem',
-              padding: '0.55rem 1.25rem',
-              background: exportingExcel ? '#6ee7b7' : '#10b981',
-              color: 'white', border: 'none', borderRadius: '8px',
-              cursor: exportingExcel ? 'not-allowed' : 'pointer',
-              fontWeight: 700, fontSize: '0.9rem',
-              boxShadow: '0 2px 6px rgba(16,185,129,0.3)'
-            }}
+            aria-busy={exportingExcel || undefined}
           >
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>
-              {exportingExcel ? 'sync' : 'table_chart'}
+            {exportingExcel
+              ? <span className="ui-spinner" aria-hidden="true" />
+              : <span className="material-icons-round" aria-hidden="true">table_view</span>}
+            <span className="ui-btn-label">
+              {exportingExcel && <span className="ui-btn-label-sizer" aria-hidden="true">Descargar Excel</span>}
+              <span>{exportingExcel ? 'Descargando...' : 'Descargar Excel'}</span>
             </span>
-            {exportingExcel ? 'Descargando...' : 'Descargar Excel'}
           </button>
         </div>
-        <p style={{ margin: '0.75rem 0 0', fontSize: '0.8rem', color: '#6b7280' }}>
-          💡 El reporte incluye únicamente tus propias ventas en el rango de fechas seleccionado.
+        <p className="ui-help vd-help vd-export-note">
+          <span className="material-icons-round" aria-hidden="true">lightbulb</span>
+          El reporte incluye únicamente tus propias ventas en el rango de fechas seleccionado.
         </p>
-      </div>
+      </section>
 
       {error && !currentGoal ? (
-        <div className="no-goal-message">
-          <span className="material-icons-round" style={{ fontSize: '64px', color: 'var(--text-muted)' }}>
+        <div className="no-goal-message ui-empty">
+          <span className="material-icons-round ui-empty-icon" aria-hidden="true">
             trending_up
           </span>
-          <h3>{error}</h3>
-          <p>Contacta a tu supervisor para que te asigne una meta mensual</p>
+          <h3 className="ui-empty-title">{error}</h3>
+          <p className="ui-empty-text">Contacta a tu supervisor para que te asigne una meta mensual</p>
         </div>
       ) : currentGoal && (
         <div className="current-goal-section">
           <div className="goal-card-large">
             <div className="goal-header">
               <div className="goal-period">
-                <span className="material-icons-round">calendar_today</span>
+                <span className="material-icons-round" aria-hidden="true">calendar_today</span>
                 <span>{getMonthName(currentGoal.month)} {currentGoal.year}</span>
               </div>
               {currentGoal.completed && (
-                <div className="goal-completed-badge">
-                  <span className="material-icons-round">emoji_events</span>
+                <div className="goal-completed-badge ui-badge ui-badge--success">
+                  <span className="material-icons-round" aria-hidden="true">emoji_events</span>
                   ¡Meta Completada!
                 </div>
               )}
             </div>
 
-            <div className="goal-stats-large">
-              <div className="stat-box">
-                <div className="stat-icon target">
-                  <span className="material-icons-round">flag</span>
+            <div className="goal-stats-large ui-stat-grid">
+              <div className="stat-box ui-stat">
+                <div className="stat-icon target ui-stat-icon ui-stat-icon--primary">
+                  <span className="material-icons-round" aria-hidden="true">flag</span>
                 </div>
-                <div className="stat-content">
-                  <span className="stat-label">Meta del Mes</span>
-                  <span className="stat-value">${parseFloat(currentGoal.targetAmount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-
-              <div className="stat-box">
-                <div className="stat-icon current">
-                  <span className="material-icons-round">payments</span>
-                </div>
-                <div className="stat-content">
-                  <span className="stat-label">Ventas Actuales</span>
-                  <span className="stat-value">${parseFloat(currentGoal.currentAmount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <div className="stat-content ui-stat-content">
+                  <span className="stat-label ui-stat-label">Meta del Mes</span>
+                  <span className="stat-value ui-stat-value ui-text-primary">${parseFloat(currentGoal.targetAmount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
-              <div className="stat-box">
-                <div className="stat-icon remaining">
-                  <span className="material-icons-round">trending_up</span>
+              <div className="stat-box ui-stat">
+                <div className="stat-icon current ui-stat-icon ui-stat-icon--success">
+                  <span className="material-icons-round" aria-hidden="true">payments</span>
                 </div>
-                <div className="stat-content">
-                  <span className="stat-label">Falta por Lograr</span>
-                  <span className="stat-value">
+                <div className="stat-content ui-stat-content">
+                  <span className="stat-label ui-stat-label">Ventas Actuales</span>
+                  <span className="stat-value ui-stat-value ui-text-success">${parseFloat(currentGoal.currentAmount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              <div className="stat-box ui-stat">
+                <div className="stat-icon remaining ui-stat-icon ui-stat-icon--warning">
+                  <span className="material-icons-round" aria-hidden="true">trending_up</span>
+                </div>
+                <div className="stat-content ui-stat-content">
+                  <span className="stat-label ui-stat-label">Falta por Lograr</span>
+                  <span className={`stat-value ui-stat-value ${currentGoal.completed ? 'ui-text-success' : 'ui-text-warning'}`}>
                     ${Math.max(0, parseFloat(currentGoal.targetAmount) - parseFloat(currentGoal.currentAmount)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="progress-section-large">
+            <div className="progress-section-large ui-card">
               <div className="progress-header">
                 <span className="progress-label">Progreso de la Meta</span>
-                <span className="progress-percentage">
+                <span className={`progress-percentage ui-text-${goalTone(currentGoal.percentage, currentGoal.completed)}`}>
                   {parseFloat(currentGoal.percentage).toFixed(1)}%
                 </span>
               </div>
-              <div className="progress-bar-large">
-                <div
-                  className={`progress-fill ${currentGoal.completed ? 'completed' : ''}`}
-                  style={{ width: `${Math.min(parseFloat(currentGoal.percentage), 100)}%` }}
-                >
-                  {parseFloat(currentGoal.percentage) > 10 && (
-                    <span className="progress-text">
-                      {parseFloat(currentGoal.percentage).toFixed(1)}%
-                    </span>
-                  )}
-                </div>
+              {/* Barra de color (transform: scaleX, crece al montar); el texto va encima, al final
+                  del tramo lleno, y aparece con un fade cuando la barra termina de crecer */}
+              <div
+                className={`progress-bar-large ui-progress ui-progress--${goalTone(currentGoal.percentage, currentGoal.completed)}`}
+                style={{ '--value': goalProgressValue(currentGoal.percentage) }}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(goalProgressValue(currentGoal.percentage))}
+                aria-label="Progreso de la Meta"
+              >
+                <span className={`progress-fill ui-progress-bar ${currentGoal.completed ? 'completed' : ''}`} />
+                {parseFloat(currentGoal.percentage) > 10 && (
+                  <span className="progress-text" aria-hidden="true">
+                    {parseFloat(currentGoal.percentage).toFixed(1)}%
+                  </span>
+                )}
               </div>
               <div className="progress-labels">
                 <span>$0</span>
@@ -2503,28 +2766,28 @@ function MisMetasPanel() {
             </div>
 
             {!currentGoal.completed && (
-              <div className="motivation-message">
+              <div className="motivation-message ui-alert ui-alert--info">
                 {parseFloat(currentGoal.percentage) < 25 && (
                   <>
-                    <span className="material-icons-round">rocket_launch</span>
+                    <span className="material-icons-round" aria-hidden="true">rocket_launch</span>
                     <p>¡Vamos! Apenas estás comenzando el mes. ¡Tú puedes lograrlo!</p>
                   </>
                 )}
                 {parseFloat(currentGoal.percentage) >= 25 && parseFloat(currentGoal.percentage) < 50 && (
                   <>
-                    <span className="material-icons-round">directions_run</span>
+                    <span className="material-icons-round" aria-hidden="true">directions_run</span>
                     <p>¡Buen ritmo! Ya llevas el {parseFloat(currentGoal.percentage).toFixed(1)}% de tu meta.</p>
                   </>
                 )}
                 {parseFloat(currentGoal.percentage) >= 50 && parseFloat(currentGoal.percentage) < 75 && (
                   <>
-                    <span className="material-icons-round">local_fire_department</span>
+                    <span className="material-icons-round" aria-hidden="true">local_fire_department</span>
                     <p>¡Excelente! Ya superaste la mitad de tu meta. ¡Sigue así!</p>
                   </>
                 )}
                 {parseFloat(currentGoal.percentage) >= 75 && parseFloat(currentGoal.percentage) < 100 && (
                   <>
-                    <span className="material-icons-round">military_tech</span>
+                    <span className="material-icons-round" aria-hidden="true">military_tech</span>
                     <p>¡Increíble! Estás a punto de lograr tu meta. ¡El último empujón!</p>
                   </>
                 )}
@@ -2533,7 +2796,7 @@ function MisMetasPanel() {
 
             {currentGoal.completed && (
               <div className="completion-celebration">
-                <span className="material-icons-round celebration-icon">celebration</span>
+                <span className="material-icons-round celebration-icon" aria-hidden="true">celebration</span>
                 <h3>¡Felicidades!</h3>
                 <p>Has superado tu meta de ventas para este mes</p>
               </div>
@@ -2541,7 +2804,7 @@ function MisMetasPanel() {
 
             <div className="goal-timestamps">
               <p>
-                <span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>update</span>
+                <span className="material-icons-round" aria-hidden="true">update</span>
                 {' '}Última actualización: {new Date(currentGoal.updatedAt).toLocaleString('es-ES')}
               </p>
             </div>
@@ -2553,48 +2816,51 @@ function MisMetasPanel() {
       {goalHistory.length > 0 && (
         <div className="goal-history-section">
           <button
-            className="btn-toggle-history"
+            type="button"
+            className="btn-toggle-history ui-btn ui-btn--secondary"
             onClick={() => setShowHistory(!showHistory)}
+            aria-expanded={showHistory}
           >
-            <span className="material-icons-round">history</span>
+            <span className="material-icons-round" aria-hidden="true">history</span>
             {showHistory ? 'Ocultar Historial' : 'Ver Historial de Metas'}
-            <span className="material-icons-round">
+            <span className="material-icons-round" aria-hidden="true">
               {showHistory ? 'expand_less' : 'expand_more'}
             </span>
           </button>
 
           {showHistory && (
-            <div className="history-grid">
+            <div className="history-grid ui-stagger">
               {goalHistory.map((goal) => (
                 <div key={goal.id} className={`history-card ${goal.completed ? 'completed' : ''}`}>
                   <div className="history-header">
                     <h4>{getMonthName(goal.month)} {goal.year}</h4>
                     {goal.completed && (
                       <span className="completed-icon">
-                        <span className="material-icons-round">check_circle</span>
+                        <span className="material-icons-round" aria-hidden="true">check_circle</span>
                       </span>
                     )}
                   </div>
 
                   <div className="history-stats">
                     <div className="history-stat">
-                      <span className="label">Meta:</span>
-                      <span className="value">${formatCurrency(parseFloat(goal.targetAmount))}</span>
+                      <span className="history-stat-label">Meta:</span>
+                      <span className="history-stat-value">${formatCurrency(parseFloat(goal.targetAmount))}</span>
                     </div>
                     <div className="history-stat">
-                      <span className="label">Logrado:</span>
-                      <span className="value">${formatCurrency(parseFloat(goal.currentAmount))}</span>
+                      <span className="history-stat-label">Logrado:</span>
+                      <span className="history-stat-value ui-amount--success">${formatCurrency(parseFloat(goal.currentAmount))}</span>
                     </div>
                   </div>
 
                   <div className="history-progress">
-                    <div className="progress-bar-small">
-                      <div
-                        className={`progress-fill ${goal.completed ? 'completed' : ''}`}
-                        style={{ width: `${Math.min(parseFloat(goal.percentage), 100)}%` }}
-                      />
+                    <div
+                      className={`progress-bar-small ui-progress ui-progress--${goalTone(goal.percentage, goal.completed)}`}
+                      style={{ '--value': goalProgressValue(goal.percentage) }}
+                      aria-hidden="true"
+                    >
+                      <span className={`progress-fill ui-progress-bar ${goal.completed ? 'completed' : ''}`} />
                     </div>
-                    <span className="percentage-text">
+                    <span className={`percentage-text ui-text-${goalTone(goal.percentage, goal.completed)}`}>
                       {parseFloat(goal.percentage).toFixed(1)}%
                     </span>
                   </div>

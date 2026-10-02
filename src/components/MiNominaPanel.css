@@ -1,362 +1,488 @@
 /* ============================================
-   MI NÓMINA — MOBILE-FIRST 2026
-   Clases prefijadas `mn-` para aislar el chunk.
-   Paleta unificada al design system (índigo).
+   MI NÓMINA (vendedora) — móvil primero
+   Clases prefijadas mn- bajo la raíz .mn-panel. Solo tokens del sistema
+   (sin variables locales ni colores propios). Usa .ui-page-header,
+   .ui-select, .ui-btn, .ui-badge, .ui-meta, .ui-empty y .ui-loading.
    ============================================ */
 
 .mn-panel {
-    --mn-primary: #6366f1;
-    --mn-primary-dark: #4f46e5;
-    --mn-success: #10b981;
-    --mn-success-dark: #059669;
-    --mn-warning: #f59e0b;
-    --mn-warning-dark: #d97706;
-    --mn-text: #0f172a;
-    --mn-text-2: #475569;
-    --mn-muted: #94a3b8;
-    --mn-border: #e5e7eb;
-    --mn-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -4px rgba(15, 23, 42, 0.08);
-
     width: 100%;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 1rem;
-    box-sizing: border-box;
-    color: var(--mn-text);
+    max-width: 760px;
+    color: var(--color-text);
 }
 
-/* ---------- Header ---------- */
-.mn-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.1rem;
-}
-
-.mn-header-icon {
-    flex-shrink: 0;
-    width: 48px;
-    height: 48px;
-    border-radius: 0.9rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #eef2ff, #f5f3ff);
-    color: var(--mn-primary);
-}
-
-.mn-header-icon .material-icons-round { font-size: 26px; }
-
-.mn-header h2 {
-    margin: 0;
-    font-size: 1.3rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-}
-
-.mn-header p {
-    margin: 0.1rem 0 0;
-    color: var(--mn-text-2);
-    font-size: 0.85rem;
+.mn-panel .mn-header {
+    margin-bottom: var(--space-4);
 }
 
 /* ---------- Barra de período ---------- */
-.mn-period {
+.mn-panel .mn-period {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-    margin-bottom: 1.1rem;
-    padding: 0.85rem;
-    background: white;
-    border-radius: 1rem;
-    border: 1px solid var(--mn-border);
-    box-shadow: var(--mn-card-shadow);
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
 }
 
-.mn-period-selectors {
+.mn-panel .mn-period-selectors {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-2);
+    min-width: 0;
 }
 
-.mn-period-selectors > .material-icons-round {
-    color: var(--mn-primary);
+/* El icono del período va en una baldosa azul (.ui-icon-tile--primary) */
+.mn-panel .mn-period-icon {
     flex-shrink: 0;
 }
 
-.mn-select {
+.mn-panel .mn-select {
     flex: 1;
     min-width: 0;
-    padding: 0.6rem 0.75rem;
-    border: 1px solid var(--mn-border);
-    border-radius: 0.65rem;
-    font-size: 0.95rem;
-    background: white;
-    color: var(--mn-text);
-    cursor: pointer;
 }
 
-.mn-select:focus {
-    outline: none;
-    border-color: var(--mn-primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.16);
-}
-
-.mn-period-actions {
+.mn-panel .mn-period-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--space-2);
 }
 
-.mn-btn {
+.mn-panel .mn-btn {
     flex: 1 1 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    padding: 0.6rem 0.85rem;
-    border: none;
-    border-radius: 0.65rem;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.2s, background 0.2s, opacity 0.2s;
-    white-space: nowrap;
 }
 
-.mn-btn .material-icons-round { font-size: 17px; }
-.mn-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.mn-btn:not(:disabled):active { transform: translateY(1px); }
-
-.mn-btn-excel { background: var(--mn-success); color: white; }
-.mn-btn-excel:not(:disabled):hover { background: var(--mn-success-dark); }
-
-.mn-btn-pdf { background: #ef4444; color: white; }
-.mn-btn-pdf:not(:disabled):hover { background: #dc2626; }
-
-.mn-btn-history {
-    background: #f1f5f9;
-    color: var(--mn-text-2);
-}
-.mn-btn-history:hover { background: #e2e8f0; }
-.mn-btn-history.active {
-    background: var(--mn-primary);
-    color: white;
+.mn-panel .mn-btn-history.is-active {
+    background: var(--color-primary-soft);
+    border-color: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 /* ---------- Historial ---------- */
-.mn-history {
-    background: white;
-    border-radius: 1rem;
-    border: 1px solid var(--mn-border);
-    padding: 1.1rem;
-    margin-bottom: 1.1rem;
-    box-shadow: var(--mn-card-shadow);
+.mn-panel .mn-history {
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
 }
 
-.mn-history h3 {
-    margin: 0 0 0.9rem;
-    font-size: 0.98rem;
+.mn-panel .mn-section-title {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
 }
 
-.mn-history h3 .material-icons-round { font-size: 20px; color: var(--mn-primary); }
-
-.mn-history-empty {
-    color: var(--mn-muted);
+.mn-panel .mn-history-empty {
+    margin: var(--space-2) 0;
+    color: var(--color-text-muted);
     text-align: center;
-    margin: 0.5rem 0;
 }
 
-.mn-history-list {
+.mn-panel .mn-history-list {
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: var(--space-2);
 }
 
-.mn-history-item {
+.mn-panel .mn-history-item {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 0.85rem;
-    border-radius: 0.7rem;
-    background: #f8fafc;
-    border: 1px solid var(--mn-border);
+    gap: var(--space-3);
+    min-height: 48px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
     cursor: pointer;
-    transition: background 0.15s, border-color 0.15s;
+    transition: background-color var(--duration-fast) var(--ease),
+        border-color var(--duration-fast) var(--ease);
 }
 
-.mn-history-item:hover { background: #eef2ff; border-color: #c7d2fe; }
+.mn-panel .mn-history-item:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-strong);
+}
 
-.mn-history-item .mn-hi-label { font-weight: 600; }
-.mn-history-item .mn-hi-note { font-size: 0.8rem; color: var(--mn-muted); margin-left: 0.4rem; }
-.mn-history-item .mn-hi-amount { font-weight: 700; color: var(--mn-primary); font-size: 1rem; white-space: nowrap; }
+.mn-panel .mn-history-item:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.mn-panel .mn-history-item:hover .mn-hi-chevron {
+    color: var(--color-primary);
+}
+
+.mn-panel .mn-hi-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.mn-panel .mn-hi-label {
+    font-weight: 600;
+}
+
+.mn-panel .mn-hi-note {
+    margin-left: 6px;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.mn-panel .mn-hi-amount {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.mn-panel .mn-hi-chevron {
+    font-size: 20px;
+    color: var(--color-text-muted);
+    transition: color var(--duration-fast) var(--ease);
+}
 
 /* ---------- Estados ---------- */
-.mn-state {
-    text-align: center;
-    padding: 3rem 1.5rem;
-    color: var(--mn-muted);
+.mn-panel .mn-state h3,
+.mn-panel .mn-state p {
+    margin: 0;
 }
-
-.mn-state.card {
-    background: white;
-    border-radius: 1rem;
-    border: 1px solid var(--mn-border);
-    color: var(--mn-text-2);
-}
-
-.mn-state .material-icons-round { font-size: 56px; display: block; margin: 0 auto 0.75rem; color: #cbd5e1; }
-.mn-state h3 { font-weight: 700; color: var(--mn-text); margin: 0 0 0.4rem; }
-.mn-state p { margin: 0.25rem 0; }
 
 /* ---------- Vista de nómina ---------- */
-.mn-nomina { display: flex; flex-direction: column; gap: 0.9rem; }
+.mn-panel .mn-nomina {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
 
-/* Tarjeta hero del total */
-.mn-total {
-    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-    border-radius: 1.25rem;
-    padding: 1.5rem 1.25rem;
-    color: white;
+/* Resumen del total: baldosa verde de billetera y el total a recibir en verde */
+.mn-panel .mn-total {
+    padding: var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
     text-align: center;
-    box-shadow: 0 10px 28px -8px rgba(99, 102, 241, 0.5);
+    box-shadow: var(--shadow-card);
 }
 
-.mn-total-period { margin: 0; opacity: 0.85; font-size: 0.85rem; }
-.mn-total-amount { font-size: clamp(2rem, 9vw, 2.6rem); font-weight: 800; margin: 0.15rem 0; line-height: 1.05; }
-.mn-total-caption { margin: 0; opacity: 0.85; font-size: 0.85rem; }
+.mn-panel .mn-total-icon {
+    margin-bottom: var(--space-2);
+}
 
-.mn-total-split {
+.mn-panel .mn-total-period,
+.mn-panel .mn-total-caption {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.mn-panel .mn-total-period {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.mn-panel .mn-total-amount {
+    margin: var(--space-1) 0;
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--color-success-text);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.mn-panel .mn-total-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+/* Salario base (baldosa azul) y comisiones (baldosa y monto verdes) */
+.mn-panel .mn-split {
     display: flex;
-    justify-content: center;
-    gap: 1.5rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.mn-total-split > div { min-width: 0; }
-.mn-total-split .mn-split-label { opacity: 0.8; font-size: 0.78rem; }
-.mn-total-split .mn-split-value { font-weight: 700; font-size: 1.05rem; }
-
-/* Tarjetas de comisión */
-.mn-card {
-    background: white;
-    border-radius: 1rem;
-    border: 1px solid var(--mn-border);
-    overflow: hidden;
-    box-shadow: var(--mn-card-shadow);
-}
-
-.mn-card.met { border-color: rgba(16, 185, 129, 0.28); }
-.mn-card.unmet { border-color: rgba(245, 158, 11, 0.28); }
-
-.mn-card-head {
-    padding: 0.95rem;
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 0.6rem;
-    cursor: pointer;
+    justify-content: center;
+    gap: var(--space-2);
+    min-width: 0;
+    text-align: left;
 }
 
-.mn-card.met .mn-card-head { background: #f0fdf4; }
-.mn-card.unmet .mn-card-head { background: #fffbeb; }
+.mn-panel .mn-split-text {
+    min-width: 0;
+}
 
-.mn-card-head-left { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
-.mn-card-head-left > .material-icons-round { font-size: 22px; flex-shrink: 0; }
-.mn-card.met .mn-card-head-left > .material-icons-round { color: var(--mn-success); }
-.mn-card.unmet .mn-card-head-left > .material-icons-round { color: var(--mn-warning); }
+.mn-panel .mn-split-label {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
 
-.mn-card-title { font-weight: 700; font-size: 0.92rem; color: #111827; }
-.mn-card-status { font-size: 0.78rem; display: flex; align-items: center; gap: 0.2rem; }
-.mn-card-status .material-icons-round { font-size: 13px; }
-.mn-card.met .mn-card-status { color: var(--mn-success); }
-.mn-card.unmet .mn-card-status { color: var(--mn-warning); }
+.mn-panel .mn-split-value {
+    font-size: var(--text-md);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
 
-.mn-card-head-right { text-align: right; flex-shrink: 0; }
-.mn-card-amount { font-weight: 800; font-size: 1.05rem; }
-.mn-card.met .mn-card-amount { color: var(--mn-success-dark); }
-.mn-card.unmet .mn-card-amount { color: var(--mn-warning-dark); }
-.mn-card-chevron { font-size: 18px; color: var(--mn-muted); }
+/* ---------- Tarjetas de comisión ---------- */
+.mn-panel .mn-card {
+    overflow: hidden;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+}
 
-.mn-card-body { padding: 0.95rem; border-top: 1px solid var(--mn-border); }
-
-.mn-card-row {
+.mn-panel .mn-card-head {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    font-size: 0.86rem;
-    margin-bottom: 0.35rem;
+    gap: var(--space-3);
+    min-height: 56px;
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease);
 }
 
-.mn-card-row .mn-row-label { color: var(--mn-text-2); }
-.mn-card-row .mn-row-value { font-weight: 600; color: #374151; text-align: right; }
+.mn-panel .mn-card-head:hover {
+    background: var(--color-surface-subtle);
+}
 
-.mn-card-detail {
-    font-size: 0.82rem;
-    color: var(--mn-text-2);
-    margin: 0.75rem 0 0;
-    padding: 0.6rem 0.7rem;
-    background: #f8fafc;
-    border-radius: 0.5rem;
+.mn-panel .mn-card-head:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+}
+
+.mn-panel .mn-card-head:hover .mn-card-chevron,
+.mn-panel .mn-card-head[aria-expanded='true'] .mn-card-chevron {
+    color: var(--color-primary);
+}
+
+.mn-panel .mn-card-head-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+/* Baldosa del icono con tinte del estado (cumplida / no cumplida) */
+.mn-panel .mn-card-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+}
+
+.mn-panel .mn-card-icon .material-icons-round {
+    font-size: 20px;
+}
+
+.mn-panel .mn-card.met .mn-card-icon {
+    background: var(--color-success-soft);
+    color: var(--color-success-text);
+}
+
+.mn-panel .mn-card.unmet .mn-card-icon {
+    background: var(--color-warning-soft);
+    color: var(--color-warning-text);
+}
+
+.mn-panel .mn-card-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.mn-panel .mn-card-title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text);
+}
+
+.mn-panel .mn-card-status {
+    white-space: normal;
+}
+
+.mn-panel .mn-card-head-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-shrink: 0;
+}
+
+.mn-panel .mn-card-amount {
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* Comisión que aplica: monto ganado en verde; si no aplica, tenue */
+.mn-panel .mn-card.met .mn-card-amount {
+    color: var(--color-success-text);
+}
+
+.mn-panel .mn-card.unmet .mn-card-amount {
+    color: var(--color-text-muted);
+}
+
+/* Gira con .ui-chevron (180 ms) al abrir la tarjeta */
+.mn-panel .mn-card-chevron {
+    font-size: 20px;
+    color: var(--color-text-muted);
+    transition: transform var(--duration) var(--ease), color var(--duration-fast) var(--ease);
+}
+
+.mn-panel .mn-card-body {
+    padding: var(--space-3) var(--space-4) var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.mn-panel .mn-card-detail {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-sm);
     line-height: 1.45;
+    color: var(--color-text-secondary);
+}
+
+.mn-panel .mn-card-detail .material-icons-round {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: var(--color-text-muted);
+}
+
+/* La explicación toma el tono del resultado: verde si aplica, ámbar si no */
+.mn-panel .mn-card.met .mn-card-detail {
+    background: var(--color-success-soft);
+    color: var(--color-success-text);
+}
+
+.mn-panel .mn-card.met .mn-card-detail .material-icons-round {
+    color: var(--color-success);
+}
+
+.mn-panel .mn-card.unmet .mn-card-detail {
+    background: var(--color-warning-soft);
+    color: var(--color-warning-text);
+}
+
+.mn-panel .mn-card.unmet .mn-card-detail .material-icons-round {
+    color: var(--color-warning);
 }
 
 /* Comisión general deshabilitada */
-.mn-disabled {
-    background: #f8fafc;
-    border-radius: 0.85rem;
-    padding: 0.9rem;
-    border: 1px solid var(--mn-border);
+.mn-panel .mn-disabled {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    color: var(--mn-muted);
-    font-size: 0.9rem;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
 }
 
-.mn-disabled .material-icons-round { font-size: 22px; }
+.mn-panel .mn-disabled .material-icons-round {
+    font-size: 20px;
+}
 
-/* Notas */
-.mn-notes {
-    background: #eff6ff;
-    border-radius: 0.85rem;
-    padding: 0.9rem;
-    border: 1px solid #bfdbfe;
-    font-size: 0.88rem;
-    color: #1e40af;
+/* Notas del cálculo */
+.mn-panel .mn-notes {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: var(--color-primary-soft);
+    color: var(--color-primary-text);
+    font-size: var(--text-sm);
     line-height: 1.45;
 }
 
-.mn-timestamp { font-size: 0.75rem; color: var(--mn-muted); text-align: center; margin: 0.25rem 0 0; }
-
-/* Pantallas chicas: aflojar el wrap del título dando más ancho al encabezado */
-@media (max-width: 480px) {
-    .mn-card-head { align-items: flex-start; }
-    .mn-card-title { font-size: 0.9rem; }
-    .mn-card-amount { font-size: 1rem; }
-    .mn-card-head-left { flex: 1 1 auto; }
-    .mn-card-head-right { padding-top: 0.05rem; }
+.mn-panel .mn-notes p {
+    margin: 0;
+    overflow-wrap: anywhere;
 }
 
-/* ---------- Desktop ---------- */
-@media (min-width: 600px) {
-    .mn-panel { padding: 1.5rem; }
+.mn-panel .mn-notes .material-icons-round {
+    flex-shrink: 0;
+    font-size: 18px;
+}
 
-    .mn-period {
+.mn-panel .mn-timestamp {
+    margin: var(--space-1) 0 0;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+/* ---------- Pantallas chicas ---------- */
+@media (max-width: 480px) {
+    .mn-panel .mn-card-head {
+        align-items: flex-start;
+    }
+
+    .mn-panel .mn-card-head-left {
+        flex: 1 1 auto;
+    }
+
+    .mn-panel .mn-total-amount {
+        font-size: var(--text-2xl);
+    }
+}
+
+/* Celulares angostos: salario base y comisiones uno debajo del otro (con su baldosa) */
+@media (max-width: 400px) {
+    .mn-panel .mn-total-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ---------- Tablet / escritorio ---------- */
+@media (min-width: 641px) {
+    .mn-panel .mn-period {
         flex-direction: row;
         align-items: center;
         flex-wrap: wrap;
     }
 
-    .mn-period-selectors { flex: 0 0 auto; }
-    .mn-select { flex: 0 0 auto; min-width: 130px; }
-    .mn-period-actions { flex: 1 1 auto; justify-content: flex-end; }
-    .mn-btn { flex: 0 0 auto; }
-    .mn-btn-history { margin-left: auto; }
+    .mn-panel .mn-period-selectors {
+        flex: 0 0 auto;
+    }
+
+    .mn-panel .mn-select {
+        flex: 0 0 auto;
+        min-width: 140px;
+    }
+
+    .mn-panel .mn-period-actions {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+    }
+
+    .mn-panel .mn-btn {
+        flex: 0 0 auto;
+    }
 }

@@ -21,21 +21,29 @@ function OrderRevertAnnulmentModal({ targetStatus, onClose, onConfirm, isLoading
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content revert-annulment-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>
-            <span className="material-icons-round revert-title-icon">settings_backup_restore</span>
-            Revertir Anulación
-          </h3>
-          <button className="btn-close" onClick={onClose} disabled={isLoading}>
-            <span className="material-icons-round">close</span>
+    <div className="ui-modal-overlay revert-annulment-overlay">
+      <div
+        className="ui-modal ui-modal--sm revert-annulment-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="revert-annulment-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ui-modal-header">
+          <span className="ui-modal-icon" aria-hidden="true">
+            <span className="material-icons-round">settings_backup_restore</span>
+          </span>
+          <div className="ui-modal-heading">
+            <h3 id="revert-annulment-title" className="ui-modal-title">Revertir Anulación</h3>
+          </div>
+          <button type="button" className="ui-icon-btn" onClick={onClose} disabled={isLoading} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
           </button>
         </div>
 
-        <div className="modal-body">
-          <div className="revert-info-section">
-            <span className="material-icons-round revert-info-icon">info</span>
+        <div className="ui-modal-body ui-modal-body--plain">
+          <div className="ui-alert ui-alert--info revert-info-section">
+            <span className="material-icons-round" aria-hidden="true">info</span>
             <div className="revert-info-text">
               <p>
                 La venta volverá al estado{' '}
@@ -52,13 +60,13 @@ function OrderRevertAnnulmentModal({ targetStatus, onClose, onConfirm, isLoading
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="revert-reason" className="form-label">
-              Motivo de la reversión <span className="required">*</span>
+          <div className="ui-field">
+            <label htmlFor="revert-reason" className="ui-label">
+              Motivo de la reversión <span className="ui-required">*</span>
             </label>
             <textarea
               id="revert-reason"
-              className="form-control"
+              className="ui-textarea"
               rows="4"
               placeholder="Describe por qué se revierte la anulación de esta venta..."
               value={reason}
@@ -68,22 +76,24 @@ function OrderRevertAnnulmentModal({ targetStatus, onClose, onConfirm, isLoading
           </div>
         </div>
 
-        <div className="modal-footer">
+        <div className="ui-modal-footer">
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="ui-btn ui-btn--secondary"
             onClick={onClose}
             disabled={isLoading}
           >
             Cancelar
           </button>
           <button
-            className="btn btn-revert"
+            type="button"
+            className="ui-btn ui-btn--primary"
             onClick={handleConfirm}
             disabled={isLoading || !reason.trim()}
           >
             {isLoading ? (
               <>
-                <span className="revert-spinner" />
+                <span className="ui-spinner" aria-hidden="true" />
                 Revirtiendo...
               </>
             ) : (

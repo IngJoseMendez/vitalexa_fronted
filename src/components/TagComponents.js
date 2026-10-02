@@ -11,7 +11,7 @@ export const TagBadge = ({ tagName, type }) => {
 
     return (
         <span className={`tag-badge ${isSR ? 'tag-sr' : 'tag-user'}`}>
-            <span className="material-icons-round">local_offer</span>
+            <span className="material-icons-round" aria-hidden="true">local_offer</span>
             {tagName}
         </span>
     );
@@ -51,6 +51,7 @@ export const TagFilterBar = ({ tags, activeTagId, onSelectTag, onClear }) => {
         <div className="tag-filter-bar">
             <button
                 className={`filter-chip ${!activeTagId ? 'active' : ''}`}
+                aria-pressed={!activeTagId}
                 onClick={onClear}
             >
                 Todos
@@ -59,6 +60,7 @@ export const TagFilterBar = ({ tags, activeTagId, onSelectTag, onClear }) => {
                 <button
                     key={tag.id}
                     className={`filter-chip ${activeTagId === tag.id ? 'active' : ''} ${tag.type === 'SYSTEM' ? 'chip-sr' : ''}`}
+                    aria-pressed={activeTagId === tag.id}
                     onClick={() => onSelectTag(tag.id)}
                 >
                     {tag.name}

@@ -1,630 +1,425 @@
-/* ============================================
-   PROMOTIONS STYLES
-   ============================================ */
+/* ==========================================================================
+   PROMOCIONES (área promociones-especiales)
+   Usa las primitivas .ui-* y los tokens de design-system.css; aquí solo va lo
+   propio del área. Sin colores sueltos, degradados ni blur. Las tarjetas son .ui-card
+   (borde fino + --shadow-card del sistema, porque el fondo es blanco): no se les quita
+   el borde ni se les pone otra sombra aquí. Los selectores de producto de los
+   formularios son SearchableSelect (.ui-combobox, estilos en design-system.css).
 
-/* Promotions Panel */
+   Prefijos:
+     .promotions-panel / .promotion-* / .promo-*   paneles y catálogos
+     .pmf-*                                        formularios de promoción (normal y especial)
+     .spf-*                                        piezas propias del formulario de especiales
+   Al final: clases que usan OTRAS áreas (AssortmentSelectionModal, OrderManagementModal,
+   AdminDashboard). No borrarlas sin revisar esos componentes.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Panel de promociones (admin / owner)
+   -------------------------------------------------------------------------- */
 .promotions-panel {
-    padding: 2rem;
-}
-
-.promotions-panel .panel-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
+    flex-direction: column;
+    min-width: 0;
 }
 
-.promotions-panel h2 {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin: 0;
-    font-size: 1.75rem;
-    font-weight: 800;
-    color: var(--text-main);
+/* Barra: buscador + pestañas + contador (PromotionListToolbar) */
+.promo-toolbar {
+    margin-bottom: var(--space-4);
 }
 
-/* Promotions Grid/List */
+.promo-result-count {
+    margin-left: auto;
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary); /* sobre el canvas, muted no llega a 4.5:1 */
+    font-variant-numeric: tabular-nums;
+}
+
+.promo-no-results .ui-empty-action + .ui-empty-action {
+    margin-top: 0;
+}
+
+/* Cuadrícula de tarjetas: sin scroll horizontal a 375px */
 .promotions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: var(--space-4);
 }
 
-.promotion-card {
-    background: white;
-    border-radius: 0.85rem;
-    padding: 1rem;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border);
-    transition: all 0.2s;
-    position: relative;
-}
-
-.promotion-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-md);
-}
-
-.promotion-card.inactive {
-    opacity: 0.6;
-    background: #f8fafc;
-}
-
-.promotion-header {
+/* Tarjeta de entidad: título + badges, metadatos, monto y acciones al pie */
+.promotions-panel .promotion-card {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
+    flex-direction: column;
+    gap: var(--space-3);
 }
 
-.promotion-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-main);
-    margin: 0 0 0.5rem 0;
+.promotions-panel .promotion-card > .ui-card-header {
+    margin-bottom: 0;
 }
 
-.promotion-description {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    margin: 0 0 1rem 0;
-    line-height: 1.4;
+.promotions-panel .promotion-card > .ui-card-footer {
+    margin-top: auto;
+}
+
+.promotions-panel .promotion-card.inactive {
+    background: var(--color-surface-subtle);
+}
+
+.promotions-panel .promotion-card.inactive .promotion-product-image {
+    opacity: 0.6;
+}
+
+.promotion-heading {
+    flex: 1;
+    min-width: 0;
 }
 
 .promotion-badges {
     display: flex;
-    gap: 0.5rem;
     flex-wrap: wrap;
-    margin-bottom: 1rem;
+    gap: 6px;
+    margin-top: var(--space-2);
 }
 
-.promotion-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 99px;
-    font-size: 0.75rem;
-    font-weight: 600;
+.promotion-description {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
+}
+
+/* Vendedoras que ven la promoción (panel y catálogo del admin) */
+.promo-vendors {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    min-width: 0;
+}
+
+.promo-vendors-label {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
 }
 
-.promotion-badge.type-pack {
-    background: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #93c5fd;
+.promo-vendors-label .material-icons-round {
+    font-size: 16px;
 }
 
-.promotion-badge.type-buy-get-free {
-    background: #f0fdf4;
-    color: #16a34a;
-    border: 1px solid #86efac;
+/* Un nombre largo no estira la tarjeta */
+.promo-vendors .ui-badge {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
-.promotion-badge.status-active {
-    background: #ecfdf5;
-    color: #047857;
-    border: 1px solid #6ee7b7;
+/* Filas label / valor */
+.promotions-panel .promotion-info .ui-meta-label {
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
-.promotion-badge.status-inactive {
-    background: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fca5a5;
-}
-
-.promotion-badge.valid-now {
-    background: linear-gradient(135deg, #10b981, #059669);
-    color: white;
-    border: none;
-    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
-}
-
-.promotion-info {
+.promotion-gifts-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    align-items: flex-end;
+    gap: 2px;
 }
 
-.promotion-info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.9rem;
+/* Si el precio no cabe junto a la etiqueta, baja a la siguiente línea alineado a la derecha */
+.promotions-panel .promotion-price-row {
+    flex-wrap: wrap;
+    align-items: baseline;
 }
 
-.promotion-info-label {
-    color: var(--text-secondary);
-    font-weight: 500;
+.promotions-panel .promotion-price-row .promotion-price {
+    margin-left: auto;
 }
 
-.promotion-info-value {
-    color: var(--text-main);
-    font-weight: 600;
-}
-
-.promotion-quantities {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: #f8fafc;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: 600;
-    color: var(--primary);
-}
-
-.promotion-price {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: var(--primary);
-}
-
+/* Producto principal */
 .promotion-product {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background: #f8fafc;
-    border-radius: 8px;
-    margin: 0.5rem 0;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
 }
 
 .promotion-product-image {
-    width: 50px;
-    height: 50px;
-    border-radius: 6px;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
     object-fit: cover;
-    background: white;
+    background: var(--color-surface);
+}
+
+.promotion-product-text {
+    min-width: 0;
 }
 
 .promotion-product-name {
+    font-size: var(--text-sm);
     font-weight: 600;
-    color: var(--text-main);
-    font-size: 0.9rem;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
 }
 
+.promotion-product-caption {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+}
+
+/* Vigencia */
 .promotion-validity {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.75rem;
-    background: #fffbeb;
-    border-radius: 8px;
-    border-left: 3px solid #f59e0b;
-    font-size: 0.85rem;
+    gap: 2px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-sm);
 }
 
-.promotion-validity strong {
-    color: var(--text-main);
-}
-
-.promotion-validity span {
-    color: var(--text-secondary);
-}
-
-/* Las tres acciones no caben en una tarjeta de 280px: con flex:1 sin wrap el botón
-   "Eliminar" se salía de la tarjeta. Ahora pasan a otra línea y ocupan el ancho. */
-.promotion-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border);
-}
-
-.btn-promo-action {
-    flex: 1 1 auto;
-    white-space: nowrap;
-    box-sizing: border-box;
-    padding: 0.6rem 0.75rem;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: white;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.85rem;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-}
-
-.btn-promo-action:hover {
-    background: #f8fafc;
-    transform: translateY(-1px);
-}
-
-.btn-promo-action.edit:hover {
-    background: #eff6ff;
-    border-color: #3b82f6;
-    color: #3b82f6;
-}
-
-.btn-promo-action.toggle:hover {
-    background: #f0fdf4;
-    border-color: #10b981;
-    color: #10b981;
-}
-
-.btn-promo-action.delete:hover {
-    background: #fef2f2;
-    border-color: #ef4444;
-    color: #ef4444;
-}
-
-/* Promotion Form Modal */
-.promotion-form {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-}
-
-.promotion-form .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-}
-
-.promotion-form .form-row.validity-row {
-    grid-template-columns: 1fr;
-}
-
-.promotion-form .form-section {
-    background: #f8fafc;
-    padding: 1rem;
-    border-radius: 8px;
-    border-left: 3px solid var(--primary);
-}
-
-.promotion-form .form-section h4 {
-    margin: 0 0 1rem 0;
-    color: var(--text-main);
-    font-size: 0.95rem;
-    font-weight: 600;
-}
-
-.promotion-form .radio-group {
-    display: flex;
-    gap: 1rem;
-}
-
-.promotion-form .radio-option {
-    flex: 1;
-    padding: 1rem;
-    border: 2px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
-}
-
-.promotion-form .radio-option input[type="radio"] {
-    display: none;
-}
-
-.promotion-form .radio-option:hover {
-    border-color: var(--primary);
-    background: rgba(99, 102, 241, 0.05);
-}
-
-.promotion-form .radio-option.selected {
-    border-color: var(--primary);
-    background: rgba(99, 102, 241, 0.1);
-}
-
-.promotion-form .radio-option label {
-    cursor: pointer;
-    font-weight: 600;
-    color: var(--text-main);
-    display: block;
-}
-
-/* Assortment Selection Modal */
-.assortment-modal {
-    max-width: 700px;
-}
-
-.assortment-header {
-    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-    padding: 1.5rem;
-    border-radius: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.assortment-header h3 {
-    margin: 0 0 0.5rem 0;
-    color: var(--text-main);
-}
-
-.assortment-requirement {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 1rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 8px;
-}
-
-.assortment-requirement.valid {
-    border: 2px solid #10b981;
-    background: #ecfdf5;
-}
-
-.assortment-requirement.invalid {
-    border: 2px solid #f59e0b;
-    background: #fffbeb;
-}
-
-.product-search {
-    margin-bottom: 1.5rem;
-}
-
-.product-search input {
-    width: 100%;
-    padding: 0.85rem 1.25rem 0.85rem 3rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.95rem;
-}
-
-.product-search-results {
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-top: 0.5rem;
-    background: white;
-}
-
-.product-search-item {
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    border-bottom: 1px solid #f1f5f9;
-    transition: background 0.2s;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.product-search-item:hover {
-    background: #f8fafc;
-}
-
-.product-search-item:last-child {
-    border-bottom: none;
-}
-
-.selected-products-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1rem 0;
-}
-
-.selected-products-table th {
-    background: #f8fafc;
-    padding: 0.75rem;
-    text-align: left;
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    border-bottom: 2px solid var(--border);
-}
-
-.selected-products-table td {
-    padding: 0.75rem;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.selected-products-table input[type="number"] {
-    width: 80px;
-    padding: 0.4rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    text-align: center;
-}
-
-/* Order Item Badges */
-.order-item-badges {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin-top: 0.5rem;
-}
-
-.order-item-badge {
-    padding: 0.25rem 0.6rem;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
+.promotion-validity > strong {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: var(--space-1);
+    font-weight: 600;
+    color: var(--color-text);
 }
 
-.order-item-badge.out-of-stock {
-    background: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+.promotion-validity > strong .material-icons-round {
+    font-size: 16px;
+    color: var(--color-text-muted);
 }
 
-.order-item-badge.promotion {
-    background: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #93c5fd;
+.promotion-validity > span {
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
 }
 
-.order-item-badge.free-item {
-    background: #ecfdf5;
-    color: #059669;
-    border: 1px solid #6ee7b7;
+/* Acciones: se reparten el ancho y pasan a otra línea si no caben
+   (el botón "Eliminar" nunca se sale de la tarjeta) */
+.promotions-panel .promotion-actions .ui-btn {
+    flex: 1 1 auto;
 }
 
-/* ETA Form */
-.eta-form {
-    background: #fffbeb;
-    padding: 1rem;
-    border-radius: 8px;
-    border-left: 3px solid #f59e0b;
-    margin-top: 0.5rem;
+.promotions-panel .promotion-actions .promo-action-delete {
+    color: var(--color-danger-text);
 }
 
-.eta-form h5 {
-    margin: 0 0 0.75rem 0;
-    color: var(--text-main);
-    font-size: 0.9rem;
+.promotions-panel .promotion-actions .promo-action-delete:hover:not(:disabled) {
+    background: var(--color-danger-soft);
+    border-color: var(--color-danger);
+    color: var(--color-danger-text);
+}
+
+@media (max-width: 640px) {
+    .promo-toolbar .ui-tabs {
+        width: 100%;
+    }
+
+    .promo-toolbar .ui-tab {
+        flex: 1 1 0;
+        justify-content: center;
+    }
+
+    .promo-result-count {
+        margin-left: 0;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   2. Promociones especiales en el panel (SpecialPromotionsPanel)
+   -------------------------------------------------------------------------- */
+.promo-sp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: var(--space-4);
+    align-content: start;
+}
+
+.promo-sp-card {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: var(--space-3);
 }
 
-.eta-form .form-group {
-    margin-bottom: 0.75rem;
+.promo-sp-card > .ui-card-footer {
+    margin-top: auto;
 }
 
-.eta-form .form-group:last-child {
-    margin-bottom: 0;
+.promo-sp-kind {
+    align-self: flex-start;
 }
 
-/* Pending Promotion Alert */
-.pending-promotion-alert {
-    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-    border: 2px solid #f59e0b;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-}
-
-.pending-promotion-alert h4 {
-    margin: 0 0 1rem 0;
-    color: #92400e;
+.promo-sp-body {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1.1rem;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
 }
 
-.pending-promotion-alert .promotion-details {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    margin: 1rem 0;
-}
-
-.btn-select-assortment {
+.promo-sp-title-row {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.85rem 1.5rem;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
 }
 
-.btn-select-assortment:hover {
-    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+.promo-sp-meta {
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .promotions-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .promotion-form .form-row {
-        grid-template-columns: 1fr;
-    }
-
-    .promotion-form .radio-group {
-        flex-direction: column;
-    }
-
-    .promotion-actions {
-        flex-direction: column;
-    }
+.promo-sp-type {
+    font-weight: 600;
+    color: var(--color-text);
 }
 
-/* Compact Promotions Catalog (Vendedor) */
+.promo-sp-price {
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.promo-sp-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Los avisos largos ("Padre inactiva: no se puede vender") bajan de línea */
+.promo-sp-badges .ui-badge {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
+}
+
+/* --------------------------------------------------------------------------
+   3. Catálogo de promociones en Nueva Venta (admin y vendedora)
+   -------------------------------------------------------------------------- */
 .promotions-catalog {
-    margin-bottom: 2rem;
-    padding: 1rem;
-    background: #fff1f2;
-    border-radius: 12px;
-    border: 1px solid #fecdd3;
+    min-width: 0;
+    padding: var(--space-4);
 }
 
-.promotions-catalog h3 {
+/* Más específico que los h3 genéricos de los paneles de venta */
+.promotions-catalog .promo-catalog-title {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin: 0 0 1rem 0;
-    color: #be123c;
-    font-size: 1.25rem;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-md);
+    font-weight: 600;
+    line-height: var(--leading-title);
+    letter-spacing: var(--tracking-title);
+    color: var(--color-text);
+}
+
+.promotions-catalog .promo-catalog-title .material-icons-round {
+    font-size: 20px;
+    color: var(--color-text-muted);
+}
+
+.promotions-catalog .promo-catalog-search {
+    margin-bottom: var(--space-3);
+}
+
+.promotions-catalog .promo-catalog-empty {
+    padding: var(--space-8) var(--space-4);
 }
 
 .promotions-grid-compact {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: var(--space-3);
 }
 
-.promotion-card.compact {
+.promotions-catalog .promo-catalog-card {
     display: flex;
     flex-direction: column;
-    padding: 0.85rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    background: white;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    gap: var(--space-2);
+    padding: var(--space-4);
 }
 
 .promotion-header-compact {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
 }
 
-.promotion-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1f2937;
+.promotions-catalog .promotion-header-compact .promotion-title {
+    flex: 1 1 100%;
     margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
 }
 
 .promotion-desc-compact {
-    font-size: 0.85rem;
-    color: #4b5563;
-    margin: 0 0 0.75rem 0;
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+    color: var(--color-text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.promo-catalog-line {
+    margin-bottom: var(--space-1);
+}
+
+/* Lo que se recibe gratis: verde = beneficio */
+.promo-catalog-free {
+    font-weight: 600;
+    color: var(--color-success-text);
+}
+
+.promo-catalog-free.is-unknown,
+.promo-catalog-none {
     font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.promo-catalog-gifts {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-5);
+    font-size: var(--text-xs);
 }
 
 .promotion-product-compact {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    background: #f9fafb;
-    border-radius: 6px;
-    margin-bottom: 1rem;
-    font-size: 0.85rem;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: 6px var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+    font-size: var(--text-sm);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
 }
 
-.product-thumb {
+.promotion-product-compact .product-thumb {
     width: 32px;
     height: 32px;
-    border-radius: 4px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
     object-fit: cover;
 }
 
@@ -632,787 +427,126 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 0.5rem;
+    gap: var(--space-2);
     margin-top: auto;
-}
-
-/* La fila cantidad + botón "Agregar" ocupa el ancho completo de la tarjeta
-   (evita que el botón con flex:1 se desborde fuera de la card). */
-.promotion-footer-compact > div {
-    width: 100%;
+    padding-top: var(--space-1);
 }
 
 .promotion-price-tag {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: #059669;
-}
-
-.btn-add-promo {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.5rem 0.75rem;
-    background: #e11d48;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: var(--text-lg);
     font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+    line-height: 1.2;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
 }
 
-.btn-add-promo:hover {
-    background: #be123c;
-    transform: translateY(-1px);
-}
-
-.empty-state-promotions {
-    text-align: center;
-    padding: 2rem;
-    background: #f9fafb;
-    border-radius: 8px;
-    border: 1px dashed #d1d5db;
-}
-
-
-/* ============================================
-   PANELES DE PROMOCIONES (admin/owner): búsqueda, pestañas y chips
-   Compartido por PromotionsPanel y SpecialPromotionsPanel
-   ============================================ */
-
-.promo-toolbar {
+/* Cantidad + "Agregar" ocupan el ancho de la tarjeta (el botón no se desborda) */
+.promo-add-row {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem 1rem;
-    margin-bottom: 1.25rem;
-}
-
-.promo-search {
-    position: relative;
-    flex: 1 1 280px;
-    max-width: 420px;
-}
-
-.promo-search-icon {
-    position: absolute;
-    left: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #94a3b8;
-    font-size: 20px !important;
-    pointer-events: none;
-}
-
-.promo-search input {
+    gap: var(--space-2);
     width: 100%;
-    box-sizing: border-box;
-    padding: 0.65rem 2.5rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    font-family: inherit;
-    background: #ffffff;
-    color: #0f172a;
-    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.promo-search input:focus {
-    outline: none;
-    border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
-}
-
-.promo-search-clear {
-    position: absolute;
-    right: 0.35rem;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 50%;
-    background: transparent;
-    color: #64748b;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.promo-search-clear:hover {
-    background: #f1f5f9;
-    color: #0f172a;
-}
-
-.promo-search-clear .material-icons-round {
-    font-size: 18px;
-}
-
-.promo-tabs {
-    display: inline-flex;
-    gap: 2px;
-    padding: 4px;
-    background: #f1f5f9;
-    border-radius: 10px;
-}
-
-.promo-tab {
-    border: none;
-    background: transparent;
-    padding: 0.45rem 0.9rem;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s, color 0.15s;
-}
-
-.promo-tab:hover {
-    color: #0f172a;
-}
-
-.promo-tab.is-active {
-    background: #ffffff;
-    color: #0f172a;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
-}
-
-.promo-tab:focus-visible {
-    outline: 2px solid #4f46e5;
-    outline-offset: 1px;
-}
-
-.promo-result-count {
-    margin-left: auto;
-    font-size: 0.85rem;
-    color: #64748b;
-}
-
-.promo-no-results {
+.promo-add-row .promo-qty-input {
+    width: 64px;
+    flex: 0 0 64px;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
     text-align: center;
-    padding: 2.5rem 1rem;
-    border: 1px dashed #cbd5e1;
-    border-radius: 12px;
-    background: #ffffff;
-    color: #64748b;
-}
-
-.promo-no-results .material-icons-round {
-    font-size: 40px;
-    color: #94a3b8;
-}
-
-.promo-no-results p {
-    margin: 0.5rem 0 0;
-}
-
-.promo-link-btn {
-    margin-top: 0.75rem;
-    border: none;
-    background: none;
-    color: #4f46e5;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    text-decoration: underline;
-}
-
-/* Etiquetas de vigencia dentro de "Activas" */
-.promotion-badge.date-expired {
-    background: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
-}
-
-.promotion-badge.date-scheduled {
-    background: #eff6ff;
-    color: #1d4ed8;
-    border: 1px solid #bfdbfe;
-}
-
-/* Vendedoras que ven la promoción */
-.promo-vendors {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem;
-    margin: 0 0 1rem;
-}
-
-.promo-vendors-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    margin-right: 0.15rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: #64748b;
-}
-
-.promo-vendors-label .material-icons-round {
-    font-size: 16px;
-}
-
-.promo-chip {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    background: #ede9fe;
-    color: #5b21b6;
-    font-weight: 600;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-}
-
-.promo-chip.all {
-    background: #ecfdf5;
-    color: #047857;
-}
-
-.promo-chip.none {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.promotions-panel .promotion-quantities {
-    min-width: 0;
-    overflow-wrap: anywhere;
-    text-align: right;
-}
-
-/* Las etiquetas ("Recibe Gratis:", "Precio del paquete:") no se parten palabra por palabra */
-.promotions-panel .promotion-info-label {
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-/* Si el precio no cabe junto a la etiqueta, baja a la siguiente línea alineado a la derecha */
-.promotions-panel .promotion-info-row.price-row {
-    flex-wrap: wrap;
-}
-
-.promotions-panel .promotion-info-row.price-row .promotion-price {
-    margin-left: auto;
-}
-
-/* Especiales: grilla adaptable y avisos */
-.sp-grid.promo-sp-grid {
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-    align-content: start;
-}
-
-.promo-sp-meta {
-    margin-top: 0.5rem;
-    font-size: 0.88rem;
-    color: #4b5563;
-    line-height: 1.45;
-}
-
-.promo-sp-price {
-    margin-top: 0.35rem;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #0f172a;
-}
-
-.promo-sp-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.6rem;
-}
-
-.promo-sp-warning {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.55rem;
-    border-radius: 8px;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
-    font-size: 0.75rem;
     font-weight: 600;
 }
 
-.promo-sp-warning .material-icons-round {
-    font-size: 14px;
-}
-
-@media (max-width: 768px) {
-    .promotions-panel {
-        padding: 1rem;
-    }
-
-    .promotions-panel .panel-header {
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-
-    .promo-search {
-        flex-basis: 100%;
-        max-width: none;
-    }
-
-    .promo-tabs {
-        width: 100%;
-    }
-
-    .promo-tab {
-        flex: 1;
-        padding: 0.5rem 0.4rem;
-    }
-
-    .promo-result-count {
-        margin-left: 0;
-    }
-
-    .sp-header-actions {
-        flex-wrap: wrap;
-    }
-}
-
-
-/* ============================================
-   FORMULARIO DE PROMOCIÓN (PromotionFormModal)
-   Prefijo pmf-: "pfm-" ya lo usa ProductFormModal.css y en CRA el CSS es global.
-   Colores propios para verse igual sin importar qué :root --primary esté cargado.
-   ============================================ */
-
-.pmf-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1.5rem;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-}
-
-.pmf-modal {
-    --pmf-accent: #4f46e5;
-    --pmf-accent-strong: #4338ca;
-    --pmf-accent-soft: #eef2ff;
-    --pmf-text: #0f172a;
-    --pmf-text-2: #475569;
-    --pmf-muted: #64748b;
-    --pmf-border: #e2e8f0;
-    --pmf-input-border: #cbd5e1;
-    --pmf-subtle: #f8fafc;
-
-    width: 100%;
-    max-width: 760px;
-    max-height: calc(100vh - 3rem);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: #ffffff;
-    border-radius: 18px;
-    box-shadow: 0 24px 60px -12px rgba(15, 23, 42, 0.35);
-    color: var(--pmf-text);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    animation: pmf-in 0.2s ease-out;
-}
-
-@keyframes pmf-in {
-    from {
-        opacity: 0;
-        transform: translateY(12px) scale(0.98);
-    }
-
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-.pmf-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid var(--pmf-border);
-    background: #ffffff;
-}
-
-.pmf-header-icon {
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 12px;
-    background: var(--pmf-accent-soft);
-    color: var(--pmf-accent);
-}
-
-.pmf-header-text {
+.promo-add-row .promo-add-btn {
     flex: 1;
     min-width: 0;
 }
 
-.pmf-header-text h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 700;
-    line-height: 1.3;
-    color: var(--pmf-text);
-}
-
-.pmf-header-text p {
-    margin: 0.2rem 0 0;
-    font-size: 0.875rem;
-    color: var(--pmf-muted);
-}
-
-.pmf-close {
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
+/* --------------------------------------------------------------------------
+   4. Formularios de promoción (PromotionFormModal y SpecialPromotionFormModal)
+   La estructura es .ui-modal + .ui-section + .ui-field + .ui-choice; aquí solo
+   las piezas propias (regalos, cargando, precio en vivo).
+   -------------------------------------------------------------------------- */
+.pmf-skeleton {
     display: flex;
     align-items: center;
-    justify-content: center;
-    border: 1px solid var(--pmf-border);
-    border-radius: 10px;
-    background: #ffffff;
-    color: var(--pmf-muted);
-    cursor: pointer;
-}
-
-.pmf-close:hover {
-    background: #fef2f2;
-    border-color: #fecaca;
-    color: #dc2626;
-}
-
-.pmf-body {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    padding: 1.5rem;
-    background: var(--pmf-subtle);
-}
-
-.pmf-section {
-    padding: 1.25rem;
-    background: #ffffff;
-    border: 1px solid var(--pmf-border);
-    border-radius: 14px;
-}
-
-.pmf-section-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.85rem;
-    margin-bottom: 1.1rem;
-}
-
-.pmf-step {
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: var(--pmf-accent-soft);
-    color: var(--pmf-accent);
-    font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.pmf-section-head h4 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-    line-height: 1.4;
-    color: var(--pmf-text);
-}
-
-.pmf-section-head p {
-    margin: 0.15rem 0 0;
-    font-size: 0.85rem;
-    line-height: 1.45;
-    color: var(--pmf-muted);
-}
-
-.pmf-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1rem 1.25rem;
-}
-
-.pmf-span-2 {
-    grid-column: 1 / -1;
-}
-
-.pmf-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    min-width: 0;
-}
-
-.pmf-field label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--pmf-text);
-}
-
-.pmf-req {
-    color: #dc2626;
-}
-
-.pmf-optional {
-    font-weight: 400;
-    color: var(--pmf-muted);
-}
-
-.pmf-field input,
-.pmf-field select,
-.pmf-field textarea {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.65rem 0.8rem;
-    border: 1px solid var(--pmf-input-border);
-    border-radius: 10px;
-    background: #ffffff;
-    color: var(--pmf-text);
-    font-size: 0.95rem;
-    font-family: inherit;
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.pmf-field textarea {
-    min-height: 84px;
-    resize: vertical;
-    line-height: 1.5;
-}
-
-.pmf-field input:focus,
-.pmf-field select:focus,
-.pmf-field textarea:focus {
-    outline: none;
-    border-color: var(--pmf-accent);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
-}
-
-.pmf-help {
-    font-size: 0.8rem;
-    line-height: 1.45;
-    color: var(--pmf-muted);
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: 8px var(--space-3);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
 }
 
 .pmf-price-preview {
-    color: var(--pmf-text);
+    font-weight: 600;
+    color: var(--color-text);
     white-space: nowrap;
 }
 
-.pmf-skeleton {
-    padding: 0.65rem 0.8rem;
-    border: 1px dashed var(--pmf-input-border);
-    border-radius: 10px;
-    color: var(--pmf-muted);
-    font-size: 0.9rem;
-}
-
-.pmf-input-prefix {
-    position: relative;
-}
-
-.pmf-input-prefix > span {
-    position: absolute;
-    left: 0.8rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--pmf-muted);
-    font-weight: 600;
-    pointer-events: none;
-}
-
-.pmf-field .pmf-input-prefix input {
-    padding-left: 1.75rem;
-}
-
-.pmf-field input.pmf-input-big {
+.ui-input.pmf-input-big {
     max-width: 160px;
-    font-size: 1.35rem;
+    font-size: var(--text-xl);
     font-weight: 700;
     text-align: center;
-}
-
-/* Tarjetas de opción (tipo y visibilidad) */
-.pmf-choice-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.85rem;
-}
-
-.pmf-choice {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 1rem;
-    border: 1.5px solid var(--pmf-border);
-    border-radius: 12px;
-    background: #ffffff;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-}
-
-.pmf-choice.compact {
-    padding: 0.85rem 1rem;
-}
-
-.pmf-choice:hover {
-    border-color: #a5b4fc;
-}
-
-.pmf-choice.is-selected {
-    border-color: var(--pmf-accent);
-    background: var(--pmf-accent-soft);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
-}
-
-/* Radio/checkbox ocultos a la vista pero accesibles con teclado */
-.pmf-choice input,
-.pmf-switch input {
-    position: absolute;
-    opacity: 0;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    pointer-events: none;
-}
-
-.pmf-choice:has(input:focus-visible),
-.pmf-switch:has(input:focus-visible) {
-    outline: 2px solid var(--pmf-accent);
-    outline-offset: 2px;
-}
-
-.pmf-choice-icon {
-    width: 38px;
-    height: 38px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    background: var(--pmf-subtle);
-    color: var(--pmf-text-2);
-    font-size: 22px !important;
-}
-
-.pmf-choice.is-selected .pmf-choice-icon {
-    background: var(--pmf-accent);
-    color: #ffffff;
-}
-
-.pmf-choice-text,
-.pmf-switch-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    min-width: 0;
-}
-
-.pmf-choice-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--pmf-text);
-}
-
-.pmf-choice-desc {
-    font-size: 0.82rem;
-    line-height: 1.45;
-    color: var(--pmf-muted);
 }
 
 /* Regalos (promoción fija) */
 .pmf-gifts {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-3);
 }
 
 .pmf-gift-list {
-    list-style: none;
     margin: 0;
     padding: 0;
-    border: 1px solid var(--pmf-border);
-    border-radius: 12px;
+    list-style: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
     overflow: hidden;
+}
+
+/* La lista vacía no deja un recuadro sin contenido */
+.pmf-gift-list:empty {
+    display: none;
 }
 
 .pmf-gift-item {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.6rem 0.85rem;
-    background: #ffffff;
+    gap: var(--space-3);
+    min-height: 48px;
+    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+    background: var(--color-surface);
 }
 
 .pmf-gift-item + .pmf-gift-item {
-    border-top: 1px solid var(--pmf-border);
+    border-top: 1px solid var(--color-border);
 }
 
 .pmf-gift-qty {
-    min-width: 44px;
-    padding: 0.2rem 0.5rem;
-    border-radius: 999px;
-    background: var(--pmf-accent-soft);
-    color: var(--pmf-accent);
-    font-size: 0.85rem;
-    font-weight: 700;
-    text-align: center;
+    min-width: 40px;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
 }
 
 .pmf-gift-name {
     flex: 1;
     min-width: 0;
-    font-size: 0.92rem;
+    font-size: var(--text-base);
+    color: var(--color-text);
     overflow-wrap: anywhere;
-}
-
-.pmf-icon-btn {
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--pmf-muted);
-    cursor: pointer;
-}
-
-.pmf-icon-btn.danger:hover {
-    background: #fef2f2;
-    color: #dc2626;
 }
 
 .pmf-empty-note {
     margin: 0;
-    padding: 0.85rem 1rem;
-    border: 1px dashed var(--pmf-input-border);
-    border-radius: 12px;
-    color: var(--pmf-muted);
-    font-size: 0.88rem;
+    padding: var(--space-3) var(--space-4);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
     text-align: center;
 }
 
@@ -1420,287 +554,34 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) 110px auto;
     align-items: end;
-    gap: 0.75rem;
-    padding: 0.9rem;
-    border: 1px solid var(--pmf-border);
-    border-radius: 12px;
-    background: var(--pmf-subtle);
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
 }
 
-/* Surtido: aviso */
+/* Surtido: el aviso se alinea con el campo de cantidad */
 .pmf-callout {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
     align-self: end;
-    padding: 0.85rem 1rem;
-    border-radius: 12px;
-    background: var(--pmf-accent-soft);
-    color: #3730a3;
-    font-size: 0.85rem;
-    line-height: 1.5;
-}
-
-.pmf-callout p {
-    margin: 0;
-}
-
-.pmf-callout .material-icons-round {
-    flex-shrink: 0;
-    font-size: 18px;
-    margin-top: 1px;
 }
 
 .pmf-vendors {
-    margin-top: 1rem;
+    margin-top: var(--space-4);
 }
 
-/* Interruptor */
-.pmf-switch {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
-    border: 1px solid var(--pmf-border);
-    border-radius: 12px;
-    background: #ffffff;
-    cursor: pointer;
-}
+/* --------------------------------------------------------------------------
+   5. Piezas del formulario de promoción especial
+   (.spf-stack, .spf-choice-btn y .spf-kind-badge están en SpecialProducts.css:
+   las comparte el formulario de producto especial, que no carga este archivo)
+   -------------------------------------------------------------------------- */
 
-.pmf-switch-track {
-    position: relative;
-    width: 40px;
-    height: 22px;
-    flex-shrink: 0;
-    margin-top: 1px;
-    border-radius: 999px;
-    background: var(--pmf-input-border);
-    transition: background 0.15s;
-}
-
-.pmf-switch-thumb {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #ffffff;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    transition: transform 0.15s;
-}
-
-.pmf-switch input:checked + .pmf-switch-track {
-    background: var(--pmf-accent);
-}
-
-.pmf-switch input:checked + .pmf-switch-track .pmf-switch-thumb {
-    transform: translateX(18px);
-}
-
-/* Pie con los botones */
-.pmf-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    padding: 1rem 1.5rem;
-    border-top: 1px solid var(--pmf-border);
-    background: #ffffff;
-}
-
-/* .pmf-modal delante: Login.css define button[type="submit"] global (ancho 100%, sombra) */
-.pmf-modal .pmf-btn {
-    width: auto;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.45rem;
-    padding: 0.7rem 1.25rem;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    box-shadow: none;
-    font-family: inherit;
-    font-size: 0.92rem;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-}
-
-.pmf-modal .pmf-btn .material-icons-round {
-    font-size: 18px;
-}
-
-.pmf-modal .pmf-btn:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-}
-
-.pmf-modal .pmf-btn:focus-visible {
-    outline: 2px solid var(--pmf-accent);
-    outline-offset: 2px;
-}
-
-.pmf-modal .pmf-btn-primary {
-    background: var(--pmf-accent);
-    color: #ffffff;
-}
-
-.pmf-modal .pmf-btn-primary:hover:not(:disabled) {
-    background: var(--pmf-accent-strong);
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-}
-
-.pmf-modal .pmf-btn-secondary {
-    background: #ffffff;
-    border-color: var(--pmf-input-border);
-    color: var(--pmf-text-2);
-}
-
-.pmf-modal .pmf-btn-secondary:hover {
-    background: var(--pmf-subtle);
-}
-
-.pmf-modal .pmf-btn-soft {
-    background: var(--pmf-accent-soft);
-    border-color: #c7d2fe;
-    color: var(--pmf-accent);
-}
-
-.pmf-modal .pmf-btn-soft:hover:not(:disabled) {
-    background: #e0e7ff;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .pmf-modal {
-        animation: none;
-    }
-}
-
-/* Móvil: pantalla completa, una columna y botones del pie a todo el ancho */
-@media (max-width: 640px) {
-    .pmf-overlay {
-        padding: 0;
-        align-items: stretch;
-    }
-
-    .pmf-modal {
-        max-width: none;
-        max-height: none;
-        height: 100%;
-        border-radius: 0;
-    }
-
-    .pmf-header {
-        padding: 1rem;
-    }
-
-    .pmf-header-icon {
-        display: none;
-    }
-
-    .pmf-body {
-        padding: 1rem;
-        gap: 1rem;
-    }
-
-    .pmf-section {
-        padding: 1rem;
-    }
-
-    .pmf-grid,
-    .pmf-choice-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .pmf-add-gift {
-        grid-template-columns: minmax(0, 1fr) 96px;
-    }
-
-    .pmf-modal .pmf-add-gift-btn {
-        grid-column: 1 / -1;
-    }
-
-    .pmf-field input.pmf-input-big {
-        max-width: none;
-    }
-
-    /* 16px evita que iOS haga zoom al enfocar */
-    .pmf-field input,
-    .pmf-field select,
-    .pmf-field textarea {
-        font-size: 16px;
-    }
-
-    .pmf-footer {
-        padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
-    }
-
-    /* Cancelar a su ancho y Guardar ocupa el resto (en dos mitades "Guardar cambios" se partía) */
-    .pmf-modal .pmf-footer .pmf-btn-secondary {
-        flex: 0 0 auto;
-    }
-
-    .pmf-modal .pmf-footer .pmf-btn-primary {
-        flex: 1;
-    }
-}
-
-
-/* ============================================
-   FORMULARIO DE PROMOCIÓN ESPECIAL (SpecialPromotionFormModal)
-   ============================================ */
-
-.spf-section {
-    margin-top: 0.5rem;
-    padding: 1rem;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    background: #f8fafc;
-}
-
-.spf-section .sp-form-group:last-child {
-    margin-bottom: 0;
-}
-
-.spf-section-title {
-    margin: 0 0 0.85rem;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #0f172a;
-}
-
-/* "¿Quién la ve?": reutiliza las tarjetas de opción del formulario de promociones normales
-   (.pmf-choice), cuyos colores salen de las variables --pmf-* que solo define .pmf-modal */
-.spf-modal {
-    --pmf-accent: #4f46e5;
-    --pmf-accent-soft: #eef2ff;
-    --pmf-text: #0f172a;
-    --pmf-text-2: #475569;
-    --pmf-muted: #64748b;
-    --pmf-border: #e2e8f0;
-    --pmf-subtle: #f8fafc;
-}
-
-.spf-visibility {
-    margin-bottom: 1rem;
-}
-
-.spf-visibility .pmf-vendors {
-    margin: 1rem 0 0;
-}
-
-.spf-visibility .spf-visibility-note {
-    margin-top: 0.75rem;
-}
-
+/* Resumen de solo lectura de la promoción base */
 .spf-readonly {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem 1rem;
-    margin: 0 0 0.85rem;
+    gap: var(--space-3) var(--space-4);
+    margin: 0 0 var(--space-3);
 }
 
 .spf-readonly > div {
@@ -1708,93 +589,86 @@
 }
 
 .spf-readonly dt {
-    font-size: 0.75rem;
+    font-size: var(--text-xs);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    color: #64748b;
+    color: var(--color-text-muted);
 }
 
 .spf-readonly dd {
-    margin: 0.15rem 0 0;
-    font-size: 0.92rem;
+    margin: 2px 0 0;
+    font-size: var(--text-base);
     font-weight: 600;
-    color: #0f172a;
+    color: var(--color-text);
     overflow-wrap: anywhere;
 }
 
 .spf-note {
     margin: 0;
-    font-size: 0.82rem;
-    line-height: 1.5;
-    color: #64748b;
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+    color: var(--color-text-muted);
+}
+
+.spf-note + .spf-readonly {
+    margin-top: var(--space-3);
 }
 
 .spf-block {
-    margin: 0 0 0.75rem;
+    margin: 0 0 var(--space-3);
 }
 
-.spf-alert {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.6rem;
-    margin-bottom: 1rem;
-    padding: 0.75rem 0.9rem;
-    border: 1px solid #fde68a;
-    border-radius: 10px;
-    background: #fffbeb;
-    color: #92400e;
-    font-size: 0.85rem;
-    line-height: 1.5;
-}
-
-.spf-alert p {
-    margin: 0;
-}
-
-.spf-alert .material-icons-round {
-    font-size: 20px;
-    flex-shrink: 0;
-}
-
-.spf-help {
-    display: block;
-    margin-top: 0.35rem;
-    font-size: 0.78rem;
-    line-height: 1.45;
-    color: #64748b;
-}
-
-.sp-form-group label.spf-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 42px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.sp-form-group label.spf-checkbox input {
-    width: auto;
-}
-
-.spf-link-danger {
-    border: none;
-    background: none;
-    color: #dc2626;
-    font-size: 1.1rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0 0.25rem;
+.spf-gifts {
+    margin-top: var(--space-4);
 }
 
 @media (max-width: 640px) {
-    .spf-readonly {
-        grid-template-columns: 1fr;
+    .pmf-skeleton {
+        min-height: 44px;
     }
 
-    .spf-modal .sp-form-row {
-        grid-template-columns: 1fr;
-        gap: 0;
+    .ui-input.pmf-input-big {
+        max-width: none;
     }
+
+    .pmf-add-gift {
+        grid-template-columns: minmax(0, 1fr) 96px;
+    }
+
+    .pmf-add-gift .pmf-add-gift-btn {
+        grid-column: 1 / -1;
+    }
+
+    .spf-readonly {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ==========================================================================
+   6. COMPARTIDO CON OTRAS ÁREAS (no borrar sin revisar esos componentes)
+   Promotions.css se carga en los paneles de Admin y Vendedora y estas filas
+   las usa AssortmentSelectionModal (y sus tests) sin importarlo:
+     - .product-search-item (fila de resultado del buscador de productos)
+   Las demás clases de esta sección (.promotion-badge, .assortment-*,
+   .product-search, .selected-products-table, .order-item-badge(s), .eta-form,
+   .pending-promotion-alert, .btn-select-assortment) ya no las usa ningún
+   componente: se quitaron (verificado con grep en todos los .js de src).
+   ========================================================================== */
+
+.product-search-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background-color var(--duration-fast) var(--ease);
+}
+
+.product-search-item:hover {
+    background: var(--color-surface-hover);
+}
+
+.product-search-item:last-child {
+    border-bottom: none;
 }

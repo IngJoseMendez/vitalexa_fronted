@@ -1,0 +1,102 @@
+/* ==========================================================================
+   PromotionBlock — una promoción (instancia) dentro de una orden, con sus
+   productos. Lo renderiza EditOrderModal. Prefijo propio .promo-block*;
+   la tabla usa la primitiva .ui-table (--compact).
+   ========================================================================== */
+
+.promo-block {
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.promo-block-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.promo-block-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.promo-block-icon.material-icons-round {
+  font-size: 18px;
+  color: var(--color-primary-text);
+}
+
+.promo-block-index {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.promo-block-count {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.promo-block-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.promo-block-price {
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.promo-block-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.promo-block-table .promo-block-qty {
+  width: 80px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.promo-block-item-name {
+  font-weight: 500;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.promo-block-pending {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-danger-text);
+}
+
+.promo-block-pending .material-icons-round {
+  font-size: 14px;
+}

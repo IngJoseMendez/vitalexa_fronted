@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import PromotionFormModal from './PromotionFormModal';
 import client from '../../api/client';
 import promotionService from '../../api/promotionService';
@@ -43,11 +43,15 @@ beforeEach(() => {
 
 test('crear Surtido: exige el precio del paquete y envía freeQuantity, packPrice y las vendedoras elegidas', async () => {
     const { submit, onSuccess } = renderModal();
-    const mainSelect = await screen.findByLabelText(/Producto principal/);
+    const mainProduct = await screen.findByRole('combobox', { name: /Producto principal/ });
 
     fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Surtido 13+5' } });
     fireEvent.click(screen.getByLabelText(/Surtido \(Variable\)/));
-    fireEvent.change(mainSelect, { target: { value: 'm1' } });
+    // Selector con buscador: se escribe el nombre (sin tilde ni mayúsculas) y se elige la opción
+    fireEvent.change(mainProduct, { target: { value: 'colageno' } });
+    expect(screen.queryByRole('option', { name: /Omega/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: /Colágeno - \$1000\.00 \(Stock: 5\)/ }));
+    expect(mainProduct).toHaveValue('Colágeno - $1000.00 (Stock: 5)');
     fireEvent.change(screen.getByLabelText(/Cantidad a comprar/), { target: { value: '13' } });
     fireEvent.change(screen.getByLabelText(/Cantidad Total a Bonificar/), { target: { value: '5' } });
 
@@ -156,4 +160,60 @@ test('si el backend aún no conoce la visibilidad, avisa que la promoción la si
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(mockToast.warning).toHaveBeenCalledWith(expect.stringMatching(/todavía no aplica la restricción por vendedora/));
+});
+
+test('crear Fija: producto principal y regalo se buscan escribiendo y se envían igual que antes', async () => {
+    const { submit } = renderModal();
+    const mainProduct = await screen.findByRole('combobox', { name: /Producto principal/ });
+
+    fireEvent.change(screen.getByLabelText(/Nombre/), { target: { value: 'Pack Colágeno' } });
+    fireEvent.change(mainProduct, { target: { value: 'colageno' } });
+    fireEvent.click(screen.getByRole('option', { name: /Colágeno/ }));
+
+    const gift = screen.getByRole('combobox', { name: /Añadir producto gratis/ });
+    const addButton = screen.getByRole('button', { name: 'Agregar' });
+    expect(addButton).toBeDisabled();
+
+    fireEvent.change(gift, { target: { value: 'omega' } });
+    const option = screen.getByRole('option', { name: /Omega/ });
+    // Precio y stock en la segunda línea de la opción
+    expect(option).toHaveTextContent('Stock: 3');
+    expect(screen.queryByRole('option', { name: /Colágeno/ })).not.toBeInTheDocument();
+    fireEvent.click(option);
+    expect(gift).toHaveValue('Omega');
+
+    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '2' } });
+    expect(addButton).toBeEnabled();
+    fireEvent.click(addButton);
+
+    // El regalo queda en la lista y el selector se vacía para el siguiente
+    expect(screen.getByText('Omega')).toBeInTheDocument();
+    expect(gift).toHaveValue('');
+    expect(addButton).toBeDisabled();
+
+    submit();
+    await waitFor(() => expect(promotionService.create).toHaveBeenCalledTimes(1));
+    expect(lastPayload(promotionService.create)).toEqual(expect.objectContaining({
+        nombre: 'Pack Colágeno',
+        type: 'PACK',
+        mainProductId: 'm1',
+        giftItems: [{ productId: 'g1', quantity: 2 }],
+    }));
+});
+
+test('editar: el producto principal guardado aparece elegido aunque esté inactivo', async () => {
+    client.get.mockImplementation(() => Promise.resolve({
+        data: [{ ...products[0], active: false }, products[1]],
+    }));
+    renderModal(existing);
+
+    const mainProduct = await screen.findByRole('combobox', { name: /Producto principal/ });
+    expect(mainProduct).toHaveValue('Colágeno - $1000.00 (Stock: 5)');
+
+    fireEvent.focus(mainProduct);
+    expect(screen.getByRole('option', { name: /Colágeno/ })).toHaveTextContent('Inactivo');
+    // El regalo solo ofrece productos activos
+    fireEvent.keyDown(mainProduct, { key: 'Escape' });
+    fireEvent.focus(screen.getByRole('combobox', { name: /Añadir producto gratis/ }));
+    expect(within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent)).toEqual([expect.stringContaining('Omega')]);
 });

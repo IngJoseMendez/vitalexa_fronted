@@ -106,32 +106,47 @@ const ClientDashboardContent = () => {
             {/* HEADER */}
             <header className="client-header">
                 <div className="client-welcome">
+                    <span className="ui-icon-tile client-brand-tile" aria-hidden="true">
+                        <span className="material-icons-round">storefront</span>
+                    </span>
                     <h1>Vitalexa B2B</h1>
                 </div>
 
-                <nav className="client-nav">
+                <nav className="client-nav ui-tabs" aria-label="Secciones del portal">
                     <button
-                        className={`nav-item ${activeTab === 'catalog' ? 'active' : ''}`}
+                        type="button"
+                        className={`nav-item ui-tab${activeTab === 'catalog' ? ' active is-active' : ''}`}
+                        aria-current={activeTab === 'catalog' ? 'page' : undefined}
                         onClick={() => setActiveTab('catalog')}
                     >
+                        <span className="material-icons-round" aria-hidden="true">storefront</span>
                         Catálogo
                     </button>
                     <button
-                        className={`nav-item ${activeTab === 'orders' ? 'active' : ''}`}
+                        type="button"
+                        className={`nav-item ui-tab${activeTab === 'orders' ? ' active is-active' : ''}`}
+                        aria-current={activeTab === 'orders' ? 'page' : undefined}
                         onClick={() => setActiveTab('orders')}
                     >
+                        <span className="material-icons-round" aria-hidden="true">receipt_long</span>
                         Mis Pedidos
                     </button>
                     <button
-                        className={`nav-item ${activeTab === 'lists' ? 'active' : ''}`}
+                        type="button"
+                        className={`nav-item ui-tab${activeTab === 'lists' ? ' active is-active' : ''}`}
+                        aria-current={activeTab === 'lists' ? 'page' : undefined}
                         onClick={() => setActiveTab('lists')}
                     >
+                        <span className="material-icons-round" aria-hidden="true">checklist</span>
                         Listas
                     </button>
                     <button
-                        className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`}
+                        type="button"
+                        className={`nav-item ui-tab${activeTab === 'profile' ? ' active is-active' : ''}`}
+                        aria-current={activeTab === 'profile' ? 'page' : undefined}
                         onClick={() => setActiveTab('profile')}
                     >
+                        <span className="material-icons-round" aria-hidden="true">person</span>
                         Perfil
                     </button>
                 </nav>
@@ -139,20 +154,24 @@ const ClientDashboardContent = () => {
                 <div className="header-actions">
                     {/* ✅ Refresh Button */}
                     <button
-                        className="btn-refresh-dashboard"
+                        type="button"
+                        className="btn-refresh-dashboard ui-icon-btn ui-icon-btn--bordered ui-icon-btn--lg"
                         onClick={() => setRefreshTrigger(Date.now())}
                         title="Actualizar datos"
+                        aria-label="Actualizar datos"
                     >
-                        <span className="material-icons-round">sync</span>
+                        <span className="material-icons-round" aria-hidden="true">sync</span>
                     </button>
 
                     <button
-                        className="cart-btn-header"
+                        type="button"
+                        className={`cart-btn-header ui-btn ui-btn--secondary${activeTab === 'cart' ? ' is-active' : ''}`}
+                        aria-current={activeTab === 'cart' ? 'page' : undefined}
                         onClick={() => setActiveTab('cart')}
                     >
-                        <span className="material-icons-round">shopping_cart</span>
+                        <span className="material-icons-round" aria-hidden="true">shopping_cart</span>
                         Carrito
-                        {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+                        {cartCount > 0 && <span key={cartCount} className="cart-badge">{cartCount}</span>}
                     </button>
                 </div>
             </header>
@@ -163,15 +182,19 @@ const ClientDashboardContent = () => {
                 {activeTab === 'catalog' && (
                     <>
                         <div className="catalog-toolbar">
-                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1 }}>
-                                <input
-                                    type="text"
-                                    className="search-input"
-                                    placeholder="Buscar productos..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                                <label className="stock-toggle">
+                            <div className="catalog-toolbar-main">
+                                <div className="catalog-search ui-search">
+                                    <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
+                                    <input
+                                        type="text"
+                                        className="search-input ui-input"
+                                        placeholder="Buscar productos..."
+                                        aria-label="Buscar productos"
+                                        value={search}
+                                        onChange={(e) => setSearch(e.target.value)}
+                                    />
+                                </div>
+                                <label className="stock-toggle ui-checkbox">
                                     <input
                                         type="checkbox"
                                         checked={inStockOnly}
@@ -180,15 +203,17 @@ const ClientDashboardContent = () => {
                                     Solo en stock
                                 </label>
                             </div>
-                            <div className="grid-columns-selector">
+                            <div className="grid-columns-selector ui-tabs" role="group" aria-label="Columnas del catálogo">
                                 {[1, 2, 3].map(cols => (
                                     <button
                                         key={cols}
-                                        className={`grid-btn ${gridColumns === cols ? 'active' : ''}`}
+                                        type="button"
+                                        className={`grid-btn ui-tab${gridColumns === cols ? ' active is-active' : ''}`}
                                         onClick={() => setGridColumns(cols)}
                                         title={`${cols} columnas`}
+                                        aria-pressed={gridColumns === cols}
                                     >
-                                        <span className="material-icons-round">dashboard</span>
+                                        <span className="material-icons-round" aria-hidden="true">dashboard</span>
                                         {cols}
                                     </button>
                                 ))}
@@ -203,18 +228,37 @@ const ClientDashboardContent = () => {
                         />
 
                         {loading ? (
-                            <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando catálogo...</div>
+                            <div className="client-loading client-skeleton-grid" role="status" aria-busy="true">
+                                <span className="ui-sr-only">Cargando catálogo...</span>
+                                {[0, 1, 2, 3].map(i => (
+                                    <div key={i} className="client-skeleton-card" aria-hidden="true">
+                                        <span className="ui-skeleton ui-skeleton--block client-skeleton-media" />
+                                        <span className="ui-skeleton ui-skeleton--title" />
+                                        <span className="ui-skeleton ui-skeleton--text" />
+                                        <span className="ui-skeleton ui-skeleton--text client-skeleton-short" />
+                                    </div>
+                                ))}
+                            </div>
                         ) : (
-                            <div className="products-grid" style={{
-                                gridTemplateColumns: `repeat(${gridColumns}, 1fr)`
-                            }}>
+                            <div
+                                className={`products-grid ui-stagger cols-${gridColumns}`}
+                                style={{
+                                    // Columnas elegidas por el cliente; minmax(0, 1fr) evita scroll horizontal
+                                    gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`
+                                }}
+                            >
                                 {(() => {
                                     const filteredProducts = (products || []).filter(p =>
                                         !activeTagId || p.tagId === activeTagId
                                     );
 
                                     if (filteredProducts.length === 0) {
-                                        return <p>No se encontraron productos.</p>;
+                                        return (
+                                            <div className="client-grid-empty ui-empty">
+                                                <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                                                <p className="ui-empty-title">No se encontraron productos.</p>
+                                            </div>
+                                        );
                                     }
 
                                     return filteredProducts.map(p => (
@@ -231,44 +275,57 @@ const ClientDashboardContent = () => {
 
                         {/* Pagination */}
                         {totalPages > 1 && (
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '2rem' }}>
+                            <nav className="client-pagination" aria-label="Paginación del catálogo">
                                 <button
-                                    className="btn-action"
+                                    type="button"
+                                    className="btn-action ui-btn ui-btn--secondary"
                                     disabled={page === 0}
                                     onClick={() => setPage(p => p - 1)}
                                 >
+                                    <span className="material-icons-round" aria-hidden="true">chevron_left</span>
                                     Anterior
                                 </button>
-                                <span style={{ alignSelf: 'center' }}>Página {page + 1} de {totalPages}</span>
+                                <span className="client-pagination-info">Página {page + 1} de {totalPages}</span>
                                 <button
-                                    className="btn-action"
+                                    type="button"
+                                    className="btn-action ui-btn ui-btn--secondary"
                                     disabled={page >= totalPages - 1}
                                     onClick={() => setPage(p => p + 1)}
                                 >
                                     Siguiente
+                                    <span className="material-icons-round" aria-hidden="true">chevron_right</span>
                                 </button>
-                            </div>
+                            </nav>
                         )}
                     </>
                 )}
 
                 {activeTab === 'cart' && (
-                    <div className="animate-fade-in">
-                        <h2 style={{ marginBottom: '1.5rem' }}>Mi Carrito</h2>
+                    <div className="ui-rise-in">
+                        <h2 className="client-section-title">
+                            <span className="ui-icon-tile" aria-hidden="true"><span className="material-icons-round">shopping_cart</span></span>
+                            Mi Carrito
+                        </h2>
                         <CartView onOrderPlaced={() => setActiveTab('orders')} key={refreshTrigger} />
                     </div>
                 )}
 
                 {activeTab === 'orders' && (
-                    <div className="animate-fade-in">
-                        <h2 style={{ marginBottom: '1.5rem' }}>Mis Pedidos</h2>
+                    <div className="ui-rise-in">
+                        <h2 className="client-section-title">
+                            <span className="ui-icon-tile ui-icon-tile--success" aria-hidden="true"><span className="material-icons-round">receipt_long</span></span>
+                            Mis Pedidos
+                        </h2>
                         <OrdersView key={refreshTrigger} />
                     </div>
                 )}
 
                 {activeTab === 'lists' && (
-                    <div className="animate-fade-in">
-                        <h2 style={{ marginBottom: '1.5rem' }}>Listas de Compras</h2>
+                    <div className="ui-rise-in">
+                        <h2 className="client-section-title">
+                            <span className="ui-icon-tile ui-icon-tile--teal" aria-hidden="true"><span className="material-icons-round">checklist</span></span>
+                            Listas de Compras
+                        </h2>
                         <ShoppingListsView
                             onConvertToOrder={() => setActiveTab('orders')}
                             productToAdd={productToAdd}
@@ -279,7 +336,7 @@ const ClientDashboardContent = () => {
                 )}
 
                 {activeTab === 'profile' && (
-                    <div className="animate-fade-in">
+                    <div className="ui-rise-in">
                         <ClientProfile key={refreshTrigger} />
                     </div>
                 )}

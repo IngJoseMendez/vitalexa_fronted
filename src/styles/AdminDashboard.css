@@ -1,3295 +1,1625 @@
-/* ============================================
-   ADMIN DASHBOARD — SIDEBAR LATERAL 2026
-   ============================================ */
+/* ==========================================================================
+   PANEL DE ADMIN (src/pages/AdminDashboard.js)
+   Raíz: .admin-dashboard. Tokens y primitivas .ui-* en design-system.css; el
+   shell (menú lateral, .admin-main, .dashboard-content) vive en Dashboard.css.
 
-:root {
-  --primary: #4f46e5;
-  --primary-light: #818cf8;
-  --primary-dark: #3730a3;
-  --text-main: #0f172a;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --bg-color: #f8fafc;
-  --surface-color: #ffffff;
-  --border: #e2e8f0;
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --sidebar-width: 220px;
-  --sidebar-collapsed: 68px;
+   Reglas de este archivo
+   - Sin :root, sin colores hex, sin degradados, sin backdrop-filter, sin sombras
+     en tarjetas (solo --shadow-overlay en capas flotantes), sin mayúsculas.
+   - Todo va bajo .admin-dashboard: el CSS de CRA es global y el Owner también
+     puede entrar a /admin, así este chunk no toca otras pantallas.
+   - Clases nuevas con prefijo adm-*. Se conservan los nombres viejos que ya
+     tenía el JSX (order-card, cart-item…) pero siempre bajo la raíz.
+   - Ya no define clases genéricas (.modal-*, .form-group, .btn-save, .panel-header,
+     tablas de etiquetas…): los paneles y modales hijos usan .ui-* y su propio CSS;
+     si alguno las vuelve a usar, las cubre la capa legacy de design-system.css.
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. ÓRDENES (OrdersPanel)
+   ========================================================================== */
+
+.admin-dashboard .adm-page-header {
+  margin-bottom: var(--space-4);
 }
 
-/* ── Layout raíz ── */
-.admin-dashboard {
-  min-height: 100vh;
-  width: 100%;
-  background: #f8fafc;
+/* ---------- Pestañas de estado ----------
+   Se envuelven en vez de desplazarse: .ui-tabs oculta la barra de scroll y las
+   últimas pestañas (Anuladas, Historia) quedarían escondidas sin ninguna pista. */
+.admin-dashboard .adm-order-tabs {
   display: flex;
-  flex-direction: row;
-  font-family: 'Inter', sans-serif;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: var(--space-4);
+  overflow-x: visible;
 }
 
-/* ══════════════════════════════════════════
-   SIDEBAR
-══════════════════════════════════════════ */
-.admin-sidebar {
-  width: var(--sidebar-width);
-  min-height: 100vh;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  z-index: 100;
-  border-right: 1px solid #e2e8f0;
-  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.08) transparent;
+.admin-dashboard .adm-tabs-divider {
   flex-shrink: 0;
+  align-self: center;
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--space-1);
+  background: var(--color-border-strong);
 }
 
-.admin-sidebar::-webkit-scrollbar { width: 4px; }
-.admin-sidebar::-webkit-scrollbar-track { background: transparent; }
-.admin-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.1);
-  border-radius: 4px;
+/* Anuladas y Historia conservan su color de significado al estar activas */
+.admin-dashboard .ui-tab.adm-tab--danger.is-active {
+  color: var(--color-danger-text);
 }
 
-/* ── Brand / Logo ── */
-.sidebar-brand {
+.admin-dashboard .ui-tab.adm-tab--warning.is-active {
+  color: var(--color-warning-text);
+}
+
+/* ---------- Búsqueda y filtros ---------- */
+.admin-dashboard .adm-orders-toolbar {
+  margin-bottom: var(--space-3);
+}
+
+.admin-dashboard .adm-orders-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.admin-dashboard .adm-orders-search {
+  flex: 1 1 320px;
+  max-width: 480px;
+}
+
+.admin-dashboard .adm-filter {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1.4rem 1.25rem 1.1rem;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 0.5rem;
+  gap: var(--space-1);
+  flex: 0 1 260px;
+  min-width: 200px;
 }
 
-.sidebar-brand .material-icons-round {
-  font-size: 26px;
-  color: var(--primary);
+.admin-dashboard .adm-filter-control {
+  flex: 1;
+  min-width: 0;
 }
 
-.sidebar-brand-name {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: 0.01em;
+/* Filtro aplicado: borde y fondo azul suave. En el selector de vendedor (con buscador) solo
+   mientras está cerrado: al escribir vuelve al blanco para que la búsqueda se lea bien */
+.admin-dashboard .adm-filter .ui-input.is-filtered,
+.admin-dashboard .adm-filter .ui-combobox.is-filtered:not(.is-open) .ui-combobox-input {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-soft);
 }
 
-/* ── Nav contenedor ── */
-.sidebar-nav {
+.admin-dashboard .adm-filter .ui-combobox.is-filtered .ui-combobox-icon {
+  color: var(--color-primary);
+}
+
+/* El filtro de vendedor ya tiene al lado su botón "Quitar filtro de vendedor": sin la x interna
+   del selector (dos x seguidas que hacen lo mismo) y sin el espacio que le reservaba */
+.admin-dashboard .adm-filter .ui-combobox .ui-combobox-clear {
+  display: none;
+}
+
+.admin-dashboard .adm-filter .ui-combobox.has-clear .ui-combobox-input {
+  padding-right: 40px;
+}
+
+/* Desplegable de clientes (capa flotante) */
+.admin-dashboard .adm-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  max-height: 300px;
+  margin-top: var(--space-1);
+  padding: var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  animation: ui-drop-in var(--duration-fast) var(--ease);
+}
+
+.admin-dashboard .adm-dropdown-option {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
-  padding: 0 0.6rem;
-  flex: 1;
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-base);
+  line-height: 1.35;
+  cursor: pointer;
 }
 
-/* ── Item de navegación ── */
-.sidebar-item {
+/* El hijo no recibe el puntero: el resaltado al pasar el mouse cae siempre en la opción */
+.admin-dashboard .adm-dropdown-option > * {
+  pointer-events: none;
+}
+
+.admin-dashboard .adm-dropdown-option.is-selected {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  font-weight: 600;
+}
+
+.admin-dashboard .adm-dropdown-option--all {
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.admin-dashboard .adm-dropdown-title {
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .adm-dropdown-meta {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.62rem 0.9rem;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: #64748b;
-  font-size: 0.875rem;
-  font-weight: 500;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.admin-dashboard .adm-dropdown-meta .material-icons-round {
+  font-size: 14px;
+}
+
+/* Opción seleccionada (fondo primario suave): muted no llega a 4.5:1 */
+.admin-dashboard .adm-dropdown-option.is-selected .adm-dropdown-meta {
+  color: var(--color-text-secondary);
+}
+
+.admin-dashboard .adm-dropdown-empty {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------- Barra de vista: orden, tamaño de página, columnas y total ---------- */
+.admin-dashboard .adm-viewbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.admin-dashboard .adm-viewbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.admin-dashboard .adm-viewbar-field {
   cursor: pointer;
-  transition: all 0.18s ease;
+}
+
+.admin-dashboard .adm-viewbar-icon {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.admin-dashboard .adm-viewbar .ui-select {
+  width: auto;
+  min-height: 32px;
+  padding: 4px 32px 4px 10px;
+  background-position: right 6px center;
+  font-size: var(--text-sm);
+}
+
+.admin-dashboard .adm-viewbar .ui-icon-btn {
+  width: 32px;
+  height: 32px;
+}
+
+.admin-dashboard .adm-viewbar-total {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Carga: tarjetas de esqueleto con la forma de la tarjeta de orden ----------
+   El texto "Cargando órdenes..." sigue para lectores de pantalla (.ui-sr-only). El pulso
+   de .ui-skeleton es de opacidad y se apaga con prefers-reduced-motion (design-system). */
+.admin-dashboard .adm-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-dashboard .adm-skeleton-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-dashboard .adm-skeleton-head .ui-skeleton--title {
+  width: 55%;
+}
+
+.admin-dashboard .adm-skeleton-pill {
+  flex-shrink: 0;
+  width: 72px;
+  height: 22px;
+  border-radius: var(--radius-full);
+}
+
+.admin-dashboard .adm-skeleton-w80 {
+  width: 80%;
+}
+
+.admin-dashboard .adm-skeleton-w60 {
+  width: 60%;
+}
+
+.admin-dashboard .adm-skeleton-total {
+  align-self: flex-end;
+  width: 40%;
+  margin-top: var(--space-1);
+}
+
+.admin-dashboard .adm-skeleton-btns {
+  display: flex;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-dashboard .adm-skeleton-btn {
+  flex: 1;
+  height: 32px;
+}
+
+/* ---------- Grilla de tarjetas ---------- */
+.admin-dashboard .orders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* ---------- Tarjeta de orden ----------
+   Bordes y fondo normal / S/N los fija index.css (.is-normal / .is-sr con !important). */
+.admin-dashboard .order-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transform: none;
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.admin-dashboard .order-card:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-card-hover);
+  transform: none;
+}
+
+/* Ritmo vertical: 12px entre bloques de la tarjeta (incluye la sección de descuentos) */
+.admin-dashboard .order-card > * + * {
+  margin-top: var(--space-3);
+}
+
+.admin-dashboard .order-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Deja libre la esquina de la cinta "SIN REGISTRO" */
+.admin-dashboard .order-card.is-sr .order-header {
+  padding-right: var(--space-12);
+}
+
+.admin-dashboard .adm-order-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px var(--space-2);
+  min-width: 0;
+}
+
+.admin-dashboard .order-id {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: var(--tracking-title);
+  color: var(--color-primary-text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .order-status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  min-height: 22px;
+  padding: 2px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* Estado de la orden (clase de getStatusBadgeClass): PENDIENTE=warning,
+   CONFIRMADO=primary, COMPLETADO=success, ANULADA/CANCELADO=danger, otros=neutral */
+.admin-dashboard .order-status.status-pendiente {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+.admin-dashboard .order-status.status-confirmado {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.admin-dashboard .order-status.status-completado {
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+
+.admin-dashboard .order-status.status-cancelado,
+.admin-dashboard .order-status.status-anulada {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+/* Metadatos label / valor */
+.admin-dashboard .order-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-dashboard .order-info > p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 6px 0;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--color-text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .order-info > p:not(.order-total):not(.order-discounted-total) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-dashboard .order-info > p > strong {
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
   text-align: left;
   white-space: nowrap;
-  width: 100%;
-  position: relative;
 }
 
-.sidebar-item:hover {
-  background: #f1f5f9;
-  color: var(--primary);
-  transform: translateX(3px);
+/* Orden S/R (fondo rojo suave, .is-sr de index.css): muted no llega a 4.5:1 */
+.admin-dashboard .is-sr .order-info > p > strong {
+  color: var(--color-text-secondary);
 }
 
-.sidebar-item.active {
-  background: #eef2ff;
-  color: var(--primary);
-  font-weight: 700;
-  box-shadow: inset 3px 0 0 var(--primary);
-}
-
-.sidebar-item.active .sidebar-icon {
-  color: var(--primary);
-}
-
-.sidebar-icon {
-  font-size: 20px;
-  color: #94a3b8;
-  flex-shrink: 0;
-  transition: color 0.18s;
-}
-
-.sidebar-item:hover .sidebar-icon {
-  color: var(--primary);
-}
-
-.sidebar-label {
-  font-size: 0.875rem;
+/* Icono con tinte por categoría delante de cada dato: vendedora = azul, cliente = teal,
+   fecha = sky (decorativos, aria-hidden). Alineado a la línea base de la etiqueta. */
+.admin-dashboard .adm-info-icon {
+  margin-right: 6px;
+  font-size: 16px;
   line-height: 1;
+  vertical-align: -3px;
 }
 
-/* ── Divider ── */
-.sidebar-divider {
-  height: 1px;
-  background: #f1f5f9;
-  margin: 0.5rem 0.3rem;
+.admin-dashboard .adm-info-icon--primary {
+  color: var(--color-primary);
 }
 
-/* ── Botón externo (Saldos) ── */
-.sidebar-external {
-  color: #059669;
+.admin-dashboard .adm-info-icon--teal {
+  color: var(--color-teal);
 }
 
-.sidebar-external .sidebar-icon {
-  color: #10b981;
+.admin-dashboard .adm-info-icon--sky {
+  color: var(--color-sky);
 }
 
-.sidebar-external:hover {
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.sidebar-external:hover .sidebar-icon {
-  color: #047857;
-}
-
-/* ── Botón Refresh (pie de sidebar) ── */
-.sidebar-refresh {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  margin: 0.5rem 0.6rem 1rem;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  width: calc(100% - 1.2rem);
-}
-
-.sidebar-refresh:hover {
-  background: #eef2ff;
-  color: var(--primary);
-  border-color: #c7d2fe;
-}
-
-.sidebar-refresh .material-icons-round {
-  font-size: 18px;
-}
-
-/* ══════════════════════════════════════════
-   MAIN CONTENT
-══════════════════════════════════════════ */
-.admin-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: white;
-}
-
-.dashboard-content {
-  padding: 1.25rem 1.5rem;
-  flex: 1;
-  width: 100%;
-  min-height: 100vh;
-  background: white;
-  box-sizing: border-box;
-}
-
-@media (min-width: 1200px) {
-  .dashboard-content {
-    padding: 1.25rem 1.75rem;
-  }
-}
-
-/* ══════════════════════════════════════════
-   RESPONSIVE — SIDEBAR COLAPSADA EN MÓVIL
-══════════════════════════════════════════ */
-@media (max-width: 768px) {
-  .admin-dashboard {
-    flex-direction: column;
-  }
-
-  .admin-sidebar {
-    width: 100%;
-    min-height: unset;
-    height: auto;
-    position: sticky;
-    top: 0;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 0;
-    box-shadow: 0 4px 16px rgba(49,46,129,0.18);
-  }
-
-  .sidebar-brand { display: none; }
-
-  .sidebar-nav {
-    flex-direction: row;
-    padding: 0.5rem 0.5rem;
-    gap: 4px;
-    flex: 1;
-  }
-
-  .sidebar-item {
-    flex-direction: column;
-    gap: 2px;
-    padding: 0.5rem 0.6rem;
-    min-width: 56px;
-    justify-content: center;
-    align-items: center;
-    transform: none !important;
-  }
-
-  .sidebar-item.active {
-    box-shadow: inset 0 -3px 0 #a5b4fc;
-  }
-
-  .sidebar-label {
-    font-size: 0.62rem;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  .sidebar-divider { display: none; }
-
-  .sidebar-refresh {
-    flex-direction: column;
-    gap: 2px;
-    min-width: 56px;
-    padding: 0.5rem 0.6rem;
-    margin: 0.5rem 0.3rem;
-    align-self: center;
-    width: auto;
-  }
-
-  .dashboard-content {
-    padding: 0.75rem;
-  }
-}
-
-/* ══════════════════════════════════════════
-   SIDEBAR PLEGABLE (solo escritorio)
-   Todo va bajo .admin-dashboard: los CSS de CRA son globales y el Owner
-   también entra a /admin, así no se cruza con el menú del Owner.
-══════════════════════════════════════════ */
-.admin-dashboard .sidebar-toggle {
-  display: none; /* en móvil el menú ya es una barra horizontal: no se pliega */
-}
-
-@media (min-width: 769px) {
-  /* El header global (App.css) es sticky, mide 71px (70 + 1 de borde) y va encima (z-index
-     1100). Con top:0 y 100vh el header tapaba la marca al hacer scroll y, sin scroll,
-     "Actualizar" quedaba 71px por debajo de la pantalla. */
-  .admin-dashboard .admin-sidebar {
-    top: 71px;
-    height: calc(100vh - 71px);
-    min-height: 0;
-    transition: width 0.2s ease;
-  }
-
-  .admin-dashboard .sidebar-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    margin-left: auto;
-    padding: 0;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: #94a3b8;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background 0.18s ease, color 0.18s ease;
-  }
-
-  .admin-dashboard .sidebar-toggle:hover {
-    background: #f1f5f9;
-    color: var(--primary);
-  }
-
-  .admin-dashboard .sidebar-toggle:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-  }
-
-  .admin-dashboard .sidebar-brand .sidebar-toggle .material-icons-round {
-    font-size: 22px;
-    color: inherit;
-  }
-
-  /* ── Plegado: barra de solo iconos (el nombre queda en el tooltip de cada botón) ── */
-  .admin-dashboard.sidebar-collapsed .admin-sidebar {
-    width: var(--sidebar-collapsed);
-    /* Si los iconos no caben en alto sale la barra de scroll: se reserva el mismo espacio a
-       ambos lados para que los iconos sigan centrados */
-    scrollbar-gutter: stable both-edges;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-brand {
-    justify-content: center;
-    padding: 1.1rem 0 0.9rem;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-brand > .material-icons-round,
-  .admin-dashboard.sidebar-collapsed .sidebar-brand-name {
-    display: none;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-toggle {
-    margin-left: 0;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-nav {
-    padding: 0 0.25rem;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-item,
-  .admin-dashboard.sidebar-collapsed .sidebar-refresh {
-    justify-content: center;
-    gap: 0;
-    padding-left: 0;
-    padding-right: 0;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-item:hover {
-    transform: none;
-  }
-
-  .admin-dashboard.sidebar-collapsed .sidebar-refresh {
-    position: relative;
-    width: auto;
-    margin: 0.5rem 0.25rem 1rem;
-  }
-
-  /* El texto se oculta solo a la vista: los lectores de pantalla siguen leyendo el nombre */
-  .admin-dashboard.sidebar-collapsed .sidebar-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
-  }
-}
-
-@media (min-width: 769px) and (prefers-reduced-motion: reduce) {
-  .admin-dashboard .admin-sidebar {
-    transition: none;
-  }
-}
-
-/* ══════════════════════════════════════════
-   PANEL HEADER
-══════════════════════════════════════════ */
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.panel-header h2 {
-  margin: 0;
-  color: var(--text-main);
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
-  flex: 1;
-  justify-content: flex-end;
-}
-
-.grid-columns-selector {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  background: #f1f5f9;
-  padding: 0.4rem;
-  border-radius: 0.85rem;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-}
-
-.grid-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.5rem 0.8rem;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 0.6rem;
-  cursor: pointer;
+.admin-dashboard .order-info > p.order-total {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  font-size: var(--text-md);
   font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
-.grid-btn:hover {
-  background: white;
-  border-color: rgba(99, 102, 241, 0.2);
-  color: var(--primary);
+/* Orden pagada: el monto en verde (la etiqueta "Total:" conserva su color) */
+.admin-dashboard .order-info > p.order-total.is-paid {
+  color: var(--color-success-text);
 }
 
-.grid-btn.active {
-  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
-  color: white;
-  border-color: var(--primary);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+.admin-dashboard .order-info > p.order-discounted-total {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
 }
 
-.grid-btn .material-icons-round {
-  font-size: 1.1rem;
+.admin-dashboard .order-discounted-total .material-icons-round {
+  font-size: 16px;
 }
 
-/* FILTROS */
-.filter-buttons {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  background: white;
-  padding: 0.35rem;
-  border-radius: 99px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  box-shadow: var(--shadow-sm);
-}
-
-.filter-buttons button {
-  padding: 0.5rem 1.25rem;
-  background: transparent;
-  border: none;
-  border-radius: 99px;
-  cursor: pointer;
+.admin-dashboard .order-info > p.order-discounted-total > strong {
+  color: var(--color-success-text);
   font-weight: 600;
-  font-size: 0.875rem;
-  color: #475569 !important;
-  /* Slate-600 with !important to ensure visibility */
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 1px solid transparent;
 }
 
-.filter-buttons button:hover {
-  color: #0f172a !important;
-  background: #f1f5f9;
-}
-
-.filter-buttons button.active {
-  background: #4f46e5 !important;
-  color: white !important;
-  box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);
-}
-
-.filter-buttons button .material-icons-round {
-  font-size: 18px;
-}
-
-/* GRID DE ÓRDENES */
-.orders-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.order-card {
-  background: white;
-  padding: 1rem;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-}
-
-.order-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: rgba(99, 102, 241, 0.25);
-}
-
-/* ============================================
-   PAYMENT STATUS STYLING
-   ============================================ */
-.order-card.payment-paid {
-  border-left: 4px solid #10b981;
-  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 50%);
-}
-
-.order-card.payment-paid:hover {
-  border-color: #10b981;
-}
-
-.order-card.payment-partial {
-  border-left: 4px solid #94a3b8;
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 50%);
-}
-
-.order-card.payment-partial:hover {
-  border-color: #94a3b8;
-}
-
-
-
-/* Payment Status Badge */
-.payment-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 99px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.payment-status-badge.paid {
-  background: #d1fae5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-}
-
-.payment-status-badge.partial {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #cbd5e1;
-}
-
-.payment-status-badge.pending {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
-}
-
-
-
-/* === INVOICE ACTIONS (PDF) === */
-.invoice-actions {
-  margin-top: 0.6rem;
-  padding: 0.6rem;
-  background: #f8fafc;
-  border-radius: 0.875rem;
-  border: 1px solid #e2e8f0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.invoice-actions h4 {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.invoice-buttons {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.btn-invoice {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.55rem 0.75rem;
-  border-radius: 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid transparent;
-}
-
-.btn-preview {
-  background: white;
-  color: #4f46e5;
-  border-color: #e2e8f0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.btn-preview:hover {
-  background: #f1f5f9;
-  border-color: #6366f1;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.1);
-}
-
-.btn-download {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  color: white;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.btn-download:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
-  filter: brightness(1.2);
-}
-
-.btn-download:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.order-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px dashed var(--border);
-  margin-bottom: 0.7rem;
-}
-
-.order-id {
-  font-weight: 800;
-  color: var(--primary);
-  font-size: 1.15rem;
-  font-family: monospace;
-}
-
-.order-status {
-  padding: 0.35rem 1rem;
-  border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.status-pendiente {
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fcd34d;
-}
-
-.status-confirmado {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #93c5fd;
-}
-
-.status-completado {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #6ee7b7;
-}
-
-.status-cancelado {
-  background: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fca5a5;
-}
-
-.status-pending-promo {
-  background: #fdf4ff;
-  color: #a21caf;
-  border: 1px solid #e879f9;
-}
-
-.order-info {
-  flex: 1;
-}
-
-.order-info p {
-  margin: 0;
-  padding: 0.25rem 0;
-  font-size: 0.9rem;
-  line-height: 1.3;
-  color: var(--text-main);
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-
-/* Filas (excepto total y descuento) con separador sutil para escanear mejor */
-.order-info p:not(.order-total):not(.order-discounted-total):not(:last-of-type) {
-  border-bottom: 1px solid #f1f5f9;
-}
-
-/* Etiqueta en tono apagado, valor claro → mejor jerarquía visual */
-.order-info strong {
-  color: var(--text-muted);
+.admin-dashboard .order-discounted-total .discounted-value {
+  margin-left: auto;
+  font-size: 15px;
   font-weight: 600;
-  font-size: 0.8rem;
-  letter-spacing: 0.01em;
+  color: var(--color-success-text);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.order-total {
-  margin-top: 0.5rem !important;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--border);
-  font-size: 1.1rem !important;
-  color: var(--text-main) !important;
-  font-weight: 800 !important;
-  letter-spacing: -0.02em;
+.admin-dashboard .order-notes {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.admin-dashboard .order-notes strong {
   display: flex;
   align-items: center;
-}
-
-.order-notes {
-  background: #fffbeb;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  margin-top: 0.75rem;
-  font-size: 0.85rem;
-  color: #b45309;
-  border-left: 4px solid #f59e0b;
-  line-height: 1.4;
-}
-
-/* ============================================
-   GESTIÓN DE DESCUENTOS (dentro de la tarjeta de orden)
-   Rediseño con estilo índigo consistente (antes era azul con estilos inline).
-   ============================================ */
-.discount-section {
-  margin-top: 0.6rem;
-  padding: 0.7rem 0.75rem;
-  background: #f8fafc;
-  border-radius: 0.875rem;
-  border: 1px solid #e2e8f0;
-}
-
-.discount-section-title {
-  margin: 0 0 0.7rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.discount-section-title .material-icons-round {
-  font-size: 1rem;
-  color: var(--primary);
-}
-
-.discount-applied-label {
-  margin: 0 0 0.4rem;
-  font-size: 0.75rem;
+  gap: var(--space-1);
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--color-warning-text);
 }
 
-.discount-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.85rem;
+.admin-dashboard .order-notes strong .material-icons-round {
+  font-size: 16px;
 }
 
-.discount-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.4rem 0.3rem 0.7rem;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.35);
+.admin-dashboard .order-notes p {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
 }
 
-.discount-chip-reason {
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.discount-chip.revoked {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
-  box-shadow: none;
-  text-decoration: line-through;
-  opacity: 0.85;
-}
-
-.discount-chip-tag {
-  font-size: 0.68rem;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.discount-chip-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 17px;
-  height: 17px;
-  border: none;
-  background: rgba(255, 255, 255, 0.25);
-  color: #fff;
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 800;
-  font-size: 0.8rem;
-  line-height: 1;
-  padding: 0;
-}
-
-.discount-chip-remove:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.45);
-  color: #fff;
-}
-
-.discount-chip-remove:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.discount-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.discount-presets {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.discount-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  min-width: 88px;
-}
-
-.discount-preset-btn {
-  padding: 0.4rem 0.85rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: white;
-  color: var(--text-secondary);
-  font-weight: 700;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.discount-preset-btn:hover:not(:disabled) {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--primary-light);
-}
-
-.discount-preset-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.discount-custom-form {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.discount-input {
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border-strong);
-  border-radius: 0.6rem;
-  font-size: 0.85rem;
-  font-family: inherit;
-  color: var(--text-main);
-  background: white;
-}
-
-.discount-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-}
-
-.discount-input-pct {
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-}
-
-.discount-input-reason {
-  width: 100%;
-  box-sizing: border-box;
-  min-width: 0;
-}
-
-.discount-apply-btn {
-  flex: 0 0 auto;
-  align-self: center;
-  padding: 0.45rem 0.9rem;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 0.6rem;
-  font-weight: 700;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.discount-apply-btn:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.discount-apply-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.discount-empty-note {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-/* ============================================
-   SELECTOR SEGMENTADO [ Productos | Promociones ] en Nueva Venta (Admin)
-   Se define aquí (además de en VendedorDashboard.css) para que el chunk del
-   admin tenga el estilo aunque no se cargue el del vendedor.
-   ============================================ */
-.admin-sales-panel .catalog-switch {
-  display: inline-flex;
-  background: #f1f5f9;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 0.85rem;
-  padding: 0.3rem;
-  gap: 0.25rem;
-  margin-bottom: 0.85rem;
-}
-
-.admin-sales-panel .catalog-switch-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 1rem;
-  border: none;
-  background: transparent;
-  border-radius: 0.6rem;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
-}
-
-.admin-sales-panel .catalog-switch-btn .material-icons-round {
-  font-size: 1.15rem;
-}
-
-.admin-sales-panel .catalog-switch-btn:hover {
-  color: var(--primary);
-}
-
-.admin-sales-panel .catalog-switch-btn.active {
-  background: #ffffff;
-  color: var(--primary);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-}
-
-/* DETAILS & ACTIONS */
-.order-details {
-  margin: 0.5rem 0;
-  border-radius: 0.75rem;
+/* ---------- Productos de la orden (desplegable) ---------- */
+.admin-dashboard .order-details {
   overflow: hidden;
-  border: 1px solid #f1f5f9;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
-.order-details summary {
-  cursor: pointer;
-  color: var(--primary);
-  font-weight: 700;
-  padding: 0.6rem 0.9rem;
-  border-radius: 1rem;
-  transition: all 0.2s;
+.admin-dashboard .order-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-3);
   list-style: none;
-  background: #f8fafc;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.9rem;
+  background: var(--color-surface-subtle);
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease);
 }
 
-.order-details summary:hover {
-  background: #eff6ff;
-  color: var(--primary-dark);
+.admin-dashboard .order-details summary::-webkit-details-marker {
+  display: none;
 }
 
-.order-details summary::after {
+.admin-dashboard .order-details summary:hover {
+  background: var(--color-surface-hover);
+}
+
+/* .order-details y .cart-item-qty-control recortan (overflow: hidden): el anillo
+   de foco global (offset 2px, por fuera) se perdería, así que va por dentro */
+.admin-dashboard .order-details summary:focus-visible,
+.admin-dashboard .btn-qty:focus-visible {
+  outline-offset: -2px;
+}
+
+.admin-dashboard .order-details summary::after {
   content: 'expand_more';
   font-family: 'Material Icons Round';
-  font-size: 1.25rem;
-  transition: transform 0.3s;
+  font-size: 20px;
+  font-weight: normal;
+  line-height: 1;
+  color: var(--color-text-muted);
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  transition: transform var(--duration) var(--ease);
 }
 
-.order-details[open] summary::after {
+.admin-dashboard .order-details[open] summary::after {
   transform: rotate(180deg);
 }
 
-.order-details ul {
+.admin-dashboard .order-details ul {
+  margin: 0;
+  padding: 0;
   list-style: none;
-  padding: 0;
-  margin: 0;
-  background: #ffffff;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--color-border);
 }
 
-.order-details li {
-  padding: 0.5rem 0.9rem;
-  border-bottom: 1px solid #f8fafc;
-  font-size: 0.9rem;
+.admin-dashboard .order-details li {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 0.3rem;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
 }
 
-/* Fila inferior del producto: cantidad a la izquierda, subtotal a la derecha.
-   El nombre va arriba a todo el ancho (menos líneas, no se superpone). */
-.order-details .item-price-row {
+.admin-dashboard .order-details li:last-child {
+  border-bottom: 0;
+}
+
+.admin-dashboard .adm-item-main {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-
-.order-details li:last-child {
-  border-bottom: none;
-}
-
-.order-details .item-name {
-  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
   min-width: 0;
-  overflow-wrap: anywhere;
-  font-weight: 600;
-  color: var(--text-main);
 }
 
-.order-details .item-qty {
-  color: var(--text-secondary);
+.admin-dashboard .adm-item-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-dashboard .order-details .item-name {
+  min-width: 0;
+  font-size: var(--text-base);
   font-weight: 500;
-  flex-shrink: 0;
-  white-space: nowrap;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 
-.order-details .item-subtotal {
-  font-weight: 700;
-  color: var(--text-main);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.order-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.order-actions button,
-.order-actions>div {
-  flex: 1 1 100px;
-  padding: 0.55rem 0.75rem;
-  border: none;
-  border-radius: 0.65rem;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 0.82rem;
+.admin-dashboard .adm-item-note {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-width: fit-content;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
-/* Specific styling for the container of Surtir buttons to reset flex behavior */
-.order-actions>div {
+.admin-dashboard .adm-item-note .material-icons-round {
+  font-size: 14px;
+}
+
+.admin-dashboard .adm-item-note--warning {
+  color: var(--color-warning-text);
+}
+
+.admin-dashboard .order-details .item-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.admin-dashboard .order-details .item-qty {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-dashboard .order-details .item-subtotal {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-dashboard .order-details .item-subtotal.is-free {
+  color: var(--color-success-text);
+}
+
+.admin-dashboard .adm-order-alert {
+  align-items: center;
+}
+
+/* ---------- Factura / orden de empaque (mismo bloque que la sección de descuentos) ---------- */
+/* Plano (sin caja dentro de la tarjeta): solo una línea fina arriba, como las secciones
+   de una tarjeta de Vercel */
+.admin-dashboard .invoice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 0;
   background: transparent;
-  box-shadow: none;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  flex: 100%;
-  /* Force it to take full width if multiple items */
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
 }
 
-/* Start: Reset button styles inside the nested div specifically */
-.order-actions>div>button {
-  flex: 1 1 auto;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  margin: 0;
-}
-
-/* End: Reset */
-
-/* PRODUCT PANEL - PREMIUM REDESIGN */
-.products-panel .header-actions {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.search-input {
-  padding: 0.85rem 1.5rem;
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  width: 380px;
-  font-family: inherit;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  background: white;
-  box-shadow: var(--shadow-sm);
-  font-size: 0.95rem;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
-  width: 400px;
-}
-
-.btn-add {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  padding: 0.85rem 2rem;
-  border: none;
-  border-radius: 99px;
-  cursor: pointer;
-  font-weight: 700;
-  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
-  transition: all 0.3s;
+.admin-dashboard .adm-block-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-add:hover {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
-}
-
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 2rem;
-}
-
-/* PREMIUM PRODUCT CARD */
-.product-card {
-  background: white;
-  border-radius: 1.5rem;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
-
-.product-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.1);
-  border-color: rgba(99, 102, 241, 0.2);
-}
-
-/* Image Area */
-.product-image {
-  height: 220px;
-  overflow: hidden;
-  position: relative;
-  background: #f8fafc;
-  padding: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.product-image img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1);
-  filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.1));
-}
-
-.product-card:hover .product-image img {
-  transform: scale(1.1) translateY(-5px);
-}
-
-/* Status Blob */
-.product-status-blob {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  z-index: 10;
-  box-shadow: 0 0 0 4px white;
-}
-
-.product-status-blob.active {
-  background: #10b981;
-}
-
-.product-status-blob.inactive {
-  background: #ef4444;
-}
-
-/* Info Area */
-.product-info {
-  padding: 1.5rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.product-info h3 {
+  gap: 6px;
   margin: 0;
-  font-size: 1.1rem;
-  color: var(--text-main);
-  font-weight: 700;
+  font-size: var(--text-sm);
+  font-weight: 600;
   line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-secondary);
 }
 
-.product-meta {
+.admin-dashboard .adm-block-title .material-icons-round {
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+/* Vista previa (secundario): icono azul de acción. Descargar es .ui-btn--pdf (rojo) */
+.admin-dashboard .invoice-buttons .btn-preview .material-icons-round {
+  color: var(--color-primary);
+}
+
+/* Cada botón mide al menos su contenido: si los dos no caben en la fila (tarjetas
+   angostas por el selector Columnas) se apilan a todo el ancho */
+.admin-dashboard .invoice-buttons {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-}
-
-.product-price {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.03em;
-}
-
-.product-stock-badge {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.75rem;
-  background: #f1f5f9;
-  border-radius: 99px;
-  color: var(--text-secondary);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.product-stock-badge.low {
-  background: #fef2f2;
-  color: #ef4444;
-  border: 1px solid #fee2e2;
-}
-
-/* Always Visible Action Buttons */
-.product-actions-overlay {
-  display: flex;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
-  overflow: hidden;
-}
-
-.btn-icon-action {
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 1rem;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 600;
-  gap: 0.5rem;
-  border-right: 1px solid #e2e8f0;
-}
-
-.btn-icon-action:last-child {
-  border-right: none;
-}
-
-.btn-icon-action:hover {
-  background: white;
-  color: var(--text-main);
-}
-
-.btn-icon-action.edit:hover {
-  background: #eff6ff;
-  color: #3b82f6;
-}
-
-.btn-icon-action.toggle:hover {
-  background: #f0fdf4;
-  color: #10b981;
-}
-
-.btn-icon-action.delete:hover {
-  background: #fef2f2;
-  color: #ef4444;
-}
-
-.btn-icon-action.delete-permanent {
-  color: #dc2626;
-}
-
-.btn-icon-action.delete-permanent:hover {
-  background: #fef2f2 !important;
-  color: #b91c1c !important;
-}
-
-/* ============================================
-   MODAL SYSTEM - PREMIUM DESIGN
-   ============================================ */
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
-.modal-content-large,
-.modal-content.form-modal,
-.modal-content {
-  background: white;
-  border-radius: 1.5rem;
-  max-width: 600px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  margin: auto;
-}
-
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.modal-header {
-  padding: 2rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: linear-gradient(135deg, #f8fafc 0%, white 100%);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.btn-close {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: white;
-  color: var(--text-secondary);
-  font-size: 1.25rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e2e8f0;
-}
-
-.btn-close:hover {
-  background: #fef2f2;
-  color: #ef4444;
-  border-color: #fecaca;
-  transform: rotate(90deg);
-}
-
-/* Product Form Styles */
-.product-form,
-.client-form {
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  font-weight: 600;
-  color: var(--text-main);
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  padding: 0.85rem 1.25rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  font-family: inherit;
-  font-size: 0.95rem;
-  transition: all 0.2s;
-  background: white;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.image-upload-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.image-preview {
-  width: 100%;
-  max-height: 200px;
-  object-fit: contain;
-  border-radius: 1rem;
-  border: 1px solid #e2e8f0;
-  padding: 1rem;
-  background: #f8fafc;
-}
-
-.file-input-wrapper {
-  position: relative;
-  overflow: hidden;
-  display: inline-block;
-  width: 100%;
-}
-
-.file-input-wrapper input[type=file] {
-  position: absolute;
-  left: -9999px;
-}
-
-.file-input-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.25rem;
-  background: white;
-  border: 2px dashed #cbd5e1;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.file-input-label:hover {
-  border-color: var(--primary);
-  background: #eff6ff;
-  color: var(--primary);
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e2e8f0;
-}
-
-.btn-cancel,
-.btn-submit {
-  flex: 1;
-  padding: 1rem 1.5rem;
-  border: none;
-  border-radius: 0.75rem;
-  font-weight: 700;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-cancel {
-  background: #f1f5f9;
-  color: var(--text-secondary);
-}
-
-.btn-cancel:hover {
-  background: #e2e8f0;
-  color: var(--text-main);
-}
-
-.btn-submit {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
-}
-
-.btn-submit:hover {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
-  transform: translateY(-1px);
-}
-
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Product Stats Display */
-.products-stats {
-  display: flex;
-  gap: 2rem;
-  padding: 1rem 0;
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.products-stats span {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--text-secondary);
-}
-
-@media (max-width: 640px) {
-  .panel-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .panel-header h2 {
-    width: 100%;
-    font-size: 1.4rem;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 0.75rem;
-  }
-
-  .search-input {
-    width: 100%;
-    font-size: 1rem;
-  }
-
-  .grid-columns-selector {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .grid-btn {
-    flex: 1;
-    padding: 0.5rem 0.6rem;
-    font-size: 0.8rem;
-  }
-
-  .products-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .modal-header,
-  .product-form {
-    padding: 1.5rem;
-  }
-
-  .form-actions {
-    flex-direction: column;
-  }
-}
-
-/* === TAGS PANEL STYLES === */
-.tags-table-container {
-  background: white;
-  border-radius: 1.5rem;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border);
-  margin-top: 1rem;
-}
-
-.modern-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.modern-table th {
-  background: #f8fafc;
-  padding: 1.25rem 1.5rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 2px solid var(--border);
-}
-
-.modern-table td {
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.modern-table tr:last-child td {
-  border-bottom: none;
-}
-
-.modern-table tr.row-system {
-  background: #fffcf9;
-}
-
-.tag-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.tag-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-
-.tag-dot.sr {
-  background: #f59e0b;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-}
-
-.tag-type-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.tag-type-badge.system {
-  background: #feebc8;
-  color: #92400e;
-}
-
-.tag-type-badge.user {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.file-input-wrapper input[type=file] {
-  position: absolute;
-  left: -9999px;
-}
-
-.file-input-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.25rem;
-  background: white;
-  border: 2px dashed #cbd5e1;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-
-.file-input-label:hover {
-  border-color: var(--primary);
-  background: #eff6ff;
-  color: var(--primary);
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e2e8f0;
-}
-
-.btn-cancel,
-.btn-submit {
-  flex: 1;
-  padding: 1rem 1.5rem;
-  border: none;
-  border-radius: 0.75rem;
-  font-weight: 700;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-cancel {
-  background: #f1f5f9;
-  color: var(--text-secondary);
-}
-
-.btn-cancel:hover {
-  background: #e2e8f0;
-  color: var(--text-main);
-}
-
-.btn-submit {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
-}
-
-.btn-submit:hover {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
-  transform: translateY(-1px);
-}
-
-.btn-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Product Stats Display */
-.products-stats {
-  display: flex;
-  gap: 2rem;
-  padding: 1rem 0;
-  margin-bottom: 1.5rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.products-stats span {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--text-secondary);
-}
-
-@media (max-width: 640px) {
-  .panel-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .panel-header h2 {
-    width: 100%;
-    font-size: 1.4rem;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 0.75rem;
-  }
-
-  .search-input {
-    width: 100%;
-    font-size: 1rem;
-  }
-
-  .grid-columns-selector {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .grid-btn {
-    flex: 1;
-    padding: 0.5rem 0.6rem;
-    font-size: 0.8rem;
-  }
-
-  .products-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-
-  .modal-header,
-  .product-form {
-    padding: 1.5rem;
-  }
-
-  .form-actions {
-    flex-direction: column;
-  }
-}
-
-/* === TAGS PANEL STYLES === */
-.tags-table-container {
-  background: white;
-  border-radius: 1.5rem;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border);
-  margin-top: 1rem;
-}
-
-.modern-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.modern-table th {
-  background: #f8fafc;
-  padding: 1.25rem 1.5rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 2px solid var(--border);
-}
-
-.modern-table td {
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.modern-table tr:last-child td {
-  border-bottom: none;
-}
-
-.modern-table tr.row-system {
-  background: #fffcf9;
-}
-
-.tag-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.tag-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--primary);
-}
-
-.tag-dot.sr {
-  background: #f59e0b;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
-}
-
-.tag-type-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.tag-type-badge.system {
-  background: #feebc8;
-  color: #92400e;
-}
-
-.tag-type-badge.user {
-  background: #e2e8f0;
-  color: #475569;
-}
-
-.table-actions {
-  display: flex;
-  gap: 0.5rem;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  gap: var(--space-2);
 }
 
-.btn-icon-action:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  filter: grayscale(1);
-}
-
-.modal-footer {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
-
-/* === SORTING CONTROLS === */
-.orders-search-filters {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.invoice-search-box {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.admin-dashboard .invoice-buttons > .ui-btn {
   flex: 1 1 auto;
-  min-width: 250px;
-  background: white;
-  border-radius: 10px;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
-.invoice-search-box input {
-  border: none;
-  outline: none;
-  flex: 1;
+/* En tarjetas muy angostas (5-6 columnas) el texto baja de línea dentro del botón
+   en vez de desbordarlo (.ui-btn es nowrap); con una sola línea no cambia nada */
+.admin-dashboard .invoice-buttons .ui-btn,
+.admin-dashboard .order-actions .ui-btn {
+  padding-block: var(--space-1);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Acciones de la tarjeta ---------- */
+.admin-dashboard .order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-dashboard .order-actions > .ui-btn {
+  flex: 1 1 auto;
+}
+
+.admin-dashboard .adm-assort-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1 1 100%;
   min-width: 0;
-  font-size: 0.9rem;
-  color: var(--text-main);
-  background: transparent;
 }
 
-.invoice-search-box input::placeholder {
-  color: var(--text-muted);
+.admin-dashboard .adm-assort-actions > .ui-btn {
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 
-@media (max-width: 768px) {
-  .orders-search-filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .invoice-search-box {
-    min-width: 100%;
-  }
-}
-
-.sorting-controls {
+/* ---------- Paginación ---------- */
+.admin-dashboard .adm-pagination {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
-  background: white;
-  border-radius: 99px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  margin-top: 1rem;
-  width: fit-content;
-}
-
-.sort-select {
-  border: none;
-  background: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-main);
-  cursor: pointer;
-  outline: none;
-  padding-right: 0.5rem;
-}
-
-.btn-sort-order {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  padding: 0.25rem;
-  border-radius: 50%;
-  border: none;
-  background: #f1f5f9;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: var(--space-2);
+  padding-top: var(--space-6);
 }
 
-.btn-sort-order:hover {
-  background: var(--primary);
-  color: white;
-}
-
-/* === EDIT ORDER MODAL === */
-.modal-content_large {
-  background: white;
-  border-radius: 2rem;
-  max-width: 800px;
-  width: 95%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.25);
-  animation: modalSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  display: flex;
-  flex-direction: column;
-}
-
-.edit-order-form {
-  padding: 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.form-section {
-  background: #f8fafc;
-  padding: 1.5rem;
-  border-radius: 1.25rem;
-  border: 1px solid #e2e8f0;
-}
-
-.form-section h4 {
-  margin: 0 0 1.25rem 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.form-select {
-  width: 100%;
-  padding: 1rem;
-  border-radius: 0.85rem;
-  border: 1px solid #cbd5e1;
-  font-family: inherit;
-  font-size: 0.95rem;
-  cursor: pointer;
-  background: white;
-}
-
-.order-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.edit-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  background: white;
-  border-radius: 1rem;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s;
-}
-
-.edit-item:hover {
-  border-color: var(--primary-light);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-}
-
-.item-name {
-  font-weight: 600;
-  color: var(--text-main);
-  flex: 1;
-}
-
-.item-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 1.5rem;
-}
-
-.btn-qty {
+.admin-dashboard .adm-pagination .ui-icon-btn {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  border: 1px solid #cbd5e1;
-  background: white;
-  color: var(--text-main);
+}
+
+.admin-dashboard .adm-page-btn {
+  min-width: 36px;
+  padding: 0 var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard .adm-pagination-info {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary); /* sobre el canvas, muted no llega a 4.5:1 */
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ==========================================================================
+   2. NUEVA VENTA (AdminNuevaVentaPanel)
+   Escritorio: catálogo a la izquierda y carrito fijo a la derecha, cada uno con
+   su propio scroll. ≤1024px: una columna.
+   ========================================================================== */
+
+.admin-dashboard .admin-sales-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: var(--space-4);
+  height: calc(100vh - var(--app-header-h) - 2 * var(--space-6));
+  height: calc(100dvh - var(--app-header-h) - 2 * var(--space-6));
+  min-height: 560px;
+  overflow: hidden;
+}
+
+/* ---------- Columna izquierda: búsqueda, modo y catálogo ---------- */
+.admin-dashboard .sales-products-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-dashboard .sales-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-dashboard .sales-search-container {
+  flex: 1 1 260px;
+  max-width: none;
+}
+
+/* Interruptor de modo de venta (botón) */
+.admin-dashboard .mode-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+  user-select: none;
+  box-shadow: none;
+  transition: background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.admin-dashboard .mode-toggle-label .material-icons-round {
+  font-size: 20px;
+}
+
+.admin-dashboard .mode-toggle-label.normal:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.admin-dashboard .mode-toggle-label.normal .material-icons-round {
+  color: var(--color-primary);
+}
+
+/* Modo Regalo: verde porque significa "todo a $0" */
+.admin-dashboard .mode-toggle-label.bonified {
+  background: var(--color-success-soft);
+  border-color: var(--color-success);
+  color: var(--color-success-text);
+}
+
+.admin-dashboard .sales-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 var(--space-1) var(--space-4) 0;
+}
+
+.admin-dashboard .sales-products-list > * {
+  flex-shrink: 0;
+}
+
+.admin-dashboard .catalog-switch {
+  align-self: flex-start;
+  margin-bottom: var(--space-1);
+}
+
+.admin-dashboard .adm-catalog-title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-secondary);
+}
+
+/* Fila de producto (toda la fila agrega al carrito) */
+.admin-dashboard .sales-product-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto 32px;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+  transform: none;
+  box-shadow: none;
+  transition: border-color var(--duration-fast) var(--ease), background-color var(--duration-fast) var(--ease);
+}
+
+.admin-dashboard .sales-product-item:hover {
+  border-color: var(--color-primary);
+  transform: none;
+  box-shadow: none;
+}
+
+.admin-dashboard .sales-product-item:active {
+  background: var(--color-surface-hover);
+}
+
+.admin-dashboard .sales-product-item.bonified-mode:hover {
+  border-color: var(--color-success);
+}
+
+/* Miniatura del producto: baldosa azul suave (verde en modo Regalo) en vez de un cuadro gris */
+.admin-dashboard .product-item-image {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  transition: all 0.2s;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  transition: background-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 }
 
-.btn-qty:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
+.admin-dashboard .sales-product-item.bonified-mode .product-item-image {
+  background: var(--color-success-soft);
+  color: var(--color-success);
 }
 
-.qty-input {
-  width: 50px;
+.admin-dashboard .product-item-image .material-icons-round {
+  font-size: 20px;
+}
+
+.admin-dashboard .product-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-dashboard .product-item-name {
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-dashboard .adm-special-badge {
+  align-self: flex-start;
+}
+
+.admin-dashboard .product-item-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 22px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  /* Stock suficiente = verde; bajo (< 10, clase .low) = rojo */
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-dashboard .product-item-stock .material-icons-round {
+  font-size: 14px;
+}
+
+.admin-dashboard .product-item-stock.low {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+}
+
+.admin-dashboard .product-item-price {
+  min-width: 72px;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-dashboard .product-item-price.free {
+  color: var(--color-success-text);
+}
+
+.admin-dashboard .btn-add-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-primary-border);
+  border-radius: 50%;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  cursor: pointer;
+  transform: none;
+  transition: background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    scale var(--duration-press) var(--ease);
+}
+
+.admin-dashboard .sales-product-item.bonified-mode .btn-add-circle {
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+/* Al tocar una fila (agregar al carrito) el botón se hunde un poco */
+.admin-dashboard .sales-product-item:active .btn-add-circle {
+  scale: 0.92;
+}
+
+.admin-dashboard .btn-add-circle .material-icons-round {
+  font-size: 20px;
+}
+
+.admin-dashboard .sales-product-item:hover .btn-add-circle {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-text-inverse);
+  transform: none;
+}
+
+.admin-dashboard .sales-product-item.bonified-mode:hover .btn-add-circle {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-text-inverse);
+}
+
+/* ---------- Columna derecha: carrito ---------- */
+.admin-dashboard .sales-cart-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-dashboard .cart-header {
+  flex-shrink: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-dashboard .cart-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: var(--tracking-title);
+  color: var(--color-text);
+}
+
+/* El icono del carrito es una baldosa azul (.ui-icon-tile, tamaño y color del sistema) */
+
+.admin-dashboard .cart-customer-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.admin-dashboard .cart-customer-selector .ui-field {
+  gap: 6px;
+}
+
+/* Cliente: el selector con buscador (filtra y elige en un solo campo) y, al lado, el botón A-Z
+   con la misma altura y el mismo borde que el campo */
+.admin-dashboard .adm-client-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.admin-dashboard .adm-client-filter .ui-combobox {
+  flex: 1 1 auto;
+}
+
+.admin-dashboard .adm-client-filter .adm-client-sort {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+.admin-dashboard .adm-client-filter .adm-client-sort:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+}
+
+.admin-dashboard .adm-client-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard .cart-items-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-3);
+  background: var(--color-surface-subtle);
+}
+
+.admin-dashboard .adm-cart-empty {
+  padding: var(--space-8) var(--space-4);
+}
+
+.admin-dashboard .cart-group {
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+.admin-dashboard .cart-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-subtle);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.admin-dashboard .cart-group-header .material-icons-round {
+  font-size: 16px;
+  color: var(--color-primary);
+}
+
+/* Promociones: azul suave */
+.admin-dashboard .cart-group.is-promo .cart-group-header {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+/* Regalos (bonificados): verde = $0 */
+.admin-dashboard .cart-group.is-gift .cart-group-header {
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+
+.admin-dashboard .cart-group.is-gift .cart-group-header .material-icons-round {
+  color: var(--color-success);
+}
+
+/* Cada ítem entra con fade + subida de 6px al agregarlo (solo al montarse: las keys son
+   estables, cambiar la cantidad no lo repite). backwards: al terminar no deja transform. */
+.admin-dashboard .cart-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-surface);
+  animation: ui-rise-in var(--duration-enter) var(--ease) backwards;
+}
+
+.admin-dashboard .cart-item:last-child {
+  border-bottom: 0;
+}
+
+.admin-dashboard .cart-item.is-gift {
+  background: var(--color-success-soft);
+}
+
+.admin-dashboard .cart-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-dashboard .cart-item-name {
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .adm-gift-badge {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.admin-dashboard .cart-item-price {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard .cart-item-price.is-amount {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.admin-dashboard .cart-item-price.is-free {
+  font-weight: 600;
+  color: var(--color-success-text);
+}
+
+/* Selector de cantidad: [−][ n ][+] */
+.admin-dashboard .cart-item-qty-control {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 32px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.admin-dashboard .btn-qty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-dashboard .btn-qty:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.admin-dashboard .qty-input {
+  width: 40px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 600;
   text-align: center;
-  padding: 0.5rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.5rem;
-  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-.qty-input::-webkit-outer-spin-button,
-.qty-input::-webkit-inner-spin-button {
+.admin-dashboard .qty-input::-webkit-outer-spin-button,
+.admin-dashboard .qty-input::-webkit-inner-spin-button {
+  margin: 0;
   -webkit-appearance: none;
   appearance: none;
+}
+
+.admin-dashboard .qty-input:focus {
+  outline: none;
+  background: var(--color-primary-soft);
+}
+
+.admin-dashboard .cart-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-dashboard .cart-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.admin-dashboard .cart-total-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard .cart-notes {
+  min-height: 64px;
+}
+
+
+/* ==========================================================================
+   3. REPORTES (AdminReportsPanel)
+   ========================================================================== */
+
+/* Todo el ancho del contenido (antes 880px). Una columna en móvil/tablet; desde 1024px el
+   rango de fechas (2/5) y el reporte completo (3/5) en una fila, y los reportes por
+   vendedor debajo a lo ancho. Las tarjetas de la fila quedan de la misma altura. */
+.admin-dashboard .adm-reports-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.admin-dashboard .adm-reports-card {
+  min-width: 0;
+}
+
+/* Baldosa de 44px junto al título (y su descripción del rango cuando la hay) */
+.admin-dashboard .adm-reports .ui-section-head {
+  align-items: center;
+}
+
+/* Fechas: dos columnas cuando caben (≥160px cada una), si no una debajo de la otra */
+.admin-dashboard .adm-date-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+}
+
+/* Botones de formato: mismo ancho en cada fila (flex-basis igual), así el texto de carga no
+   mueve a los demás. Si no caben los tres, el último ocupa la fila de abajo a lo ancho. El
+   min-width automático (contenido) evita que "Exportando..." se corte. */
+.admin-dashboard .adm-export-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.admin-dashboard .adm-export-grid > .ui-btn {
+  flex: 1 1 160px;
+}
+
+.admin-dashboard .adm-export-grid--2 > .ui-btn {
+  flex-basis: 200px;
+}
+
+/* Reportes por vendedor: selector y botones en la misma fila cuando hay ancho (alineados
+   abajo, con el campo); en pantallas angostas uno debajo del otro */
+.admin-dashboard .adm-vendor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+.admin-dashboard .adm-vendor-row > .adm-reports-vendor {
+  flex: 2 1 260px;
+  min-width: 0;
   margin: 0;
 }
 
-.btn-remove-item {
-  background: #fef2f2;
-  color: #ef4444;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-remove-item:hover {
-  background: #fee2e2;
-  transform: scale(1.1);
-}
-
-.item-price {
-  font-weight: 800;
-  color: var(--text-main);
-  min-width: 90px;
-  text-align: right;
-}
-
-.order-total-row {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 1.5rem;
-  padding-top: 1.5rem;
-  margin-top: 1rem;
-  border-top: 2px solid #e2e8f0;
-}
-
-.total-amount {
-  font-size: 1.75rem;
-  color: var(--primary);
-  letter-spacing: -0.02em;
-}
-
-/* Cleaned up old styles */
-
-/* === RESPONSIVE DESIGN (PREMIUM MOBILE 2026) === */
-@media (max-width: 768px) {
-  .panel-header {
-    flex-direction: column;
-    align-items: stretch !important;
-    gap: 1rem;
-    padding: 1rem;
-  }
-
-  .panel-header h2 {
-    font-size: 1.5rem !important;
-    gap: 0.5rem;
-  }
-
-  .modal-header h3 {
-    font-size: 1.1rem !important;
-  }
-
-  /* Filtros Mobile */
-  .filter-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    width: 100%;
-    padding: 0.25rem;
-    background: #f1f5f9;
-    border-radius: 1rem;
-  }
-
-  .filter-buttons button {
-    padding: 0.75rem 0.25rem;
-    font-size: 0.7rem;
-    flex-direction: column !important;
-    gap: 0.25rem;
-    border-radius: 0.75rem;
-  }
-
-  .filter-buttons button span {
-    font-size: 1.25rem;
-  }
-
-  /* MODAL FULLSCREEN MOBILE */
-  .modal-overlay {
-    padding: 1rem;
-    align-items: flex-start;
-    overflow-y: auto;
-  }
-
-  .modal-content-large,
-  .modal-content {
-    width: 100%;
-    max-height: none;
-    min-height: auto;
-    border-radius: 1.5rem;
-    margin: 1rem auto;
-  }
-
-  .edit-order-form {
-    padding: 1.25rem;
-    gap: 1.25rem;
-    overflow-y: auto;
-    padding-bottom: 6rem;
-  }
-
-  .edit-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-    padding: 1rem;
-  }
-
-  .item-controls {
-    width: 100%;
-    margin: 0;
-    justify-content: space-between;
-    background: #f8fafc;
-    padding: 0.75rem;
-    border-radius: 0.75rem;
-    display: flex;
-  }
-
-  .item-price {
-    text-align: right;
-    font-size: 1.1rem;
-    color: var(--primary);
-    padding-top: 0.5rem;
-    border-top: 1px dashed #e2e8f0;
-  }
-
-  .form-actions {
-    position: sticky;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 1.25rem;
-    background: white;
-    box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.05);
-    z-index: 10;
-    display: flex;
-    gap: 1rem;
-  }
-
-  .btn-save {
-    padding: 1.25rem !important;
-    font-size: 1.1rem !important;
-  }
-
-  /* === TAGS PANEL MOBILE === */
-  .tags-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .modern-table th,
-  .modern-table td {
-    padding: 0.75rem;
-    font-size: 0.8rem;
-  }
-
-  .tag-name-cell {
-    font-size: 0.85rem;
-    max-width: 120px;
-    word-break: break-word;
-  }
-
-  .table-actions {
-    display: flex;
-    gap: 0.25rem;
-  }
-
-  .btn-icon-action {
-    padding: 0.5rem !important;
-    font-size: 0.7rem;
-    min-width: 36px;
-    height: 36px;
-  }
-
-  .btn-icon-action span {
-    font-size: 1rem;
-  }
-
-  /* Modal adjustments for mobile */
-  .modal-content {
-    width: 95% !important;
-    max-height: 85vh;
-  }
-
-  .form-group input,
-  .form-group textarea {
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-  }
-
-  .dashboard-nav {
-    padding: 0.5rem 1rem;
-    gap: 0.25rem;
-  }
-
-  .dashboard-nav button {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
-  }
-}
-
-/* ============================================
-   ADMIN DISCOUNT SECTION
-   ============================================ */
-.discount-section-admin {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
-  border-radius: 1rem;
-  border: 1px solid #a7f3d0;
-}
-
-/* (Regla .discount-section-title vieja/verde eliminada: colisionaba con el nuevo
-   diseño índigo de AdminDiscountSection definido más arriba.) */
-
-.discount-loading {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 0.5rem;
-}
-
-.discount-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.discount-badge {
-  padding: 0.35rem 0.75rem;
-  border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.discount-badge.applied {
-  background: #d1fae5;
-  color: #047857;
-  border: 1px solid #6ee7b7;
-}
-
-.discount-badge.revoked {
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #cbd5e1;
-  text-decoration: line-through;
-}
-
-.discount-buttons-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-discount {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  background: white;
-  border: 1px solid #d1fae5;
-  border-radius: 0.5rem;
-  color: #059669;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-discount:hover:not(:disabled) {
-  background: #10b981;
-  border-color: #10b981;
-  color: white;
-}
-
-.btn-discount:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-discount.custom {
-  flex: 0 0 auto;
-  padding: 0.5rem;
-}
-
-.btn-discount.custom .material-icons-round {
-  font-size: 1.1rem;
-}
-
-.custom-discount-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  position: relative;
-}
-
-.custom-discount-row input {
-  flex: 1;
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: 1px solid #d1fae5;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.custom-discount-row input:focus {
-  outline: none;
-  border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-}
-
-.custom-discount-row .suffix {
-  position: absolute;
-  left: calc(100% - 110px);
-  font-weight: 700;
-  color: #10b981;
-}
-
-.btn-apply-custom {
-  padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: none;
-  border-radius: 0.5rem;
-  color: white;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-apply-custom:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.btn-apply-custom:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.discount-active-note {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.5rem;
-  color: #059669;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.discount-active-note .material-icons-round {
-  font-size: 1rem;
-}
-
-/* ============================================
-   DISCOUNTED TOTAL DISPLAY
-   ============================================ */
-.order-discounted-total {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0.25rem 0 0 0;
-  padding: 0.5rem 0.75rem;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border-radius: 0.5rem;
-  border: 1px solid #a7f3d0;
-}
-
-.order-discounted-total strong {
-  color: #065f46;
-  font-size: 0.85rem;
-}
-
-.order-discounted-total .discounted-value {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #059669;
-  margin-left: 0.25rem;
-}
-
-/* New Product Add Grid Styles */
-.product-add-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-
-.product-add-card {
-  display: flex;
-  flex-direction: column;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.75rem;
-  padding: 0.75rem;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  justify-content: space-between;
-  min-height: 80px;
-}
-
-.product-add-card:hover {
-  border-color: var(--primary);
-  background: var(--surface-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.product-add-card.out-of-stock {
-  background: #fffbeb;
-  border-color: #fcd34d;
-  opacity: 0.9;
-}
-
-.product-add-card.out-of-stock:hover {
-  background: #fef3c7;
-}
-
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.card-name {
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  line-height: 1.3;
-}
-
-.card-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-.card-badge.instock {
-  background: #e0e7ff;
-  color: #3730a3;
-}
-
-.card-badge.nostock {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.card-price {
-  font-size: 0.8rem;
-  color: #6b7280;
-  font-weight: 500;
-}
-
-/* Refresh Button Style */
-.btn-refresh-dashboard {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 9999px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #64748b;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  margin-left: 10px;
-}
-
-.btn-refresh-dashboard:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border-color: #6366f1;
-  color: #6366f1;
-  background: #eef2ff;
-}
-
-.btn-refresh-dashboard:active {
-  transform: translateY(0);
-}
-
-.btn-refresh-dashboard .material-icons-round {
-  font-size: 1.25rem;
-  transition: transform 0.5s ease;
-}
-
-.btn-refresh-dashboard:hover .material-icons-round {
-  transform: rotate(180deg);
-}
-
-/* ============================================
-   ADMIN SALES PANEL (Redesign 2026)
-   ============================================ */
-.admin-sales-panel {
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  gap: 1.5rem;
-  /* Adjust based on header/nav height - approx 140px for header + nav */
-  height: calc(100vh - 140px);
-  overflow: hidden;
-}
-
-/* LEFT COLUMN: PRODUCTS & FILTERS */
-.sales-products-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  height: 100%;
-  overflow: hidden;
-}
-
-.sales-filters-bar {
-  background: white;
-  padding: 1rem;
-  border-radius: 1rem;
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
-  z-index: 10;
-  border: 1px solid var(--border);
-}
-
-.sales-search-container {
-  flex: 1;
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.sales-search-input {
-  width: 100%;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  background: #f8fafc;
-  transition: all 0.2s;
-  font-family: inherit;
-  font-size: 0.95rem;
-}
-
-.sales-search-input:focus {
-  background: white;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-  outline: none;
-}
-
-.sales-search-icon {
-  position: absolute;
-  left: 1rem;
-  color: var(--text-secondary);
-  pointer-events: none;
-  font-size: 1.25rem;
-}
-
-.mode-toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 99px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 600;
-  font-size: 0.9rem;
-  user-select: none;
-}
-
-.mode-toggle-label.normal {
-  background: #f1f5f9;
-  color: var(--text-secondary);
-}
-
-.mode-toggle-label.bonified {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #6ee7b7;
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.1);
-}
-
-.sales-products-list {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding-bottom: 2rem;
-}
-
-/* Custom Scrollbar for products list */
-.sales-products-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sales-products-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sales-products-list::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 20px;
-}
-
-/* PRODUCT CARD ITEM (List View optimized for density) */
-.sales-product-item {
-  display: grid;
-  grid-template-columns: 60px 1fr auto auto 50px;
-  gap: 1rem;
-  align-items: center;
-  background: white;
-  padding: 0.75rem 1rem;
-  border-radius: 0.85rem;
-  border: 1px solid var(--border);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  min-height: 70px;
-  color: var(--text-main);
-}
-
-.sales-product-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  border-color: rgba(99, 102, 241, 0.2);
-}
-
-.sales-product-item.bonified-mode:hover {
-  border-color: #4ade80;
-}
-
-.product-item-image {
-  width: 50px;
-  height: 50px;
-  border-radius: 0.5rem;
-  background: #f8fafc;
-  object-fit: contain;
-  padding: 4px;
-  border: 1px solid #f1f5f9;
-}
-
-.product-item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+.admin-dashboard .adm-vendor-row > .adm-export-grid {
+  flex: 3 1 360px;
   min-width: 0;
 }
 
-.product-item-name {
-  font-weight: 600;
-  color: var(--text-main);
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.admin-dashboard .adm-reports-note {
+  margin-top: var(--space-4);
 }
 
-.product-item-stock {
-  font-size: 0.8rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  background: #f1f5f9;
-  color: var(--text-secondary);
-  width: fit-content;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+@media (min-width: 1024px) {
+  .admin-dashboard .adm-reports-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .admin-dashboard .adm-reports-card--wide {
+    grid-column: 1 / -1;
+  }
 }
 
-.product-item-stock.low {
-  background: #fef2f2;
-  color: #ef4444;
-}
 
-.product-item-price {
-  font-weight: 700;
-  color: var(--primary);
-  font-size: 1rem;
-  text-align: right;
-  min-width: 80px;
-}
-
-.product-item-price.free {
-  color: #10b981;
-}
-
-.btn-add-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: #f1f5f9;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.sales-product-item:hover .btn-add-circle {
-  background: var(--primary);
-  color: white;
-  transform: scale(1.1);
-}
-
-.sales-product-item.bonified-mode:hover .btn-add-circle {
-  background: #10b981;
-}
-
-/* RIGHT COLUMN: CART SIDEBAR */
-.sales-cart-sidebar {
-  background: white;
-  border-radius: 1.5rem;
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  border: 1px solid var(--border);
-}
-
-.cart-header {
-  padding: 1.5rem;
-  background: linear-gradient(to bottom, #ffffff, #f8fafc);
-  border-bottom: 1px solid var(--border);
-}
-
-.cart-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text-main);
-  margin-bottom: 1rem;
-}
-
-.cart-customer-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.cart-select {
-  padding: 0.6rem;
-  border-radius: 0.6rem;
-  border: 1px solid var(--border);
-  font-size: 0.9rem;
-  width: 100%;
-  transition: all 0.2s;
-  background-color: white;
-  color: var(--text-main);
-}
-
-.cart-select:focus {
-  border-color: var(--primary);
-  outline: none;
-}
-
-.cart-items-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  background: #f8fafc;
-}
-
-/* Cart Item Groups */
-.cart-group {
-  background: white;
-  border-radius: 1rem;
-  padding: 0.5rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.02);
-}
-
-.cart-group-header {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 0.5rem;
-  display: flex;
-  justify-content: space-between;
-}
-
-.cart-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  transition: background 0.2s;
-}
-
-.cart-item:hover {
-  background: #f8fafc;
-}
-
-.cart-item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.cart-item-name {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cart-item-price {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.cart-item-qty-control {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  background: #f1f5f9;
-  border-radius: 6px;
-  padding: 2px;
-}
-
-.btn-qty {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: white;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 700;
-  color: var(--text-main);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s;
-}
-
-.btn-qty:hover {
-  background: var(--primary);
-  color: white;
-}
-
-.qty-input {
-  width: 32px;
-  text-align: center;
-  border: none;
-  background: transparent;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-main);
-}
-
-.qty-input:focus {
-  outline: none;
-}
-
-.btn-remove-item {
-  color: #ef4444;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  transition: all 0.2s;
-}
-
-.btn-remove-item:hover {
-  background: #fef2f2;
-}
-
-.cart-footer {
-  padding: 1.5rem;
-  background: white;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.cart-total {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--text-main);
-}
-
-.cart-notes {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  resize: none;
-  font-family: inherit;
-  font-size: 0.9rem;
-  background: #f8fafc;
-}
-
-.cart-notes:focus {
-  background: white;
-  border-color: var(--primary);
-  outline: none;
-}
-
-.btn-checkout {
-  width: 100%;
-  padding: 1rem;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  border: none;
-  border-radius: 0.75rem;
-  font-weight: 700;
-  font-size: 1.1rem;
-  cursor: pointer;
-  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3);
-  transition: all 0.3s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.btn-checkout:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.4);
-}
-
-.btn-checkout:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-  background: #cbd5e1;
-  box-shadow: none;
-}
-
-/* RESPONSIVE */
-/* Media queries handle responsiveness */
+/* ==========================================================================
+   4. RESPONSIVE
+   ========================================================================== */
 
 @media (max-width: 1024px) {
-  .admin-sales-panel {
-    grid-template-columns: 1fr;
+  .admin-dashboard .admin-sales-panel {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* El catálogo conserva su propio scroll para que el carrito quede a la vista */
+  .admin-dashboard .sales-products-column {
+    height: auto;
+    max-height: 560px;
+  }
+
+  .admin-dashboard .sales-cart-sidebar {
     height: auto;
     overflow: visible;
   }
 
-  .sales-products-column {
-    height: auto;
-    max-height: 500px;
-  }
-
-  .sales-cart-sidebar {
-    height: auto;
-    /* On mobile, might want to make it sticky bottom or top, but for now stack it */
+  .admin-dashboard .cart-items-container {
+    flex: none;
   }
 }
 
-/* ============================================
-   POLISH TABLAS (.modern-table) — hover de fila
-   y números alineados. Aplica a todas las tablas
-   del admin por cascada.
-   ============================================ */
-.modern-table tbody tr {
-  transition: background var(--transition-fast);
+@media (max-width: 640px) {
+  /* Órdenes: las cinco pestañas siempre a la vista en dos filas fijas
+     (Pendientes / Completadas / Todas y debajo Anuladas / Historia, el mismo
+     grupo que separa el divisor en escritorio), sin que se reacomoden al cambiar
+     el contador. Icono sobre el texto para que quepan desde 320px; el contador
+     de la pestaña activa puede bajar a una segunda línea. */
+  .admin-dashboard .adm-order-tabs {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .admin-dashboard .adm-order-tabs .ui-tab {
+    grid-column: span 2;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--space-1);
+    line-height: 1.3;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-dashboard .adm-order-tabs .ui-tab.adm-tab--danger,
+  .admin-dashboard .adm-order-tabs .ui-tab.adm-tab--warning {
+    grid-column: span 3;
+  }
+
+  .admin-dashboard .adm-tabs-divider {
+    display: none;
+  }
+
+  .admin-dashboard .adm-orders-search,
+  .admin-dashboard .adm-filter {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .admin-dashboard .adm-viewbar {
+    gap: var(--space-2) var(--space-4);
+  }
+
+  /* 16px en campos: evita el zoom de iOS al enfocar (estas reglas del área
+     ganan en especificidad a la regla móvil del sistema) */
+  .admin-dashboard .adm-viewbar .ui-select {
+    min-height: 44px;
+    font-size: var(--text-md);
+  }
+
+  .admin-dashboard .adm-viewbar .ui-icon-btn,
+  .admin-dashboard .adm-pagination .ui-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .admin-dashboard .adm-viewbar-total {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .admin-dashboard .adm-dropdown-option {
+    min-height: 44px;
+  }
+
+  /* Una tarjeta por fila en el celular aunque se haya elegido otro número de columnas
+     (el valor elegido llega inline; !important solo para este caso) */
+  .admin-dashboard .orders-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-dashboard .order-details summary {
+    min-height: 44px;
+  }
+
+  /* Números de página: objetivo táctil de 44 × 44 */
+  .admin-dashboard .adm-page-btn {
+    min-width: 44px;
+  }
+
+  .admin-dashboard .adm-pagination-info {
+    width: 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
+  /* Nueva venta */
+  .admin-dashboard .mode-toggle-label {
+    flex: 1 1 100%;
+    min-height: 44px;
+  }
+
+  .admin-dashboard .catalog-switch {
+    align-self: stretch;
+  }
+
+  .admin-dashboard .catalog-switch .ui-tab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .admin-dashboard .sales-product-item {
+    grid-template-columns: minmax(0, 1fr) auto auto 32px;
+    gap: var(--space-2);
+  }
+
+  .admin-dashboard .product-item-image {
+    display: none;
+  }
+
+  .admin-dashboard .product-item-price {
+    min-width: 0;
+  }
+
+  .admin-dashboard .cart-item {
+    flex-wrap: wrap;
+  }
+
+  .admin-dashboard .cart-item-info {
+    flex: 1 1 140px;
+  }
+
+  .admin-dashboard .cart-item-qty-control {
+    height: 44px;
+  }
+
+  .admin-dashboard .btn-qty {
+    width: 44px;
+  }
+
+  .admin-dashboard .qty-input {
+    width: 48px;
+    font-size: var(--text-md);
+  }
+
+  /* Reportes: un botón de formato por fila, a todo el ancho */
+  .admin-dashboard .adm-export-grid > .ui-btn {
+    flex-basis: 100%;
+  }
+
+  .admin-dashboard .adm-vendor-row > .adm-reports-vendor,
+  .admin-dashboard .adm-vendor-row > .adm-export-grid {
+    flex-basis: 100%;
+  }
 }
 
-.modern-table tbody tr:hover td {
-  background: var(--surface-hover);
-}
+/* Sin movimiento: el ítem del carrito aparece sin subir y el botón "+" no se hunde */
+@media (prefers-reduced-motion: reduce) {
+  .admin-dashboard .cart-item {
+    animation: none;
+  }
 
-.modern-table td {
-  font-variant-numeric: tabular-nums;
+  .admin-dashboard .sales-product-item:active .btn-add-circle {
+    scale: none;
+  }
 }
-

@@ -1,5 +1,5 @@
 // src/components/VendorSelectionDropdown.js
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { useToast } from './ToastContainer';
 import orderService from '../api/orderService';
 
@@ -13,6 +13,8 @@ function VendorSelectionDropdown({
   const [vendedores, setVendedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  // Solo presentación: asocia la etiqueta con el select (accesibilidad)
+  const selectId = useId();
 
   useEffect(() => {
     const fetchVendedores = async () => {
@@ -33,13 +35,14 @@ function VendorSelectionDropdown({
   }, [toast]);
 
   return (
-    <div className="form-group">
-      <label className="form-label">
+    <div className="ui-field">
+      <label className="ui-label" htmlFor={selectId}>
         {label}
-        {required && <span className="required">*</span>}
+        {required && <span className="ui-required">*</span>}
       </label>
       <select
-        className="form-control"
+        id={selectId}
+        className="ui-select"
         value={selectedVendor || ''}
         onChange={(e) => onChangeVendor(e.target.value || null)}
         disabled={loading || disabled}
@@ -58,4 +61,3 @@ function VendorSelectionDropdown({
 }
 
 export default VendorSelectionDropdown;
-

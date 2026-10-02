@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 
 import client from '../api/client';
 import { idempotencyKeyFor } from '../utils/idempotency';
@@ -6,27 +6,99 @@ import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import useSidebarCollapsed from '../hooks/useSidebarCollapsed';
 import SidebarToggle from '../components/SidebarToggle';
-import TagsPanel from '../components/TagsPanel';
-import PromotionsPanel from '../components/PromotionsPanel';
-import AdminClientsPanel from '../components/AdminClientsPanel';
-import ProductsPanel from '../components/ProductsPanel';
-import SpecialProductsPanel from '../components/SpecialProductsPanel';
-import SpecialPromotionsPanel from '../components/SpecialPromotionsPanel';
-import InventoryHistoryPanel from '../components/InventoryHistoryPanel';
-import SalesHistoryPanel from '../components/SalesHistoryPanel';
-import StockReportPanel from '../components/StockReportPanel';
+// Las pestañas (salvo Órdenes y Nueva venta) y los modales de órdenes se cargan bajo demanda:
+// ver los lazyWithRetry() debajo de los imports. Sus hojas de estilo se importan AQUÍ, en el mismo orden
+// en que llegaban antes a través de cada componente, para que la cascada CSS no cambie y los
+// chunks diferidos no traigan CSS al abrirse.
+import '../styles/areas/Inventory.css'; // TagsPanel, ProductsPanel, historiales
+import '../styles/Promotions.css'; // PromotionsPanel (PromotionFormModal)
+import '../styles/SpecialProducts.css'; // VendorMultiSelect, especiales
+import '../styles/VendorMultiSelect.css';
+import '../styles/areas/AdminClientsPanel.css';
+import '../components/modals/ProductFormModal.css'; // ProductsPanel
+import '../components/modals/PhysicalCountModal.css'; // ProductsPanel, StockReportPanel
+import '../styles/areas/StockReportPanel.css';
 import AdminDiscountSection from '../components/AdminDiscountSection';
-import PayrollPanel from '../components/PayrollPanel';
-import { OrderDetailModal } from '../components/modals/OrderManagementModal';
-import EditOrderModal from '../components/modals/EditOrderModal';
+import '../styles/areas/PayrollPanel.css';
+import '../styles/areas/AssortmentSelectionModal.css'; // OrderDetailModal (OrderManagementModal)
+import '../components/modals/OrderAnnulationModal.css';
+import '../components/modals/OrderRevertAnnulmentModal.css';
+import '../components/modals/HistoricalInvoiceModal.css';
+import '../components/modals/OrderManagementModal.css';
+import '../styles/areas/PromotionBlock.css'; // EditOrderModal
+import '../styles/areas/AssortmentCartDetail.css';
+import '../components/modals/EditOrderModal.css';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
 import AssortmentCartDetail from '../components/AssortmentCartDetail';
-import CompleteOrderModal from '../components/modals/CompleteOrderModal';
+import '../components/modals/CompleteOrderModal.css';
 import AdminPromotionsCatalog from '../components/AdminPromotionsCatalog';
+import SearchableSelect from '../components/SearchableSelect';
+import { EXPORT_FORMATS } from '../components/ExportButton';
+import { PanelFallback, ModalFallback, LazyErrorBoundary, lazyWithRetry } from '../components/LazyFallbacks';
 import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
 import { buildAssortmentSelections, isAssortmentPromotion } from '../utils/assortmentPromotion';
 import { formatCurrency, formatCreatedOrdersSummary, formatOrderLabel, orderPdfFileName } from '../utils/formatters';
 import '../styles/AdminDashboard.css';
+
+// Carga bajo demanda (el código llega al abrir la pestaña o el modal; "prefetch" lo descarga
+// en segundo plano cuando el navegador está libre, así el primer clic casi no espera).
+// lazyWithRetry = React.lazy con un reintento si la red falla (ver LazyFallbacks.js).
+const TagsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/TagsPanel'));
+const PromotionsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/PromotionsPanel'));
+const AdminClientsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/AdminClientsPanel'));
+const ProductsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/ProductsPanel'));
+const SpecialProductsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/SpecialProductsPanel'));
+const SpecialPromotionsPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/SpecialPromotionsPanel'));
+const InventoryHistoryPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/InventoryHistoryPanel'));
+const SalesHistoryPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/SalesHistoryPanel'));
+const StockReportPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/StockReportPanel'));
+const PayrollPanel = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/PayrollPanel'));
+const OrderDetailModal = lazyWithRetry(() =>
+  import(/* webpackPrefetch: true */ '../components/modals/OrderManagementModal').then((m) => ({ default: m.OrderDetailModal }))
+);
+const EditOrderModal = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/modals/EditOrderModal'));
+const CompleteOrderModal = lazyWithRetry(() => import(/* webpackPrefetch: true */ '../components/modals/CompleteOrderModal'));
+
+// Selectores con buscador (SearchableSelect): opciones de vendedoras y clientes
+const vendorOptionsById = (vendedores) => vendedores.map(v => ({ value: v.id, label: v.username }));
+
+// Cliente: el nombre como texto de la opción; NIT, teléfono y dirección debajo para distinguir
+// homónimos, y el resto de datos de contacto también se pueden escribir para encontrarlo
+const clientOptionDescription = (c) => [c.nit && `NIT ${c.nit}`, c.telefono, c.direccion].filter(Boolean).join(' · ');
+const clientOptionKeywords = (c) => [c.nit, c.telefono, c.direccion, c.email, c.administrador, c.representanteLegal];
+
+// Nueva Venta: la lista de clientes ya llega filtrada (y ordenada A-Z/Z-A) desde el panel con el
+// mismo texto de búsqueda, así el contador "N clientes encontrados" coincide con lo que se ve
+const SHOW_ALL_OPTIONS = () => true;
+
+// Reportes: "2026-10-02" → "02/10/2026" partiendo el texto, sin pasar por Date
+// (new Date('2026-10-02') es medianoche UTC y en Colombia mostraría el día anterior)
+const formatIsoDate = (iso) => {
+  const [y, m, d] = String(iso || '').split('-');
+  return y && m && d ? `${d}/${m}/${y}` : '—';
+};
+
+// Contenido de un botón de exportación con el mismo marcado que ExportButton: icono del formato
+// (Excel table_view, PDF picture_as_pdf, CSV description) o spinner mientras exporta, y la
+// etiqueta normal invisible reservando su ancho debajo del texto de carga (el botón no se
+// encoge). Los botones de Reportes siguen siendo <button> propios con su onClick y su
+// disabled de siempre; esto solo pinta lo de adentro.
+function ExportButtonContent({ kind, label, busy, loadingLabel = 'Exportando...' }) {
+  return (
+    <>
+      {busy
+        ? <span className="ui-spinner" aria-hidden="true" />
+        : <span className="material-icons-round" aria-hidden="true">{EXPORT_FORMATS[kind].icon}</span>}
+      <span className="ui-btn-label">
+        {busy && <span className="ui-btn-label-sizer" aria-hidden="true">{label}</span>}
+        <span>{busy ? loadingLabel : label}</span>
+      </span>
+    </>
+  );
+}
+
+// Órdenes: tarjetas de esqueleto mientras cargan (misma forma que la tarjeta de orden)
+const ORDER_SKELETONS = [0, 1, 2, 3, 4, 5];
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
@@ -77,9 +149,11 @@ function AdminDashboard() {
           ].map(item => (
             <button
               key={item.key}
+              type="button"
               className={`sidebar-item${activeTab === item.key ? ' active' : ''}`}
               onClick={() => setActiveTab(item.key)}
               title={item.label}
+              aria-current={activeTab === item.key ? 'page' : undefined}
             >
               <span className="material-icons-round sidebar-icon" aria-hidden="true">{item.icon}</span>
               <span className="sidebar-label">{item.label}</span>
@@ -89,6 +163,7 @@ function AdminDashboard() {
           <div className="sidebar-divider" />
 
           <button
+            type="button"
             className="sidebar-item sidebar-external"
             onClick={() => window.location.href = '/balances'}
             title="Saldos"
@@ -100,6 +175,7 @@ function AdminDashboard() {
 
         {/* Botón refresh en la parte inferior */}
         <button
+          type="button"
           className="sidebar-refresh"
           onClick={() => setRefreshTrigger(Date.now())}
           title="Actualizar datos"
@@ -112,19 +188,25 @@ function AdminDashboard() {
       {/* ── CONTENIDO PRINCIPAL ── */}
       <main className="admin-main">
         <div className="dashboard-content">
-          {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
-          {activeTab === 'sales-history' && <SalesHistoryPanel />}
-          {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
-          {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
-          {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
-          {activeTab === 'special-promotions' && <SpecialPromotionsPanel refreshTrigger={refreshTrigger} />}
-          {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
-          {activeTab === 'stock-report' && <StockReportPanel role="admin" />}
-          {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
-          {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
-          {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
-          {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
-          {activeTab === 'nomina' && <PayrollPanel />}
+          {/* Mientras llega el código de una pestaña diferida se ve "Cargando…" en su lugar; si no
+              se pudo descargar, un aviso con "Reintentar" (el menú lateral sigue funcionando) */}
+          <LazyErrorBoundary resetKey={activeTab}>
+          <Suspense fallback={<PanelFallback />}>
+            {activeTab === 'orders' && <OrdersPanel refreshTrigger={refreshTrigger} />}
+            {activeTab === 'sales-history' && <SalesHistoryPanel />}
+            {activeTab === 'nueva-venta' && <AdminNuevaVentaPanel />}
+            {activeTab === 'products' && <ProductsPanel refreshTrigger={refreshTrigger} />}
+            {activeTab === 'special-products' && <SpecialProductsPanel refreshTrigger={refreshTrigger} />}
+            {activeTab === 'special-promotions' && <SpecialPromotionsPanel refreshTrigger={refreshTrigger} />}
+            {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
+            {activeTab === 'stock-report' && <StockReportPanel role="admin" />}
+            {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
+            {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
+            {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
+            {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
+            {activeTab === 'nomina' && <PayrollPanel />}
+          </Suspense>
+          </LazyErrorBoundary>
         </div>
       </main>
     </div>
@@ -384,84 +466,98 @@ function OrdersPanel({ refreshTrigger }) {
   const filteredOrders = orders;
 
   return (
-    <div className="orders-panel">
-      <div className="panel-header">
-        <h2><span className="material-icons-round" style={{ fontSize: '24px', color: 'var(--primary)', verticalAlign: 'middle' }}>assignment_turned_in</span> Gestión de Órdenes</h2>
+    <div className="orders-panel adm-orders">
+      <div className="ui-page-header adm-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title"><span className="material-icons-round" aria-hidden="true">assignment_turned_in</span> Gestión de Órdenes</h2>
+        </div>
       </div>
 
-      {/* Filter Buttons Row */}
-      <div className="filter-buttons" style={{ marginBottom: '0.75rem' }}>
+      {/* Filter Buttons Row: pestañas de estado (segmentado del sistema) */}
+      <div className="ui-tabs adm-order-tabs" role="tablist" aria-label="Estado de las órdenes">
         <button
-          className={filter === 'pending' ? 'active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={filter === 'pending'}
+          className={`ui-tab${filter === 'pending' ? ' is-active' : ''}`}
           onClick={() => { setFilter('pending'); setCurrentPage(0); }}
         >
-          <span className="material-icons-round">pending_actions</span> Pendientes{filter === 'pending' ? ` (${totalElements})` : ''}
+          <span className="material-icons-round" aria-hidden="true">pending_actions</span> Pendientes{filter === 'pending' ? ` (${totalElements})` : ''}
         </button>
         <button
-          className={filter === 'completed' ? 'active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={filter === 'completed'}
+          className={`ui-tab${filter === 'completed' ? ' is-active' : ''}`}
           onClick={() => { setFilter('completed'); setCurrentPage(0); }}
         >
-          <span className="material-icons-round">check_circle</span> Completadas{filter === 'completed' ? ` (${totalElements})` : ''}
+          <span className="material-icons-round" aria-hidden="true">check_circle</span> Completadas{filter === 'completed' ? ` (${totalElements})` : ''}
         </button>
         <button
-          className={filter === 'all' ? 'active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={filter === 'all'}
+          className={`ui-tab${filter === 'all' ? ' is-active' : ''}`}
           onClick={() => { setFilter('all'); setCurrentPage(0); }}
         >
-          <span className="material-icons-round">analytics</span> Todas{filter === 'all' ? ` (${totalElements})` : ''}
+          <span className="material-icons-round" aria-hidden="true">analytics</span> Todas{filter === 'all' ? ` (${totalElements})` : ''}
         </button>
 
-        <div className="filter-divider" style={{ width: '1px', height: '24px', background: 'var(--border)', margin: '0 0.5rem' }}></div>
+        <div className="filter-divider adm-tabs-divider" aria-hidden="true"></div>
 
         <button
-          className={filter === 'cancelled' ? 'active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={filter === 'cancelled'}
+          className={`ui-tab adm-tab--danger${filter === 'cancelled' ? ' is-active' : ''}`}
           onClick={() => { setFilter('cancelled'); setCurrentPage(0); }}
-          style={{ color: filter === 'cancelled' ? '#ef4444' : 'var(--text-secondary)' }}
         >
-          <span className="material-icons-round">block</span> Anuladas{filter === 'cancelled' ? ` (${totalElements})` : ''}
+          <span className="material-icons-round" aria-hidden="true">block</span> Anuladas{filter === 'cancelled' ? ` (${totalElements})` : ''}
         </button>
 
         <button
-          className={filter === 'historical' ? 'active' : ''}
+          type="button"
+          role="tab"
+          aria-selected={filter === 'historical'}
+          className={`ui-tab adm-tab--warning${filter === 'historical' ? ' is-active' : ''}`}
           onClick={() => { setFilter('historical'); setCurrentPage(0); }}
-          style={{ color: filter === 'historical' ? '#d97706' : 'var(--text-secondary)' }}
         >
-          <span className="material-icons-round">history</span> Historia{filter === 'historical' ? ` (${totalElements})` : ''}
+          <span className="material-icons-round" aria-hidden="true">history</span> Historia{filter === 'historical' ? ` (${totalElements})` : ''}
         </button>
       </div>
 
       {/* Search and Filters Row */}
-      <div className="orders-search-filters" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Invoice Search Input */}
-        <div className="invoice-search-box" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto', minWidth: '250px' }}>
+      <div className="orders-search-filters adm-orders-toolbar">
+        <div className="adm-orders-filters">
           {/* Invoice Search Input */}
-          <div className="invoice-search-box">
-            <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
+          <div className="ui-search adm-orders-search">
+            <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
             <input
               type="text"
+              className="ui-input"
               placeholder="Buscar factura, pedido (P-123), cliente, rep..."
+              aria-label="Buscar órdenes"
               value={invoiceSearchInput}
               onChange={(e) => setInvoiceSearchInput(e.target.value)}
             />
             {invoiceSearchInput && (
               <button
+                type="button"
+                className="ui-icon-btn ui-search-clear"
                 onClick={() => { setInvoiceSearchInput(''); setInvoiceSearch(''); setCurrentPage(0); }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  padding: '4px'
-                }}
+                aria-label="Limpiar búsqueda"
+                title="Limpiar búsqueda"
               >
-                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                <span className="material-icons-round" aria-hidden="true">close</span>
               </button>
             )}
           </div>
 
           {/* Vendor Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '0 1 auto' }}>
-            <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>badge</span>
-            <select
+          <div className="adm-filter">
+            <SearchableSelect
+              className={`adm-filter-control${selectedVendedor ? ' is-filtered' : ''}`}
+              aria-label="Filtrar por vendedor"
               value={selectedVendedor}
               onChange={(e) => {
                 setSelectedVendedor(e.target.value);
@@ -473,48 +569,40 @@ function OrdersPanel({ refreshTrigger }) {
                   setClientes([]);
                 }
               }}
-              style={{
-                padding: '0.5rem 0.75rem',
-                border: '1px solid var(--border)',
-                borderRadius: '8px',
-                fontSize: '0.9rem',
-                background: selectedVendedor ? '#f0fdf4' : 'white'
-              }}
-            >
-              <option value="">Todos los vendedores</option>
-              {vendedores.map(v => (
-                <option key={v.id} value={v.username}>{v.username}</option>
-              ))}
-            </select>
+              options={vendedores.map(v => ({ value: v.username, label: v.username }))}
+              emptyOption={{ label: 'Todos los vendedores' }}
+              placeholder="Todos los vendedores"
+              searchPlaceholder="Buscar vendedor…"
+              noResultsText="No se encontraron vendedores"
+            />
             {selectedVendedor && (
               <button
+                type="button"
+                className="ui-icon-btn"
                 onClick={() => {
                   setSelectedVendedor('');
                   setClientes([]);
                   setSelectedCliente('');
                   setCurrentPage(0);
                 }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-secondary)',
-                  padding: '4px'
-                }}
+                aria-label="Quitar filtro de vendedor"
+                title="Quitar filtro de vendedor"
               >
-                <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                <span className="material-icons-round" aria-hidden="true">close</span>
               </button>
             )}
           </div>
 
           {/* Client Filter - Searchable */}
           {selectedVendedor && (
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-icons-round" style={{ color: 'var(--primary)', fontSize: '18px' }}>person</span>
-              <div className="client-search-container" style={{ position: 'relative' }}>
+            <div className="adm-filter">
+              <div className="client-search-container ui-input-group adm-filter-control adm-client-search">
+                <span className="material-icons-round ui-input-icon" aria-hidden="true">person</span>
                 <input
                   type="text"
+                  className={`ui-input${selectedCliente ? ' is-filtered' : ''}`}
                   placeholder="Buscar cliente..."
+                  aria-label="Filtrar por cliente"
                   value={clientSearchTerm}
                   onChange={(e) => {
                     setClientSearchTerm(e.target.value);
@@ -525,51 +613,22 @@ function OrdersPanel({ refreshTrigger }) {
                     }
                   }}
                   onFocus={() => setShowClientDropdown(true)}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    background: selectedCliente ? '#f0fdf4' : 'white',
-                    minWidth: '200px'
-                  }}
                 />
 
                 {/* Dropdown with filtered clients */}
                 {showClientDropdown && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      marginTop: '4px',
-                      background: 'white',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      maxHeight: '300px',
-                      overflowY: 'auto',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      zIndex: 1000
-                    }}
-                  >
+                  <div className="adm-dropdown">
                     {/* "All clients" option */}
                     <div
+                      className={`adm-dropdown-option adm-dropdown-option--all${!selectedCliente ? ' is-selected' : ''}`}
                       onClick={() => {
                         setSelectedCliente('');
                         setClientSearchTerm('');
                         setShowClientDropdown(false);
                         setCurrentPage(0);
                       }}
-                      style={{
-                        padding: '0.75rem',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid var(--border)',
-                        background: !selectedCliente ? '#f0fdf4' : 'transparent',
-                        fontWeight: !selectedCliente ? 600 : 400
-                      }}
-                      onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
-                      onMouseLeave={(e) => e.target.style.background = !selectedCliente ? '#f0fdf4' : 'transparent'}
+                      onMouseEnter={(e) => e.target.style.background = 'var(--color-surface-hover)'}
+                      onMouseLeave={(e) => e.target.style.background = !selectedCliente ? 'var(--color-primary-soft)' : 'transparent'}
                     >
                       Todos los clientes
                     </div>
@@ -585,25 +644,20 @@ function OrdersPanel({ refreshTrigger }) {
                       .map(c => (
                         <div
                           key={c.id}
+                          className={`adm-dropdown-option${selectedCliente === c.nombre ? ' is-selected' : ''}`}
                           onClick={() => {
                             setSelectedCliente(c.nombre);
                             setClientSearchTerm(c.nombre);
                             setShowClientDropdown(false);
                             setCurrentPage(0);
                           }}
-                          style={{
-                            padding: '0.75rem',
-                            cursor: 'pointer',
-                            background: selectedCliente === c.nombre ? '#f0fdf4' : 'transparent',
-                            fontWeight: selectedCliente === c.nombre ? 600 : 400
-                          }}
-                          onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
-                          onMouseLeave={(e) => e.target.style.background = selectedCliente === c.nombre ? '#f0fdf4' : 'transparent'}
+                          onMouseEnter={(e) => e.target.style.background = 'var(--color-surface-hover)'}
+                          onMouseLeave={(e) => e.target.style.background = selectedCliente === c.nombre ? 'var(--color-primary-soft)' : 'transparent'}
                         >
-                          <div style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.nombre}</div>
+                          <div className="adm-dropdown-title">{c.nombre}</div>
                           {c.representanteLegal && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                              <span className="material-icons-round" style={{ fontSize: '0.7rem', verticalAlign: 'middle' }}>badge</span> {c.representanteLegal}
+                            <div className="adm-dropdown-meta">
+                              <span className="material-icons-round" aria-hidden="true">badge</span> {c.representanteLegal}
                             </div>
                           )}
                         </div>
@@ -616,7 +670,7 @@ function OrdersPanel({ refreshTrigger }) {
                       const repMatch = (c.representanteLegal || '').toLowerCase().includes(searchLower);
                       return nameMatch || repMatch;
                     }).length === 0 && (
-                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        <div className="adm-dropdown-empty">
                           No se encontraron clientes
                         </div>
                       )}
@@ -626,19 +680,16 @@ function OrdersPanel({ refreshTrigger }) {
 
               {selectedCliente && (
                 <button
+                  type="button"
+                  className="ui-icon-btn"
                   onClick={() => {
                     setSelectedCliente('');
                     setClientSearchTerm('');
                   }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--text-secondary)',
-                    padding: '4px'
-                  }}
+                  aria-label="Quitar filtro de cliente"
+                  title="Quitar filtro de cliente"
                 >
-                  <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  <span className="material-icons-round" aria-hidden="true">close</span>
                 </button>
               )}
             </div>
@@ -646,11 +697,12 @@ function OrdersPanel({ refreshTrigger }) {
         </div>
       </div>
 
-      {/* Sorting Controls Row */}
-      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-        <div className="sorting-controls">
-          <span className="material-icons-round" style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>sort</span>
-          <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setCurrentPage(0); }} className="sort-select">
+      {/* Orden, tamaño de página, columnas y total en una sola barra que se envuelve en móvil */}
+      <div className="adm-viewbar">
+        {/* Sorting Controls */}
+        <div className="sorting-controls adm-viewbar-group">
+          <span className="material-icons-round adm-viewbar-icon" aria-hidden="true">sort</span>
+          <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setCurrentPage(0); }} className="sort-select ui-select" aria-label="Ordenar por">
             <option value="fecha">Fecha</option>
             <option value="cliente">Nombre Cliente</option>
             <option value="total">Precio Total</option>
@@ -658,38 +710,38 @@ function OrdersPanel({ refreshTrigger }) {
             <option value="orderNumber">Número de Pedido</option>
           </select>
           <button
-            className="btn-sort-order"
+            type="button"
+            className="btn-sort-order ui-icon-btn ui-icon-btn--bordered"
             onClick={() => { setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); setCurrentPage(0); }}
             title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
+            aria-label={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
           >
-            <span className="material-icons-round">
+            <span className="material-icons-round" aria-hidden="true">
               {sortOrder === 'asc' ? 'expand_less' : 'expand_more'}
             </span>
           </button>
         </div>
-      </div>
 
-      {/* Pagination header: pageSize selector + result info */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          <span className="material-icons-round" style={{ fontSize: '16px' }}>list_alt</span>
+        {/* Pagination header: pageSize selector + result info */}
+        <label className="adm-viewbar-group adm-viewbar-field">
+          <span className="material-icons-round adm-viewbar-icon" aria-hidden="true">list_alt</span>
           Mostrar
           <select
+            className="ui-select adm-viewbar-select"
             value={pageSize}
             onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
-            style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.85rem' }}
           >
             {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
           por página
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          <span className="material-icons-round" style={{ fontSize: '16px' }}>view_column</span>
+        </label>
+        <label className="adm-viewbar-group adm-viewbar-field">
+          <span className="material-icons-round adm-viewbar-icon" aria-hidden="true">view_column</span>
           Columnas
           <select
+            className="ui-select adm-viewbar-select"
             value={ordersColumns}
             onChange={(e) => { const v = e.target.value; setOrdersColumns(v); localStorage.setItem('adminOrdersColumns', v); }}
-            style={{ padding: '0.25rem 0.5rem', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '0.85rem' }}
             title="Tarjetas por fila"
           >
             <option value="auto">Auto</option>
@@ -700,8 +752,8 @@ function OrdersPanel({ refreshTrigger }) {
             <option value="5">5</option>
             <option value="6">6</option>
           </select>
-        </div>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+        </label>
+        <span className="adm-viewbar-total">
           {totalElements > 0 && `${totalElements} órdenes totales`}
         </span>
       </div>
@@ -709,16 +761,40 @@ function OrdersPanel({ refreshTrigger }) {
       {/* Eliminado banner de advertencia sobre filtros locales ya que ahora son server-side */}
 
       {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-          <span className="material-icons-round spin" style={{ fontSize: '48px', color: 'var(--primary)', marginBottom: '1rem' }}>autorenew</span>
-          <p style={{ fontSize: '1.1rem', fontWeight: '500' }}>Cargando órdenes...</p>
+        <div className="adm-orders-loading" role="status" aria-busy="true">
+          <p className="ui-sr-only">Cargando órdenes...</p>
+          <div
+            className="orders-grid adm-orders-skeleton"
+            aria-hidden="true"
+            style={ordersColumns === 'auto' ? undefined : { gridTemplateColumns: `repeat(${ordersColumns}, minmax(0, 1fr))` }}
+          >
+            {ORDER_SKELETONS.map((i) => (
+              <div key={i} className="adm-skeleton-card">
+                <div className="adm-skeleton-head">
+                  <span className="ui-skeleton ui-skeleton--title" />
+                  <span className="ui-skeleton adm-skeleton-pill" />
+                </div>
+                <div className="ui-skeleton-stack">
+                  <span className="ui-skeleton ui-skeleton--text" />
+                  <span className="ui-skeleton ui-skeleton--text adm-skeleton-w80" />
+                  <span className="ui-skeleton ui-skeleton--text adm-skeleton-w60" />
+                  <span className="ui-skeleton ui-skeleton--title adm-skeleton-total" />
+                </div>
+                <div className="adm-skeleton-btns">
+                  <span className="ui-skeleton adm-skeleton-btn" />
+                  <span className="ui-skeleton adm-skeleton-btn" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : filteredOrders.length === 0 ? (
-        <div className="empty-state">
-          <p><span className="material-icons-round" style={{ fontSize: '48px', color: 'var(--text-muted)' }}>inbox</span><br />No se encontraron órdenes en esta categoría</p>
+        <div className="ui-empty adm-orders-empty">
+          <span className="material-icons-round ui-empty-icon" aria-hidden="true">inbox</span>
+          <p className="ui-empty-title">No se encontraron órdenes en esta categoría</p>
         </div>
       ) : (
-        <div className="orders-grid" style={ordersColumns === 'auto' ? undefined : { gridTemplateColumns: `repeat(${ordersColumns}, minmax(0, 1fr))` }}>
+        <div className="orders-grid ui-stagger" style={ordersColumns === 'auto' ? undefined : { gridTemplateColumns: `repeat(${ordersColumns}, minmax(0, 1fr))` }}>
           {filteredOrders.map(order => {
             // Determine payment status class
             const paymentStatusClass = order.paymentStatus
@@ -732,34 +808,24 @@ function OrdersPanel({ refreshTrigger }) {
               <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
                 <div className="order-header">
                   {/* wrap: con "Factura #N · Pedido P-N" los badges bajan de línea en vez de partir la etiqueta */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem 0.75rem', flexWrap: 'wrap' }}>
+                  <div className="adm-order-badges">
                     <span className="order-id">
                       {formatOrderLabel(order)}
                     </span>
                     {order.isSROrder && (
-                      <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
+                      <span className="tag-badge tag-sr">S/N</span>
                     )}
                     {/* Promotion Badge */}
                     {hasPromotions && (
-                      <span className="promotion-badge" style={{
-                        padding: '0.2rem 0.6rem',
-                        fontSize: '0.7rem',
-                        background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
-                        color: 'white',
-                        borderRadius: '99px',
-                        fontWeight: '800',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        <span className="material-icons-round" style={{ fontSize: '12px' }}>card_giftcard</span>
+                      <span className="ui-badge ui-badge--primary adm-promo-badge">
+                        <span className="material-icons-round" aria-hidden="true">card_giftcard</span>
                         PROMO
                       </span>
                     )}
-                    {/* Payment Status Badge */}
+                    {/* Payment Status Badge: Pagado=success, Parcial=warning, Pendiente=neutral */}
                     {order.paymentStatus && (
-                      <span className={`payment-status-badge ${order.paymentStatus.toLowerCase()}`}>
-                        <span className="material-icons-round" style={{ fontSize: '12px' }}>
+                      <span className={`payment-status-badge ${order.paymentStatus.toLowerCase()} ui-badge ${order.paymentStatus === 'PAID' ? 'ui-badge--success' : order.paymentStatus === 'PARTIAL' ? 'ui-badge--warning' : 'ui-badge--neutral'}`}>
+                        <span className="material-icons-round" aria-hidden="true">
                           {order.paymentStatus === 'PAID' ? 'check_circle' : order.paymentStatus === 'PARTIAL' ? 'pending' : 'schedule'}
                         </span>
                         {order.paymentStatus === 'PAID' ? 'Pagado' : order.paymentStatus === 'PARTIAL' ? 'Parcial' : 'Pendiente'}
@@ -772,18 +838,19 @@ function OrdersPanel({ refreshTrigger }) {
                 </div>
 
                 <div className="order-info">
-                  <p><strong>Vendedor:</strong> {order.vendedor}</p>
-                  <p><strong>Cliente:</strong> {order.cliente}</p>
+                  <p><strong><span className="material-icons-round adm-info-icon adm-info-icon--primary" aria-hidden="true">person</span>Vendedor:</strong> {order.vendedor}</p>
+                  <p><strong><span className="material-icons-round adm-info-icon adm-info-icon--teal" aria-hidden="true">storefront</span>Cliente:</strong> {order.cliente}</p>
                   <p>
-                    <strong>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
+                    <strong><span className="material-icons-round adm-info-icon adm-info-icon--sky" aria-hidden="true">event</span>{order.estado === 'COMPLETADO' ? 'Fecha factura:' : 'Fecha:'}</strong>{' '}
                     {order.estado === 'COMPLETADO' && order.completedAt
                       ? new Date(order.completedAt).toLocaleDateString('es-ES')
                       : new Date(order.fecha).toLocaleString('es-ES')}
                   </p>
-                  <p className="order-total"><strong>Total:</strong> ${formatCurrency(order.total)}</p>
+                  {/* Total en verde solo si la orden ya está pagada (mismo valor, solo el color) */}
+                  <p className={`order-total${order.paymentStatus === 'PAID' ? ' is-paid' : ''}`}><strong>Total:</strong> ${formatCurrency(order.total)}</p>
                   {order.discountedTotal && order.discountedTotal !== order.total && (
                     <p className="order-discounted-total">
-                      <span className="material-icons-round" style={{ fontSize: '14px', color: '#10b981' }}>discount</span>
+                      <span className="material-icons-round" aria-hidden="true">discount</span>
                       <strong>Con descuento:</strong>
                       <span className="discounted-value">${formatCurrency(order.discountedTotal)}</span>
                     </p>
@@ -791,7 +858,7 @@ function OrdersPanel({ refreshTrigger }) {
 
                   {order.notas && (
                     <div className="order-notes">
-                      <strong><span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>note</span> Notas:</strong>
+                      <strong><span className="material-icons-round" aria-hidden="true">note</span> Notas:</strong>
                       <p>{order.notas}</p>
                     </div>
                   )}
@@ -803,49 +870,29 @@ function OrdersPanel({ refreshTrigger }) {
                     <ul>
                       {order.items.map((item, idx) => (
                         <li key={idx}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flexWrap: 'wrap' }}>
+                          <div className="adm-item-main">
+                            <div className="adm-item-title">
                               <span className="item-name">{item.productName}</span>
                               {item.isFreeItem && (
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  padding: '0.15rem 0.4rem',
-                                  background: '#10b981',
-                                  color: 'white',
-                                  borderRadius: '4px',
-                                  fontWeight: 700
-                                }}>BONIFICADO</span>
+                                <span className="ui-badge ui-badge--success">BONIFICADO</span>
                               )}
                               {item.isPromotionItem && !item.isFreeItem && (
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  padding: '0.15rem 0.4rem',
-                                  background: '#3b82f6',
-                                  color: 'white',
-                                  borderRadius: '4px',
-                                  fontWeight: 700
-                                }}>PROMO</span>
+                                <span className="ui-badge ui-badge--primary">PROMO</span>
                               )}
                               {item.outOfStock && (
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  padding: '0.15rem 0.4rem',
-                                  background: '#f97316',
-                                  color: 'white',
-                                  borderRadius: '4px',
-                                  fontWeight: 700
-                                }}>SIN STOCK</span>
+                                <span className="ui-badge ui-badge--warning">SIN STOCK</span>
                               )}
                             </div>
                             {item.promotionName && (
-                              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                <span className="material-icons-round" style={{ fontSize: '12px', color: '#f59e0b' }}>card_giftcard</span>
+                              <span className="adm-item-note">
+                                <span className="material-icons-round" aria-hidden="true">card_giftcard</span>
                                 {item.promotionName}
                               </span>
                             )}
                             {item.outOfStock && item.estimatedArrivalDate && (
-                              <span style={{ fontSize: '0.75rem', color: '#d97706' }}>
-                                📅 ETA: {new Date(item.estimatedArrivalDate).toLocaleDateString('es-ES')}
+                              <span className="adm-item-note adm-item-note--warning">
+                                <span className="material-icons-round" aria-hidden="true">event</span>
+                                ETA: {new Date(item.estimatedArrivalDate).toLocaleDateString('es-ES')}
                                 {item.estimatedArrivalNote && ` - ${item.estimatedArrivalNote}`}
                               </span>
                             )}
@@ -854,7 +901,7 @@ function OrdersPanel({ refreshTrigger }) {
                             <span className="item-qty">
                               {item.cantidad} x ${item.isFreeItem ? '0.00' : formatCurrency(item.precioUnitario || 0)}
                             </span>
-                            <span className="item-subtotal" style={{ color: item.isFreeItem ? '#10b981' : 'inherit', fontWeight: item.isFreeItem ? 700 : 'inherit' }}>
+                            <span className={`item-subtotal${item.isFreeItem ? ' is-free' : ''}`}>
                               ${formatCurrency(item.subtotal || 0)}
                             </span>
                           </div>
@@ -863,43 +910,38 @@ function OrdersPanel({ refreshTrigger }) {
                     </ul>
                   </details>
                 ) : (
-                  <div style={{
-                    padding: '1rem',
-                    background: '#fef3c7',
-                    borderRadius: '0.5rem',
-                    color: '#92400e',
-                    fontSize: '0.9rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    border: '1px solid #fde68a'
-                  }}>
-                    <span className="material-icons-round" style={{ fontSize: '1.25rem' }}>card_giftcard</span>
+                  <div className="ui-alert ui-alert--warning adm-order-alert">
+                    <span className="material-icons-round" aria-hidden="true">card_giftcard</span>
                     <span>Orden solo con promoción (sin productos regulares)</span>
                   </div>
                 )}
 
                 {/* ✅ NUEVA SECCIÓN: BOTONES DE FACTURA PDF */}
                 <div className="invoice-actions">
-                  <h4 style={{ fontSize: '13px', marginBottom: '8px', color: '#6b7280' }}>
-                    📄 Factura / Orden de Empaque
+                  <h4 className="adm-block-title">
+                    <span className="material-icons-round" aria-hidden="true">description</span>
+                    Factura / Orden de Empaque
                   </h4>
                   <div className="invoice-buttons">
                     <button
-                      className="btn-invoice btn-preview"
+                      type="button"
+                      className="btn-invoice btn-preview ui-btn ui-btn--secondary ui-btn--sm"
                       onClick={() => handlePreviewInvoice(order.id)}
                       title="Ver factura en nueva pestaña"
                     >
-                      <span className="material-icons-round">visibility</span> Vista Previa
+                      <span className="material-icons-round" aria-hidden="true">visibility</span> Vista Previa
                     </button>
 
+                    {/* PDF = rojo (identidad de formato); solo la tarjeta que descarga muestra la carga */}
                     <button
-                      className="btn-invoice btn-download"
+                      type="button"
+                      className={`btn-invoice btn-download ui-btn ui-btn--pdf ui-btn--sm${downloadingPdf === order.id ? ' is-loading' : ''}`}
                       onClick={() => handleDownloadInvoice(order.id, order)}
                       disabled={downloadingPdf === order.id}
+                      aria-busy={downloadingPdf === order.id || undefined}
                       title="Descargar archivo PDF"
                     >
-                      {downloadingPdf === order.id ? <span className="material-icons-round spin">sync</span> : <span className="material-icons-round">download</span>} Descargar
+                      {downloadingPdf === order.id ? <span className="ui-spinner" aria-hidden="true" /> : <span className="material-icons-round" aria-hidden="true">picture_as_pdf</span>} Descargar
                     </button>
                   </div>
                 </div>
@@ -914,26 +956,26 @@ function OrdersPanel({ refreshTrigger }) {
                 {/* ✅ BOTONES DE GESTIÓN DE ORDEN */}
                 <div className="order-actions">
                   <button
-                    className="btn-edit"
+                    type="button"
+                    className="btn-edit ui-btn ui-btn--secondary ui-btn--sm"
                     onClick={() => setViewingOrder(order)}
-                    style={{ backgroundColor: '#6366f1', color: 'white' }}
                     title="Ver Detalle y Gestionar"
                   >
-                    <span className="material-icons-round">visibility</span> Detalle
+                    <span className="material-icons-round" aria-hidden="true">visibility</span> Detalle
                   </button>
 
                   {order.estado === 'PENDING_PROMOTION_COMPLETION' && (
-                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    <div className="adm-assort-actions">
                       {order.items
                         .filter(item => item.isPromotionItem && !item.isFreeItem)
                         .map((item, idx) => (
                           <button
                             key={idx}
-                            className="btn-confirm"
-                            style={{ backgroundColor: '#ec4899', fontSize: '0.8rem' }}
+                            type="button"
+                            className="btn-confirm ui-btn ui-btn--primary ui-btn--sm"
                             onClick={() => handleOpenAssortment(order, item)}
                           >
-                            <span className="material-icons-round" style={{ fontSize: '14px' }}>inventory_2</span>
+                            <span className="material-icons-round" aria-hidden="true">inventory_2</span>
                             Surtir {item.productName?.substring(0, 15)}...
                           </button>
                         ))}
@@ -942,28 +984,29 @@ function OrdersPanel({ refreshTrigger }) {
 
                   {order.estado === 'PENDIENTE' && (
                     <button
-                      className="btn-confirm"
+                      type="button"
+                      className="btn-confirm ui-btn ui-btn--primary ui-btn--sm"
                       onClick={() => changeStatus(order.id, 'CONFIRMADO')}
                     >
-                      <span className="material-icons-round">check</span> Confirmar
+                      <span className="material-icons-round" aria-hidden="true">check</span> Confirmar
                     </button>
                   )}
 
                   {order.estado === 'CONFIRMADO' && (
                     <>
                       <button
-                        className="btn-edit"
+                        type="button"
+                        className="btn-edit ui-btn ui-btn--secondary ui-btn--sm"
                         onClick={() => setSelectedOrder(order)}
-                        style={{ color: '#1f2937' }}
                       >
-                        <span className="material-icons-round">edit</span> Editar
+                        <span className="material-icons-round" aria-hidden="true">edit</span> Editar
                       </button>
                       <button
-                        className="btn-complete"
+                        type="button"
+                        className="btn-complete ui-btn ui-btn--primary ui-btn--sm"
                         onClick={() => setCompleteOrderTarget(order)}
-                        style={{ backgroundColor: '#10b981', color: '#ffffff', border: 'none' }}
                       >
-                        <span className="material-icons-round">done_all</span> Completar
+                        <span className="material-icons-round" aria-hidden="true">done_all</span> Completar
                       </button>
                     </>
                   )}
@@ -976,23 +1019,31 @@ function OrdersPanel({ refreshTrigger }) {
 
 
       {selectedOrder && (
-        <EditOrderModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-          onSuccess={() => {
-            setSelectedOrder(null);
-            fetchOrders();
-          }}
-        />
+        <LazyErrorBoundary variant="modal" onClose={() => setSelectedOrder(null)}>
+        <Suspense fallback={<ModalFallback onClose={() => setSelectedOrder(null)} />}>
+          <EditOrderModal
+            order={selectedOrder}
+            onClose={() => setSelectedOrder(null)}
+            onSuccess={() => {
+              setSelectedOrder(null);
+              fetchOrders();
+            }}
+          />
+        </Suspense>
+        </LazyErrorBoundary>
       )}
 
       {viewingOrder && (
-        <OrderDetailModal
-          order={viewingOrder}
-          userRole="ROLE_ADMIN"
-          onClose={() => setViewingOrder(null)}
-          onRefresh={fetchOrders}
-        />
+        <LazyErrorBoundary variant="modal" onClose={() => setViewingOrder(null)}>
+        <Suspense fallback={<ModalFallback onClose={() => setViewingOrder(null)} />}>
+          <OrderDetailModal
+            order={viewingOrder}
+            userRole="ROLE_ADMIN"
+            onClose={() => setViewingOrder(null)}
+            onRefresh={fetchOrders}
+          />
+        </Suspense>
+        </LazyErrorBoundary>
       )}
 
       {/* ✅ ASSORTMENT MODAL */}
@@ -1013,54 +1064,39 @@ function OrdersPanel({ refreshTrigger }) {
 
       {/* ✅ COMPLETE ORDER MODAL */}
       {completeOrderTarget && (
-        <CompleteOrderModal
-          order={completeOrderTarget}
-          onClose={() => setCompleteOrderTarget(null)}
-          onSuccess={() => {
-            setCompleteOrderTarget(null);
-            fetchOrders();
-          }}
-        />
+        <LazyErrorBoundary variant="modal" onClose={() => setCompleteOrderTarget(null)}>
+        <Suspense fallback={<ModalFallback onClose={() => setCompleteOrderTarget(null)} />}>
+          <CompleteOrderModal
+            order={completeOrderTarget}
+            onClose={() => setCompleteOrderTarget(null)}
+            onSuccess={() => {
+              setCompleteOrderTarget(null);
+              fetchOrders();
+            }}
+          />
+        </Suspense>
+        </LazyErrorBoundary>
       )}
       {/* ── PAGINATION FOOTER ── */}
       {totalPages > 1 && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.5rem',
-          padding: '1.25rem 0 0.5rem',
-          flexWrap: 'wrap'
-        }}>
+        <nav className="adm-pagination" aria-label="Paginación de órdenes">
           <button
+            type="button"
+            className="ui-icon-btn ui-icon-btn--bordered"
             onClick={() => setCurrentPage(0)}
             disabled={currentPage === 0}
-            style={{
-              padding: '0.35rem 0.6rem',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              background: currentPage === 0 ? 'var(--bg-secondary)' : 'white',
-              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-              color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)'
-            }}
             title="Primera página"
+            aria-label="Primera página"
           >
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>first_page</span>
+            <span className="material-icons-round" aria-hidden="true">first_page</span>
           </button>
           <button
+            type="button"
+            className="ui-btn ui-btn--secondary ui-btn--sm"
             onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
             disabled={currentPage === 0}
-            style={{
-              padding: '0.35rem 0.7rem',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              background: currentPage === 0 ? 'var(--bg-secondary)' : 'white',
-              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-              color: currentPage === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-              display: 'flex', alignItems: 'center', gap: '0.25rem'
-            }}
           >
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>chevron_left</span>
+            <span className="material-icons-round" aria-hidden="true">chevron_left</span>
             Anterior
           </button>
 
@@ -1071,17 +1107,10 @@ function OrdersPanel({ refreshTrigger }) {
             return (
               <button
                 key={pageNum}
+                type="button"
+                className={`ui-btn ui-btn--sm adm-page-btn ${pageNum === currentPage ? 'ui-btn--primary' : 'ui-btn--secondary'}`}
+                aria-current={pageNum === currentPage ? 'page' : undefined}
                 onClick={() => setCurrentPage(pageNum)}
-                style={{
-                  padding: '0.35rem 0.65rem',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  background: pageNum === currentPage ? 'var(--primary)' : 'white',
-                  color: pageNum === currentPage ? 'white' : 'var(--text-primary)',
-                  fontWeight: pageNum === currentPage ? 700 : 400,
-                  cursor: 'pointer',
-                  minWidth: '36px'
-                }}
               >
                 {pageNum + 1}
               </button>
@@ -1089,41 +1118,29 @@ function OrdersPanel({ refreshTrigger }) {
           })}
 
           <button
+            type="button"
+            className="ui-btn ui-btn--secondary ui-btn--sm"
             onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
             disabled={currentPage >= totalPages - 1}
-            style={{
-              padding: '0.35rem 0.7rem',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white',
-              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-              color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-              display: 'flex', alignItems: 'center', gap: '0.25rem'
-            }}
           >
             Siguiente
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>chevron_right</span>
+            <span className="material-icons-round" aria-hidden="true">chevron_right</span>
           </button>
           <button
+            type="button"
+            className="ui-icon-btn ui-icon-btn--bordered"
             onClick={() => setCurrentPage(totalPages - 1)}
             disabled={currentPage >= totalPages - 1}
-            style={{
-              padding: '0.35rem 0.6rem',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              background: currentPage >= totalPages - 1 ? 'var(--bg-secondary)' : 'white',
-              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-              color: currentPage >= totalPages - 1 ? 'var(--text-muted)' : 'var(--text-primary)'
-            }}
             title="Última página"
+            aria-label="Última página"
           >
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>last_page</span>
+            <span className="material-icons-round" aria-hidden="true">last_page</span>
           </button>
 
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
+          <span className="adm-pagination-info">
             Página {currentPage + 1} de {totalPages}
           </span>
-        </div>
+        </nav>
       )}
     </div>
   );
@@ -1498,7 +1515,12 @@ export function AdminNuevaVentaPanel() {
   };
 
   if (loading) {
-    return <div className="loading">Cargando...</div>;
+    return (
+      <div className="ui-loading adm-sales-loading" role="status">
+        <span className="ui-spinner" aria-hidden="true" />
+        Cargando...
+      </div>
+    );
   }
 
   const filteredProducts = products.filter(p =>
@@ -1531,51 +1553,54 @@ export function AdminNuevaVentaPanel() {
       <div className="sales-products-column">
         {/* FILTERS BAR */}
         <div className="sales-filters-bar">
-          <div className="sales-search-container">
-            <span className="material-icons-round sales-search-icon">search</span>
+          <div className="sales-search-container ui-search">
+            <span className="material-icons-round sales-search-icon ui-search-icon" aria-hidden="true">search</span>
             <input
               type="text"
-              className="sales-search-input"
+              className="sales-search-input ui-input"
               placeholder="Buscar producto o promoción..."
+              aria-label="Buscar en el catálogo"
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
             />
           </div>
 
-          <div
+          {/* Interruptor de modo: botón real (se puede usar con teclado) */}
+          <button
+            type="button"
             className={`mode-toggle-label ${isBonifiedMode ? 'bonified' : 'normal'}`}
             onClick={() => setIsBonifiedMode(!isBonifiedMode)}
             title="Alternar modo de venta"
           >
-            <span className="material-icons-round" style={{ fontSize: '20px' }}>
+            <span className="material-icons-round" aria-hidden="true">
               {isBonifiedMode ? 'card_giftcard' : 'inventory_2'}
             </span>
             {isBonifiedMode ? 'Modo Regalo (Bonificado)' : 'Modo Venta Regular'}
-          </div>
+          </button>
         </div>
 
         {/* PRODUCTS LIST */}
         <div className="sales-products-list">
           {/* Selector segmentado: Productos (por defecto) | Promociones, para que las
               promociones no empujen el catálogo y la admin no tenga que scrollear. */}
-          <div className="catalog-switch" role="tablist" aria-label="Catálogo">
+          <div className="catalog-switch ui-tabs" role="tablist" aria-label="Catálogo">
             <button
               type="button"
               role="tab"
               aria-selected={catalogView === 'productos'}
-              className={`catalog-switch-btn ${catalogView === 'productos' ? 'active' : ''}`}
+              className={`catalog-switch-btn ui-tab${catalogView === 'productos' ? ' is-active' : ''}`}
               onClick={() => setCatalogView('productos')}
             >
-              <span className="material-icons-round">inventory_2</span> Productos
+              <span className="material-icons-round" aria-hidden="true">inventory_2</span> Productos
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={catalogView === 'promociones'}
-              className={`catalog-switch-btn ${catalogView === 'promociones' ? 'active' : ''}`}
+              className={`catalog-switch-btn ui-tab${catalogView === 'promociones' ? ' is-active' : ''}`}
               onClick={() => setCatalogView('promociones')}
             >
-              <span className="material-icons-round">local_offer</span> Promociones
+              <span className="material-icons-round" aria-hidden="true">local_offer</span> Promociones
             </button>
           </div>
 
@@ -1583,16 +1608,16 @@ export function AdminNuevaVentaPanel() {
             /* CATALOGO DE PROMOCIONES - ADMIN */
             <>
               {isBonifiedMode && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '0.25rem 0 0.75rem', padding: '6px 10px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', color: '#15803d', fontSize: '0.8rem', fontWeight: 600 }}>
-                  <span className="material-icons-round" style={{ fontSize: '16px' }}>card_giftcard</span>
-                  Modo Regalo activo: las promociones que agregues se aplicarán como bonificadas (pack a $0).
+                <div className="ui-alert ui-alert--success adm-gift-notice">
+                  <span className="material-icons-round" aria-hidden="true">card_giftcard</span>
+                  <span>Modo Regalo activo: las promociones que agregues se aplicarán como bonificadas (pack a $0).</span>
                 </div>
               )}
               <AdminPromotionsCatalog onAddToCart={addPromotionToCart} searchTerm={productSearch} />
             </>
           ) : (
             <>
-              <h4 style={{ margin: '0.5rem 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase' }}>Catálogo de Productos</h4>
+              <h4 className="adm-catalog-title">Catálogo de Productos</h4>
 
               {filteredProducts.map(product => (
                 <div
@@ -1601,19 +1626,19 @@ export function AdminNuevaVentaPanel() {
                   onClick={() => addToCart(product)}
                 >
                   {/* Image Placeholder or Actual Image if available */}
-                  <div className="product-item-image">
-                    <span className="material-icons-round" style={{ fontSize: '24px', color: '#cbd5e1' }}>image</span>
+                  <div className="product-item-image" aria-hidden="true">
+                    <span className="material-icons-round">image</span>
                   </div>
 
                   <div className="product-item-info">
                     <div className="product-item-name">{product.nombre}</div>
                     {product.isSpecialProduct && (
-                      <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #8b5cf6, #d946ef)', color: 'white', padding: '1px 4px', borderRadius: '3px', width: 'fit-content' }}>ESPECIAL</span>
+                      <span className="ui-badge ui-badge--primary adm-special-badge">ESPECIAL</span>
                     )}
                   </div>
 
                   <div className={`product-item-stock ${product.stock < 10 ? 'low' : ''}`}>
-                    <span className="material-icons-round" style={{ fontSize: '12px' }}>inventory_2</span>
+                    <span className="material-icons-round" aria-hidden="true">inventory_2</span>
                     {product.stock}
                   </div>
 
@@ -1621,8 +1646,8 @@ export function AdminNuevaVentaPanel() {
                     {isBonifiedMode ? 'FREE' : `$${formatCurrency(product.precio)}`}
                   </div>
 
-                  <button className="btn-add-circle">
-                    <span className="material-icons-round" style={{ fontSize: '20px' }}>add</span>
+                  <button type="button" className="btn-add-circle" aria-label={`Agregar ${product.nombre}`}>
+                    <span className="material-icons-round" aria-hidden="true">add</span>
                   </button>
                 </div>
               ))}
@@ -1636,70 +1661,72 @@ export function AdminNuevaVentaPanel() {
       <div className="sales-cart-sidebar">
         <div className="cart-header">
           <div className="cart-title">
-            <span className="material-icons-round" style={{ color: 'var(--primary)' }}>shopping_cart</span>
+            <span className="material-icons-round ui-icon-tile" aria-hidden="true">shopping_cart</span>
             Nueva Venta
           </div>
 
           <div className="cart-customer-selector">
             {/* Vendedor Selector */}
-            <select
-              className="cart-select"
-              value={selectedVendedor}
-              onChange={(e) => handleVendorChange(e.target.value)}
-            >
-              <option value="">-- Seleccionar Vendedor --</option>
-              {vendedores.map(v => (
-                <option key={v.id} value={v.id}>{v.username}</option>
-              ))}
-            </select>
+            <div className="ui-field">
+              <label className="ui-label" htmlFor="adm-nv-vendedor">
+                Vendedor <span className="ui-required" aria-hidden="true">*</span>
+              </label>
+              <SearchableSelect
+                id="adm-nv-vendedor"
+                className="cart-select"
+                value={selectedVendedor}
+                onChange={(e) => handleVendorChange(e.target.value)}
+                options={vendorOptionsById(vendedores)}
+                placeholder="Selecciona un vendedor"
+                searchPlaceholder="Buscar vendedor…"
+                noResultsText="No se encontraron vendedores"
+              />
+            </div>
 
-            {/* Client Selector */}
+            {/* Client Selector: un solo campo escribible (filtra y elige) + orden A-Z */}
             {selectedVendedor && (
               <>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    placeholder="Filtrar cliente..."
-                    className="cart-select"
-                    style={{ paddingRight: '2.5rem' }}
-                    value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
-                  />
-                  <button
-                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    style={{
-                      position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer'
-                    }}
-                    title="Ordenar A-Z"
-                  >
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>sort_by_alpha</span>
-                  </button>
-                </div>
+                <div className="ui-field">
+                  <label className="ui-label" htmlFor="adm-nv-cliente">Cliente</label>
+                  <div className="adm-client-filter">
+                    <SearchableSelect
+                      id="adm-nv-cliente"
+                      className="cart-select"
+                      aria-label="Filtrar cliente"
+                      value={selectedClient}
+                      onChange={(e) => {
+                        setSelectedClient(e.target.value);
+                        setAllowNoClient(false);
+                      }}
+                      options={filteredClients.map(client => ({
+                        value: client.id,
+                        label: client.nombre,
+                        description: clientOptionDescription(client),
+                        keywords: clientOptionKeywords(client),
+                      }))}
+                      query={clientSearch}
+                      onQueryChange={setClientSearch}
+                      filterOption={SHOW_ALL_OPTIONS}
+                      loading={clientsLoading}
+                      placeholder="Selecciona un cliente"
+                      searchPlaceholder="Nombre, NIT, teléfono o dirección…"
+                      noResultsText="No se encontraron clientes"
+                    />
+                    <button
+                      type="button"
+                      className="ui-icon-btn ui-icon-btn--lg ui-icon-btn--bordered adm-client-sort"
+                      onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      title="Ordenar A-Z"
+                      aria-label="Ordenar A-Z"
+                    >
+                      <span className="material-icons-round" aria-hidden="true">sort_by_alpha</span>
+                    </button>
+                  </div>
 
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textAlign: 'right' }}>
-                  {clientsLoading ? 'Cargando clientes...' : `${filteredClients.length} clientes encontrados`}
+                  <div className="ui-help adm-client-count">
+                    {clientsLoading ? 'Cargando clientes...' : `${filteredClients.length} clientes encontrados`}
+                  </div>
                 </div>
-
-                <select
-                  className="cart-select"
-                  value={selectedClient}
-                  onChange={(e) => {
-                    setSelectedClient(e.target.value);
-                    setAllowNoClient(false);
-                  }}
-                >
-                  <option value="">-- Seleccionar Cliente --</option>
-                  {filteredClients.map(client => (
-                    <option key={client.id} value={client.id}>{client.nombre}</option>
-                  ))}
-                </select>
               </>
             )}
           </div>
@@ -1707,37 +1734,43 @@ export function AdminNuevaVentaPanel() {
 
         <div className="cart-items-container">
           {cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-              <span className="material-icons-round" style={{ fontSize: '48px', color: '#e2e8f0' }}>shopping_basket</span>
-              <p>El carrito está vacío</p>
-              <p style={{ fontSize: '0.8rem' }}>Selecciona productos o promociones del panel izquierdo.</p>
+            <div className="ui-empty ui-empty--plain adm-cart-empty">
+              <span className="material-icons-round ui-empty-icon" aria-hidden="true">shopping_basket</span>
+              <p className="ui-empty-title">El carrito está vacío</p>
+              <p className="ui-empty-text">Selecciona productos o promociones del panel izquierdo.</p>
             </div>
           )}
 
           {/* PROMOTIONS */}
           {promotionsCart.length > 0 && (
-            <div className="cart-group">
+            <div className="cart-group is-promo">
               <div className="cart-group-header">
-                Promociones
+                <span className="material-icons-round" aria-hidden="true">local_offer</span> Promociones
               </div>
               {promotionsCart.map((promo) => (
-                <div key={promo.cartId} className="cart-item" style={promo.isBonified ? { background: '#f0fdf4' } : undefined}>
+                <div key={promo.cartId} className={`cart-item${promo.isBonified ? ' is-gift' : ''}`}>
                   <div className="cart-item-info">
-                    <div className="cart-item-name" style={{ color: promo.isBonified ? '#166534' : '#0369a1' }}>
+                    <div className="cart-item-name">
                       {promo.nombre}
                       {promo.isBonified && (
-                        <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', borderRadius: '4px', padding: '1px 5px', verticalAlign: 'middle' }}>REGALO</span>
+                        <span className="ui-badge ui-badge--success adm-gift-badge">REGALO</span>
                       )}
                     </div>
                     {promo.isBonified ? (
-                      <div className="cart-item-price" style={{ color: '#15803d', fontWeight: 700 }}>GRATIS</div>
+                      <div className="cart-item-price is-free">GRATIS</div>
                     ) : promo.packPrice ? (
-                      <div className="cart-item-price" style={{ color: '#0ea5e9', fontWeight: 700 }}>${formatCurrency(promo.packPrice)}</div>
+                      <div className="cart-item-price is-amount">${formatCurrency(promo.packPrice)}</div>
                     ) : null}
                     {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
                   </div>
-                  <button className="btn-remove-item" onClick={() => removePromotionFromCart(promo.cartId)}>
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  <button
+                    type="button"
+                    className="btn-remove-item ui-icon-btn ui-icon-btn--danger"
+                    onClick={() => removePromotionFromCart(promo.cartId)}
+                    aria-label="Quitar del carrito"
+                    title="Quitar del carrito"
+                  >
+                    <span className="material-icons-round" aria-hidden="true">close</span>
                   </button>
                 </div>
               ))}
@@ -1748,7 +1781,7 @@ export function AdminNuevaVentaPanel() {
           {cart.length > 0 && (
             <div className="cart-group">
               <div className="cart-group-header">
-                Productos
+                <span className="material-icons-round" aria-hidden="true">inventory_2</span> Productos
               </div>
               {cart.map(item => (
                 <div key={item.productId} className="cart-item">
@@ -1758,19 +1791,26 @@ export function AdminNuevaVentaPanel() {
                   </div>
 
                   <div className="cart-item-qty-control">
-                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad - 1, false)}>−</button>
+                    <button type="button" className="btn-qty" aria-label="Disminuir cantidad" onClick={() => updateQuantity(item.productId, item.cantidad - 1, false)}>−</button>
                     <input
                       className="qty-input"
                       type="number"
+                      aria-label="Cantidad"
                       value={item.cantidad}
                       onChange={(e) => updateQuantity(item.productId, e.target.value, false)}
                       onWheel={(e) => e.target.blur()}
                     />
-                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad + 1, false)}>+</button>
+                    <button type="button" className="btn-qty" aria-label="Aumentar cantidad" onClick={() => updateQuantity(item.productId, item.cantidad + 1, false)}>+</button>
                   </div>
 
-                  <button className="btn-remove-item" onClick={() => removeFromCart(item.productId, false)}>
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  <button
+                    type="button"
+                    className="btn-remove-item ui-icon-btn ui-icon-btn--danger"
+                    onClick={() => removeFromCart(item.productId, false)}
+                    aria-label="Quitar del carrito"
+                    title="Quitar del carrito"
+                  >
+                    <span className="material-icons-round" aria-hidden="true">close</span>
                   </button>
                 </div>
               ))}
@@ -1779,31 +1819,38 @@ export function AdminNuevaVentaPanel() {
 
           {/* BONIFIED ITEMS */}
           {bonifiedCart.length > 0 && (
-            <div className="cart-group" style={{ border: '1px solid #bbf7d0' }}>
-              <div className="cart-group-header" style={{ color: '#15803d', background: '#f0fdf4', borderBottomColor: '#dcfce7' }}>
-                <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle' }}>card_giftcard</span> Regalos
+            <div className="cart-group is-gift">
+              <div className="cart-group-header">
+                <span className="material-icons-round" aria-hidden="true">card_giftcard</span> Regalos
               </div>
               {bonifiedCart.map(item => (
-                <div key={item.productId} className="cart-item" style={{ background: '#f0fdf4' }}>
+                <div key={item.productId} className="cart-item is-gift">
                   <div className="cart-item-info">
-                    <div className="cart-item-name" style={{ color: '#166534' }}>{item.nombre}</div>
-                    <div className="cart-item-price" style={{ color: '#15803d', fontWeight: 700 }}>GRATIS</div>
+                    <div className="cart-item-name">{item.nombre}</div>
+                    <div className="cart-item-price is-free">GRATIS</div>
                   </div>
 
-                  <div className="cart-item-qty-control" style={{ background: 'white', border: '1px solid #bbf7d0' }}>
-                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad - 1, true)}>−</button>
+                  <div className="cart-item-qty-control">
+                    <button type="button" className="btn-qty" aria-label="Disminuir cantidad" onClick={() => updateQuantity(item.productId, item.cantidad - 1, true)}>−</button>
                     <input
                       className="qty-input"
                       type="number"
+                      aria-label="Cantidad"
                       value={item.cantidad}
                       onChange={(e) => updateQuantity(item.productId, e.target.value, true)}
                       onWheel={(e) => e.target.blur()}
                     />
-                    <button className="btn-qty" onClick={() => updateQuantity(item.productId, item.cantidad + 1, true)}>+</button>
+                    <button type="button" className="btn-qty" aria-label="Aumentar cantidad" onClick={() => updateQuantity(item.productId, item.cantidad + 1, true)}>+</button>
                   </div>
 
-                  <button className="btn-remove-item" onClick={() => removeFromCart(item.productId, true)}>
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  <button
+                    type="button"
+                    className="btn-remove-item ui-icon-btn ui-icon-btn--danger"
+                    onClick={() => removeFromCart(item.productId, true)}
+                    aria-label="Quitar del carrito"
+                    title="Quitar del carrito"
+                  >
+                    <span className="material-icons-round" aria-hidden="true">close</span>
                   </button>
                 </div>
               ))}
@@ -1815,23 +1862,32 @@ export function AdminNuevaVentaPanel() {
         <div className="cart-footer">
           <div className="cart-total">
             <span>Total</span>
-            <span style={{ color: 'var(--primary)' }}>${calculateTotal()}</span>
+            <span className="cart-total-value">${calculateTotal()}</span>
           </div>
 
-          <textarea
-            className="cart-notes"
-            placeholder="Notas de la venta..."
-            rows="2"
-            value={notas}
-            onChange={(e) => setNotas(e.target.value)}
-          />
+          <div className="ui-field">
+            <label className="ui-label" htmlFor="adm-nv-notas">
+              Notas <span className="ui-optional">(opcional)</span>
+            </label>
+            <textarea
+              id="adm-nv-notas"
+              className="cart-notes ui-textarea"
+              placeholder="Notas de la venta..."
+              rows="2"
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
+            />
+          </div>
 
           <button
-            className="btn-checkout"
+            type="button"
+            className="btn-checkout ui-btn ui-btn--primary ui-btn--lg ui-btn--block"
             onClick={handleSubmitOrder}
             disabled={submitting || (cart.length === 0 && bonifiedCart.length === 0 && promotionsCart.length === 0)}
           >
-            <span className="material-icons-round">check_circle</span>
+            {submitting
+              ? <span className="ui-spinner" aria-hidden="true" />
+              : <span className="material-icons-round" aria-hidden="true">check_circle</span>}
             {submitting ? 'Registrando…' : 'Finalizar Venta'}
           </button>
         </div>
@@ -1866,6 +1922,9 @@ export function AdminNuevaVentaPanel() {
 // ============================================
 function AdminReportsPanel({ toast }) {
   const [exporting, setExporting] = useState(false);
+  // Cuál botón se pulsó (SPEC §3): `exporting` sigue siendo la única guarda y el disabled de
+  // los cinco botones; la clave solo decide cuál muestra "Exportando..." (antes lo decían todos)
+  const [exportingKey, setExportingKey] = useState(null);
   const [vendedores, setVendedores] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState('');
   const [dateRange, setDateRange] = useState({
@@ -1886,6 +1945,14 @@ function AdminReportsPanel({ toast }) {
     };
     fetchVendedores();
   }, []);
+
+  // Terminó la exportación (bien o con error): ningún botón queda marcado
+  useEffect(() => {
+    if (!exporting) setExportingKey(null);
+  }, [exporting]);
+
+  const isExportingKey = (key) => exporting && exportingKey === key;
+  const rangeLabel = `Del ${formatIsoDate(dateRange.startDate)} al ${formatIsoDate(dateRange.endDate)}`;
 
   const handleDateChange = (field, value) => {
     setDateRange((prev) => ({ ...prev, [field]: value }));
@@ -1994,243 +2061,169 @@ function AdminReportsPanel({ toast }) {
   };
 
   return (
-    <div className="reports-panel" style={{ padding: '2rem' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <h2 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span className="material-icons-round" style={{ fontSize: '32px', color: 'var(--primary)' }}>analytics</span>
-          Reportes Administrativos
-        </h2>
+    <div className="reports-panel adm-reports">
+      <div className="ui-page-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title">
+            <span className="material-icons-round" aria-hidden="true">analytics</span>
+            Reportes Administrativos
+          </h2>
+        </div>
+      </div>
 
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '2rem',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          border: '1px solid #e5e7eb'
-        }}>
-          <h3 style={{ marginBottom: '1.5rem' }}>Seleccionar Rango de Fechas</h3>
+      {/* Todo el ancho: rango de fechas + reporte completo en una fila (≥1024px) y los reportes
+          por vendedor debajo; en el celular una sola columna */}
+      <div className="adm-reports-grid ui-stagger">
+        <section className="ui-section adm-reports-card">
+          <div className="ui-section-head">
+            <span className="ui-icon-tile ui-icon-tile--lg ui-icon-tile--sky" aria-hidden="true">
+              <span className="material-icons-round">date_range</span>
+            </span>
+            <div>
+              <h3 className="ui-section-title">Seleccionar Rango de Fechas</h3>
+            </div>
+          </div>
 
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: '200px' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#374151' }}>
+          <div className="ui-grid adm-date-grid">
+            <div className="ui-field">
+              <label className="ui-label" htmlFor="adm-report-desde">
                 Desde:
               </label>
               <input
+                id="adm-report-desde"
+                className="ui-input"
                 type="date"
                 value={dateRange.startDate}
                 onChange={(e) => handleDateChange('startDate', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '0.95rem'
-                }}
               />
             </div>
 
-            <div style={{ flex: 1, minWidth: '200px' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#374151' }}>
+            <div className="ui-field">
+              <label className="ui-label" htmlFor="adm-report-hasta">
                 Hasta:
               </label>
               <input
+                id="adm-report-hasta"
+                className="ui-input"
                 type="date"
                 value={dateRange.endDate}
                 onChange={(e) => handleDateChange('endDate', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '0.95rem'
-                }}
               />
             </div>
           </div>
+        </section>
 
-          <h3 style={{ marginBottom: '1rem' }}>Exportar Reporte Completo</h3>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <section className="ui-section adm-reports-card">
+          <div className="ui-section-head">
+            <span className="ui-icon-tile ui-icon-tile--lg ui-icon-tile--success" aria-hidden="true">
+              <span className="material-icons-round">summarize</span>
+            </span>
+            <div>
+              <h3 className="ui-section-title">Exportar Reporte Completo</h3>
+              <p className="ui-section-desc">{rangeLabel}</p>
+            </div>
+          </div>
+          {/* Excel verde, PDF rojo, CSV azul. onClickCapture marca el botón justo antes de su
+              onClick (un botón deshabilitado no lo dispara) */}
+          <div className="adm-export-grid">
             <button
+              type="button"
+              className={`ui-btn ui-btn--excel ui-btn--lg${isExportingKey('excel') ? ' is-loading' : ''}`}
+              onClickCapture={() => setExportingKey('excel')}
               onClick={() => handleExportReport('excel')}
               disabled={exporting}
-              style={{
-                flex: 1,
-                minWidth: '150px',
-                background: '#10b981',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '1rem',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                cursor: exporting ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                opacity: exporting ? 0.7 : 1
-              }}
+              aria-busy={isExportingKey('excel') || undefined}
             >
-              <span className="material-icons-round">table_chart</span>
-              {exporting ? 'Exportando...' : 'Excel'}
+              <ExportButtonContent kind="excel" label="Excel" busy={isExportingKey('excel')} />
             </button>
 
             <button
+              type="button"
+              className={`ui-btn ui-btn--pdf ui-btn--lg${isExportingKey('pdf') ? ' is-loading' : ''}`}
+              onClickCapture={() => setExportingKey('pdf')}
               onClick={() => handleExportReport('pdf')}
               disabled={exporting}
-              style={{
-                flex: 1,
-                minWidth: '150px',
-                background: '#ef4444',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '1rem',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                cursor: exporting ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                opacity: exporting ? 0.7 : 1
-              }}
+              aria-busy={isExportingKey('pdf') || undefined}
             >
-              <span className="material-icons-round">picture_as_pdf</span>
-              {exporting ? 'Exportando...' : 'PDF'}
+              <ExportButtonContent kind="pdf" label="PDF" busy={isExportingKey('pdf')} />
             </button>
 
             <button
+              type="button"
+              className={`ui-btn ui-btn--csv ui-btn--lg${isExportingKey('csv') ? ' is-loading' : ''}`}
+              onClickCapture={() => setExportingKey('csv')}
               onClick={() => handleExportReport('csv')}
               disabled={exporting}
-              style={{
-                flex: 1,
-                minWidth: '150px',
-                background: '#6366f1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '1rem',
-                fontSize: '0.95rem',
-                fontWeight: 600,
-                cursor: exporting ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                opacity: exporting ? 0.7 : 1
-              }}
+              aria-busy={isExportingKey('csv') || undefined}
             >
-              <span className="material-icons-round">description</span>
-              {exporting ? 'Exportando...' : 'CSV'}
+              <ExportButtonContent kind="csv" label="CSV" busy={isExportingKey('csv')} />
             </button>
           </div>
 
-          <div style={{
-            marginTop: '1.5rem',
-            padding: '1rem',
-            background: '#f3f4f6',
-            borderRadius: '8px',
-            fontSize: '0.85rem',
-            color: '#6b7280'
-          }}>
-            <span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '0.5rem' }}>info</span>
-            Los reportes incluyen datos de ventas, productos, vendedores y clientes para el rango de fechas seleccionado.
+          <div className="ui-alert ui-alert--info adm-reports-note">
+            <span className="material-icons-round" aria-hidden="true">info</span>
+            <p>Los reportes incluyen datos de ventas, productos, vendedores y clientes para el rango de fechas seleccionado.</p>
+          </div>
+        </section>
+
+        {/* Vendor-Specific Reports Section */}
+        <section className="ui-section adm-reports-card adm-reports-card--wide">
+          <div className="ui-section-head">
+            <span className="ui-icon-tile ui-icon-tile--lg ui-icon-tile--primary" aria-hidden="true">
+              <span className="material-icons-round">person</span>
+            </span>
+            <div>
+              <h3 className="ui-section-title">Reportes por Vendedor</h3>
+              <p className="ui-section-desc">{rangeLabel}</p>
+            </div>
           </div>
 
-          {/* Vendor-Specific Reports Section */}
-          <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb' }}>
-            <h3 style={{ marginBottom: '1.5rem' }}>Reportes por Vendedor</h3>
-
-            <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, color: '#374151' }}>
+          <div className="adm-vendor-row">
+            <div className="ui-field adm-reports-vendor">
+              <label className="ui-label" htmlFor="adm-report-vendedor">
                 Seleccionar Vendedor:
               </label>
-              <select
+              <SearchableSelect
+                id="adm-report-vendedor"
                 value={selectedVendor}
                 onChange={(e) => setSelectedVendor(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '0.95rem',
-                  background: selectedVendor ? '#f0fdf4' : 'white'
-                }}
-              >
-                <option value="">-- Seleccionar Vendedor --</option>
-                {vendedores.map(v => (
-                  <option key={v.id} value={v.id}>{v.username}</option>
-                ))}
-              </select>
+                options={vendorOptionsById(vendedores)}
+                placeholder="Selecciona un vendedor"
+                searchPlaceholder="Buscar vendedor…"
+                noResultsText="No se encontraron vendedores"
+              />
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            <div className="adm-export-grid adm-export-grid--2">
               <button
+                type="button"
+                className={`ui-btn ui-btn--excel ui-btn--lg${isExportingKey('vendor-excel') ? ' is-loading' : ''}`}
+                onClickCapture={() => setExportingKey('vendor-excel')}
                 onClick={() => handleExportVendorReport('excel')}
                 disabled={!selectedVendor || exporting}
-                style={{
-                  flex: 1,
-                  minWidth: '200px',
-                  background: selectedVendor && !exporting ? '#10b981' : '#d1d5db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '1rem',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  cursor: selectedVendor && !exporting ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  opacity: selectedVendor && !exporting ? 1 : 0.6
-                }}
+                aria-busy={isExportingKey('vendor-excel') || undefined}
               >
-                <span className="material-icons-round">table_chart</span>
-                {exporting ? 'Exportando...' : 'Excel Completo'}
+                <ExportButtonContent kind="excel" label="Excel Completo" busy={isExportingKey('vendor-excel')} />
               </button>
 
               <button
+                type="button"
+                className={`ui-btn ui-btn--pdf ui-btn--lg${isExportingKey('vendor-pdf') ? ' is-loading' : ''}`}
+                onClickCapture={() => setExportingKey('vendor-pdf')}
                 onClick={() => handleExportVendorReport('pdf')}
                 disabled={!selectedVendor || exporting}
-                style={{
-                  flex: 1,
-                  minWidth: '200px',
-                  background: selectedVendor && !exporting ? '#ef4444' : '#d1d5db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '1rem',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  cursor: selectedVendor && !exporting ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  opacity: selectedVendor && !exporting ? 1 : 0.6
-                }}
+                aria-busy={isExportingKey('vendor-pdf') || undefined}
               >
-                <span className="material-icons-round">picture_as_pdf</span>
-                {exporting ? 'Exportando...' : 'PDF Ventas Diarias'}
+                <ExportButtonContent kind="pdf" label="PDF Ventas Diarias" busy={isExportingKey('vendor-pdf')} />
               </button>
             </div>
-
-            <div style={{
-              marginTop: '1rem',
-              padding: '0.75rem',
-              background: '#fef3c7',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              color: '#92400e',
-              border: '1px solid #fde68a'
-            }}>
-              <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '0.4rem' }}>info</span>
-              <strong>Nota:</strong> NinaTorres y YicelaSandoval tienen datos unificados. El reporte de cualquiera mostrará datos combinados.
-            </div>
           </div>
-        </div>
+
+          <div className="ui-alert ui-alert--warning adm-reports-note">
+            <span className="material-icons-round" aria-hidden="true">info</span>
+            <p><strong>Nota:</strong> NinaTorres y YicelaSandoval tienen datos unificados. El reporte de cualquiera mostrará datos combinados.</p>
+          </div>
+        </section>
       </div>
     </div>
   );

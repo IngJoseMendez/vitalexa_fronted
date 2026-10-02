@@ -17,6 +17,9 @@ import {
 } from '../api/payrollService';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
+import { EXPORT_FORMATS } from './ExportButton';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
+import '../styles/areas/PayrollPanel.css';
 
 // ─── Helpers ───────────────────────────────────────────────
 const MESES = [
@@ -50,6 +53,33 @@ function downloadBlob(response, fallbackName) {
   window.URL.revokeObjectURL(url);
 }
 
+// ─── Contenido de botón de exportación ───────────────────────
+// Mismo marcado que ExportButton: icono del formato (o spinner mientras exporta) y etiqueta;
+// mientras carga, la etiqueta normal queda invisible debajo del texto de carga para que el botón
+// no se encoja. El <button> sigue en este archivo con su mismo onClick/disabled/title.
+function ExportButtonContent({ kind, busy, label, loadingLabel = 'Exportando...' }) {
+  return (
+    <>
+      {busy
+        ? <span className="ui-spinner" aria-hidden="true" />
+        : <span className="material-icons-round" aria-hidden="true">{EXPORT_FORMATS[kind].icon}</span>}
+      <span className="ui-btn-label">
+        {busy && <span className="ui-btn-label-sizer" aria-hidden="true">{label}</span>}
+        <span>{busy ? loadingLabel : label}</span>
+      </span>
+    </>
+  );
+}
+
+// Avatar de iniciales de la vendedora (tono determinista por nombre)
+function VendorAvatar({ name, size = '' }) {
+  return (
+    <span className={`ui-avatar${size ? ` ui-avatar--${size}` : ''} ui-avatar--${avatarTone(name)}`} aria-hidden="true">
+      {avatarInitials(name)}
+    </span>
+  );
+}
+
 // ─── Componente principal ───────────────────────────────────
 export default function PayrollPanel({ vendedores = [] }) {
   const [activeTab, setActiveTab] = useState('nominas'); // 'nominas' | 'config'
@@ -57,35 +87,33 @@ export default function PayrollPanel({ vendedores = [] }) {
   const askConfirm = useConfirm();
 
   return (
-    <div style={{ padding: '1.5rem' }}>
+    <div className="prl">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <span className="material-icons-round" style={{ fontSize: '32px', color: '#7c3aed' }}>payments</span>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>Nómina Mensual</h2>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: '0.9rem' }}>Gestión de salarios y comisiones</p>
+      <header className="ui-page-header prl-header">
+        <div className="ui-page-heading">
+          <h2 className="ui-page-title">
+            <span className="material-icons-round" aria-hidden="true">payments</span>
+            Nómina Mensual
+          </h2>
+          <p className="ui-page-desc">Gestión de salarios y comisiones</p>
         </div>
-      </div>
+      </header>
 
       {/* Sub-tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '2px solid #e5e7eb', paddingBottom: '0' }}>
+      <div className="ui-tabs prl-tabs" role="tablist" aria-label="Secciones de nómina">
         {[
           { key: 'nominas', label: 'Nóminas', icon: 'receipt_long' },
           { key: 'config', label: 'Configuración', icon: 'settings' },
         ].map(tab => (
           <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.key}
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '0.4rem',
-              padding: '0.6rem 1.2rem', border: 'none', cursor: 'pointer',
-              fontSize: '0.95rem', fontWeight: 600, borderRadius: '8px 8px 0 0',
-              background: activeTab === tab.key ? '#7c3aed' : 'transparent',
-              color: activeTab === tab.key ? 'white' : '#6b7280',
-              transition: 'all 0.2s',
-            }}
+            className={`ui-tab ${activeTab === tab.key ? 'is-active' : ''}`}
           >
-            <span className="material-icons-round" style={{ fontSize: '18px' }}>{tab.icon}</span>
+            <span className="material-icons-round" aria-hidden="true">{tab.icon}</span>
             {tab.label}
           </button>
         ))}
@@ -106,6 +134,11 @@ function NominasTab({ toast, askConfirm }) {
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Qué botón inició la exportación: 'all:excel' | 'all:pdf' (barra superior),
+  // 'card:excel:<id>' | 'card:pdf:<id>' (tarjeta de esa nómina) y 'modal:excel:<id>' |
+  // 'modal:pdf:<id>' (detalle). Solo ese muestra la carga; "exporting" sigue siendo la única
+  // guarda y el disabled de todos.
+  const [exportingKey, setExportingKey] = useState(null);
   const [selectedNomina, setSelectedNomina] = useState(null);
   const [historyVendedor, setHistoryVendedor] = useState(null);
   const [history, setHistory] = useState([]);
@@ -131,6 +164,10 @@ function NominasTab({ toast, askConfirm }) {
 
   useEffect(() => { fetchNominas(); }, [fetchNominas]);
 
+  useEffect(() => { if (!exporting) setExportingKey(null); }, [exporting]);
+
+  const exportBusy = (key) => exporting && exportingKey === key;
+
   const handleCalculateAll = async () => {
     const ok = await askConfirm({
       title: 'Calcular nómina de todos',
@@ -144,7 +181,7 @@ function NominasTab({ toast, askConfirm }) {
       const threshold = generalCommissionThreshold !== '' ? parseFloat(generalCommissionThreshold) : null;
       const res = await calculateAllPayrolls(month, year, threshold);
       setNominas(res.data || []);
-      toast.success(`✅ Nóminas calculadas: ${res.data?.length || 0} vendedores`);
+      toast.success(`Nóminas calculadas: ${res.data?.length || 0} vendedores`);
     } catch (err) {
       toast.error('Error al calcular nóminas: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -226,105 +263,118 @@ function NominasTab({ toast, askConfirm }) {
   for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(y);
 
   return (
-    <div>
+    <div className="prl-tab-panel">
       {/* Filtros período */}
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.5rem', background: 'white', padding: '1rem', borderRadius: '10px', border: '1px solid #e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="material-icons-round" style={{ color: '#7c3aed' }}>calendar_month</span>
-          <select value={month} onChange={e => setMonth(Number(e.target.value))}
-            style={{ padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.95rem' }}>
+      <div className="prl-toolbar">
+        <div className="prl-period">
+          <span className="ui-icon-tile ui-icon-tile--primary prl-period-icon" aria-hidden="true">
+            <span className="material-icons-round">calendar_month</span>
+          </span>
+          <select className="ui-select prl-select" aria-label="Mes" value={month} onChange={e => setMonth(Number(e.target.value))}>
             {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
-          <select value={year} onChange={e => setYear(Number(e.target.value))}
-            style={{ padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.95rem' }}>
+          <select className="ui-select prl-select" aria-label="Año" value={year} onChange={e => setYear(Number(e.target.value))}>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
 
         <input
           type="text"
+          className="ui-input prl-notes-input"
+          aria-label="Notas para el cálculo"
           placeholder="Notas para el cálculo..."
           value={calcNotes}
           onChange={e => setCalcNotes(e.target.value)}
-          style={{ flex: 1, minWidth: '180px', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
         />
 
         <input
           type="number"
+          className="ui-input prl-threshold-input"
+          aria-label="Umbral personalizado ventas (opcional)"
           placeholder="Umbral personalizado ventas (opcional)"
           value={generalCommissionThreshold}
           onChange={e => setGeneralCommissionThreshold(e.target.value)}
           min="0"
           step="100000"
           title="Dejar vacío para usar la suma de metas de los vendedores"
-          style={{ width: '230px', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.9rem' }}
         />
 
-        <button
-          onClick={handleCalculateAll}
-          disabled={calculating || loading}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-            padding: '0.6rem 1.2rem', background: calculating ? '#a78bfa' : '#7c3aed',
-            color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer',
-            fontWeight: 600, fontSize: '0.9rem',
-          }}
-        >
-          <span className="material-icons-round" style={{ fontSize: '18px' }}>
-            {calculating ? 'sync' : 'calculate'}
-          </span>
-          {calculating ? 'Calculando...' : 'Calcular Todas'}
-        </button>
+        <div className="prl-toolbar-actions">
+          <button
+            type="button"
+            className="ui-btn ui-btn--primary"
+            onClick={handleCalculateAll}
+            disabled={calculating || loading}
+          >
+            {calculating
+              ? <span className="ui-spinner" aria-hidden="true"></span>
+              : <span className="material-icons-round" aria-hidden="true">calculate</span>}
+            {calculating ? 'Calculando...' : 'Calcular Todas'}
+          </button>
 
-        {/* ✅ Exportación general */}
-        <button
-          onClick={() => handleExportAll('excel')}
-          disabled={exporting || nominas.length === 0}
-          title="Descargar Excel de todas las nóminas"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.3rem',
-            padding: '0.6rem 1rem',
-            background: (exporting || nominas.length === 0) ? '#6ee7b7' : '#10b981',
-            color: 'white', border: 'none', borderRadius: '8px',
-            cursor: (exporting || nominas.length === 0) ? 'not-allowed' : 'pointer',
-            fontWeight: 600, fontSize: '0.85rem',
-          }}
-        >
-          <span className="material-icons-round" style={{ fontSize: '16px' }}>table_chart</span>
-          Excel
-        </button>
-        <button
-          onClick={() => handleExportAll('pdf')}
-          disabled={exporting || nominas.length === 0}
-          title="Descargar PDF de todas las nóminas"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '0.3rem',
-            padding: '0.6rem 1rem',
-            background: (exporting || nominas.length === 0) ? '#fca5a5' : '#ef4444',
-            color: 'white', border: 'none', borderRadius: '8px',
-            cursor: (exporting || nominas.length === 0) ? 'not-allowed' : 'pointer',
-            fontWeight: 600, fontSize: '0.85rem',
-          }}
-        >
-          <span className="material-icons-round" style={{ fontSize: '16px' }}>picture_as_pdf</span>
-          PDF
-        </button>
+          {/* Exportación general: Excel verde, PDF rojo; solo el pulsado muestra la carga */}
+          <button
+            type="button"
+            className={`ui-btn ui-btn--excel${exportBusy('all:excel') ? ' is-loading' : ''}`}
+            aria-busy={exportBusy('all:excel') || undefined}
+            onClickCapture={() => setExportingKey('all:excel')}
+            onClick={() => handleExportAll('excel')}
+            disabled={exporting || nominas.length === 0}
+            title="Descargar Excel de todas las nóminas"
+          >
+            <ExportButtonContent kind="excel" busy={exportBusy('all:excel')} label="Excel" />
+          </button>
+          <button
+            type="button"
+            className={`ui-btn ui-btn--pdf${exportBusy('all:pdf') ? ' is-loading' : ''}`}
+            aria-busy={exportBusy('all:pdf') || undefined}
+            onClickCapture={() => setExportingKey('all:pdf')}
+            onClick={() => handleExportAll('pdf')}
+            disabled={exporting || nominas.length === 0}
+            title="Descargar PDF de todas las nóminas"
+          >
+            <ExportButtonContent kind="pdf" busy={exportBusy('all:pdf')} label="PDF" />
+          </button>
+        </div>
       </div>
 
       {/* Listado de nóminas */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>
-          <span className="material-icons-round" style={{ fontSize: '48px' }}>hourglass_top</span>
-          <p>Cargando nóminas...</p>
+        <div className="prl-loading" aria-busy="true">
+          <div className="ui-loading prl-state" role="status">
+            <span className="ui-spinner" aria-hidden="true"></span>
+            <p>Cargando nóminas...</p>
+          </div>
+          {/* Esqueletos con la forma de las tarjetas de nómina */}
+          <div className="prl-grid" aria-hidden="true">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="prl-card prl-card--skeleton">
+                <div className="prl-card-head">
+                  <div className="prl-card-identity">
+                    <span className="ui-skeleton ui-skeleton--circle prl-skeleton-avatar" />
+                    <div className="ui-skeleton-stack prl-skeleton-heading">
+                      <span className="ui-skeleton ui-skeleton--title prl-skeleton-title" />
+                      <span className="ui-skeleton ui-skeleton--text prl-skeleton-sub" />
+                    </div>
+                  </div>
+                  <span className="ui-skeleton prl-skeleton-total" />
+                </div>
+                <div className="prl-card-body">
+                  <span className="ui-skeleton ui-skeleton--block" />
+                  <span className="ui-skeleton ui-skeleton--text prl-skeleton-sub" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : nominas.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af', background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-          <span className="material-icons-round" style={{ fontSize: '64px' }}>receipt_long</span>
-          <p style={{ fontSize: '1rem', marginTop: '1rem' }}>No hay nóminas para {MESES[month - 1]} {year}</p>
-          <p style={{ fontSize: '0.85rem' }}>Usa el botón <strong>"Calcular Todas"</strong> para generarlas.</p>
+        <div className="ui-empty prl-state">
+          <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
+          <p className="ui-empty-title">No hay nóminas para {MESES[month - 1]} {year}</p>
+          <p className="ui-empty-text">Usa el botón <strong>"Calcular Todas"</strong> para generarlas.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+        <div className="prl-grid ui-stagger">
           {nominas.map(n => (
             <NominaCard
               key={n.id}
@@ -335,6 +385,8 @@ function NominasTab({ toast, askConfirm }) {
               onExportExcel={() => handleExportVendor(n.vendedorId, n.vendedorUsername, 'excel')}
               onExportPdf={() => handleExportVendor(n.vendedorId, n.vendedorUsername, 'pdf')}
               exporting={exporting}
+              exportingKey={exportingKey}
+              onExportKey={setExportingKey}
             />
           ))}
         </div>
@@ -349,6 +401,8 @@ function NominasTab({ toast, askConfirm }) {
           onExportExcel={() => handleExportVendor(selectedNomina.vendedorId, selectedNomina.vendedorUsername, 'excel')}
           onExportPdf={() => handleExportVendor(selectedNomina.vendedorId, selectedNomina.vendedorUsername, 'pdf')}
           exporting={exporting}
+          exportingKey={exportingKey}
+          onExportKey={setExportingKey}
         />
       )}
 
@@ -367,189 +421,237 @@ function NominasTab({ toast, askConfirm }) {
 }
 
 // ─── Tarjeta resumen de nómina ───────────────────────────────
-function NominaCard({ nomina, onView, onRecalculate, onHistory, onExportExcel, onExportPdf, exporting }) {
-  const goalColor = nomina.salesGoalMet ? '#10b981' : '#f59e0b';
-  const collectColor = nomina.collectionGoalMet ? '#10b981' : '#f59e0b';
+function NominaCard({ nomina, onView, onRecalculate, onHistory, onExportExcel, onExportPdf, exporting, exportingKey, onExportKey }) {
+  const goalTone = nomina.salesGoalMet ? 'success' : 'warning';
+  const collectTone = nomina.collectionGoalMet ? 'success' : 'warning';
+  // Clave propia de cada botón de esta tarjeta: solo el pulsado muestra la carga
+  const excelKey = `card:excel:${nomina.id}`;
+  const pdfKey = `card:pdf:${nomina.id}`;
+  const excelBusy = exporting && exportingKey === excelKey;
+  const pdfBusy = exporting && exportingKey === pdfKey;
+  const hasCommissions = Number(nomina.totalCommissions) > 0;
 
   return (
-    <div style={{
-      background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden'
-    }}>
+    <article className="prl-card">
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', padding: '1rem', color: 'white' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{nomina.vendedorUsername}</div>
-            <div style={{ fontSize: '0.85rem', opacity: 0.85 }}>{MESES[nomina.month - 1]} {nomina.year}</div>
+      <div className="prl-card-head">
+        <div className="prl-card-identity">
+          <VendorAvatar name={nomina.vendedorUsername} />
+          <div className="prl-card-heading">
+            <h3 className="prl-card-title">{nomina.vendedorUsername}</h3>
+            <p className="prl-card-subtitle">{MESES[nomina.month - 1]} {nomina.year}</p>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>Total Pago</div>
-            <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>${formatCurrency(nomina.totalPayout)}</div>
-          </div>
+        </div>
+        <div className="prl-card-total">
+          <span className="prl-card-total-label">Total Pago</span>
+          <span className="prl-card-total-value">${formatCurrency(nomina.totalPayout)}</span>
         </div>
       </div>
 
       {/* Body */}
-      <div style={{ padding: '1rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          <InfoRow label="Salario Base" value={`$${formatCurrency(nomina.baseSalary)}`} />
-          <InfoRow label="Comisiones" value={`$${formatCurrency(nomina.totalCommissions)}`} color="#7c3aed" />
+      <div className="prl-card-body">
+        <div className="prl-info-grid">
+          <InfoRow label="Salario Base" value={`$${formatCurrency(nomina.baseSalary)}`} icon="work" tone="primary" />
+          <InfoRow
+            label="Comisiones"
+            value={`$${formatCurrency(nomina.totalCommissions)}`}
+            icon="trending_up"
+            tone="success"
+            valueClassName={hasCommissions ? 'ui-text-success' : ''}
+          />
         </div>
 
         {/* Indicators */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+        <div className="prl-badges">
           {nomina.salesCommissionByGoal === false ? (
-            <Badge icon="bolt" label="Ventas directa" color="#0ea5e9" />
+            <Badge icon="bolt" label="Ventas directa" tone="primary" />
           ) : (
-            <Badge icon={nomina.salesGoalMet ? 'check_circle' : 'cancel'} label="Meta ventas" color={goalColor} />
+            <Badge icon={nomina.salesGoalMet ? 'check_circle' : 'cancel'} label="Meta ventas" tone={goalTone} />
           )}
           {nomina.collectionCommissionByGoal === false ? (
-            <Badge icon="bolt" label="Recaudo directo" color="#0ea5e9" />
+            <Badge icon="bolt" label="Recaudo directo" tone="primary" />
           ) : (
-            <Badge icon={nomina.collectionGoalMet ? 'check_circle' : 'cancel'} label="Meta recaudo" color={collectColor} />
+            <Badge icon={nomina.collectionGoalMet ? 'check_circle' : 'cancel'} label="Meta recaudo" tone={collectTone} />
           )}
           {nomina.generalCommissionEnabled && (
-            <Badge icon="star" label="Com. general" color={nomina.generalCommissionGoalMet ? '#f59e0b' : '#9ca3af'} />
+            <Badge icon="star" label="Com. general" tone={nomina.generalCommissionGoalMet ? 'success' : 'neutral'} />
           )}
         </div>
 
         {nomina.notes && (
-          <p style={{ fontSize: '0.8rem', color: '#6b7280', fontStyle: 'italic', marginBottom: '0.75rem', margin: '0 0 0.75rem' }}>
-            📝 {nomina.notes}
+          <p className="prl-card-notes">
+            <span className="material-icons-round" aria-hidden="true">notes</span>
+            <span>{nomina.notes}</span>
           </p>
         )}
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          <button onClick={onView} style={btnStyle('#7c3aed')}>
-            <span className="material-icons-round" style={{ fontSize: '15px' }}>visibility</span> Ver
-          </button>
-          <button onClick={onRecalculate} style={btnStyle('#6b7280')}>
-            <span className="material-icons-round" style={{ fontSize: '15px' }}>calculate</span> Recalc.
-          </button>
-          <button onClick={onHistory} style={btnStyle('#0ea5e9')}>
-            <span className="material-icons-round" style={{ fontSize: '15px' }}>history</span> Hist.
-          </button>
-          <button onClick={onExportExcel} disabled={exporting} title="Descargar Excel" style={{ ...btnStyle('#10b981'), opacity: exporting ? 0.6 : 1 }}>
-            <span className="material-icons-round" style={{ fontSize: '15px' }}>table_chart</span>
-          </button>
-          <button onClick={onExportPdf} disabled={exporting} title="Descargar PDF" style={{ ...btnStyle('#ef4444'), opacity: exporting ? 0.6 : 1 }}>
-            <span className="material-icons-round" style={{ fontSize: '15px' }}>picture_as_pdf</span>
-          </button>
-        </div>
       </div>
-    </div>
+
+      {/* Actions */}
+      <div className="prl-card-actions">
+        <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={onView}>
+          <span className="material-icons-round" aria-hidden="true">visibility</span> Ver
+        </button>
+        <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={onRecalculate}>
+          <span className="material-icons-round" aria-hidden="true">calculate</span> Recalc.
+        </button>
+        <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={onHistory}>
+          <span className="material-icons-round" aria-hidden="true">history</span> Hist.
+        </button>
+        <span className="prl-card-actions-spacer" />
+        <button
+          type="button"
+          className={`ui-icon-btn ui-icon-btn--bordered ui-icon-btn--excel${excelBusy ? ' is-loading' : ''}`}
+          aria-busy={excelBusy || undefined}
+          onClickCapture={() => onExportKey(excelKey)}
+          onClick={onExportExcel} disabled={exporting} title="Descargar Excel" aria-label="Descargar Excel">
+          {excelBusy
+            ? <span className="ui-spinner" aria-hidden="true" />
+            : <span className="material-icons-round" aria-hidden="true">{EXPORT_FORMATS.excel.icon}</span>}
+        </button>
+        <button
+          type="button"
+          className={`ui-icon-btn ui-icon-btn--bordered ui-icon-btn--pdf${pdfBusy ? ' is-loading' : ''}`}
+          aria-busy={pdfBusy || undefined}
+          onClickCapture={() => onExportKey(pdfKey)}
+          onClick={onExportPdf} disabled={exporting} title="Descargar PDF" aria-label="Descargar PDF">
+          {pdfBusy
+            ? <span className="ui-spinner" aria-hidden="true" />
+            : <span className="material-icons-round" aria-hidden="true">{EXPORT_FORMATS.pdf.icon}</span>}
+        </button>
+      </div>
+    </article>
   );
 }
 
 // ─── Modal Detalle Nómina ────────────────────────────────────
-function NominaDetailModal({ nomina, onClose, onRecalculate, onExportExcel, onExportPdf, exporting }) {
+function NominaDetailModal({ nomina, onClose, onRecalculate, onExportExcel, onExportPdf, exporting, exportingKey, onExportKey }) {
+  // Claves propias de los botones del detalle (distintas de las de la tarjeta de atrás)
+  const excelKey = `modal:excel:${nomina.id}`;
+  const pdfKey = `modal:pdf:${nomina.id}`;
+  const excelBusy = exporting && exportingKey === excelKey;
+  const pdfBusy = exporting && exportingKey === pdfKey;
+
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={{ ...modalStyle, maxWidth: '620px' }} onClick={e => e.stopPropagation()}>
+    <div className="ui-modal-overlay" onClick={onClose}>
+      <div className="ui-modal ui-modal--md prl-modal" role="dialog" aria-modal="true" aria-labelledby="prl-detail-title" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', padding: '1.25rem', color: 'white', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Nómina — {nomina.vendedorUsername}</h3>
-            <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.85 }}>{MESES[nomina.month - 1]} {nomina.year}</p>
+        <div className="ui-modal-header">
+          <VendorAvatar name={nomina.vendedorUsername} />
+          <div className="ui-modal-heading">
+            <h3 id="prl-detail-title" className="ui-modal-title">Nómina — {nomina.vendedorUsername}</h3>
+            <p className="ui-modal-subtitle">{MESES[nomina.month - 1]} {nomina.year}</p>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: 'white', cursor: 'pointer', fontSize: '18px' }}>×</button>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
+          </button>
         </div>
 
         {/* Content */}
-        <div style={{ padding: '1.5rem', overflowY: 'auto', maxHeight: '75vh' }}>
+        <div className="ui-modal-body">
 
           {/* Salario Base */}
-          <Section title="💼 Salario Base">
+          <Section icon="work" tone="primary" title="💼 Salario Base">
             <Row label="Salario base" value={`$${formatCurrency(nomina.baseSalary)}`} highlight />
           </Section>
 
           {/* Comisión por ventas */}
-          <Section title={nomina.salesCommissionByGoal === false ? '📈 Comisión por Ventas (Directa — Sin Meta)' : '📈 Comisión por Ventas (Por Meta)'}>
-            <Row label="Modalidad" value={nomina.salesCommissionByGoal === false ? '⚡ % directo sobre lo vendido' : '🎯 Solo si cumple meta'} color={nomina.salesCommissionByGoal === false ? '#0ea5e9' : '#7c3aed'} />
+          <Section icon="trending_up" tone="success" title={nomina.salesCommissionByGoal === false ? '📈 Comisión por Ventas (Directa — Sin Meta)' : '📈 Comisión por Ventas (Por Meta)'}>
+            <Row label="Modalidad" value={nomina.salesCommissionByGoal === false ? '% directo sobre lo vendido' : 'Solo si cumple meta'} tone="neutral" />
             {nomina.salesCommissionByGoal !== false && (
               <>
                 <Row label="Meta de ventas" value={`$${formatCurrency(nomina.salesGoalTarget)}`} />
-                <Row label="¿Cumplió meta?" value={nomina.salesGoalMet ? '✅ Sí' : '❌ No'} color={nomina.salesGoalMet ? '#10b981' : '#ef4444'} />
+                <Row label="¿Cumplió meta?" value={nomina.salesGoalMet ? 'Sí' : 'No'} tone={nomina.salesGoalMet ? 'success' : 'warning'} />
               </>
             )}
             <Row label="Total vendido" value={`$${formatCurrency(nomina.totalSold)}`} />
             <Row label="Porcentaje comisión" value={pct(nomina.salesCommissionPct)} />
-            <Row label="Comisión ventas" value={`$${formatCurrency(nomina.salesCommissionAmount)}`} highlight color={(nomina.salesCommissionByGoal === false || nomina.salesGoalMet) ? '#10b981' : '#9ca3af'} />
+            <Row label="Comisión ventas" value={`$${formatCurrency(nomina.salesCommissionAmount)}`} highlight positive muted={!(nomina.salesCommissionByGoal === false || nomina.salesGoalMet)} />
           </Section>
 
           {/* Comisión por recaudo */}
-          <Section title={nomina.collectionCommissionByGoal === false ? '💰 Comisión por Recaudo (Directa — Sin Umbral)' : '💰 Comisión por Recaudo (Por Umbral)'}>
-            <Row label="Modalidad" value={nomina.collectionCommissionByGoal === false ? '⚡ % directo sobre lo recaudado' : '🎯 Solo si recauda ≥ umbral'} color={nomina.collectionCommissionByGoal === false ? '#0ea5e9' : '#7c3aed'} />
+          <Section icon="account_balance_wallet" tone="teal" title={nomina.collectionCommissionByGoal === false ? '💰 Comisión por Recaudo (Directa — Sin Umbral)' : '💰 Comisión por Recaudo (Por Umbral)'}>
+            <Row label="Modalidad" value={nomina.collectionCommissionByGoal === false ? '% directo sobre lo recaudado' : 'Solo si recauda ≥ umbral'} tone="neutral" />
             {nomina.collectionCommissionByGoal !== false && (
               <>
                 <Row label="Vendido mes anterior" value={`$${formatCurrency(nomina.prevMonthTotalSold)}`} />
                 <Row label="% Recaudado" value={formatPct(nomina.collectionPct)} />
                 <Row label="Umbral requerido" value={pct(nomina.collectionThresholdPct || 0.8)} />
-                <Row label="¿Cumplió meta?" value={nomina.collectionGoalMet ? '✅ Sí' : '❌ No'} color={nomina.collectionGoalMet ? '#10b981' : '#ef4444'} />
+                <Row label="¿Cumplió meta?" value={nomina.collectionGoalMet ? 'Sí' : 'No'} tone={nomina.collectionGoalMet ? 'success' : 'warning'} />
               </>
             )}
             <Row label="Total recaudado" value={`$${formatCurrency(nomina.totalCollected)}`} />
             <Row label="Porcentaje comisión" value={pct(nomina.collectionCommissionPct)} />
-            <Row label="Comisión recaudo" value={`$${formatCurrency(nomina.collectionCommissionAmount)}`} highlight color={(nomina.collectionCommissionByGoal === false || nomina.collectionGoalMet) ? '#10b981' : '#9ca3af'} />
+            <Row label="Comisión recaudo" value={`$${formatCurrency(nomina.collectionCommissionAmount)}`} highlight positive muted={!(nomina.collectionCommissionByGoal === false || nomina.collectionGoalMet)} />
           </Section>
 
           {/* Comisión general */}
-          <Section title="⭐ Comisión General">
-            <Row label="Habilitada" value={nomina.generalCommissionEnabled ? '✅ Sí' : '❌ No'} color={nomina.generalCommissionEnabled ? '#10b981' : '#ef4444'} />
+          <Section icon="star" tone="warning" title="⭐ Comisión General">
+            <Row label="Habilitada" value={nomina.generalCommissionEnabled ? 'Sí' : 'No'} tone={nomina.generalCommissionEnabled ? 'success' : 'neutral'} />
             {nomina.generalCommissionEnabled && (
               <>
                 <Row label="Ventas empresa del mes" value={`$${formatCurrency(nomina.totalCompanySales)}`} />
                 <Row
-                  label={nomina.thresholdIsCustom ? '🎯 Umbral personalizado (Owner)' : '📊 Umbral de referencia (suma metas)'}
+                  label={nomina.thresholdIsCustom ? 'Umbral personalizado (Owner)' : 'Umbral de referencia (suma metas)'}
                   value={`$${formatCurrency(nomina.effectiveThreshold ?? nomina.totalGlobalGoals)}`}
                 />
-                <Row label="Estado del umbral" value={nomina.generalCommissionGoalMet ? '✅ Alcanzado' : '❌ No alcanzado'} color={nomina.generalCommissionGoalMet ? '#10b981' : '#ef4444'} />
+                <Row label="Estado del umbral" value={nomina.generalCommissionGoalMet ? 'Alcanzado' : 'No alcanzado'} tone={nomina.generalCommissionGoalMet ? 'success' : 'warning'} />
                 <Row label="Porcentaje comisión" value={pct(nomina.generalCommissionPct)} />
-                <Row label="Comisión general" value={`$${formatCurrency(nomina.generalCommissionGoalMet ? nomina.generalCommissionAmount : 0)}`} highlight color={nomina.generalCommissionGoalMet ? '#f59e0b' : '#9ca3af'} />
+                <Row label="Comisión general" value={`$${formatCurrency(nomina.generalCommissionGoalMet ? nomina.generalCommissionAmount : 0)}`} highlight positive muted={!nomina.generalCommissionGoalMet} />
               </>
             )}
           </Section>
 
           {/* Totales */}
-          <div style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderRadius: '10px', padding: '1.25rem', marginTop: '1rem', border: '2px solid #c4b5fd' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <span style={{ fontWeight: 600, color: '#5b21b6' }}>Total Comisiones:</span>
-              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#7c3aed' }}>${formatCurrency(nomina.totalCommissions)}</span>
+          <section className="prl-totals">
+            <div className="prl-totals-row">
+              <span className="prl-totals-label">Total Comisiones:</span>
+              <span className={`prl-totals-value${Number(nomina.totalCommissions) > 0 ? ' ui-text-success' : ''}`}>${formatCurrency(nomina.totalCommissions)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #c4b5fd', paddingTop: '0.75rem' }}>
-              <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#5b21b6' }}>TOTAL A PAGAR:</span>
-              <span style={{ fontWeight: 800, fontSize: '1.4rem', color: '#7c3aed' }}>${formatCurrency(nomina.totalPayout)}</span>
+            <div className="prl-totals-row is-grand">
+              <span className="prl-totals-label">TOTAL A PAGAR:</span>
+              <span className="prl-totals-value">${formatCurrency(nomina.totalPayout)}</span>
             </div>
-          </div>
+          </section>
 
           {nomina.notes && (
-            <p style={{ marginTop: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '8px', fontSize: '0.9rem', color: '#4b5563', border: '1px solid #e5e7eb' }}>
-              📝 <strong>Notas:</strong> {nomina.notes}
+            <p className="prl-notes">
+              <span className="material-icons-round" aria-hidden="true">notes</span>
+              <span><strong>Notas:</strong> {nomina.notes}</span>
             </p>
           )}
 
-          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.75rem' }}>
+          <p className="prl-timestamp">
             Calculado: {new Date(nomina.createdAt).toLocaleString('es-ES')}
             {nomina.updatedAt !== nomina.createdAt && ` · Actualizado: ${new Date(nomina.updatedAt).toLocaleString('es-ES')}`}
           </p>
+        </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-            <button onClick={onRecalculate} style={{ ...btnStyle('#7c3aed'), flex: 1, justifyContent: 'center', padding: '0.75rem' }}>
-              <span className="material-icons-round" style={{ fontSize: '18px' }}>calculate</span> Recalcular
+        {/* Actions */}
+        <div className="ui-modal-footer">
+          <div className="ui-modal-footer-start">
+            <button
+              type="button"
+              className={`ui-btn ui-btn--excel${excelBusy ? ' is-loading' : ''}`}
+              aria-busy={excelBusy || undefined}
+              onClickCapture={() => onExportKey(excelKey)}
+              onClick={onExportExcel} disabled={exporting} title="Descargar Excel">
+              <ExportButtonContent kind="excel" busy={excelBusy} label="Excel" />
             </button>
-            <button onClick={onExportExcel} disabled={exporting} title="Descargar Excel" style={{ ...btnStyle('#10b981'), padding: '0.75rem 1rem', opacity: exporting ? 0.6 : 1 }}>
-              <span className="material-icons-round" style={{ fontSize: '18px' }}>table_chart</span> Excel
-            </button>
-            <button onClick={onExportPdf} disabled={exporting} title="Descargar PDF" style={{ ...btnStyle('#ef4444'), padding: '0.75rem 1rem', opacity: exporting ? 0.6 : 1 }}>
-              <span className="material-icons-round" style={{ fontSize: '18px' }}>picture_as_pdf</span> PDF
-            </button>
-            <button onClick={onClose} style={{ ...btnStyle('#6b7280'), padding: '0.75rem 1.25rem' }}>
-              Cerrar
+            <button
+              type="button"
+              className={`ui-btn ui-btn--pdf${pdfBusy ? ' is-loading' : ''}`}
+              aria-busy={pdfBusy || undefined}
+              onClickCapture={() => onExportKey(pdfKey)}
+              onClick={onExportPdf} disabled={exporting} title="Descargar PDF">
+              <ExportButtonContent kind="pdf" busy={pdfBusy} label="PDF" />
             </button>
           </div>
+          <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose}>
+            Cerrar
+          </button>
+          <button type="button" className="ui-btn ui-btn--primary" onClick={onRecalculate}>
+            <span className="material-icons-round" aria-hidden="true">calculate</span> Recalcular
+          </button>
         </div>
       </div>
     </div>
@@ -559,28 +661,38 @@ function NominaDetailModal({ nomina, onClose, onRecalculate, onExportExcel, onEx
 // ─── Modal Historial ─────────────────────────────────────────
 function HistoryModal({ vendedorUsername, history, loading, onClose, onView }) {
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={{ ...modalStyle, maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '1.25rem', background: '#1e1b4b', color: 'white', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Historial — {vendedorUsername}</h3>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: 'white', cursor: 'pointer', fontSize: '18px' }}>×</button>
+    <div className="ui-modal-overlay" onClick={onClose}>
+      <div className="ui-modal ui-modal--sm prl-modal" role="dialog" aria-modal="true" aria-labelledby="prl-history-title" onClick={e => e.stopPropagation()}>
+        <div className="ui-modal-header">
+          <span className="ui-modal-icon" aria-hidden="true">
+            <span className="material-icons-round">history</span>
+          </span>
+          <div className="ui-modal-heading">
+            <h3 id="prl-history-title" className="ui-modal-title">Historial — {vendedorUsername}</h3>
+          </div>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
+          </button>
         </div>
-        <div style={{ padding: '1.25rem', maxHeight: '70vh', overflowY: 'auto' }}>
+        <div className="ui-modal-body">
           {loading ? (
-            <p style={{ textAlign: 'center', color: '#9ca3af' }}>Cargando...</p>
+            <p className="prl-modal-state">Cargando...</p>
           ) : history.length === 0 ? (
-            <p style={{ textAlign: 'center', color: '#9ca3af' }}>No hay historial disponible</p>
+            <p className="prl-modal-state">No hay historial disponible</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div className="prl-history-list ui-stagger">
               {history.map(n => (
-                <div key={n.id} style={{ background: '#f9fafb', borderRadius: '10px', padding: '0.875rem', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{MESES[n.month - 1]} {n.year}</div>
-                    <div style={{ fontSize: '0.85rem', color: '#7c3aed', fontWeight: 700 }}>${formatCurrency(n.totalPayout)}</div>
-                    {n.notes && <div style={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>{n.notes}</div>}
+                <div key={n.id} className="prl-history-item">
+                  <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true">
+                    <span className="material-icons-round">event</span>
+                  </span>
+                  <div className="prl-history-text">
+                    <div className="prl-history-period">{MESES[n.month - 1]} {n.year}</div>
+                    <div className="prl-history-amount ui-text-success">${formatCurrency(n.totalPayout)}</div>
+                    {n.notes && <div className="prl-history-notes">{n.notes}</div>}
                   </div>
-                  <button onClick={() => onView(n)} style={btnStyle('#7c3aed')}>
-                    <span className="material-icons-round" style={{ fontSize: '15px' }}>visibility</span> Ver
+                  <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => onView(n)}>
+                    <span className="material-icons-round" aria-hidden="true">visibility</span> Ver
                   </button>
                 </div>
               ))}
@@ -656,49 +768,56 @@ function ConfigTab({ vendedores, toast }) {
   configs.forEach(c => { configMap[c.vendedorId] = c; });
 
   return (
-    <div>
-      <p style={{ color: '#6b7280', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+    <div className="prl-tab-panel">
+      <p className="prl-intro">
         Configura el salario base y porcentajes de comisión de cada vendedora. Los cambios aplican en el próximo cálculo de nómina.
       </p>
 
       {loading ? (
-        <p style={{ color: '#9ca3af' }}>Cargando configuraciones...</p>
+        <p className="prl-inline-state">Cargando configuraciones...</p>
       ) : (
-        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+        <div className="prl-grid ui-stagger">
           {vendedoresList.map(v => {
             const cfg = configMap[v.id];
             return (
-              <div key={v.id} style={{ background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-                <div style={{ background: cfg ? '#f5f3ff' : '#f9fafb', padding: '0.875rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="material-icons-round" style={{ color: '#7c3aed', fontSize: '20px' }}>person</span>
-                    <span style={{ fontWeight: 600 }}>{v.username}</span>
+              <article key={v.id} className="prl-card">
+                <div className="prl-config-head">
+                  <div className="prl-config-name">
+                    <VendorAvatar name={v.username} size="sm" />
+                    <span>{v.username}</span>
                   </div>
-                  <button onClick={() => handleEdit(v.id)} style={btnStyle('#7c3aed')}>
-                    <span className="material-icons-round" style={{ fontSize: '15px' }}>edit</span>
+                  <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm" onClick={() => handleEdit(v.id)}>
+                    <span className="material-icons-round" aria-hidden="true">edit</span>
                     {cfg ? 'Editar' : 'Configurar'}
                   </button>
                 </div>
                 {cfg ? (
-                  <div style={{ padding: '0.875rem 1rem' }}>
+                  <div className="prl-config-body">
                     <Row label="Salario base" value={`$${formatCurrency(cfg.baseSalary)}`} />
                     <Row
                       label="Comisión ventas"
-                      value={`${pct(cfg.salesCommissionPct)} ${cfg.salesCommissionByGoal === false ? '⚡ Directa' : '🎯 Por meta'}`}
+                      value={<>{pct(cfg.salesCommissionPct)} <span className="ui-badge ui-badge--primary">{cfg.salesCommissionByGoal === false ? 'Directa' : 'Por meta'}</span></>}
                     />
                     <Row
                       label="Comisión recaudo"
-                      value={`${pct(cfg.collectionCommissionPct)} ${cfg.collectionCommissionByGoal === false ? '⚡ Directa' : `🎯 Umbral ${pct(cfg.collectionThresholdPct)}`}`}
+                      value={<>{pct(cfg.collectionCommissionPct)} <span className="ui-badge ui-badge--primary">{cfg.collectionCommissionByGoal === false ? 'Directa' : `Umbral ${pct(cfg.collectionThresholdPct)}`}</span></>}
                     />
-                    <Row label="Com. general" value={cfg.generalCommissionEnabled ? `${pct(cfg.generalCommissionPct)} ✅` : '❌ Deshabilitada'} />
+                    <Row
+                      label="Com. general"
+                      value={cfg.generalCommissionEnabled
+                        ? <span className="ui-badge ui-badge--success"><span className="material-icons-round" aria-hidden="true">check</span>{pct(cfg.generalCommissionPct)}</span>
+                        : <span className="ui-badge ui-badge--neutral">Deshabilitada</span>}
+                    />
                   </div>
                 ) : (
-                  <div style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.9rem' }}>
-                    <span className="material-icons-round" style={{ fontSize: '32px', display: 'block', marginBottom: '0.25rem' }}>settings</span>
+                  <div className="prl-config-empty">
+                    <span className="ui-icon-tile ui-icon-tile--sky" aria-hidden="true">
+                      <span className="material-icons-round">settings</span>
+                    </span>
                     Sin configuración — usa valores por defecto
                   </div>
                 )}
-              </div>
+              </article>
             );
           })}
         </div>
@@ -747,121 +866,171 @@ function ConfigEditModal({ config, onSave, onClose, saving }) {
     });
   };
 
-  const toggleStyle = (active) => ({
-    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-    padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer',
-    fontSize: '0.82rem', fontWeight: 600, border: '1.5px solid',
-    borderColor: active ? '#7c3aed' : '#d1d5db',
-    background: active ? '#f5f3ff' : '#f9fafb',
-    color: active ? '#7c3aed' : '#6b7280',
-  });
+  // Tarjeta de elección (radio) del sistema: seleccionada = borde y fondo primario suave
+  const choiceClass = (active) => `ui-choice ui-choice--compact${active ? ' is-selected' : ''}`;
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={{ ...modalStyle, maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-        <div style={{ padding: '1.25rem', background: '#7c3aed', color: 'white', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ margin: 0 }}>Configurar Nómina — {config.vendedorUsername}</h3>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: 'white', cursor: 'pointer', fontSize: '18px' }}>×</button>
-        </div>
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem', overflowY: 'auto', maxHeight: '80vh' }}>
-
-          <FieldGroup label="Salario Base ($)">
-            <input type="number" value={form.baseSalary} onChange={e => set('baseSalary', e.target.value)} style={inputStyle} min="0" step="1000" required />
-          </FieldGroup>
-
-          {/* ── Comisión Ventas ── */}
-          <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '1rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
-            <div style={{ fontWeight: 700, color: '#374151', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span className="material-icons-round" style={{ fontSize: '18px', color: '#7c3aed' }}>trending_up</span>
-              Comisión por Ventas
-            </div>
-            <FieldGroup label="Porcentaje (%)">
-              <input type="number" value={form.salesCommissionPct} onChange={e => set('salesCommissionPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.001" required />
-            </FieldGroup>
-            <div style={{ marginTop: '0.5rem' }}>
-              <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 0.5rem' }}>Modalidad:</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <label style={toggleStyle(form.salesCommissionByGoal === true)}>
-                  <input type="radio" name="salesMode" checked={form.salesCommissionByGoal === true}
-                    onChange={() => set('salesCommissionByGoal', true)} style={{ display: 'none' }} />
-                  🎯 Solo si cumple meta
-                </label>
-                <label style={toggleStyle(form.salesCommissionByGoal === false)}>
-                  <input type="radio" name="salesMode" checked={form.salesCommissionByGoal === false}
-                    onChange={() => set('salesCommissionByGoal', false)} style={{ display: 'none' }} />
-                  ⚡ Siempre (directa)
-                </label>
-              </div>
-              <small style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
-                {form.salesCommissionByGoal === false
-                  ? 'Se aplica: totalVendido × % — sin importar meta'
-                  : 'Se aplica solo si la vendedora cumplió su meta mensual'}
-              </small>
-            </div>
+    <div className="ui-modal-overlay" onClick={onClose}>
+      <div className="ui-modal ui-modal--md prl-modal" role="dialog" aria-modal="true" aria-labelledby="prl-config-title" onClick={e => e.stopPropagation()}>
+        <div className="ui-modal-header">
+          <span className="ui-modal-icon" aria-hidden="true">
+            <span className="material-icons-round">tune</span>
+          </span>
+          <div className="ui-modal-heading">
+            <h3 id="prl-config-title" className="ui-modal-title">Configurar Nómina — {config.vendedorUsername}</h3>
           </div>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Cerrar">
+            <span className="material-icons-round" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="prl-form">
+          <div className="ui-modal-body">
 
-          {/* ── Comisión Recaudo ── */}
-          <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '1rem', marginBottom: '1rem', border: '1px solid #e5e7eb' }}>
-            <div style={{ fontWeight: 700, color: '#374151', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span className="material-icons-round" style={{ fontSize: '18px', color: '#10b981' }}>account_balance</span>
-              Comisión por Recaudo
-            </div>
-            <FieldGroup label="Porcentaje (%)">
-              <input type="number" value={form.collectionCommissionPct} onChange={e => set('collectionCommissionPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.001" required />
-            </FieldGroup>
-            <div style={{ marginTop: '0.5rem' }}>
-              <p style={{ fontSize: '0.8rem', color: '#6b7280', margin: '0 0 0.5rem' }}>Modalidad:</p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <label style={toggleStyle(form.collectionCommissionByGoal === true)}>
-                  <input type="radio" name="collectionMode" checked={form.collectionCommissionByGoal === true}
-                    onChange={() => set('collectionCommissionByGoal', true)} style={{ display: 'none' }} />
-                  🎯 Solo si ≥ umbral
-                </label>
-                <label style={toggleStyle(form.collectionCommissionByGoal === false)}>
-                  <input type="radio" name="collectionMode" checked={form.collectionCommissionByGoal === false}
-                    onChange={() => set('collectionCommissionByGoal', false)} style={{ display: 'none' }} />
-                  ⚡ Siempre (directa)
-                </label>
+            <section className="ui-section">
+              <FieldGroup label="Salario Base ($)" htmlFor="prl-base-salary">
+                <div className="ui-input-group">
+                  <span className="ui-input-prefix" aria-hidden="true">$</span>
+                  <input id="prl-base-salary" type="number" className="ui-input" value={form.baseSalary} onChange={e => set('baseSalary', e.target.value)} min="0" step="1000" required />
+                </div>
+              </FieldGroup>
+            </section>
+
+            {/* ── Comisión Ventas ── */}
+            <section className="ui-section">
+              <div className="ui-section-head">
+                <div>
+                  <h4 className="ui-section-title prl-section-title">
+                    <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true">
+                      <span className="material-icons-round">trending_up</span>
+                    </span>
+                    Comisión por Ventas
+                  </h4>
+                </div>
               </div>
-              {form.collectionCommissionByGoal !== false && (
-                <FieldGroup label="Umbral de recaudo requerido (%)" style={{ marginTop: '0.5rem' }}>
-                  <input type="number" value={form.collectionThresholdPct} onChange={e => set('collectionThresholdPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.1" required />
-                  <small style={{ color: '#9ca3af' }}>% de lo vendido el mes anterior</small>
+              <div className="ui-stack prl-stack">
+                <FieldGroup label="Porcentaje (%)" htmlFor="prl-sales-pct">
+                  <div className="ui-input-group ui-input-group--suffix">
+                    <input id="prl-sales-pct" type="number" className="ui-input" value={form.salesCommissionPct} onChange={e => set('salesCommissionPct', e.target.value)} min="0" max="100" step="0.001" required />
+                    <span className="ui-input-suffix" aria-hidden="true">%</span>
+                  </div>
+                </FieldGroup>
+                <div className="ui-field">
+                  <p className="ui-label prl-mode-label">Modalidad:</p>
+                  <div className="ui-choice-grid" role="radiogroup" aria-label="Modalidad de comisión por ventas">
+                    <label className={choiceClass(form.salesCommissionByGoal === true)}>
+                      <input type="radio" name="salesMode" checked={form.salesCommissionByGoal === true}
+                        onChange={() => set('salesCommissionByGoal', true)} />
+                      <span className="material-icons-round ui-choice-icon" aria-hidden="true">flag</span>
+                      <span className="ui-choice-text">
+                        <span className="ui-choice-title">Solo si cumple meta</span>
+                      </span>
+                    </label>
+                    <label className={choiceClass(form.salesCommissionByGoal === false)}>
+                      <input type="radio" name="salesMode" checked={form.salesCommissionByGoal === false}
+                        onChange={() => set('salesCommissionByGoal', false)} />
+                      <span className="material-icons-round ui-choice-icon" aria-hidden="true">bolt</span>
+                      <span className="ui-choice-text">
+                        <span className="ui-choice-title">Siempre (directa)</span>
+                      </span>
+                    </label>
+                  </div>
+                  <small className="ui-help">
+                    {form.salesCommissionByGoal === false
+                      ? 'Se aplica: totalVendido × % — sin importar meta'
+                      : 'Se aplica solo si la vendedora cumplió su meta mensual'}
+                  </small>
+                </div>
+              </div>
+            </section>
+
+            {/* ── Comisión Recaudo ── */}
+            <section className="ui-section">
+              <div className="ui-section-head">
+                <div>
+                  <h4 className="ui-section-title prl-section-title">
+                    <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--teal" aria-hidden="true">
+                      <span className="material-icons-round">account_balance</span>
+                    </span>
+                    Comisión por Recaudo
+                  </h4>
+                </div>
+              </div>
+              <div className="ui-stack prl-stack">
+                <FieldGroup label="Porcentaje (%)" htmlFor="prl-collection-pct">
+                  <div className="ui-input-group ui-input-group--suffix">
+                    <input id="prl-collection-pct" type="number" className="ui-input" value={form.collectionCommissionPct} onChange={e => set('collectionCommissionPct', e.target.value)} min="0" max="100" step="0.001" required />
+                    <span className="ui-input-suffix" aria-hidden="true">%</span>
+                  </div>
+                </FieldGroup>
+                <div className="ui-field">
+                  <p className="ui-label prl-mode-label">Modalidad:</p>
+                  <div className="ui-choice-grid" role="radiogroup" aria-label="Modalidad de comisión por recaudo">
+                    <label className={choiceClass(form.collectionCommissionByGoal === true)}>
+                      <input type="radio" name="collectionMode" checked={form.collectionCommissionByGoal === true}
+                        onChange={() => set('collectionCommissionByGoal', true)} />
+                      <span className="material-icons-round ui-choice-icon" aria-hidden="true">flag</span>
+                      <span className="ui-choice-text">
+                        <span className="ui-choice-title">Solo si ≥ umbral</span>
+                      </span>
+                    </label>
+                    <label className={choiceClass(form.collectionCommissionByGoal === false)}>
+                      <input type="radio" name="collectionMode" checked={form.collectionCommissionByGoal === false}
+                        onChange={() => set('collectionCommissionByGoal', false)} />
+                      <span className="material-icons-round ui-choice-icon" aria-hidden="true">bolt</span>
+                      <span className="ui-choice-text">
+                        <span className="ui-choice-title">Siempre (directa)</span>
+                      </span>
+                    </label>
+                  </div>
+                  {form.collectionCommissionByGoal !== false && (
+                    <FieldGroup label="Umbral de recaudo requerido (%)" htmlFor="prl-collection-threshold" className="prl-field-spaced">
+                      <div className="ui-input-group ui-input-group--suffix">
+                        <input id="prl-collection-threshold" type="number" className="ui-input" value={form.collectionThresholdPct} onChange={e => set('collectionThresholdPct', e.target.value)} min="0" max="100" step="0.1" required />
+                        <span className="ui-input-suffix" aria-hidden="true">%</span>
+                      </div>
+                      <small className="ui-help">% de lo vendido el mes anterior</small>
+                    </FieldGroup>
+                  )}
+                  <small className="ui-help">
+                    {form.collectionCommissionByGoal === false
+                      ? 'Se aplica: totalRecaudado × % — sin importar umbral'
+                      : 'Se aplica solo si recaudó ≥ umbral del mes anterior'}
+                  </small>
+                </div>
+              </div>
+            </section>
+
+            {/* ── Comisión General ── */}
+            <section className="ui-section">
+              <label className="ui-switch ui-switch--plain">
+                <input
+                  type="checkbox"
+                  checked={form.generalCommissionEnabled}
+                  onChange={e => set('generalCommissionEnabled', e.target.checked)}
+                />
+                <span className="ui-switch-track"><span className="ui-switch-thumb" /></span>
+                <span className="ui-switch-text">
+                  <span className="ui-switch-title">Habilitar Comisión General</span>
+                </span>
+              </label>
+              {form.generalCommissionEnabled && (
+                <FieldGroup label="Comisión general (%)" htmlFor="prl-general-pct" className="prl-field-spaced">
+                  <div className="ui-input-group ui-input-group--suffix">
+                    <input id="prl-general-pct" type="number" className="ui-input" value={form.generalCommissionPct} onChange={e => set('generalCommissionPct', e.target.value)} min="0" max="100" step="0.001" required />
+                    <span className="ui-input-suffix" aria-hidden="true">%</span>
+                  </div>
+                  <small className="ui-help">Aplicada sobre la suma de todas las metas globales</small>
                 </FieldGroup>
               )}
-              <small style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
-                {form.collectionCommissionByGoal === false
-                  ? 'Se aplica: totalRecaudado × % — sin importar umbral'
-                  : 'Se aplica solo si recaudó ≥ umbral del mes anterior'}
-              </small>
-            </div>
+            </section>
           </div>
 
-          {/* ── Comisión General ── */}
-          <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '1rem', marginTop: '0.5rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.75rem' }}>
-              <input
-                type="checkbox"
-                checked={form.generalCommissionEnabled}
-                onChange={e => set('generalCommissionEnabled', e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: '#7c3aed', cursor: 'pointer' }}
-              />
-              <span style={{ fontWeight: 600, color: '#374151' }}>Habilitar Comisión General</span>
-            </label>
-            {form.generalCommissionEnabled && (
-              <FieldGroup label="Comisión general (%)">
-                <input type="number" value={form.generalCommissionPct} onChange={e => set('generalCommissionPct', e.target.value)} style={inputStyle} min="0" max="100" step="0.001" required />
-                <small style={{ color: '#9ca3af' }}>Aplicada sobre la suma de todas las metas globales</small>
-              </FieldGroup>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button type="submit" disabled={saving} style={{ ...btnStyle('#7c3aed'), flex: 1, justifyContent: 'center', padding: '0.75rem', fontSize: '0.95rem' }}>
-              <span className="material-icons-round" style={{ fontSize: '18px' }}>save</span>
+          <div className="ui-modal-footer">
+            <button type="button" className="ui-btn ui-btn--secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="ui-btn ui-btn--primary" disabled={saving}>
+              <span className="material-icons-round" aria-hidden="true">save</span>
               {saving ? 'Guardando...' : 'Guardar Configuración'}
             </button>
-            <button type="button" onClick={onClose} style={{ ...btnStyle('#6b7280'), padding: '0.75rem 1.25rem' }}>Cancelar</button>
           </div>
         </form>
       </div>
@@ -870,74 +1039,73 @@ function ConfigEditModal({ config, onSave, onClose, saving }) {
 }
 
 // ─── Helpers de UI ───────────────────────────────────────────
-function InfoRow({ label, value }) {
+// icon/tone: baldosa de color junto al dato; valueClassName: color del monto (p. ej. verde)
+function InfoRow({ label, value, icon, tone = 'primary', valueClassName = '' }) {
   return (
-    <div>
-      <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{label}</div>
-      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{value}</div>
+    <div className="prl-info">
+      {icon && (
+        <span className={`ui-icon-tile ui-icon-tile--sm ui-icon-tile--${tone}`} aria-hidden="true">
+          <span className="material-icons-round">{icon}</span>
+        </span>
+      )}
+      <div className="prl-info-text">
+        <div className="prl-info-label">{label}</div>
+        <div className={`prl-info-value${valueClassName ? ` ${valueClassName}` : ''}`}>{value}</div>
+      </div>
     </div>
   );
 }
 
-function Badge({ icon, label, color }) {
+// tone: neutral | primary | success | warning | danger (badge semántico del sistema)
+function Badge({ icon, label, tone = 'neutral' }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '20px', background: color + '1a', color, fontWeight: 600, border: `1px solid ${color}33` }}>
-      <span className="material-icons-round" style={{ fontSize: '13px' }}>{icon}</span>
+    <span className={`ui-badge ui-badge--${tone}`}>
+      <span className="material-icons-round" aria-hidden="true">{icon}</span>
       {label}
     </span>
   );
 }
 
-function Section({ title, children }) {
+// Los títulos de sección traen un emoji decorativo heredado al inicio: se muestra el
+// icono Material (prop icon) en su lugar, sin emojis como iconos.
+const LEADING_EMOJI = /^(💼|📈|💰|⭐)\s*/;
+
+// tone: color de la baldosa del icono (primary | success | teal | warning…)
+function Section({ icon, tone = 'primary', title, children }) {
   return (
-    <div style={{ marginBottom: '1rem', background: '#f9fafb', borderRadius: '8px', padding: '0.875rem', border: '1px solid #e5e7eb' }}>
-      <h4 style={{ margin: '0 0 0.6rem', fontSize: '0.9rem', color: '#374151', fontWeight: 700 }}>{title}</h4>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>{children}</div>
+    <section className="ui-section prl-detail-section">
+      <h4 className="ui-section-title prl-section-title">
+        {icon && (
+          <span className={`ui-icon-tile ui-icon-tile--sm ui-icon-tile--${tone}`} aria-hidden="true">
+            <span className="material-icons-round">{icon}</span>
+          </span>
+        )}
+        {typeof title === 'string' ? title.replace(LEADING_EMOJI, '') : title}
+      </h4>
+      <div className="prl-rows">{children}</div>
+    </section>
+  );
+}
+
+// tone → el valor se muestra como badge semántico; muted → monto que no aplica;
+// positive → monto ganado (comisión que sí aplica) en verde
+function Row({ label, value, highlight, tone, muted, positive }) {
+  const valueClass = `prl-row-value${highlight ? ' is-highlight' : ''}${muted ? ' is-muted' : positive ? ' is-positive' : ''}`;
+  return (
+    <div className="prl-row">
+      <span className="prl-row-label">{label}:</span>
+      {tone
+        ? <span className={`ui-badge ui-badge--${tone}`}>{value}</span>
+        : <span className={valueClass}>{value}</span>}
     </div>
   );
 }
 
-function Row({ label, value, highlight, color }) {
+function FieldGroup({ label, htmlFor, className = '', children }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.88rem' }}>
-      <span style={{ color: '#6b7280' }}>{label}:</span>
-      <span style={{ fontWeight: highlight ? 700 : 500, color: color || (highlight ? '#111827' : '#374151') }}>{value}</span>
-    </div>
-  );
-}
-
-function FieldGroup({ label, children }) {
-  return (
-    <div style={{ marginBottom: '1rem' }}>
-      <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#374151', marginBottom: '0.4rem' }}>{label}</label>
+    <div className={`ui-field ${className}`}>
+      <label className="ui-label" htmlFor={htmlFor}>{label}</label>
       {children}
     </div>
   );
 }
-
-// ─── Estilos ─────────────────────────────────────────────────
-const inputStyle = {
-  width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db',
-  borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box',
-};
-
-function btnStyle(bg) {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-    padding: '0.4rem 0.8rem', background: bg, color: 'white',
-    border: 'none', borderRadius: '7px', cursor: 'pointer',
-    fontSize: '0.82rem', fontWeight: 600, transition: 'opacity 0.15s',
-  };
-}
-
-const overlayStyle = {
-  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  zIndex: 1000, padding: '1rem',
-};
-
-const modalStyle = {
-  background: 'white', borderRadius: '12px', width: '100%',
-  boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-};
-

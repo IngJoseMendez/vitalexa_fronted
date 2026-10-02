@@ -1,14 +1,35 @@
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { formatCurrency, formatDateISO, formatOrderLabel, orderReferenceMatches } from '../utils/formatters';
 import balanceService from '../api/balanceService';
 import clientApi from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
-import { OrderDetailModal } from '../components/modals/OrderManagementModal';
-import { PaymentHistoryModal } from '../components/modals/PaymentHistoryModal';
-import { PaymentFormModal } from '../components/modals/OrderManagementModal';
+import SearchableSelect from '../components/SearchableSelect';
+import { avatarTone, avatarInitials } from '../utils/avatarTone';
+// Los modales (detalle de orden, historial de pagos y registrar pago) se cargan bajo demanda:
+// ver los lazyWithRetry() debajo de los imports. Sus hojas de estilo se importan AQUÍ, en el mismo orden
+// en que llegaban antes, para que la cascada CSS no cambie y los chunks diferidos no traigan CSS.
+import '../styles/areas/AssortmentSelectionModal.css'; // OrderManagementModal
+import '../components/modals/OrderAnnulationModal.css';
+import '../components/modals/OrderRevertAnnulmentModal.css';
+import '../components/modals/HistoricalInvoiceModal.css';
+import '../components/modals/OrderManagementModal.css';
+import '../components/modals/PaymentHistoryModal.css';
+import { ModalFallback, LazyErrorBoundary, lazyWithRetry } from '../components/LazyFallbacks';
 import './BalancesPage.css';
+
+// Carga bajo demanda ("prefetch": se descarga en segundo plano cuando el navegador está libre)
+// lazyWithRetry = React.lazy con un reintento si la red falla (ver LazyFallbacks.js).
+const OrderDetailModal = lazyWithRetry(() =>
+    import(/* webpackPrefetch: true */ '../components/modals/OrderManagementModal').then((m) => ({ default: m.OrderDetailModal }))
+);
+const PaymentHistoryModal = lazyWithRetry(() =>
+    import(/* webpackPrefetch: true */ '../components/modals/PaymentHistoryModal').then((m) => ({ default: m.PaymentHistoryModal }))
+);
+const PaymentFormModal = lazyWithRetry(() =>
+    import(/* webpackPrefetch: true */ '../components/modals/OrderManagementModal').then((m) => ({ default: m.PaymentFormModal }))
+);
 
 function BalancesPage() {
     const [balances, setBalances] = useState([]);
@@ -19,6 +40,8 @@ function BalancesPage() {
     const [selectedVendedor, setSelectedVendedor] = useState('');
     const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'owing', 'up_to_date'
     const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+    // Solo presentación: el botón "Exportar Excel" muestra su carga mientras se genera el archivo
+    const [exporting, setExporting] = useState(false);
     const toast = useToast();
     const userRole = localStorage.getItem('role');
 
@@ -49,7 +72,9 @@ function BalancesPage() {
             // 3. If it's an event object or undefined, check current selectedVendedor state to persist filter.
             let idToUse = null;
 
-            if (vendedorIdArg !== undefined && typeof vendedorIdArg !== 'object') {
+            // null = "Todos los vendedores" (typeof null es 'object': sin esta comprobación caía en la
+            // rama del filtro anterior y mostraba los saldos de la vendedora que ya no está elegida)
+            if (vendedorIdArg === null || (vendedorIdArg !== undefined && typeof vendedorIdArg !== 'object')) {
                 // If it's a primitive value (string id, empty string, number), use it directly
                 idToUse = vendedorIdArg;
             } else if (selectedVendedor && vendedores.length > 0) {
@@ -108,6 +133,7 @@ function BalancesPage() {
     // Export to Excel function
     const handleExportExcel = async () => {
         try {
+            setExporting(true);
             toast.info('Generando archivo Excel...');
 
             // Prepare filters
@@ -148,6 +174,8 @@ function BalancesPage() {
         } catch (error) {
             console.error('Error exporting to Excel:', error);
             toast.error('Error al exportar a Excel: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -159,11 +187,29 @@ function BalancesPage() {
     };
 
     if (loading) {
+        // Esqueleto con la forma de la página (título, estadísticas y lista de clientes).
+        // aria-busy: solo aparece con fade; al cargar, el contenido entra con la subida.
         return (
             <div className="balances-page">
-                <div className="loading-state">
-                    <span className="material-icons-round spin">sync</span>
-                    <p>Cargando saldos de clientes...</p>
+                <div className="bp-skeleton" role="status" aria-busy="true">
+                    <span className="ui-sr-only">Cargando saldos de clientes...</span>
+                    <span className="ui-skeleton bp-skeleton-title" aria-hidden="true" />
+                    <div className="bp-skeleton-stats" aria-hidden="true">
+                        {[0, 1, 2].map((i) => (
+                            <span key={i} className="ui-skeleton ui-skeleton--block" />
+                        ))}
+                    </div>
+                    <div className="bp-skeleton-list" aria-hidden="true">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                            <div key={i} className="bp-skeleton-row">
+                                <span className="ui-skeleton ui-skeleton--circle bp-skeleton-avatar" />
+                                <div className="ui-skeleton-stack bp-skeleton-lines">
+                                    <span className="ui-skeleton ui-skeleton--title" />
+                                    <span className="ui-skeleton ui-skeleton--text bp-skeleton-short" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
@@ -172,75 +218,84 @@ function BalancesPage() {
     return (
         <div className={`balances-page ${selectedClient ? 'detail-open' : ''}`}>
             {/* Header */}
-            <div className="balances-header">
-                <div className="header-breadcrumbs">
-                    <button
-                        className="btn-back"
-                        onClick={() => {
-                            if (userRole === 'ROLE_OWNER') window.location.href = '/owner';
-                            else if (userRole === 'ROLE_ADMIN') window.location.href = '/admin';
-                            else if (userRole === 'ROLE_VENDEDOR') window.location.href = '/vendedor';
-                            else window.history.back();
-                        }}
-                    >
-                        <span className="material-icons-round">arrow_back</span>
-                        Volver al Dashboard
-                    </button>
-                </div>
-                <div className="header-title">
-                    <h1>
-                        <span className="material-icons-round">account_balance_wallet</span>
+            <div className="bp-header">
+                <button
+                    type="button"
+                    className="ui-btn ui-btn--ghost ui-btn--sm bp-back"
+                    onClick={() => {
+                        if (userRole === 'ROLE_OWNER') window.location.href = '/owner';
+                        else if (userRole === 'ROLE_ADMIN') window.location.href = '/admin';
+                        else if (userRole === 'ROLE_VENDEDOR') window.location.href = '/vendedor';
+                        else window.history.back();
+                    }}
+                >
+                    <span className="material-icons-round" aria-hidden="true">arrow_back</span>
+                    Volver al Dashboard
+                </button>
+                <div className="bp-title-row">
+                    <h1 className="ui-page-title">
+                        <span className="material-icons-round" aria-hidden="true">account_balance_wallet</span>
                         Panel de Saldos
                     </h1>
-                    <span className="role-badge">{getRoleLabel()}</span>
+                    <span className="ui-badge ui-badge--primary bp-role">{getRoleLabel()}</span>
                 </div>
             </div>
 
-            {/* Toolbar: búsqueda + filtros + acciones (sticky en móvil) */}
-            <div className="balances-toolbar">
-                <div className="search-box">
-                    <span className="material-icons-round">search</span>
-                    <input
-                        type="text"
-                        placeholder="Buscar cliente..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+            {/* Toolbar: búsqueda + filtros (sticky en móvil) + acciones */}
+            <div className="bp-controls">
+                <div className="bp-toolbar">
+                    <div className="ui-search bp-search">
+                        <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
+                        <input
+                            type="text"
+                            className="ui-input"
+                            aria-label="Buscar cliente"
+                            placeholder="Buscar cliente..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Filtro de Estado — segmentado */}
+                    <div className="ui-tabs bp-status" role="group" aria-label="Filtrar por estado">
+                        <button
+                            type="button"
+                            aria-pressed={filterStatus === 'all'}
+                            className={`ui-tab ${filterStatus === 'all' ? 'is-active' : ''}`}
+                            onClick={() => setFilterStatus('all')}
+                        >
+                            Todos
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={filterStatus === 'owing'}
+                            className={`ui-tab bp-status-owing ${filterStatus === 'owing' ? 'is-active' : ''}`}
+                            onClick={() => setFilterStatus('owing')}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">error_outline</span>
+                            Deben
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={filterStatus === 'up_to_date'}
+                            className={`ui-tab bp-status-ok ${filterStatus === 'up_to_date' ? 'is-active' : ''}`}
+                            onClick={() => setFilterStatus('up_to_date')}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">check_circle</span>
+                            Al día
+                        </button>
+                    </div>
                 </div>
 
-                {/* Filtro de Estado — segmentado */}
-                <div className="status-pills" role="group" aria-label="Filtrar por estado">
-                    <button
-                        type="button"
-                        className={filterStatus === 'all' ? 'active' : ''}
-                        onClick={() => setFilterStatus('all')}
-                    >
-                        Todos
-                    </button>
-                    <button
-                        type="button"
-                        className={`owing ${filterStatus === 'owing' ? 'active' : ''}`}
-                        onClick={() => setFilterStatus('owing')}
-                    >
-                        <span className="material-icons-round">error_outline</span>
-                        Deben
-                    </button>
-                    <button
-                        type="button"
-                        className={`up_to_date ${filterStatus === 'up_to_date' ? 'active' : ''}`}
-                        onClick={() => setFilterStatus('up_to_date')}
-                    >
-                        <span className="material-icons-round">check_circle</span>
-                        Al día
-                    </button>
-                </div>
-
-                <div className="toolbar-actions">
+                <div className="bp-toolbar-actions">
                     {/* Filter by Vendor (Only if Admin/Owner) */}
                     {(userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER') && (
-                        <div className="vendor-filter">
-                            <select
+                        <div className="bp-vendor-filter">
+                            <SearchableSelect
+                                aria-label="Filtrar por vendedor"
                                 value={selectedVendedor}
+                                emptyOption={{ label: 'Todos los vendedores' }}
+                                options={vendedores.map(v => ({ value: v.username, label: v.username }))}
                                 onChange={async (e) => {
                                     const username = e.target.value;
                                     setSelectedVendedor(username);
@@ -258,169 +313,148 @@ function BalancesPage() {
                                         fetchBalances(vendorObj.id);
                                     }
                                 }}
-                                style={{
-                                    padding: '0.6rem 2.5rem 0.6rem 1rem', // Extra padding for arrow
-                                    borderRadius: '8px',
-                                    border: '1px solid #e2e8f0',
-                                    background: selectedVendedor ? '#f0fdf4' : 'white',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '0.9rem',
-                                    outline: 'none',
-                                    appearance: 'none',
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' viewBox='0 0 24 24' width='24'%3E%3Cpath d='M0 0h24v24H0z' fill='none'/%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 8px center',
-                                    minWidth: '160px',
-                                    cursor: 'pointer',
-                                    height: '42px' // Match button height
-                                }}
-                            >
-                                <option value="">Todos los vendedores</option>
-                                {vendedores.map(v => (
-                                    <option key={v.id} value={v.username}>{v.username}</option>
-                                ))}
-                            </select>
+                            />
                         </div>
                     )}
 
-                    <button className="btn-refresh" onClick={fetchBalances}>
-                        <span className="material-icons-round">refresh</span>
+                    <button type="button" className="ui-btn ui-btn--secondary bp-refresh" onClick={fetchBalances}>
+                        <span className="material-icons-round" aria-hidden="true">refresh</span>
                         Actualizar
                     </button>
 
+                    {/* Botón de formato Excel (verde), mismo marcado que ExportButton kind="excel":
+                        mientras exporta, spinner + "Exportando..." sin cambiar de ancho */}
                     <button
-                        className="btn-export-excel"
+                        type="button"
+                        className={`ui-btn ui-btn--excel bp-export${exporting ? ' is-loading' : ''}`}
                         onClick={handleExportExcel}
+                        disabled={exporting}
+                        aria-busy={exporting || undefined}
                         title="Exportar a Excel"
                     >
-                        <span className="material-icons-round">download</span>
-                        Exportar Excel
+                        {exporting
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round" aria-hidden="true">table_view</span>}
+                        <span className="ui-btn-label">
+                            {exporting && <span className="ui-btn-label-sizer" aria-hidden="true">Exportar Excel</span>}
+                            <span>{exporting ? 'Exportando...' : 'Exportar Excel'}</span>
+                        </span>
                     </button>
                 </div>
             </div>
 
-            {/* Summary Stats */}
-            <div className="balances-stats">
-                <div className="stat-card">
-                    <span className="stat-icon clients">
+            {/* Summary Stats: el número va en el color de su significado
+                (clientes = azul, pendiente = ámbar, pagado = verde) */}
+            <div className="bp-stats ui-stagger">
+                <div className="ui-stat">
+                    <span className="ui-stat-icon ui-stat-icon--primary" aria-hidden="true">
                         <span className="material-icons-round">people</span>
                     </span>
-                    <div className="stat-content">
-                        <span className="stat-value">{balances.length}</span>
-                        <span className="stat-label">Clientes</span>
+                    <div className="ui-stat-content">
+                        <span className="ui-stat-value ui-text-primary">{balances.length}</span>
+                        <span className="ui-stat-label">Clientes</span>
                     </div>
                 </div>
-                <div className="stat-card">
-                    <span className="stat-icon pending">
+                <div className="ui-stat">
+                    <span className="ui-stat-icon ui-stat-icon--warning" aria-hidden="true">
                         <span className="material-icons-round">pending</span>
                     </span>
-                    <div className="stat-content">
-                        <span className="stat-value">
+                    <div className="ui-stat-content">
+                        <span className="ui-stat-value ui-text-warning">
                             ${formatCurrency(totalPending)}
                         </span>
-                        <span className="stat-label">Total Pendiente</span>
+                        <span className="ui-stat-label">Total Pendiente</span>
                     </div>
                 </div>
-                <div className="stat-card">
-                    <span className="stat-icon paid">
+                <div className="ui-stat">
+                    <span className="ui-stat-icon ui-stat-icon--success" aria-hidden="true">
                         <span className="material-icons-round">check_circle</span>
                     </span>
-                    <div className="stat-content">
-                        <span className="stat-value">
+                    <div className="ui-stat-content">
+                        <span className="ui-stat-value ui-text-success">
                             ${formatCurrency(totalPaidAll)}
                         </span>
-                        <span className="stat-label">Total Pagado</span>
+                        <span className="ui-stat-label">Total Pagado</span>
                     </div>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="balances-content">
+            <div className="bp-content">
                 {/* Clients List */}
-                <div className="clients-list-panel">
-                    <h2>
-                        Clientes ({filteredBalances.length})
-                    </h2>
+                <div className="bp-list-panel">
+                    <div className="bp-list-head">
+                        <h2 className="bp-panel-title">
+                            Clientes ({filteredBalances.length})
+                        </h2>
 
-                    <button
-                        className="btn-sort"
-                        onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                        title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
-                        style={{
-                            background: 'white',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '0.4rem 0.8rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            marginLeft: 'auto',
-                            fontSize: '0.85rem',
-                            color: 'var(--text-secondary)'
-                        }}
-                    >
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>sort_by_alpha</span>
-                        {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
-                    </button>
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn--secondary ui-btn--sm"
+                            onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                            title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">sort_by_alpha</span>
+                            {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+                        </button>
+                    </div>
 
                     {filteredBalances.length === 0 ? (
-                        <div className="empty-state">
-                            <span className="material-icons-round">search_off</span>
-                            <p>No se encontraron clientes</p>
+                        <div className="ui-empty ui-empty--plain">
+                            <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
+                            <p className="ui-empty-title">No se encontraron clientes</p>
                         </div>
                     ) : (
-                        <div className="clients-list">
+                        <div className="bp-clients ui-stagger">
                             {filteredBalances.map(client => (
                                 <div
                                     key={client.clientId}
-                                    className={`client-card ${selectedClient?.clientId === client.clientId ? 'active' : ''}`}
+                                    className={`bp-client ${selectedClient?.clientId === client.clientId ? 'is-active' : ''}`}
                                     onClick={() => setSelectedClient(client)}
                                 >
-                                    <div className="client-main">
-                                        <span className="client-avatar">
-                                            {client.clientName?.charAt(0).toUpperCase()}
+                                    <div className="bp-client-main">
+                                        {/* Avatar de iniciales con tono fijo por nombre; el abierto lleva anillo azul */}
+                                        <span
+                                            className={`ui-avatar ui-avatar--${avatarTone(client.clientName)}${selectedClient?.clientId === client.clientId ? ' is-selected' : ''}`}
+                                            aria-hidden="true"
+                                        >
+                                            {avatarInitials(client.clientName)}
                                         </span>
-                                        <div className="client-info">
-                                            <span className="client-name">{client.clientName}</span>
+                                        <div className="bp-client-info">
+                                            <span className="bp-client-name">{client.clientName}</span>
                                             {client.clientRepresentative && (
-                                                <span className="client-rep" style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: 500 }}>
-                                                    <span className="material-icons-round" style={{ fontSize: '0.8rem', verticalAlign: 'middle', marginRight: '2px' }}>badge</span>
+                                                <span className="bp-client-rep">
+                                                    <span className="material-icons-round" aria-hidden="true">badge</span>
                                                     {client.clientRepresentative}
                                                 </span>
                                             )}
-                                            <span className="client-phone">{client.clientPhone || 'Sin teléfono'}</span>
+                                            <span className="bp-client-phone">{client.clientPhone || 'Sin teléfono'}</span>
                                         </div>
                                     </div>
-                                    <div className="client-balance">
+                                    <div className="bp-client-balance">
                                         {client.pendingBalance > 0 ? (
                                             <>
-                                                <span className="balance-amount warning">
+                                                {/* Pendiente en ámbar; en rojo si el cliente tiene mora */}
+                                                <span className={`bp-balance-amount ${client.daysOverdue > 30 ? 'ui-amount--danger' : 'ui-amount--warning'}`}>
                                                     ${formatCurrency(client.pendingBalance || 0)}
                                                 </span>
-                                                <span className="balance-label">Pendiente</span>
+                                                <span className="bp-balance-label">Pendiente</span>
                                                 {client.daysOverdue > 0 && (
-                                                    <span style={{
-                                                        fontSize: '0.65rem', fontWeight: 700,
-                                                        padding: '1px 6px', borderRadius: '10px',
-                                                        background: client.daysOverdue > 30 ? '#fef2f2' : '#fffbeb',
-                                                        color: client.daysOverdue > 30 ? '#dc2626' : '#d97706',
-                                                        marginTop: '2px'
-                                                    }}>
+                                                    <span className={`ui-badge ${client.daysOverdue > 30 ? 'ui-badge--danger' : 'ui-badge--warning'} bp-overdue`}>
                                                         {client.daysOverdue}d mora
                                                     </span>
                                                 )}
                                             </>
                                         ) : (
                                             <>
-                                                <span className="balance-amount success" style={{ fontSize: '1.1rem' }}>
+                                                <span className="ui-badge ui-badge--success bp-uptodate">
                                                     Al día
                                                 </span>
-                                                <span className="balance-label success">Sin deuda</span>
+                                                <span className="bp-balance-label">Sin deuda</span>
                                             </>
                                         )}
                                     </div>
-                                    <span className="material-icons-round client-chevron">chevron_right</span>
+                                    <span className="material-icons-round bp-chevron" aria-hidden="true">chevron_right</span>
                                 </div>
                             ))}
                         </div>
@@ -428,12 +462,13 @@ function BalancesPage() {
                 </div>
 
                 {/* Client Detail Panel */}
-                <div className="client-detail-panel">
+                <div className="bp-detail-panel">
                     <button
-                        className="btn-back-to-list"
+                        type="button"
+                        className="bp-back-to-list"
                         onClick={() => setSelectedClient(null)}
                     >
-                        <span className="material-icons-round">arrow_back</span>
+                        <span className="material-icons-round" aria-hidden="true">arrow_back</span>
                         Volver a clientes
                     </button>
                     {selectedClient ? (
@@ -443,15 +478,31 @@ function BalancesPage() {
                             userRole={userRole}
                         />
                     ) : (
-                        <div className="no-selection">
-                            <span className="material-icons-round">person_search</span>
-                            <p>Selecciona un cliente para ver detalles</p>
+                        <div className="ui-empty ui-empty--plain bp-no-selection">
+                            <span className="material-icons-round ui-empty-icon" aria-hidden="true">person_search</span>
+                            <p className="ui-empty-text">Selecciona un cliente para ver detalles</p>
                         </div>
                     )}
                 </div>
             </div>
         </div>
     );
+}
+
+// Día (entero, sin hora ni zona horaria) de una fecha del backend "YYYY-MM-DD..." o null.
+// Solo para comparar fechas de factura al decidir el color de "vencida".
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+function invoiceDayNumber(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+    if (!match) return null;
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / MS_PER_DAY;
+}
+
+// Porcentaje pagado de una factura (0–100), solo para la mini barra. Protegido contra /0.
+function invoicePaidPct(paid, total) {
+    const t = Number(total) || 0;
+    if (t <= 0) return 0;
+    return Math.min(100, Math.max(0, ((Number(paid) || 0) / t) * 100));
 }
 
 // ============================================
@@ -681,93 +732,170 @@ function ClientDetailView({ client, onRefresh, userRole }) {
     };
 
     if (loading) {
+        // Esqueleto con la forma del detalle: encabezado, tres tarjetas de resumen y facturas
         return (
-            <div className="detail-loading">
-                <span className="material-icons-round spin">sync</span>
-                Cargando detalles...
+            <div className="bp-detail-skeleton" role="status" aria-busy="true">
+                <span className="ui-sr-only">Cargando detalles...</span>
+                <div className="bp-skeleton-row" aria-hidden="true">
+                    <span className="ui-skeleton ui-skeleton--circle bp-skeleton-avatar bp-skeleton-avatar--lg" />
+                    <div className="ui-skeleton-stack bp-skeleton-lines">
+                        <span className="ui-skeleton ui-skeleton--title" />
+                        <span className="ui-skeleton ui-skeleton--text bp-skeleton-short" />
+                    </div>
+                </div>
+                <div className="bp-skeleton-stats" aria-hidden="true">
+                    {[0, 1, 2].map((i) => (
+                        <span key={i} className="ui-skeleton ui-skeleton--block" />
+                    ))}
+                </div>
+                <div className="ui-skeleton-stack" aria-hidden="true">
+                    {[0, 1, 2].map((i) => (
+                        <span key={i} className="ui-skeleton ui-skeleton--block" />
+                    ))}
+                </div>
             </div>
         );
     }
 
+    // Mora: tono semántico según días (mismos umbrales de siempre)
+    // Mora en toda la pantalla: al día = verde, 1 a 30 días = ámbar, más de 30 = rojo
+    const overdueTone = clientDetail?.daysOverdue > 30 ? 'danger' : clientDetail?.daysOverdue > 0 ? 'warning' : 'success';
+
+    // ---- Solo presentación (no cambia ningún cálculo ni dato enviado) ----
+    const hasMora = clientDetail?.daysOverdue > 0;
+    const detailPaid = clientDetail?.totalPaid || 0;
+    const detailPending = clientDetail?.pendingBalance || 0;
+    // Tono del saldo pendiente: ámbar; rojo si hay mora; verde si no debe nada
+    const pendingTone = detailPending > 0 ? (clientDetail?.daysOverdue > 30 ? 'danger' : 'warning') : 'success';
+    // "Pagado X %": lo pagado sobre lo cobrado al cliente (pagado + pendiente, que ya incluye el
+    // saldo inicial; sin saldo inicial es igual a "Total Órdenes"). Protegido contra división por 0.
+    const chargedTotal = detailPaid + detailPending;
+    const paidPct = chargedTotal > 0 ? Math.min(100, Math.max(0, (detailPaid / chargedTotal) * 100)) : 0;
+    // Hacia abajo: con un saldo mínimo pendiente nunca se lee "100 %"
+    const paidPctLabel = Math.floor(paidPct);
+
+    // Factura vencida (franja y monto en rojo). El backend calcula la mora del cliente
+    // (daysOverdue) desde la factura con saldo más antigua; con esa misma referencia, una factura
+    // con saldo está vencida si su fecha es anterior a "fecha más antigua + días de mora"
+    // (así no se repite aquí el plazo de pago del backend). Sin mora no hay facturas vencidas.
+    const pendingInvoiceDays = (clientDetail?.pendingOrders || [])
+        .filter(o => o.pendingAmount > 0)
+        .map(o => invoiceDayNumber(o.fecha))
+        .filter(d => d !== null);
+    const overdueCutoff = hasMora && pendingInvoiceDays.length > 0
+        ? Math.min(...pendingInvoiceDays) + clientDetail.daysOverdue
+        : null;
+    const isInvoiceOverdue = (order) => {
+        if (overdueCutoff === null || !(order.pendingAmount > 0)) return false;
+        const day = invoiceDayNumber(order.fecha);
+        return day !== null && day < overdueCutoff;
+    };
+
     return (
-        <div className="client-detail-content">
+        <div className="bp-detail ui-rise-in">
             {/* Client Header */}
-            <div className="detail-header">
-                <div className="client-avatar large">
-                    {client.clientName?.charAt(0).toUpperCase()}
-                </div>
-                <div className="client-title">
+            <div className="bp-detail-header">
+                <span
+                    className={`ui-avatar ui-avatar--lg ui-avatar--${avatarTone(client.clientName)}`}
+                    aria-hidden="true"
+                >
+                    {avatarInitials(client.clientName)}
+                </span>
+                <div className="bp-detail-title">
                     <h2>{client.clientName}</h2>
-                    <p>{client.clientPhone || 'Sin teléfono'}</p>
+                    <p className={`bp-detail-phone${client.clientPhone ? '' : ' is-empty'}`}>
+                        <span className="ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true">
+                            <span className="material-icons-round">phone</span>
+                        </span>
+                        {client.clientPhone || 'Sin teléfono'}
+                    </p>
                 </div>
             </div>
 
-            {/* Balance Summary */}
-            <div className="balance-summary-grid">
-                <div className="summary-card">
-                    <span className="material-icons-round">account_balance</span>
-                    <div>
-                        <span className="value">${formatCurrency(clientDetail?.totalOrders || 0)}</span>
-                        <span className="label">Total Órdenes</span>
+            {/* Balance Summary: total (azul), pagado (verde), pendiente (ámbar; rojo con mora) */}
+            <div className="bp-summary ui-stagger">
+                <div className="ui-stat bp-summary-card">
+                    <span className="ui-stat-icon ui-stat-icon--primary" aria-hidden="true">
+                        <span className="material-icons-round">account_balance</span>
+                    </span>
+                    <div className="ui-stat-content">
+                        <span className="ui-stat-value">${formatCurrency(clientDetail?.totalOrders || 0)}</span>
+                        <span className="ui-stat-label">Total Órdenes</span>
                     </div>
                 </div>
-                <div className="summary-card success">
-                    <span className="material-icons-round">payments</span>
-                    <div>
-                        <span className="value">${formatCurrency(clientDetail?.totalPaid || 0)}</span>
-                        <span className="label">Total Pagado</span>
+                <div className="ui-stat bp-summary-card">
+                    <span className="ui-stat-icon ui-stat-icon--success" aria-hidden="true">
+                        <span className="material-icons-round">payments</span>
+                    </span>
+                    <div className="ui-stat-content">
+                        <span className="ui-stat-value ui-text-success">${formatCurrency(clientDetail?.totalPaid || 0)}</span>
+                        <span className="ui-stat-label">Total Pagado</span>
                     </div>
                 </div>
-                <div className="summary-card warning">
-                    <span className="material-icons-round">pending</span>
-                    <div>
-                        <span className="value">${formatCurrency(clientDetail?.pendingBalance || 0)}</span>
-                        <span className="label">Saldo Pendiente</span>
+                <div className={`ui-stat bp-summary-card bp-summary-card--${pendingTone}`}>
+                    <span className={`ui-stat-icon ui-stat-icon--${pendingTone}`} aria-hidden="true">
+                        <span className="material-icons-round">pending</span>
+                    </span>
+                    <div className="ui-stat-content">
+                        <span className={`ui-stat-value ui-text-${pendingTone}`}>${formatCurrency(clientDetail?.pendingBalance || 0)}</span>
+                        <span className="ui-stat-label">Saldo Pendiente</span>
                     </div>
                 </div>
             </div>
+
+            {/* Barra "Pagado X %" (verde sobre pista clara) */}
+            {chargedTotal > 0 && (
+                <div className="bp-paid-progress">
+                    <div className="ui-progress-meta">
+                        <span>Pagado</span>
+                        <span className="bp-paid-pct">{paidPctLabel} %</span>
+                    </div>
+                    <div
+                        className="ui-progress ui-progress--lg ui-progress--success"
+                        style={{ '--value': paidPct }}
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={paidPctLabel}
+                        aria-label="Porcentaje pagado"
+                    >
+                        <span className="ui-progress-bar" />
+                    </div>
+                </div>
+            )}
 
             {/* Days Overdue & Last Payment */}
-            <div className="client-extra-info" style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <div className="bp-extra-info">
                 {clientDetail?.daysOverdue > 0 && (
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.4rem 0.8rem', borderRadius: '8px',
-                        background: clientDetail.daysOverdue > 30 ? '#fef2f2' : clientDetail.daysOverdue > 15 ? '#fffbeb' : '#f0fdf4',
-                        color: clientDetail.daysOverdue > 30 ? '#dc2626' : clientDetail.daysOverdue > 15 ? '#d97706' : '#16a34a',
-                        fontSize: '0.85rem', fontWeight: 600
-                    }}>
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>schedule</span>
+                    <span className={`ui-badge ui-badge--${overdueTone} bp-extra-badge`}>
+                        <span className="material-icons-round" aria-hidden="true">schedule</span>
                         {clientDetail.daysOverdue} días de mora
-                    </div>
+                    </span>
                 )}
                 {clientDetail?.lastPaymentDate && (
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.4rem 0.8rem', borderRadius: '8px',
-                        background: '#f0f9ff', color: '#0369a1',
-                        fontSize: '0.85rem', fontWeight: 500
-                    }}>
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>event</span>
+                    <span className="ui-badge ui-badge--primary bp-extra-badge">
+                        <span className="material-icons-round" aria-hidden="true">event</span>
                         Último pago: {new Date(clientDetail.lastPaymentDate).toLocaleDateString()}
-                    </div>
+                    </span>
                 )}
             </div>
 
             {/* Owner Controls */}
             {isOwner && (
-                <div className="owner-controls">
+                <div className="bp-owner-controls">
                     {/* Credit Limit Control */}
-                    <div className="control-section">
-                        <h3>
-                            <span className="material-icons-round">credit_card</span>
+                    <section className="ui-section bp-control">
+                        <h3 className="ui-section-title bp-control-title">
+                            <span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true">credit_card</span>
                             Límite de Crédito
                         </h3>
-                        <div className="control-row">
-                            <div className="input-group">
-                                <span className="prefix">$</span>
+                        <div className="bp-control-row">
+                            <div className="ui-input-group">
+                                <span className="ui-input-prefix" aria-hidden="true">$</span>
                                 <input
                                     type="number"
+                                    className="ui-input"
+                                    aria-label="Límite de crédito"
                                     value={creditLimit}
                                     onChange={(e) => setCreditLimit(e.target.value)}
                                     placeholder="Ej: 500.00"
@@ -776,7 +904,8 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                 />
                             </div>
                             <button
-                                className="btn-save"
+                                type="button"
+                                className="ui-btn ui-btn--primary"
                                 onClick={handleSaveCreditLimit}
                                 disabled={saving === 'credit'}
                             >
@@ -784,7 +913,8 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                             </button>
                             {clientDetail?.creditLimit && (
                                 <button
-                                    className="btn-remove"
+                                    type="button"
+                                    className="ui-btn ui-btn--danger-ghost"
                                     onClick={handleRemoveCreditLimit}
                                     disabled={saving === 'removeCredit'}
                                 >
@@ -793,26 +923,28 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                             )}
                         </div>
                         {clientDetail?.creditLimit && (
-                            <p className="control-info">
+                            <p className="bp-control-info">
                                 Límite actual: <strong>${formatCurrency(clientDetail.creditLimit)}</strong>
                             </p>
                         )}
-                    </div>
+                    </section>
 
                     {/* Balance Favor Control */}
-                    <div className="control-section">
-                        <h3>
-                            <span className="material-icons-round">savings</span>
+                    <section className="ui-section bp-control">
+                        <h3 className="ui-section-title bp-control-title">
+                            <span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--success" aria-hidden="true">savings</span>
                             Saldo a Favor
                         </h3>
-                        <p className="control-description">
+                        <p className="ui-section-desc bp-control-desc">
                             Agrega saldo a favor para que se descuente automáticamente en futuras compras.
                         </p>
-                        <div className="control-row">
-                            <div className="input-group">
-                                <span className="prefix">$</span>
+                        <div className="bp-control-row">
+                            <div className="ui-input-group">
+                                <span className="ui-input-prefix" aria-hidden="true">$</span>
                                 <input
                                     type="number"
+                                    className="ui-input"
+                                    aria-label="Monto de saldo a favor"
                                     value={balanceFavorAmount}
                                     onChange={(e) => setBalanceFavorAmount(e.target.value)}
                                     placeholder="Ej: 150000"
@@ -821,8 +953,8 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                 />
                             </div>
                             <button
-                                className="btn-save"
-                                style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                                type="button"
+                                className="ui-btn ui-btn--primary"
                                 onClick={handleAddBalanceFavor}
                                 disabled={saving === 'balanceFavor'}
                             >
@@ -830,27 +962,29 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                             </button>
                         </div>
                         {(clientDetail?.balanceFavor > 0) && (
-                            <p className="control-info" style={{ color: '#059669', backgroundColor: '#ecfdf5', borderColor: '#d1fae5' }}>
+                            <p className="bp-control-info is-success">
                                 Saldo a favor disponible: <strong>${formatCurrency(clientDetail.balanceFavor || 0)}</strong>
                             </p>
                         )}
-                    </div>
+                    </section>
 
                     {/* Initial Balance Control */}
                     {!clientDetail?.initialBalanceSet && (
-                        <div className="control-section">
-                            <h3>
-                                <span className="material-icons-round">account_balance_wallet</span>
+                        <section className="ui-section bp-control">
+                            <h3 className="ui-section-title bp-control-title">
+                                <span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--teal" aria-hidden="true">account_balance_wallet</span>
                                 Saldo Inicial
                             </h3>
-                            <p className="control-description">
+                            <p className="ui-section-desc bp-control-desc">
                                 Establece el saldo inicial pendiente del cliente (solo se puede hacer una vez).
                             </p>
-                            <div className="control-row">
-                                <div className="input-group">
-                                    <span className="prefix">$</span>
+                            <div className="bp-control-row">
+                                <div className="ui-input-group">
+                                    <span className="ui-input-prefix" aria-hidden="true">$</span>
                                     <input
                                         type="number"
+                                        className="ui-input"
+                                        aria-label="Saldo inicial"
                                         value={initialBalance}
                                         onChange={(e) => setInitialBalance(e.target.value)}
                                         placeholder="Ej: 100.00"
@@ -859,67 +993,70 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                     />
                                 </div>
                                 <button
-                                    className="btn-save primary"
+                                    type="button"
+                                    className="ui-btn ui-btn--primary"
                                     onClick={handleSaveInitialBalance}
                                     disabled={saving === 'initial'}
                                 >
                                     {saving === 'initial' ? '...' : 'Establecer'}
                                 </button>
                             </div>
-                        </div>
+                        </section>
                     )}
 
                     {clientDetail?.initialBalanceSet && (
-                        <div className="control-section readonly">
-                            <h3>
-                                <span className="material-icons-round">account_balance_wallet</span>
+                        <section className="ui-section bp-control is-readonly">
+                            <h3 className="ui-section-title bp-control-title">
+                                <span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--teal" aria-hidden="true">account_balance_wallet</span>
                                 Saldo Inicial
                             </h3>
-                            <p className="control-info">
+                            <p className="bp-control-info">
                                 Saldo inicial establecido: <strong>${formatCurrency(clientDetail.initialBalance || 0)}</strong>
                             </p>
-                        </div>
+                        </section>
                     )}
                 </div>
             )}
 
             {/* Pending Orders */}
-            <div className="orders-section">
-                <h3>
-                    <span className="material-icons-round">receipt_long</span>
+            <div className="bp-orders">
+                <h3 className="bp-orders-title">
+                    <span className="material-icons-round ui-icon-tile ui-icon-tile--sm ui-icon-tile--primary" aria-hidden="true">receipt_long</span>
                     Órdenes Pendientes de Pago
                 </h3>
 
                 {/* Search and Sort Controls */}
-                <div className="orders-filters">
-                    <div className="search-input-wrapper">
-                        <span className="material-icons-round">search</span>
+                <div className="bp-orders-filters">
+                    <div className="ui-search bp-orders-search">
+                        <span className="material-icons-round ui-search-icon" aria-hidden="true">search</span>
                         <input
                             type="text"
+                            className="ui-input"
+                            aria-label="Buscar por factura o pedido"
                             placeholder="Buscar por factura o pedido (P-123)..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="filters-row">
+                    <div className="bp-sort-row">
                     <button
-                        className="btn-sort"
+                        type="button"
+                        className="ui-btn ui-btn--secondary ui-btn--sm"
                         onClick={() => setSortBy(prev => prev === 'invoice' ? 'date' : 'invoice')}
                         title={sortBy === 'invoice' ? 'Ordenar por factura' : 'Ordenar por fecha'}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>
+                        <span className="material-icons-round" aria-hidden="true">
                             {sortBy === 'date' ? 'calendar_today' : 'tag'}
                         </span>
                         {sortBy === 'date' ? 'Fecha' : 'Factura'}
                     </button>
                     <button
-                        className="btn-sort"
+                        type="button"
+                        className="ui-btn ui-btn--secondary ui-btn--sm"
                         onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
                         title={sortOrder === 'asc' ? 'Orden Ascendente' : 'Orden Descendente'}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>
+                        <span className="material-icons-round" aria-hidden="true">
                             {sortOrder === 'asc' ? 'arrow_upward' : 'arrow_downward'}
                         </span>
                         {sortOrder === 'asc' ? 'Asc' : 'Desc'}
@@ -927,7 +1064,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                     </div>
                 </div>
                 {clientDetail?.pendingOrders?.length > 0 ? (
-                    <div className="orders-list">
+                    <div className="bp-order-list ui-stagger">
                         {clientDetail.pendingOrders
                             // Factura ("1500", "#1500") o pedido ("123", "P-123", "p123")
                             .filter(order => orderReferenceMatches(order, searchTerm))
@@ -944,84 +1081,100 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                     : invoiceB.localeCompare(invoiceA);
                             })
                             .map(order => {
-                                // Determine payment status badge
+                                // Estado de pago → badge de cartera (Pagado=success, Parcial=primary,
+                                // Pendiente=warning: en cartera "pendiente" requiere atención)
                                 const statusInfo = order.pendingAmount <= 0
-                                    ? { text: 'Pagado', color: '#16a34a', bg: '#f0fdf4' }
+                                    ? { text: 'Pagado', tone: 'success' }
                                     : order.paidAmount > 0
-                                        ? { text: 'Parcial', color: '#d97706', bg: '#fffbeb' }
-                                        : { text: 'Pendiente', color: '#dc2626', bg: '#fef2f2' };
+                                        ? { text: 'Parcial', tone: 'primary' }
+                                        : { text: 'Pendiente', tone: 'warning' };
+                                // Solo presentación: franja de 4px por estado (vencida = rojo),
+                                // montos con color y mini barra de pago (mismos valores mostrados)
+                                const overdue = isInvoiceOverdue(order);
+                                const stripeTone = overdue ? 'danger' : statusInfo.tone;
+                                // Saldada (incluye facturas en $0): barra llena, igual que su badge "Pagado"
+                                const orderPaidPct = order.pendingAmount <= 0
+                                    ? 100
+                                    : invoicePaidPct(order.paidAmount, order.discountedTotal || order.total || 0);
+                                const paidClass = order.paidAmount > 0 ? 'ui-amount--success' : 'is-zero';
+                                const pendingClass = order.pendingAmount > 0
+                                    ? (overdue ? 'ui-amount--danger' : 'ui-amount--warning')
+                                    : 'is-zero';
 
                                 return (
-                                    <div key={order.orderId || order.id} className="order-item">
+                                    <div key={order.orderId || order.id} className={`bp-order ui-stripe ui-stripe--${stripeTone}`}>
                                         {/* Main order info - CLICKEABLE para ver historial */}
                                         <div
-                                            className="order-main clickable"
+                                            className="bp-order-main"
                                             onClick={() => handleShowPaymentHistory(order)}
                                             title="Ver historial de pagos"
                                         >
-                                            <div className="order-invoice-info">
-                                                <span className="order-id">{formatOrderLabel(order)}</span>
-                                                <span className="order-date">
+                                            <div className="bp-order-ref">
+                                                <span className="bp-order-id">{formatOrderLabel(order)}</span>
+                                                <span className="bp-order-date">
+                                                    <span className="material-icons-round" aria-hidden="true">event</span>
                                                     {new Date(order.fecha).toLocaleDateString()}
                                                 </span>
                                                 {/* Payment Status Badge */}
-                                                <span style={{
-                                                    padding: '2px 8px', borderRadius: '12px',
-                                                    fontSize: '0.7rem', fontWeight: 700,
-                                                    background: statusInfo.bg, color: statusInfo.color,
-                                                    marginLeft: '0.5rem'
-                                                }}>
+                                                <span className={`ui-badge ui-badge--${statusInfo.tone}`}>
                                                     {statusInfo.text}
                                                 </span>
                                             </div>
-                                        </div>
-                                        <div className="order-amounts">
-                                            <div className="amount-row">
-                                                <span>Total:</span>
-                                                <strong>${formatCurrency(order.discountedTotal || order.total || 0)}</strong>
-                                            </div>
-                                            <div className="amount-row">
-                                                <span>Pagado:</span>
-                                                <span className="paid">${formatCurrency(order.paidAmount || 0)}</span>
-                                            </div>
-                                            <div className="amount-row pending">
-                                                <span>Pendiente:</span>
-                                                <strong>${formatCurrency(order.pendingAmount || 0)}</strong>
+                                            {/* Mini barra de pago de la factura (verde) */}
+                                            <div
+                                                className="ui-progress ui-progress--sm ui-progress--success bp-order-progress"
+                                                style={{ '--value': orderPaidPct }}
+                                                role="progressbar"
+                                                aria-valuemin={0}
+                                                aria-valuemax={100}
+                                                aria-valuenow={Math.floor(orderPaidPct)}
+                                                aria-label="Porcentaje pagado de la factura"
+                                            >
+                                                <span className="ui-progress-bar" />
                                             </div>
                                         </div>
+                                        <dl className="bp-order-amounts">
+                                            <div className="bp-amount-row">
+                                                <dt>Total:</dt>
+                                                <dd>${formatCurrency(order.discountedTotal || order.total || 0)}</dd>
+                                            </div>
+                                            <div className="bp-amount-row">
+                                                <dt>Pagado:</dt>
+                                                <dd className={paidClass}>${formatCurrency(order.paidAmount || 0)}</dd>
+                                            </div>
+                                            <div className="bp-amount-row is-pending">
+                                                <dt>Pendiente:</dt>
+                                                <dd className={pendingClass}>${formatCurrency(order.pendingAmount || 0)}</dd>
+                                            </div>
+                                        </dl>
                                         {/* Action Buttons */}
-                                        <div className="order-actions">
+                                        <div className="bp-order-actions">
                                             {/* History Button - Available for all users */}
                                             <button
-                                                className="btn-history"
+                                                type="button"
+                                                className="ui-icon-btn ui-icon-btn--bordered ui-icon-btn--lg bp-history-btn"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleShowPaymentHistory(order);
                                                 }}
                                                 title="Ver historial de pagos"
+                                                aria-label="Ver historial de pagos"
                                             >
-                                                <span className="material-icons-round">history</span>
+                                                <span className="material-icons-round" aria-hidden="true">history</span>
                                             </button>
 
                                             {/* Register Payment Button - Only for Owner, and only if pending > 0 */}
                                             {isOwner && order.pendingAmount > 0 && (
                                                 <button
-                                                    className="btn-register-payment"
+                                                    type="button"
+                                                    className="ui-btn ui-btn--primary"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleOpenPaymentForm(order);
                                                     }}
                                                     title="Registrar Pago"
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '4px',
-                                                        padding: '6px 12px', borderRadius: '8px',
-                                                        border: 'none', cursor: 'pointer',
-                                                        background: '#10b981', color: 'white',
-                                                        fontSize: '0.8rem', fontWeight: 600,
-                                                        transition: 'all 0.2s'
-                                                    }}
                                                 >
-                                                    <span className="material-icons-round" style={{ fontSize: '16px' }}>payments</span>
+                                                    <span className="material-icons-round" aria-hidden="true">payments</span>
                                                     Pagar
                                                 </button>
                                             )}
@@ -1029,15 +1182,17 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                             {/* Manage Button - Only for Owner */}
                                             {isOwner && (
                                                 <button
-                                                    className="btn-manage-order"
+                                                    type="button"
+                                                    className="ui-icon-btn ui-icon-btn--bordered ui-icon-btn--lg"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleManageOrder(order.id || order.orderId);
                                                     }}
                                                     title="Ver detalles de la orden"
+                                                    aria-label="Ver detalles de la orden"
                                                     disabled={loadingOrder}
                                                 >
-                                                    <span className="material-icons-round">visibility</span>
+                                                    <span className="material-icons-round" aria-hidden="true">visibility</span>
                                                 </button>
                                             )}
                                         </div>
@@ -1046,60 +1201,72 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                             })}
                     </div>
                 ) : (
-                    <div className="empty-orders">
-                        <span className="material-icons-round">check_circle</span>
-                        <p>No hay órdenes pendientes de pago</p>
+                    <div className="ui-empty ui-empty--plain bp-orders-empty">
+                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">check_circle</span>
+                        <p className="ui-empty-text">No hay órdenes pendientes de pago</p>
                     </div>
                 )}
             </div>
 
             {/* Order Management Modal */}
             {selectedOrderForModal && (
-                <OrderDetailModal
-                    order={selectedOrderForModal}
-                    userRole={userRole}
-                    onClose={() => setSelectedOrderForModal(null)}
-                    onRefresh={() => {
-                        // Refresh client detail to update balances
-                        fetchClientDetail();
-                        // Also refresh the specific order to update totals/discounts
-                        handleManageOrder(selectedOrderForModal.id || selectedOrderForModal.orderId);
-                    }}
-                />
+                <LazyErrorBoundary variant="modal" onClose={() => setSelectedOrderForModal(null)}>
+                <Suspense fallback={<ModalFallback onClose={() => setSelectedOrderForModal(null)} />}>
+                    <OrderDetailModal
+                        order={selectedOrderForModal}
+                        userRole={userRole}
+                        onClose={() => setSelectedOrderForModal(null)}
+                        onRefresh={() => {
+                            // Refresh client detail to update balances
+                            fetchClientDetail();
+                            // Also refresh the specific order to update totals/discounts
+                            handleManageOrder(selectedOrderForModal.id || selectedOrderForModal.orderId);
+                        }}
+                    />
+                </Suspense>
+                </LazyErrorBoundary>
             )}
 
             {/* Payment History Modal */}
             {showPaymentHistory && selectedOrderForHistory && (
-                <PaymentHistoryModal
-                    isOpen={showPaymentHistory}
-                    onClose={handleClosePaymentHistory}
-                    orderId={selectedOrderForHistory.id || selectedOrderForHistory.orderId}
-                    invoiceNumber={selectedOrderForHistory.invoiceNumber}
-                    orderNumber={selectedOrderForHistory.orderNumber}
-                    onPaymentUpdate={handlePaymentUpdate}
-                    userRole={userRole}
-                />
+                <LazyErrorBoundary variant="modal" onClose={handleClosePaymentHistory}>
+                <Suspense fallback={<ModalFallback onClose={handleClosePaymentHistory} />}>
+                    <PaymentHistoryModal
+                        isOpen={showPaymentHistory}
+                        onClose={handleClosePaymentHistory}
+                        orderId={selectedOrderForHistory.id || selectedOrderForHistory.orderId}
+                        invoiceNumber={selectedOrderForHistory.invoiceNumber}
+                        orderNumber={selectedOrderForHistory.orderNumber}
+                        onPaymentUpdate={handlePaymentUpdate}
+                        userRole={userRole}
+                    />
+                </Suspense>
+                </LazyErrorBoundary>
             )}
 
             {/* Payment Form Modal (reusing styled modal from OrderManagementModal) */}
             {showPaymentForm && selectedOrderForPayment && (
-                <PaymentFormModal
-                    orderId={selectedOrderForPayment.orderId || selectedOrderForPayment.id}
-                    orderTotal={selectedOrderForPayment.discountedTotal || selectedOrderForPayment.total || 0}
-                    totalPaid={selectedOrderForPayment.paidAmount || 0}
-                    availableCredit={clientDetail?.balanceFavor || 0}
-                    onClose={handleClosePaymentForm}
-                    onSuccess={() => {
-                        handleClosePaymentForm();
-                        handlePaymentRegistered();
-                    }}
-                />
+                <LazyErrorBoundary variant="modal" onClose={handleClosePaymentForm}>
+                <Suspense fallback={<ModalFallback onClose={handleClosePaymentForm} />}>
+                    <PaymentFormModal
+                        orderId={selectedOrderForPayment.orderId || selectedOrderForPayment.id}
+                        orderTotal={selectedOrderForPayment.discountedTotal || selectedOrderForPayment.total || 0}
+                        totalPaid={selectedOrderForPayment.paidAmount || 0}
+                        availableCredit={clientDetail?.balanceFavor || 0}
+                        onClose={handleClosePaymentForm}
+                        onSuccess={() => {
+                            handleClosePaymentForm();
+                            handlePaymentRegistered();
+                        }}
+                    />
+                </Suspense>
+                </LazyErrorBoundary>
             )}
 
             {loadingOrder && (
-                <div className="modal-overlay">
-                    <div className="loading-state">
-                        <span className="material-icons-round spin">sync</span>
+                <div className="ui-modal-overlay bp-loading-overlay">
+                    <div className="ui-loading bp-loading-dialog" role="status">
+                        <span className="ui-spinner" aria-hidden="true"></span>
                         <p>Cargando orden...</p>
                     </div>
                 </div>

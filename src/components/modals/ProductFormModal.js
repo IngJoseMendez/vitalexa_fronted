@@ -3,6 +3,7 @@ import { useToast } from '../ToastContainer';
 
 import productService from '../../api/productService';
 import { formatCurrency } from '../../utils/formatters';
+import SearchableSelect from '../SearchableSelect';
 import './ProductFormModal.css';
 
 /**
@@ -180,177 +181,219 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess, on
     };
 
     return (
-        <div className="pfm-overlay" onClick={onClose}>
-            <div className="pfm-modal" onClick={e => e.stopPropagation()}>
-                <div className="pfm-header">
-                    <h3>
-                        <span className="material-icons-round" style={{ color: 'var(--pfm-primary)' }}>
-                            {isEditing ? 'edit' : 'add_circle'}
-                        </span>
-                        {isEditing ? 'Editar Producto' : 'Crear Nuevo Producto'}
-                    </h3>
-                    <button onClick={onClose} className="pfm-close-btn">&times;</button>
+        <div className="ui-modal-overlay pfm-overlay" onClick={onClose}>
+            <div
+                className="ui-modal ui-modal--md pfm-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="pfm-title"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="ui-modal-header pfm-header">
+                    <span className="ui-modal-icon" aria-hidden="true">
+                        <span className="material-icons-round">{isEditing ? 'edit' : 'add_circle'}</span>
+                    </span>
+                    <div className="ui-modal-heading">
+                        <h3 id="pfm-title" className="ui-modal-title">
+                            {isEditing ? 'Editar Producto' : 'Crear Nuevo Producto'}
+                        </h3>
+                        <p className="ui-modal-subtitle">Al guardar se descarga la huella en PDF.</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="ui-icon-btn pfm-close-btn" aria-label="Cerrar">
+                        <span className="material-icons-round" aria-hidden="true">close</span>
+                    </button>
                 </div>
 
-                <div className="pfm-body">
+                <div className="ui-modal-body pfm-body">
                     <form id="productForm" onSubmit={handleSubmit} className="pfm-form">
 
                         {/* Componentes del formulario */}
-                        <div className="pfm-group">
-                            <label className="pfm-label">Nombre del Producto *</label>
-                            <input
-                                type="text"
-                                required
-                                className="pfm-input"
-                                value={formData.nombre}
-                                onChange={e => setFormData({ ...formData, nombre: e.target.value })}
-                                placeholder="Ej: Camiseta básica"
-                            />
-                        </div>
-
-                        <div className="pfm-group">
-                            <label className="pfm-label">Descripción *</label>
-                            <textarea
-                                required
-                                className="pfm-textarea"
-                                rows="3"
-                                value={formData.descripcion}
-                                onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
-                                placeholder="Detalles del producto..."
-                            />
-                        </div>
-
-                        <div className="pfm-grid-3">
-                            <div className="pfm-group">
-                                <label className="pfm-label">Precio ($) *</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    required
-                                    className="pfm-input"
-                                    value={formData.precio}
-                                    onWheel={(e) => e.target.blur()}
-                                    onChange={e => setFormData({ ...formData, precio: e.target.value })}
-                                />
-                                {formData.precio && (
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--pfm-text-sec)', marginTop: '4px' }}>
-                                        Vista previa: <strong>${formatCurrency(formData.precio)}</strong>
-                                    </div>
-                                )}
-                            </div>
-                            {isEditing ? (
-                                <div className="pfm-group">
-                                    <span className="pfm-label">Stock actual</span>
-                                    <div className="pfm-stock-readonly" data-testid="pfm-stock-actual"
-                                        style={{ color: Number(product.stock) < 0 ? '#ef4444' : 'var(--pfm-text-main)' }}>
-                                        {product.stock ?? 0}
-                                    </div>
+                        <section className="ui-section">
+                            <div className="ui-section-head">
+                                <div>
+                                    <h4 className="ui-section-title">Información del producto</h4>
                                 </div>
-                            ) : (
-                                <div className="pfm-group">
-                                    <label className="pfm-label" htmlFor="pfm-stock">Stock inicial *</label>
+                            </div>
+                            <div className="ui-grid ui-grid--1">
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="pfm-nombre">Nombre del Producto <span className="ui-required">*</span></label>
                                     <input
-                                        id="pfm-stock"
-                                        type="number"
-                                        min="0"
+                                        id="pfm-nombre"
+                                        type="text"
                                         required
-                                        className="pfm-input"
-                                        value={formData.stock}
-                                        onChange={e => setFormData({ ...formData, stock: e.target.value })}
-                                        onWheel={(e) => e.target.blur()}
+                                        className="ui-input"
+                                        value={formData.nombre}
+                                        onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+                                        placeholder="Ej: Camiseta básica"
                                     />
                                 </div>
-                            )}
-                            <div className="pfm-group">
-                                <label className="pfm-label" title="Alerta de stock bajo">Reorder Point</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    className="pfm-input"
-                                    value={formData.reorderPoint}
-                                    onChange={e => setFormData({ ...formData, reorderPoint: e.target.value })}
-                                    onWheel={(e) => e.target.blur()}
-                                    placeholder="Def: 10"
-                                />
-                            </div>
-                        </div>
 
-                        {isEditing && (
-                            <div className="pfm-stock-note" role="note">
-                                <span className="material-icons-round" aria-hidden="true">info</span>
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="pfm-descripcion">Descripción <span className="ui-required">*</span></label>
+                                    <textarea
+                                        id="pfm-descripcion"
+                                        required
+                                        className="ui-textarea"
+                                        rows="3"
+                                        value={formData.descripcion}
+                                        onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
+                                        placeholder="Detalles del producto..."
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="ui-section">
+                            <div className="ui-section-head">
                                 <div>
-                                    <p>
-                                        El stock no se edita aquí: un número escrito a mano pisaba las ventas en curso.
-                                        Para sumar mercancía usa <strong>Llegada</strong>; para dejarlo igual a lo que hay en
-                                        bodega usa <strong>Conteo físico</strong> (descuenta solo lo que está en pedidos).
-                                    </p>
-                                    {(onAddStock || onPhysicalCount) && (
-                                        <div className="pfm-stock-actions">
-                                            {onAddStock && (
-                                                <button type="button" className="pfm-btn pfm-btn-secondary"
-                                                    onClick={() => onAddStock(product)}>
-                                                    Registrar llegada
-                                                </button>
-                                            )}
-                                            {onPhysicalCount && (
-                                                <button type="button" className="pfm-btn pfm-btn-secondary"
-                                                    onClick={() => onPhysicalCount(product)}>
-                                                    Conteo físico
-                                                </button>
-                                            )}
-                                        </div>
+                                    <h4 className="ui-section-title">Precio e inventario</h4>
+                                </div>
+                            </div>
+                            <div className="ui-grid ui-grid--3">
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="pfm-precio">Precio ($) <span className="ui-required">*</span></label>
+                                    <div className="ui-input-group">
+                                        <span className="ui-input-prefix" aria-hidden="true">$</span>
+                                        <input
+                                            id="pfm-precio"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            required
+                                            className="ui-input"
+                                            value={formData.precio}
+                                            onWheel={(e) => e.target.blur()}
+                                            onChange={e => setFormData({ ...formData, precio: e.target.value })}
+                                        />
+                                    </div>
+                                    {formData.precio && (
+                                        <span className="ui-help pfm-price-preview">
+                                            Vista previa: <strong>${formatCurrency(formData.precio)}</strong>
+                                        </span>
                                     )}
                                 </div>
-                            </div>
-                        )}
-
-                        <div className="pfm-group">
-                            <label className="pfm-label">Categoría / Etiqueta</label>
-                            <select
-                                className="pfm-select"
-                                value={formData.tagId}
-                                onChange={e => setFormData({ ...formData, tagId: e.target.value })}
-                            >
-                                <option value="">-- Sin etiqueta --</option>
-                                {tags.map(tag => (
-                                    <option key={tag.id} value={tag.id}>{tag.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="pfm-image-upload">
-                            {preview ? (
-                                <div className="pfm-preview-container">
-                                    <img src={preview} alt="Preview" className="pfm-preview-img" />
-                                    <br />
-                                    <button
-                                        type="button"
-                                        onClick={handleRemoveImage}
-                                        className="pfm-remove-img"
-                                    >
-                                        Quitar imagen
-                                    </button>
+                                {isEditing ? (
+                                    <div className="ui-field">
+                                        <span className="ui-label">Stock actual</span>
+                                        <div className={`pfm-stock-readonly${Number(product.stock) < 0 ? ' is-negative' : ''}`} data-testid="pfm-stock-actual">
+                                            {product.stock ?? 0}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="ui-field">
+                                        <label className="ui-label" htmlFor="pfm-stock">Stock inicial <span className="ui-required">*</span></label>
+                                        <input
+                                            id="pfm-stock"
+                                            type="number"
+                                            min="0"
+                                            required
+                                            className="ui-input"
+                                            value={formData.stock}
+                                            onChange={e => setFormData({ ...formData, stock: e.target.value })}
+                                            onWheel={(e) => e.target.blur()}
+                                        />
+                                    </div>
+                                )}
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="pfm-reorder" title="Alerta de stock bajo">Reorder Point</label>
+                                    <input
+                                        id="pfm-reorder"
+                                        type="number"
+                                        min="0"
+                                        className="ui-input"
+                                        value={formData.reorderPoint}
+                                        onChange={e => setFormData({ ...formData, reorderPoint: e.target.value })}
+                                        onWheel={(e) => e.target.blur()}
+                                        placeholder="Def: 10"
+                                    />
+                                    <span className="ui-help">Alerta de stock bajo.</span>
                                 </div>
-                            ) : (
-                                <div style={{ marginBottom: '1rem', color: 'var(--pfm-text-sec)' }}>
-                                    <span className="material-icons-round" style={{ fontSize: '48px', color: '#cbd5e1' }}>image</span>
-                                    <p>Arrastra una imagen o haz clic para seleccionar</p>
+                            </div>
+
+                            {isEditing && (
+                                <div className="ui-alert ui-alert--info pfm-stock-note" role="note">
+                                    <span className="material-icons-round" aria-hidden="true">info</span>
+                                    <div>
+                                        <p>
+                                            El stock no se edita aquí: un número escrito a mano pisaba las ventas en curso.
+                                            Para sumar mercancía usa <strong>Llegada</strong>; para dejarlo igual a lo que hay en
+                                            bodega usa <strong>Conteo físico</strong> (descuenta solo lo que está en pedidos).
+                                        </p>
+                                        {(onAddStock || onPhysicalCount) && (
+                                            <div className="pfm-stock-actions">
+                                                {onAddStock && (
+                                                    <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm"
+                                                        onClick={() => onAddStock(product)}>
+                                                        Registrar llegada
+                                                    </button>
+                                                )}
+                                                {onPhysicalCount && (
+                                                    <button type="button" className="ui-btn ui-btn--secondary ui-btn--sm"
+                                                        onClick={() => onPhysicalCount(product)}>
+                                                        Conteo físico
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
+                        </section>
 
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                                style={{ display: preview ? 'none' : 'block', margin: '0 auto' }}
-                            />
-                        </div>
+                        <section className="ui-section">
+                            <div className="ui-section-head">
+                                <div>
+                                    <h4 className="ui-section-title">Categoría e imagen</h4>
+                                </div>
+                            </div>
+                            <div className="ui-stack">
+                                <div className="ui-field">
+                                    <label className="ui-label" htmlFor="pfm-tag">Categoría / Etiqueta</label>
+                                    <SearchableSelect
+                                        id="pfm-tag"
+                                        value={formData.tagId}
+                                        onChange={e => setFormData({ ...formData, tagId: e.target.value })}
+                                        options={tags.map(tag => ({ value: tag.id, label: tag.name }))}
+                                        emptyOption={{ label: '-- Sin etiqueta --' }}
+                                        placeholder="-- Sin etiqueta --"
+                                        searchPlaceholder="Escribe el nombre de la etiqueta…"
+                                        noResultsText="Ninguna etiqueta coincide"
+                                    />
+                                </div>
 
-                        <div className="pfm-toggle-wrapper">
-                            <label className="pfm-toggle-label" htmlFor="activeToggle">
-                                Producto Activo
-                            </label>
+                                <div className="pfm-image-upload">
+                                    {preview ? (
+                                        <div className="pfm-preview-container">
+                                            <img src={preview} alt="Preview" className="pfm-preview-img" loading="lazy" decoding="async" />
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveImage}
+                                                className="ui-btn ui-btn--danger-ghost ui-btn--sm pfm-remove-img"
+                                            >
+                                                <span className="material-icons-round" aria-hidden="true">delete_outline</span>
+                                                Quitar imagen
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="pfm-image-placeholder">
+                                            <span className="material-icons-round" aria-hidden="true">image</span>
+                                            <p>Arrastra una imagen o haz clic para seleccionar</p>
+                                        </div>
+                                    )}
+
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="pfm-file-input"
+                                        aria-label="Imagen del producto"
+                                        onChange={handleImageChange}
+                                        style={{ display: preview ? 'none' : 'block' }}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <label className="ui-switch pfm-toggle-wrapper" htmlFor="activeToggle">
                             <input
                                 type="checkbox"
                                 id="activeToggle"
@@ -358,15 +401,19 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess, on
                                 checked={formData.active}
                                 onChange={e => setFormData({ ...formData, active: e.target.checked })}
                             />
-                        </div>
+                            <span className="ui-switch-track"><span className="ui-switch-thumb" /></span>
+                            <span className="ui-switch-text">
+                                <span className="ui-switch-title pfm-toggle-label">Producto Activo</span>
+                            </span>
+                        </label>
                     </form>
                 </div>
 
-                <div className="pfm-footer">
-                    <button type="button" onClick={onClose} className="pfm-btn pfm-btn-secondary" disabled={loading}>
+                <div className="ui-modal-footer pfm-footer">
+                    <button type="button" onClick={onClose} className="ui-btn ui-btn--secondary" disabled={loading}>
                         Cancelar
                     </button>
-                    <button type="submit" form="productForm" className="pfm-btn pfm-btn-primary" disabled={loading}>
+                    <button type="submit" form="productForm" className="ui-btn ui-btn--primary" disabled={loading}>
                         {loading ? 'Guardando...' : (isEditing ? 'Actualizar Producto' : 'Crear Producto')}
                     </button>
                 </div>

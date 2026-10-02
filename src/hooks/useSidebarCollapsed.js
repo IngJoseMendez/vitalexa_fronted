@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { PERSON_PREF_PREFIX } from '../components/welcome/welcomeStorage';
 
 // Preferencia del menú lateral de Admin/Owner (plegado a solo iconos). Se guarda por panel y por
 // usuario: en un equipo compartido cada quien conserva la suya.
@@ -50,8 +51,9 @@ export default function useSidebarCollapsed(panel) {
 }
 
 /**
- * Cerrar sesión borra todo el localStorage (token, rol, caché). La preferencia del menú es de la
- * persona y no de la sesión, así que se copia antes y se vuelve a escribir después. Si
+ * Cerrar sesión borra todo el localStorage (token, rol, caché). La preferencia del menú y las
+ * preferencias de la persona (prefijo vx:pref:, p. ej. "ya vio la bienvenida del rediseño") no
+ * son de la sesión, así que se copian antes y se vuelven a escribir después. Si
  * localStorage.clear() falla, el error sube igual que antes (la sesión no se da por cerrada).
  */
 export const clearStorageKeepingSidebarPrefs = () => {
@@ -59,7 +61,9 @@ export const clearStorageKeepingSidebarPrefs = () => {
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith(SIDEBAR_PREF_PREFIX)) kept.push([key, localStorage.getItem(key)]);
+      if (key && (key.startsWith(SIDEBAR_PREF_PREFIX) || key.startsWith(PERSON_PREF_PREFIX))) {
+        kept.push([key, localStorage.getItem(key)]);
+      }
     }
   } catch (error) {
     // Si no se pueden leer, se pierden: el menú vuelve a salir expandido

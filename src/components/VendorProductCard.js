@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { TagBadge } from './TagComponents';
 import { formatCurrency } from '../utils/formatters';
+import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
+import '../styles/areas/VendorProductCard.css';
 
-const PLACEHOLDER_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="Arial, sans-serif" font-size="16" dy="10" font-weight="bold" x="50%25" y="50%25" text-anchor="middle"%3ESin Imagen%3C/text%3E%3C/svg%3E';
 
 function VendorProductCard({ product, cartItem, onAddToCart }) {
     const [quantity, setQuantity] = useState(1);
@@ -17,38 +18,32 @@ function VendorProductCard({ product, cartItem, onAddToCart }) {
     const decrement = () => setQuantity(prev => Math.max(1, prev - 1));
 
     return (
-        <div className="product-card">
-            <img
-                src={product.imageUrl || PLACEHOLDER_IMAGE}
-                alt={product.nombre}
-                onError={(e) => {
-                    e.target.src = PLACEHOLDER_IMAGE;
-                }}
-                loading="lazy"
-            />
+        <div className="vpc">
+            <div className="vpc-media">
+                <img
+                    src={product.imageUrl || PLACEHOLDER_IMAGE}
+                    alt={product.nombre}
+                    onError={(e) => {
+                        e.target.src = PLACEHOLDER_IMAGE;
+                    }}
+                    loading="lazy"
+                    decoding="async"
+                />
 
-            {cartQty > 0 && (
-                <span className="product-cart-badge" title="Cantidad en carrito">
-                    <span className="material-icons-round">shopping_cart</span>
-                    {cartQty}
-                </span>
-            )}
+                {cartQty > 0 && (
+                    <span className="vpc-cart-badge" title="Cantidad en carrito">
+                        <span className="material-icons-round" aria-hidden="true">shopping_cart</span>
+                        {cartQty}
+                    </span>
+                )}
+            </div>
 
-            <div className="product-info">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem', gap: '0.5rem' }}>
-                    <div style={{ flex: 1 }}>
-                        <h4 style={{ margin: 0 }}>{product.nombre}</h4>
+            <div className="vpc-body">
+                <div className="vpc-head">
+                    <div className="vpc-title">
+                        <h4 className="vpc-name">{product.nombre}</h4>
                         {product.isSpecialProduct && (
-                            <span style={{
-                                fontSize: '0.65rem',
-                                background: 'linear-gradient(135deg, #8b5cf6, #d946ef)',
-                                color: 'white',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontWeight: 'bold',
-                                display: 'inline-block',
-                                marginTop: '2px'
-                            }}>
+                            <span className="ui-badge ui-badge--primary vpc-special">
                                 ESPECIAL
                             </span>
                         )}
@@ -56,34 +51,34 @@ function VendorProductCard({ product, cartItem, onAddToCart }) {
                     {product.tagName && <TagBadge tagName={product.tagName} />}
                 </div>
 
-                <p className="product-price">${formatCurrency(parseFloat(product.precio))}</p>
+                <p className="vpc-price">${formatCurrency(parseFloat(product.precio))}</p>
 
                 {/* Visual Stock Display */}
-                <div className="stock-visual-indicator" style={{ marginBottom: '0.5rem' }}>
-                    <div className="stock-bar-small">
+                <div className="vpc-stock">
+                    <div className="vpc-stock-bar">
                         <div
-                            className="stock-fill-small"
+                            className={`vpc-stock-fill ${(product.stock - cartQty) <= 0 ? 'is-empty' : ''}`}
                             style={{
-                                width: `${Math.max(0, ((product.stock - cartQty) / (product.stock > 0 ? product.stock : 1)) * 100)}%`, // Prevent div by zero or negative width
-                                backgroundColor: (product.stock - cartQty) <= 0 ? '#ef4444' : 'var(--primary)'
+                                width: `${Math.max(0, ((product.stock - cartQty) / (product.stock > 0 ? product.stock : 1)) * 100)}%` // Prevent div by zero or negative width
                             }}
                         />
                     </div>
-                    <span className="stock-text" style={{ color: (product.stock - cartQty) < 0 ? '#ef4444' : 'inherit', fontWeight: (product.stock - cartQty) < 0 ? 'bold' : 'normal' }}>
+                    <span className={`vpc-stock-text ${(product.stock - cartQty) < 0 ? 'is-negative' : ''}`}>
                         {product.stock - cartQty} unidades
                     </span>
                 </div>
+            </div>
 
+            <div className="vpc-actions">
                 {/* Quantity Controls */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div className="vpc-qty">
                     <button
+                        type="button"
                         onClick={decrement}
-                        style={{
-                            width: '32px', height: '32px', borderRadius: '6px', border: '1px solid #e5e7eb',
-                            background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
+                        className="ui-icon-btn ui-icon-btn--lg ui-icon-btn--bordered vpc-qty-btn"
+                        aria-label="Disminuir cantidad"
                     >
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>remove</span>
+                        <span className="material-icons-round" aria-hidden="true">remove</span>
                     </button>
 
                     <input
@@ -91,29 +86,26 @@ function VendorProductCard({ product, cartItem, onAddToCart }) {
                         min="1"
                         value={quantity}
                         onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        style={{
-                            flex: 1, textAlign: 'center', border: '1px solid #e5e7eb', borderRadius: '6px',
-                            fontSize: '1rem', fontWeight: 'bold'
-                        }}
+                        className="ui-input vpc-qty-input"
+                        aria-label="Cantidad a agregar"
                     />
 
                     <button
+                        type="button"
                         onClick={increment}
-                        style={{
-                            width: '32px', height: '32px', borderRadius: '6px', border: '1px solid #e5e7eb',
-                            background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
+                        className="ui-icon-btn ui-icon-btn--lg ui-icon-btn--bordered vpc-qty-btn"
+                        aria-label="Aumentar cantidad"
                     >
-                        <span className="material-icons-round" style={{ fontSize: '16px' }}>add</span>
+                        <span className="material-icons-round" aria-hidden="true">add</span>
                     </button>
                 </div>
 
                 <button
+                    type="button"
                     onClick={handleAddToCart}
-                    className="btn-add-cart"
-                    style={(product.stock - cartQty) <= 0 ? { background: '#fef3c7', color: '#d97706', border: '1px solid #d97706' } : {}}
+                    className={`ui-btn vpc-add ${(product.stock - cartQty) <= 0 ? 'ui-btn--secondary vpc-add--oos' : 'ui-btn--primary'}`}
                 >
-                    <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>
+                    <span className="material-icons-round" aria-hidden="true">
                         {(product.stock - cartQty) <= 0 ? 'warning' : 'add'}
                     </span>
                     {(product.stock - cartQty) <= 0 ? 'Vender S/Stock' : 'Agregar'}

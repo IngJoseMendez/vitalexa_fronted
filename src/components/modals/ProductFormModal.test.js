@@ -54,6 +54,24 @@ test('editar con stock negativo: se puede cambiar el precio y NO se envía el st
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
 });
 
+test('etiqueta: el campo se escribe para buscarla y se envía el tagId elegido', async () => {
+    const tags = [{ id: 't-1', name: 'Facial' }, { id: 't-2', name: 'Capilar' }];
+    render(<ProductFormModal product={producto} tags={tags} onClose={jest.fn()} onSuccess={jest.fn()} />);
+
+    const campo = screen.getByRole('combobox', { name: 'Categoría / Etiqueta' });
+    fireEvent.change(campo, { target: { value: 'capi' } });
+    expect(screen.queryByRole('option', { name: 'Facial' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '-- Sin etiqueta --' })).not.toBeInTheDocument();
+    // El resaltado (<mark>) parte el nombre en jsdom ("Capi lar"); en el navegador es "Capilar"
+    fireEvent.click(screen.getByRole('option', { name: /Capi\s*lar/ }));
+    expect(campo).toHaveValue('Capilar');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar Producto' }));
+    await waitFor(() => expect(productService.updateProduct).toHaveBeenCalled());
+    const data = productService.updateProduct.mock.calls[0][1];
+    expect(data.get('tagId')).toBe('t-2');
+});
+
 test('crear: el stock inicial sigue en el formulario', () => {
     render(<ProductFormModal product={null} tags={[]} onClose={jest.fn()} onSuccess={jest.fn()} />);
 

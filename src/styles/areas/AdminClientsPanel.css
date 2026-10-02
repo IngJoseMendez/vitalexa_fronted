@@ -1,0 +1,284 @@
+/* ==========================================================================
+   AdminClientsPanel — Gestión de clientes (Admin y Owner)
+   Raíz .acp (junto a .admin-clients-panel); modales con .acp-modal.
+   Ya no depende de clases globales de AdminDashboard/OwnerDashboard/
+   VendedorDashboard (.modal-*, .form-group, .btn-save, .cliente-card…):
+   todo sale de las primitivas .ui-* y de este archivo.
+   ========================================================================== */
+
+.acp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  color: var(--color-text);
+}
+
+.acp .acp-header {
+  margin-bottom: 0;
+}
+
+/* ---------- Exportar a Excel ----------
+   Encabezado con baldosa verde (.ui-icon-tile--success) y botones Excel con identidad de
+   formato (.ui-btn--excel): solo el botón pulsado muestra "Exportando..." (exportingKey). */
+.acp .acp-export .ui-section-head {
+  align-items: center;
+}
+
+.acp .acp-inline {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.acp .acp-inline > .ui-select,
+.acp .acp-inline > .ui-input,
+.acp .acp-inline > .ui-combobox {
+  flex: 1;
+  min-width: 0;
+}
+
+.acp .acp-inline > .ui-btn {
+  flex-shrink: 0;
+}
+
+.acp .acp-export-all {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+/* "Exportar TODOS": la etiqueta larga puede partirse en celulares angostos sin desbordar */
+.acp .acp-export-all-btn {
+  white-space: normal;
+}
+
+/* ---------- Barra de búsqueda y filtros ---------- */
+.acp .acp-search {
+  flex: 1 1 320px;
+  max-width: 520px;
+}
+
+.acp .acp-vendor-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.acp .acp-vendor-filter .acp-vendor-select {
+  width: 240px;
+}
+
+/* El filtro ya tiene al lado su botón "Limpiar filtro": sin la x interna del combobox
+   (dos x seguidas confunden); el campo recupera el espacio que ella reservaba */
+.acp .acp-vendor-select .ui-combobox-clear {
+  display: none;
+}
+
+.acp .acp-vendor-select.has-clear .ui-combobox-input {
+  padding-right: 40px;
+}
+
+.acp .acp-count {
+  min-height: 28px;
+  padding: 4px var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Rejilla de clientes ---------- */
+.acp .acp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-4);
+}
+
+.acp .acp-empty {
+  grid-column: 1 / -1;
+}
+
+.acp .acp-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* Cabecera: avatar de color + nombre + chip azul de la vendedora */
+.acp .acp-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  min-width: 0;
+}
+
+.acp .acp-card-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.acp .acp-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.acp .acp-vendor-badge {
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* Filas de contacto (.ui-info-list / .ui-info-row): icono en baldosa del color de su dato */
+.acp .acp-card-meta {
+  flex: 1;
+}
+
+.acp .acp-card-meta .ui-info-row {
+  align-items: flex-start;
+}
+
+.acp .acp-card-meta .ui-info-row > :not(.ui-icon-tile) {
+  padding-top: 5px;
+}
+
+.acp .acp-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Compras: etiqueta en texto secundario y el monto en verde (600); $0 en marino */
+.acp .acp-card-total {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.acp .acp-card-total .material-icons-round {
+  font-size: 16px;
+  color: var(--color-success);
+}
+
+.acp .acp-card-total .ui-amount--success {
+  font-size: var(--text-base);
+}
+
+.acp .acp-card-total-zero {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* ---------- Carga: esqueletos con la forma de las tarjetas ---------- */
+.acp .acp-loading-view .acp-loading {
+  justify-content: flex-start;
+  padding: var(--space-2) 0 0;
+}
+
+.acp .acp-card--skeleton {
+  min-height: 196px;
+}
+
+.acp .acp-skeleton-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.acp .acp-skeleton-title {
+  width: 70%;
+}
+
+.acp .acp-skeleton-chip {
+  width: 45%;
+  height: 20px;
+  border-radius: var(--radius-full);
+}
+
+.acp .acp-skeleton-rows {
+  gap: var(--space-3);
+}
+
+.acp .acp-skeleton-short {
+  width: 60%;
+}
+
+/* ---------- Modales crear / editar ---------- */
+/* El <form> envuelve cuerpo + pie: el cuerpo hace scroll */
+.acp-modal .acp-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.acp-modal .acp-help {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.acp-modal .acp-help .material-icons-round {
+  font-size: 14px;
+}
+
+.acp-modal .acp-textarea {
+  min-height: 72px;
+}
+
+/* ---------- Móvil ---------- */
+@media (max-width: 640px) {
+  .acp {
+    gap: var(--space-4);
+  }
+
+  .acp .ui-page-actions .ui-btn {
+    flex: 1;
+  }
+
+  .acp .acp-search {
+    max-width: none;
+  }
+
+  .acp .acp-vendor-filter {
+    flex: 1 1 100%;
+  }
+
+  .acp .acp-vendor-filter .acp-vendor-select {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .acp .acp-toolbar .ui-toolbar-spacer {
+    display: none;
+  }
+
+  .acp .acp-sort {
+    margin-left: auto;
+  }
+
+  .acp .acp-card {
+    padding: var(--space-4);
+  }
+}

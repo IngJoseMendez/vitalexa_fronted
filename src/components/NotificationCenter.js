@@ -269,12 +269,14 @@ function NotificationCenter({ userRole }) {
   return (
     <div className="notification-center">
       <button
-        className="notification-bell"
+        type="button"
+        className={`notification-bell${showPanel ? ' is-open' : ''}`}
         onClick={() => setShowPanel(!showPanel)}
         title="Notificaciones"
         aria-label="Notificaciones"
+        aria-expanded={showPanel}
       >
-        <span className="material-icons-round" style={{ fontSize: '24px' }}>notifications</span>
+        <span className="material-icons-round" aria-hidden="true">notifications</span>
         {unreadCount > 0 && (
           <span className="badge" aria-label={`${unreadCount} notificaciones no leídas`}>
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -287,32 +289,35 @@ function NotificationCenter({ userRole }) {
           <div className="notification-overlay" onClick={() => setShowPanel(false)} />
           <div className="notification-panel">
             <div className="panel-header">
-              <h3>🔔 Notificaciones</h3>
+              <h3>Notificaciones</h3>
               <div className="panel-actions">
                 {unreadCount > 0 && (
                   <button
+                    type="button"
                     onClick={markAllAsRead}
                     className="btn-mark-read"
                     title="Marcar todas como leídas"
                   >
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>done_all</span> All
+                    <span className="material-icons-round" aria-hidden="true">done_all</span> All
                   </button>
                 )}
                 {notifications.length > 0 && (
                   <button
+                    type="button"
                     onClick={clearAll}
                     className="btn-clear"
                     title="Limpiar todas"
                   >
-                    <span className="material-icons-round" style={{ fontSize: '18px' }}>delete_sweep</span>
+                    <span className="material-icons-round" aria-hidden="true">delete_sweep</span>
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => setShowPanel(false)}
                   className="btn-close"
                   title="Cerrar"
                 >
-                  <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
+                  <span className="material-icons-round" aria-hidden="true">close</span>
                 </button>
               </div>
             </div>
@@ -320,7 +325,7 @@ function NotificationCenter({ userRole }) {
             <div className="notifications-list">
               {notifications.length === 0 ? (
                 <div className="no-notifications">
-                  <div className="empty-icon"><span className="material-icons-round" style={{ fontSize: '48px' }}>notifications_off</span></div>
+                  <div className="empty-icon"><span className="material-icons-round" aria-hidden="true">notifications_off</span></div>
                   <p>No hay notificaciones</p>
                   <span>Te notificaremos cuando haya algo nuevo</span>
                 </div>
