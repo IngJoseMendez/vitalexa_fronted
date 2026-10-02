@@ -1,144 +1,128 @@
 // src/services/NotificationService.js
 import SockJS from 'sockjs-client';
-import { Stomp } from '@stomp/stompjs';
+import { Client, ReconnectionTimeMode } from '@stomp/stompjs';
 
+/**
+ * Una sola conexión WebSocket para toda la app, con varios oyentes (la campana y el dashboard).
+ *
+ * Antes guardaba un solo callback: el segundo componente en conectarse no recibía nada (o abría
+ * otra conexión y llegaban duplicadas) y el dashboard, al desmontarse, cerraba también la de la
+ * campana. Además usaba Stomp.over(socket), que no reconecta: tras un despliegue del backend o un
+ * corte de red las notificaciones dejaban de llegar en silencio hasta recargar la página.
+ */
 class NotificationService {
   constructor() {
-    this.stompClient = null;
-    this.subscriptions = [];
-    this.connected = false;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 3; // ✅ Reducido de 10 → 3 para no saturar CPU/red en móviles con mala señal
+    this.listeners = new Set();
+    this.userRole = 'vendedor';
+    this.client = null;
   }
 
-  connect(onMessageReceived, userRole = 'vendedor') {
-    if (this.connected) {
-      console.log('⚠️ Ya estás conectado al WebSocket');
-      return;
+  /** Suscribe un oyente (y conecta si hace falta). Devuelve la función para desuscribirlo. */
+  connect(listener, userRole = 'vendedor') {
+    this.listeners.add(listener);
+    this.userRole = userRole;
+    if (!this.client) {
+      this.client = this.createClient();
+      window.addEventListener('online', this.reconnectNow);
+      document.addEventListener('visibilitychange', this.reconnectNow);
     }
-
-    console.log(`🔌 Conectando WebSocket como ${userRole}...`);
-
-    console.log('🔍 process.env.REACT_APP_WS_URL:', process.env.REACT_APP_WS_URL);
-    console.log('🔍 process.env.NODE_ENV:', process.env.NODE_ENV);
-
-    // 🔥 Usar variable de entorno, con fallback a localhost para desarrollo
-    const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:8080/ws';
-    console.log('🔍 WebSocket URL:', WS_URL);
-
-    const socket = new SockJS(WS_URL);
-    this.stompClient = Stomp.over(socket);
-
-    // Desactivar logs de debug en producción
-    this.stompClient.debug = (msg) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('STOMP:', msg);
-      }
-    };
-
-    // Adjuntamos el JWT al frame STOMP CONNECT (por si el WS se asegura en el futuro).
-    // Hoy el endpoint /ws es público, así que es inofensivo si va vacío.
-    const token = localStorage.getItem('token');
-    this.stompClient.connect(
-      token ? { Authorization: `Bearer ${token}` } : {},
-      (frame) => {
-        console.log('✅ WebSocket conectado exitosamente');
-        this.connected = true;
-        this.reconnectAttempts = 0;
-
-        // ✅ SUSCRIPCIÓN ÚNICA PARA ADMIN Y OWNER
-        if (userRole === 'admin' || userRole === 'owner') {
-          this.subscriptions.push(
-            this.stompClient.subscribe('/topic/admin-owner/notifications', (message) => {
-              const notification = JSON.parse(message.body);
-              console.log('📬 Notificación admin/owner:', notification.type);
-              onMessageReceived(notification);
-            })
-          );
-          console.log('📡 Suscrito a /topic/admin-owner/notifications');
-        }
-
-        // ✅ SUSCRIPCIÓN PARA TODOS: Actualizaciones de inventario
-        this.subscriptions.push(
-          this.stompClient.subscribe('/topic/inventory', (message) => {
-            const event = JSON.parse(message.body);
-            console.log('📦 Actualización de inventario:', event.action);
-            // Enviamos el evento con un tipo especial
-            onMessageReceived({ type: 'INVENTORY_UPDATE', payload: event });
-          })
-        );
-        console.log('📡 Suscrito a /topic/inventory (Global)');
-
-        // Todos reciben notificaciones generales (órdenes completadas)
-        this.subscriptions.push(
-          this.stompClient.subscribe('/topic/notifications', (message) => {
-            const notification = JSON.parse(message.body);
-            console.log('📬 Notificación general:', notification.type);
-            onMessageReceived(notification);
-          })
-        );
-        console.log('📡 Suscrito a /topic/notifications');
-      },
-      (error) => {
-        console.error('❌ Error en WebSocket:', error);
-        this.connected = false;
-        this.handleReconnect(onMessageReceived, userRole);
-      }
-    );
+    return () => this.disconnect(listener);
   }
 
-  handleReconnect(onMessageReceived, userRole) {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      // ✅ Delay máximo 60s (antes 30s) — evita spam de requests en señal débil (TCL / móviles gama baja)
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 60000);
+  /** Quita el oyente; la conexión se cierra cuando ya no queda ninguno. */
+  disconnect(listener) {
+    this.listeners.delete(listener);
+    if (this.listeners.size > 0 || !this.client) return;
 
-      console.log(`🔄 Reintentando conexión en ${delay / 1000}s (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-
-      setTimeout(() => {
-        this.connect(onMessageReceived, userRole);
-      }, delay);
-    } else {
-      console.warn('⚠️ WebSocket: máximo de intentos alcanzado. La app funcionará sin notificaciones en tiempo real.');
-    }
-  }
-
-  disconnect() {
-    if (this.stompClient && this.connected) {
-      this.subscriptions.forEach(sub => {
-        try {
-          sub.unsubscribe();
-        } catch (error) {
-          console.error('Error al desuscribirse:', error);
-        }
-      });
-      this.subscriptions = [];
-
-      try {
-        this.stompClient.disconnect(() => {
-          console.log('🔌 Desconectado de WebSocket');
-        });
-      } catch (error) {
-        console.error('Error al desconectar:', error);
-      }
-
-      this.connected = false;
-      this.reconnectAttempts = 0;
-    }
+    window.removeEventListener('online', this.reconnectNow);
+    document.removeEventListener('visibilitychange', this.reconnectNow);
+    const client = this.client;
+    this.client = null;
+    client.deactivate();
   }
 
   isConnected() {
-    return this.connected;
+    return Boolean(this.client && this.client.connected);
   }
 
-  // Método para enviar mensajes (opcional, por si lo necesitas)
-  send(destination, message) {
-    if (this.connected && this.stompClient) {
-      this.stompClient.send(destination, {}, JSON.stringify(message));
-    } else {
-      console.error('No se puede enviar: WebSocket no conectado');
-    }
+  createClient() {
+    // 🔥 Usar variable de entorno, con fallback a localhost para desarrollo
+    const WS_URL = process.env.REACT_APP_WS_URL || 'http://localhost:8080/ws';
+
+    const client = new Client({
+      webSocketFactory: () => new SockJS(WS_URL),
+      // Reintenta siempre: 2 s, 4 s, 8 s… hasta 1 min entre intentos (poco tráfico con mala señal)
+      reconnectDelay: 2000,
+      maxReconnectDelay: 60000,
+      reconnectTimeMode: ReconnectionTimeMode.EXPONENTIAL,
+      connectionTimeout: 15000,
+      // El servidor late cada 10 s: sin latidos la conexión se da por muerta y se reconecta
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 0,
+      // El token se lee en cada intento (puede haber cambiado desde la conexión anterior)
+      beforeConnect: (stompClient) => {
+        const token = localStorage.getItem('token');
+        stompClient.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      },
+      // También tras cada reconexión: las suscripciones no sobreviven al socket anterior
+      onConnect: () => this.subscribeTopics(client),
+      onStompError: (frame) => console.error('❌ Error en WebSocket:', frame.headers?.message),
+      debug: (msg) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('STOMP:', msg);
+        }
+      },
+    });
+    client.activate();
+    return client;
   }
+
+  subscribeTopics(client) {
+    const emit = (notification) => this.listeners.forEach((listener) => {
+      try {
+        listener(notification);
+      } catch (error) {
+        console.error('Error procesando notificación:', error);
+      }
+    });
+    const parse = (message) => {
+      try {
+        return JSON.parse(message.body);
+      } catch (error) {
+        console.error('Notificación ilegible:', error);
+        return null;
+      }
+    };
+
+    // Solo admin y owner: el servidor rechaza este canal para los demás roles
+    if (this.userRole === 'admin' || this.userRole === 'owner') {
+      client.subscribe('/topic/admin-owner/notifications', (message) => {
+        const notification = parse(message);
+        if (notification) emit(notification);
+      });
+    }
+
+    // Para todos: cambios de inventario (los dashboards refrescan; no son avisos de la campana)
+    client.subscribe('/topic/inventory', (message) => {
+      const event = parse(message);
+      if (event) emit({ type: 'INVENTORY_UPDATE', payload: event });
+    });
+
+    // Para todos: notificaciones generales (órdenes completadas)
+    client.subscribe('/topic/notifications', (message) => {
+      const notification = parse(message);
+      if (notification) emit(notification);
+    });
+  }
+
+  // Al volver a la pestaña o recuperar la red no espera el próximo reintento (hasta 1 min)
+  reconnectNow = () => {
+    const client = this.client;
+    if (!client || client.connected || document.visibilityState === 'hidden') return;
+    client.deactivate().then(() => {
+      if (this.client === client) client.activate();
+    });
+  };
 }
 
 const notificationService = new NotificationService();

@@ -4,62 +4,89 @@ import NotificationService from '../services/NotificationService';
 import { useConfirm } from './ConfirmDialog';
 import '../styles/NotificationCenter.css';
 
+// Solo son avisos de la campana los que manda el backend con id y título. Los eventos de
+// inventario (INVENTORY_UPDATE) solo refrescan los dashboards: antes entraban aquí sin fecha ni
+// texto, se veían como "Invalid Date", contaban como no leídos y hacían sonar la campana.
+export const isDisplayableNotification = (n) =>
+  Boolean(n && n.id && n.title && n.type !== 'INVENTORY_UPDATE');
+
+// El backend manda la hora de Colombia sin zona ("2026-10-01T10:30:05.123"). Las fracciones se
+// recortan a milisegundos porque no todos los navegadores aceptan más dígitos.
+export const parseNotificationDate = (value) => {
+  if (value == null || value === '') return null;
+  const date = new Date(typeof value === 'string' ? value.replace(/(\.\d{3})\d+/, '$1') : value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const MAX_NOTIFICATIONS = 50;
+
+// Logo de Vitalexa para el aviso del navegador (antes /logo192.png era el átomo de React). El
+// ?v=2 evita que un navegador o el hosting sigan sirviendo el archivo viejo desde la caché.
+export const BROWSER_NOTIFICATION_ICON = `${process.env.PUBLIC_URL || ''}/logo192.png?v=2`;
+
+// Por usuario: en un equipo compartido cada quien ve solo sus avisos
+const storageKey = () => `notifications:${localStorage.getItem('username') || ''}`;
+
+const loadStoredNotifications = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey()) || '[]');
+    return Array.isArray(parsed) ? parsed.filter(isDisplayableNotification) : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const storeNotifications = (list) => {
+  try {
+    localStorage.setItem(storageKey(), JSON.stringify(list));
+  } catch (error) {
+    console.error('No se pudieron guardar las notificaciones:', error);
+  }
+};
+
+// Uno solo por sesión: crear un AudioContext por aviso agota el límite del navegador
+let audioContext = null;
+
 function NotificationCenter({ userRole }) {
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(loadStoredNotifications);
   const [showPanel, setShowPanel] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
     if (!userRole) return;
 
     console.log('🚀 Iniciando NotificationCenter para rol:', userRole);
 
-    // Conectar a WebSocket
-    NotificationService.connect((notification) => {
-      handleNewNotification(notification);
-    }, userRole);
-
-    // Cargar notificaciones del localStorage
-    const saved = localStorage.getItem('notifications');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setNotifications(parsed);
-        updateUnreadCount(parsed);
-      } catch (error) {
-        console.error('Error al cargar notificaciones guardadas:', error);
-        localStorage.removeItem('notifications');
-      }
-    }
+    // La clave sin usuario de versiones anteriores solo acumulaba eventos de inventario
+    localStorage.removeItem('notifications');
 
     // Pedir permisos de notificación
     requestNotificationPermission();
 
-    return () => {
-      NotificationService.disconnect();
-    };
+    // Conectar a WebSocket (devuelve la función para desuscribirse)
+    return NotificationService.connect((notification) => {
+      handleNewNotification(notification);
+    }, userRole);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userRole]);
 
   const handleNewNotification = (notification) => {
+    if (!isDisplayableNotification(notification)) return;
+
     console.log('🔔 Nueva notificación recibida:', notification);
 
     setNotifications(prev => {
-      const updated = [notification, ...prev].slice(0, 50); // Máximo 50 notificaciones
-      localStorage.setItem('notifications', JSON.stringify(updated));
-      updateUnreadCount(updated);
+      // Repetida (p. ej. al reconectar): no se agrega dos veces
+      if (prev.some(n => n.id === notification.id)) return prev;
+      const updated = [notification, ...prev].slice(0, MAX_NOTIFICATIONS);
+      storeNotifications(updated);
       return updated;
     });
 
-    // Mostrar notificación del navegador
-    showBrowserNotification(notification);
-
-    // Reproducir sonido
-    playNotificationSound();
-
-    // ✅ DISPARAR EVENTOS PERSONALIZADOS PARA AUTO-ACTUALIZACIÓN
+    // ✅ DISPARAR EVENTOS PERSONALIZADOS PARA AUTO-ACTUALIZACIÓN (antes que sonido y aviso del
+    // navegador: si esos fallan, el dashboard igual se actualiza)
     if (notification.type === 'NEW_ORDER') {
       window.dispatchEvent(new CustomEvent('new-order-notification'));
       console.log('📤 Evento de nueva orden disparado');
@@ -69,19 +96,21 @@ function NotificationCenter({ userRole }) {
       window.dispatchEvent(new CustomEvent('order-completed-notification'));
       console.log('📤 Evento de orden completada disparado');
     }
-  };
 
-  const updateUnreadCount = (notifs) => {
-    const count = notifs.filter(n => !n.read).length;
-    setUnreadCount(count);
+    // Mostrar notificación del navegador
+    showBrowserNotification(notification);
+
+    // Reproducir sonido
+    playNotificationSound();
   };
 
   const showBrowserNotification = (notification) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
       const browserNotif = new Notification(notification.title, {
         body: notification.message,
-        icon: '/logo192.png',
-        badge: '/logo192.png',
+        icon: BROWSER_NOTIFICATION_ICON,
+        badge: BROWSER_NOTIFICATION_ICON,
         tag: notification.id,
         requireInteraction: false,
         silent: false
@@ -96,12 +125,18 @@ function NotificationCenter({ userRole }) {
         handleNotificationClick(notification);
         browserNotif.close();
       };
+    } catch (error) {
+      // Chrome en Android no permite new Notification() fuera de un service worker
+      console.log('Aviso del navegador no disponible:', error.message);
     }
   };
 
   const playNotificationSound = () => {
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      audioContext = audioContext || new AudioCtx();
+      if (audioContext.state === 'suspended') audioContext.resume();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
 
@@ -136,8 +171,7 @@ function NotificationCenter({ userRole }) {
       const updated = prev.map(n =>
         n.id === notificationId ? { ...n, read: true } : n
       );
-      localStorage.setItem('notifications', JSON.stringify(updated));
-      updateUnreadCount(updated);
+      storeNotifications(updated);
       return updated;
     });
   };
@@ -145,8 +179,7 @@ function NotificationCenter({ userRole }) {
   const markAllAsRead = () => {
     setNotifications(prev => {
       const updated = prev.map(n => ({ ...n, read: true }));
-      localStorage.setItem('notifications', JSON.stringify(updated));
-      updateUnreadCount(updated);
+      storeNotifications(updated);
       return updated;
     });
   };
@@ -160,8 +193,7 @@ function NotificationCenter({ userRole }) {
     if (!confirmed) return;
 
     setNotifications([]);
-    setUnreadCount(0);
-    localStorage.removeItem('notifications');
+    localStorage.removeItem(storageKey());
   };
 
   const handleNotificationClick = (notification) => {
@@ -194,7 +226,8 @@ function NotificationCenter({ userRole }) {
       LOW_STOCK: 'warning',
       OUT_OF_STOCK: 'error',
       RESTOCK_NEEDED: 'trending_up',
-      SYSTEM_ALERT: 'notifications'
+      SYSTEM_ALERT: 'notifications',
+      REEMBOLSO_CREATED: 'assignment_return'
     };
     return <span className="material-icons-round">{icons[type] || 'notifications'}</span>;
   };
@@ -212,7 +245,8 @@ function NotificationCenter({ userRole }) {
   };
 
   const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
+    const date = parseNotificationDate(timestamp);
+    if (!date) return '';
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
@@ -304,9 +338,11 @@ function NotificationCenter({ userRole }) {
                       <div className="notification-content">
                         <h4>{notification.title}</h4>
                         <p>{notification.message}</p>
-                        <span className="notification-time">
-                          {formatTime(notification.timestamp)}
-                        </span>
+                        {formatTime(notification.timestamp) && (
+                          <span className="notification-time">
+                            {formatTime(notification.timestamp)}
+                          </span>
+                        )}
                       </div>
                       {!notification.read && <div className="unread-dot" />}
                     </div>
