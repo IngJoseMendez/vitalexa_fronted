@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
 import specialProductService from '../api/specialProductService';
@@ -7,8 +7,22 @@ import { TagBadge } from './TagComponents';
 import { formatCurrency } from '../utils/formatters';
 import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
 import SpecialProductFormModal from './modals/SpecialProductFormModal';
+import usePersistentState, { migrateLegacyViewPref } from '../hooks/usePersistentState';
 import '../styles/SpecialProducts.css';
 
+// Columnas de la cuadrícula: preferencia de vista que se recuerda (por usuario, aunque se recargue
+// o se cierre sesión). La búsqueda y el filtro Todos/Activos/Inactivos NO: al volver se ve todo.
+const GRID_COLUMN_OPTIONS = [2, 3, 4];
+const DEFAULT_GRID_COLUMNS = 3;
+
+// Antes se guardaban en 'spGridCols' (sin usuario; cerrar sesión lo borraba). Se pasan una sola
+// vez a la preferencia de quien abre Especiales (sin pisar una ya guardada) y se borra la clave
+// vieja, igual que en Productos y Órdenes: así quien ya las había elegido no las pierde con esta
+// versión ni en el siguiente cierre de sesión.
+const migrateLegacyGridColumns = () => migrateLegacyViewPref('spGridCols', 'admin.specialProducts.columns', {
+    parse: (raw) => parseInt(raw, 10), // se guardaba como texto ('4'); el estado es número
+    allowed: GRID_COLUMN_OPTIONS,
+});
 
 export default function SpecialProductsPanel({ refreshTrigger }) {
     const [products, setProducts] = useState([]);
@@ -18,7 +32,11 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
     const [statusFilter, setStatusFilter] = useState('all');
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
-    const [gridColumns, setGridColumns] = useState(() => parseInt(localStorage.getItem('spGridCols')) || 3);
+    useState(migrateLegacyGridColumns); // una sola vez y ANTES del hook de columnas, que ya la lee
+    const [gridColumns, setGridColumns] = usePersistentState('admin.specialProducts.columns', DEFAULT_GRID_COLUMNS, {
+        allowed: GRID_COLUMN_OPTIONS,
+        sync: true,
+    });
 
     // Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,8 +54,19 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
         }
     };
 
+    // Recarga silenciosa: cada petición lleva un número y solo la última aplica su respuesta (al
+    // cambiar de página o búsqueda mientras llega una recarga, la respuesta vieja no pisa a la
+    // nueva). Si la búsqueda y la página son las de la grilla que se ve (INVENTORY_UPDATE,
+    // "Actualizar", guardar en el modal, eliminar...) la grilla se reemplaza en su lugar: sin
+    // "Cargando", sin salto de scroll y sin volver a animar las tarjetas. "Cargando" queda para
+    // la carga inicial y para lo que pide el admin (otra página u otra búsqueda).
+    const productsReqRef = useRef(0);
+    const shownParamsRef = useRef(null); // [búsqueda, página] de los productos que se ven
+
     const fetchProducts = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++productsReqRef.current;
+        const paramsKey = JSON.stringify([searchTerm, page]);
+        if (shownParamsRef.current !== paramsKey) setLoading(true);
         try {
             let res;
             if (searchTerm.trim()) {
@@ -45,6 +74,8 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
             } else {
                 res = await specialProductService.getAll(page, 20);
             }
+            if (reqId !== productsReqRef.current) return; // llegó una petición más nueva
+            shownParamsRef.current = paramsKey;
             const data = res.data;
             if (data && data.content) {
                 setProducts(data.content);
@@ -57,10 +88,12 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
                 setTotalPages(0);
             }
         } catch (err) {
+            if (reqId !== productsReqRef.current) return;
+            // Si falla, los productos que ya se ven se conservan (el aviso es el mismo de antes)
             console.error('Error loading special products:', err);
             toast.error('Error al cargar productos especiales');
         } finally {
-            setLoading(false);
+            if (reqId === productsReqRef.current) setLoading(false);
         }
     }, [searchTerm, page, toast]);
 
@@ -168,12 +201,12 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
 
                 {/* Column grid toggle */}
                 <div className="sp-grid-cols" role="group" aria-label="Columnas de la cuadrícula">
-                    {[2, 3, 4].map(c => (
+                    {GRID_COLUMN_OPTIONS.map(c => (
                         <button key={c}
                             type="button"
                             className={`ui-btn ui-btn--ghost ui-btn--sm sp-grid-btn${gridColumns === c ? ' is-active' : ''}`}
                             aria-pressed={gridColumns === c}
-                            onClick={() => { setGridColumns(c); localStorage.setItem('spGridCols', c); }}
+                            onClick={() => setGridColumns(c)}
                             title={`${c} columnas`}>
                             <span className="material-icons-round" aria-hidden="true">grid_view</span>
                             {c}
@@ -182,7 +215,7 @@ export default function SpecialProductsPanel({ refreshTrigger }) {
                 </div>
             </div>
 
-            {/* Grid */}
+            {/* Grid ("Cargando" solo en la carga inicial o con otra página/búsqueda) */}
             {loading ? (
                 <div className="ui-loading">
                     <span className="ui-spinner" aria-hidden="true" />

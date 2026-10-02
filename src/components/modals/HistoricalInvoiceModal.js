@@ -140,16 +140,26 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
         setSearchTerm('');
     };
 
+    // Clientes que se pueden elegir. /owner/invoices/clients trae también los eliminados
+    // (archivados) para que al EDITAR se encuentre al cliente de la factura (matchedClient usa la
+    // lista completa). Pero a un archivado no se le hacen facturas nuevas ni se le pasa una
+    // factura de otro cliente (el backend lo rechaza): solo se ofrece, en edición, el que ya tiene.
+    const currentClientName = isEditMode ? initialOrder?.cliente : null;
+    const selectableClients = useMemo(
+        () => clients.filter(c => c.active !== false || (currentClientName && c.nombre === currentClientName)),
+        [clients, currentClientName]
+    );
+
     // Filtered Clients for Search
     const filteredClients = useMemo(() => {
-        if (!searchTerm) return clients;
+        if (!searchTerm) return selectableClients;
         const lowerTerm = searchTerm.toLowerCase();
-        return clients.filter(c =>
+        return selectableClients.filter(c =>
             c.nombre.toLowerCase().includes(lowerTerm) ||
             (c.nit && c.nit.toLowerCase().includes(lowerTerm)) ||
             (c.representanteLegal && c.representanteLegal.toLowerCase().includes(lowerTerm))
         );
-    }, [clients, searchTerm]);
+    }, [selectableClients, searchTerm]);
 
     // Calculate Balance Logic
     const total = parseFloat(formData.totalValue) || 0;
@@ -373,6 +383,7 @@ export default function HistoricalInvoiceModal({ onClose, onSuccess, initialOrde
                                                     <div className="hm-option-info">
                                                         <span className="hm-option-name">
                                                             {c.nombre}
+                                                            {c.active === false && ' (eliminado)'}
                                                             {c.representanteLegal && (
                                                                 <span className="hm-option-rep"> / {c.representanteLegal}</span>
                                                             )}

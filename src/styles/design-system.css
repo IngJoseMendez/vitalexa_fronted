@@ -2963,18 +2963,24 @@ details[open] > summary .ui-chevron {
 }
 
 /* Listas de tarjetas: aparición escalonada SOLO de las primeras 8 (30 ms entre cada una);
-   el resto aparece sin animación (rendimiento en celulares). */
-.ui-stagger > :nth-child(-n+8) {
+   el resto aparece sin animación (rendimiento en celulares).
+   Solo en la entrada inicial de la lista: al terminar, utils/staggerSettle.js marca la lista con
+   data-stagger-done y sus hijos dejan de tener animación. Si no, como la regla va por posición,
+   cuando una recarga silenciosa quita una de las 8 primeras, la tarjeta que pasa de la 9 a la 8
+   recibiría la animación por primera vez y volvería a "entrar". Los retrasos llevan el mismo
+   :not() para tener la misma especificidad que la regla con el shorthand (que pone el retraso
+   en 0) y ganarle por ir después. */
+.ui-stagger:not([data-stagger-done]) > :nth-child(-n+8) {
   animation: ui-rise-in var(--duration-enter) var(--ease) backwards;
 }
 
-.ui-stagger > :nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
-.ui-stagger > :nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
-.ui-stagger > :nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
-.ui-stagger > :nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
-.ui-stagger > :nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
-.ui-stagger > :nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
-.ui-stagger > :nth-child(8) { animation-delay: calc(var(--stagger-step) * 7); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
+.ui-stagger:not([data-stagger-done]) > :nth-child(8) { animation-delay: calc(var(--stagger-step) * 7); }
 
 /* ---------- Sin movimiento (prefers-reduced-motion) ----------
    Además de la regla global (duraciones a 0.01 ms): sin entradas, sin escalado al presionar,

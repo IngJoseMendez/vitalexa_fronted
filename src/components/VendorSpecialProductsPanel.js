@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
 import { useToast } from './ToastContainer';
@@ -14,10 +14,20 @@ export default function VendorSpecialProductsPanel({ refreshTrigger }) {
 
     const toast = useToast();
 
+    // Recarga silenciosa: el panel entero en "Cargando..." solo en la carga inicial y al cambiar
+    // de página (lo pide la vendedora). Los refrescos de la misma página (INVENTORY_UPDATE de
+    // cualquier usuario, "Actualizar") reemplazan las tarjetas en su lugar, sin salto de scroll
+    // ni animaciones repetidas. Solo la última petición aplica su respuesta.
+    const reqRef = useRef(0);
+    const shownPageRef = useRef(null); // página de los productos que se ven
+
     const fetchProducts = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++reqRef.current;
+        if (shownPageRef.current !== page) setLoading(true);
         try {
             const res = await specialProductService.getVendorProducts(page, 20);
+            if (reqId !== reqRef.current) return; // llegó una petición más nueva
+            shownPageRef.current = page;
             const data = res.data;
             if (data && data.content) {
                 setProducts(data.content);
@@ -30,10 +40,12 @@ export default function VendorSpecialProductsPanel({ refreshTrigger }) {
                 setTotalPages(0);
             }
         } catch (err) {
+            if (reqId !== reqRef.current) return;
+            // Si falla, los productos que ya se ven se conservan (el aviso es el mismo de antes)
             console.error('Error loading vendor special products:', err);
             toast.error('Error al cargar productos especiales');
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) setLoading(false);
         }
     }, [page, toast]);
 

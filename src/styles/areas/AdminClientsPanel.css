@@ -85,6 +85,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Pestañas Activos / Eliminados (solo Admin y Owner) */
+.acp .acp-tabs {
+  flex-shrink: 0;
+}
+
 /* ---------- Rejilla de clientes ---------- */
 .acp .acp-grid {
   display: grid;
@@ -190,6 +195,56 @@
   color: var(--color-text);
 }
 
+/* Acciones de la tarjeta: Editar + Eliminar (rojo solo en el texto, sin fondo) o Restaurar */
+.acp .acp-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* ---------- Eliminados (archivados): tarjeta atenuada ----------
+   Fondo gris muy suave, borde punteado, sin sombra, avatar gris y baldosas sin color.
+   Los textos conservan su color (contraste), solo el título pasa a secundario. */
+.acp .acp-card.is-archived {
+  background: var(--color-surface-subtle);
+  border-style: dashed;
+  border-color: var(--color-border-strong);
+  box-shadow: none;
+}
+
+.acp .acp-card.is-archived .acp-card-title {
+  color: var(--color-text-secondary);
+}
+
+.acp .acp-card.is-archived .acp-card-meta .ui-icon-tile {
+  filter: grayscale(1);
+}
+
+/* Salida de una tarjeta eliminada o restaurada (el JS la quita de la lista a los 200 ms) */
+.acp .acp-card.is-leaving {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+  transition: opacity var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+
+/* Cargando "Eliminados": aviso sobre los esqueletos, dentro de la rejilla */
+.acp .acp-grid-loading {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  padding: var(--space-2) 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acp .acp-card.is-leaving {
+    transform: none;
+    transition: none;
+  }
+}
+
 /* ---------- Carga: esqueletos con la forma de las tarjetas ---------- */
 .acp .acp-loading-view .acp-loading {
   justify-content: flex-start;
@@ -272,6 +327,15 @@
 
   .acp .acp-toolbar .ui-toolbar-spacer {
     display: none;
+  }
+
+  .acp .acp-tabs {
+    flex: 1 1 100%;
+  }
+
+  .acp .acp-tabs .ui-tab {
+    flex: 1;
+    justify-content: center;
   }
 
   .acp .acp-sort {

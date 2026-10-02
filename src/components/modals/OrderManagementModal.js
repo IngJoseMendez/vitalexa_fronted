@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import paymentService from '../../api/paymentService';
 import discountService from '../../api/discountService';
 import { useToast } from '../ToastContainer';
@@ -25,7 +25,10 @@ const STATUS_BADGE_TONE = {
 const statusBadgeClass = (estado) => `ui-badge ui-badge--${STATUS_BADGE_TONE[estado] || 'neutral'}`;
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
-export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
+// refreshKey (opcional): lo sube el panel de atrás cada vez que recarga sus datos (dueño, saldos).
+// Antes ese panel se remontaba y el modal volvía a pedir todo desde cero, cerrando lo que tuviera
+// abierto; ahora el modal sigue abierto y vuelve a pedir lo suyo en su lugar, sin spinners.
+export function OrderDetailModal({ order, onClose, onRefresh, userRole, refreshKey }) {
     const [payments, setPayments] = useState([]);
     const [discounts, setDiscounts] = useState([]);
     const [loadingPayments, setLoadingPayments] = useState(true);
@@ -55,59 +58,87 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const canManagePayments = isOwner; // Only Owner can manage payments
     const canManageDiscounts = isOwner || isAdmin; // Owner and Admin can manage discounts
 
+    // Recargas silenciosas: los indicadores de carga ("Cargando pagos...", "Cargando
+    // descuentos...", "Cargando detalles actualizados...") solo salen la primera vez; después la
+    // lista se actualiza en su lugar (no parpadea ni repite la entrada) y, si una recarga falla,
+    // se queda lo que ya se veía. Por recurso, solo se aplica la respuesta de la última petición
+    // (una recarga más vieja no borra un pago recién registrado).
+    const loadedRef = useRef({ order: false, payments: false, discounts: false, history: false });
+    const requestSeqRef = useRef({ order: 0, payments: 0, discounts: 0, history: 0 });
+
     // Fetch full order details (to ensure we have IDs for items)
     const fetchOrderDetails = useCallback(async () => {
         const orderId = order.id || order.orderId;
         if (!orderId) return;
+        const requestId = ++requestSeqRef.current.order;
+        const isLatest = () => requestId === requestSeqRef.current.order;
+        const silent = loadedRef.current.order;
 
         try {
-            setLoadingOrder(true);
+            if (!silent) setLoadingOrder(true);
             const response = await client.get(`/admin/orders/${orderId}`);
             // Merge with existing order prop to keep any client-side info if needed, but prioritize server data
-            setCurrentOrder(response.data);
+            if (isLatest()) {
+                setCurrentOrder(response.data);
+                loadedRef.current.order = true;
+            }
             console.log("📦 Full order details loaded:", response.data);
         } catch (error) {
             console.error('Error fetching order details:', error);
             // Fallback to prop order is already handled by initial state, but toast if critical
         } finally {
-            setLoadingOrder(false);
+            if (isLatest()) setLoadingOrder(false);
         }
     }, [order.id, order.orderId]);
 
     // Fetch payments for this order
     const fetchPayments = useCallback(async () => {
+        const requestId = ++requestSeqRef.current.payments;
+        const isLatest = () => requestId === requestSeqRef.current.payments;
+        const silent = loadedRef.current.payments;
         try {
-            setLoadingPayments(true);
+            if (!silent) setLoadingPayments(true);
             const orderId = order.id || order.orderId;
             const response = await paymentService.getOrderPayments(orderId);
-            setPayments(response.data || []);
+            if (isLatest()) {
+                setPayments(response.data || []);
+                loadedRef.current.payments = true;
+            }
         } catch (error) {
             console.error('Error fetching payments:', error);
+            if (!isLatest()) return;
             // Only show error if it's not a 404 (no payments yet)
             if (error.response?.status !== 404) {
                 toast.error('Error al cargar pagos');
             }
-            setPayments([]);
+            if (!silent) setPayments([]);
         } finally {
-            setLoadingPayments(false);
+            if (isLatest()) setLoadingPayments(false);
         }
     }, [order.id, order.orderId, toast]);
 
     // Fetch discounts for this order
     const fetchDiscounts = useCallback(async () => {
+        const requestId = ++requestSeqRef.current.discounts;
+        const isLatest = () => requestId === requestSeqRef.current.discounts;
+        const silent = loadedRef.current.discounts;
         try {
-            setLoadingDiscounts(true);
+            if (!silent) setLoadingDiscounts(true);
             const orderId = order.id || order.orderId;
             const response = await discountService.getOrderDiscounts(orderId);
-            setDiscounts(response.data || []);
+            if (isLatest()) {
+                setDiscounts(response.data || []);
+                loadedRef.current.discounts = true;
+            }
         } catch (error) {
             console.error('Error fetching discounts:', error);
+            if (!isLatest()) return;
             if (error.response?.status !== 404) {
                 toast.error('Error al cargar descuentos');
             }
-            setDiscounts([]);
+            if (!silent) setDiscounts([]);
         } finally {
-            setLoadingDiscounts(false);
+            if (isLatest()) setLoadingDiscounts(false);
         }
     }, [order.id, order.orderId, toast]);
 
@@ -115,12 +146,18 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
     const fetchAnnulmentHistory = useCallback(async () => {
         const orderId = order.id || order.orderId;
         if (!orderId) return;
+        const requestId = ++requestSeqRef.current.history;
+        const isLatest = () => requestId === requestSeqRef.current.history;
+        const silent = loadedRef.current.history;
         try {
             const response = await orderService.getAnnulmentHistory(orderId);
-            setAnnulmentHistory(response.data || []);
+            if (isLatest()) {
+                setAnnulmentHistory(response.data || []);
+                loadedRef.current.history = true;
+            }
         } catch (error) {
             console.error('Error fetching annulment history:', error);
-            setAnnulmentHistory([]);
+            if (isLatest() && !silent) setAnnulmentHistory([]);
         }
     }, [order.id, order.orderId]);
 
@@ -130,6 +167,27 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
         fetchDiscounts();
         fetchAnnulmentHistory();
     }, [fetchOrderDetails, fetchPayments, fetchDiscounts, fetchAnnulmentHistory]);
+
+    // El panel de atrás recargó (refreshKey cambió): se vuelve a pedir lo mismo que al abrir.
+    // Con el formulario de pago o la edición de factura abiertos se espera a que se cierren: sus
+    // montos y sus campos salen de estos datos y no deben moverse mientras se escriben.
+    const lastRefreshKeyRef = useRef(refreshKey);
+    const [refreshPending, setRefreshPending] = useState(false);
+    useEffect(() => {
+        if (refreshKey === lastRefreshKeyRef.current) return;
+        lastRefreshKeyRef.current = refreshKey;
+        setRefreshPending(true);
+    }, [refreshKey]);
+
+    const formInUse = showPaymentForm || showEditHistoryModal;
+    useEffect(() => {
+        if (!refreshPending || formInUse) return;
+        setRefreshPending(false);
+        fetchOrderDetails();
+        fetchPayments();
+        fetchDiscounts();
+        fetchAnnulmentHistory();
+    }, [refreshPending, formInUse, fetchOrderDetails, fetchPayments, fetchDiscounts, fetchAnnulmentHistory]);
 
     // Cancel a payment
     const handleCancelPayment = async (paymentId) => {
@@ -234,7 +292,14 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
             const response = await orderService.revertAnnulment(order.id || order.orderId, reason);
             toast.success(`Anulación revertida. La venta quedó en estado ${getStatusLabel(response.data?.estado)}`);
             setShowRevertModal(false);
-            if (response.data) setCurrentOrder(response.data);
+            if (response.data) {
+                // La orden que devolvió la reversión manda: una recarga de detalles que ya
+                // estaba en camino (pedida antes de revertir) no la pisa con el estado anterior
+                requestSeqRef.current.order += 1;
+                loadedRef.current.order = true;
+                setLoadingOrder(false);
+                setCurrentOrder(response.data);
+            }
             fetchAnnulmentHistory();
             fetchPayments();
             if (onRefresh) onRefresh();

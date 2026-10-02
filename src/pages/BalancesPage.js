@@ -1,11 +1,12 @@
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { formatCurrency, formatDateISO, formatOrderLabel, orderReferenceMatches } from '../utils/formatters';
 import balanceService from '../api/balanceService';
 import clientApi from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
 import SearchableSelect from '../components/SearchableSelect';
+import usePersistentState from '../hooks/usePersistentState';
 import { avatarTone, avatarInitials } from '../utils/avatarTone';
 // Los modales (detalle de orden, historial de pagos y registrar pago) se cargan bajo demanda:
 // ver los lazyWithRetry() debajo de los imports. Sus hojas de estilo se importan AQUÍ, en el mismo orden
@@ -31,6 +32,13 @@ const PaymentFormModal = lazyWithRetry(() =>
     import(/* webpackPrefetch: true */ '../components/modals/OrderManagementModal').then((m) => ({ default: m.PaymentFormModal }))
 );
 
+// Preferencias de CÓMO VER que se recuerdan al recargar (usePersistentState, CONVENTIONS §10):
+// orden A-Z/Z-A de la lista de clientes y orden (Fecha/Factura, Asc/Desc) de sus facturas.
+// Son los valores que alternan los botones; lo guardado que no sea uno de ellos vuelve al defecto.
+// La búsqueda, la vendedora y el filtro de estado (Todos/Deben/Al día) NO se recuerdan.
+const SORT_DIRECTIONS = ['asc', 'desc'];
+const INVOICE_SORT_FIELDS = ['date', 'invoice'];
+
 function BalancesPage() {
     const [balances, setBalances] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -39,9 +47,19 @@ function BalancesPage() {
     const [vendedores, setVendedores] = useState([]);
     const [selectedVendedor, setSelectedVendedor] = useState('');
     const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'owing', 'up_to_date'
-    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+    const [sortOrder, setSortOrder] = usePersistentState('balances.clients.sortDir', 'asc', { allowed: SORT_DIRECTIONS, sync: true });
     // Solo presentación: el botón "Exportar Excel" muestra su carga mientras se genera el archivo
     const [exporting, setExporting] = useState(false);
+    // Actualización silenciosa: la página entera en esqueleto solo hasta la primera carga
+    // (initialized); "Actualizar" muestra su spinner en el botón (refreshing); balancesVersion
+    // sube con cada carga terminada para que el detalle abierto se actualice sin remontarse.
+    const [initialized, setInitialized] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [balancesVersion, setBalancesVersion] = useState(0);
+    // Número de la última petición (cambiar de vendedora mientras llega una recarga no deja los
+    // saldos de la anterior) y vendedora de los saldos que se ven
+    const balancesRequestSeqRef = useRef(0);
+    const shownQueryRef = useRef(null);
     const toast = useToast();
     const userRole = localStorage.getItem('role');
 
@@ -63,9 +81,12 @@ function BalancesPage() {
     }, [userRole, toast]);
 
     const fetchBalances = useCallback(async (vendedorIdArg) => {
+        const requestId = ++balancesRequestSeqRef.current;
+        const isLatest = () => requestId === balancesRequestSeqRef.current;
+        // Botón "Actualizar" (llega el evento del clic): spinner en el botón, la lista no se vacía
+        const manual = !!vendedorIdArg && typeof vendedorIdArg.preventDefault === 'function';
+        let silent = false;
         try {
-            setLoading(true);
-
             // Determine actual ID to use:
             // 1. If explicit ID passed (string/number), use it.
             // 2. If it's explicitly null/empty string, we want ALL balances.
@@ -83,15 +104,38 @@ function BalancesPage() {
                 if (vendorObj) idToUse = vendorObj.id;
             }
 
+            // Misma consulta que ya se ve (Actualizar, o un pago/cupo/saldo guardado en el
+            // detalle): en silencio. Primera carga u otra vendedora: esqueleto en la lista.
+            const queryKey = String(idToUse ?? '');
+            silent = shownQueryRef.current === queryKey;
+            if (!silent) setLoading(true);
+            if (manual) setRefreshing(true);
+
             const response = await balanceService.getAllBalances(idToUse);
-            setBalances(response.data || []);
+            if (isLatest()) {
+                setBalances(response.data || []);
+                shownQueryRef.current = queryKey;
+            }
 
         } catch (error) {
             console.error('Error fetching balances:', error);
-            toast.error('Error al cargar saldos: ' + (error.response?.data?.message || error.message));
-            setBalances([]);
+            if (isLatest()) {
+                toast.error('Error al cargar saldos: ' + (error.response?.data?.message || error.message));
+                // Si falla una recarga silenciosa se quedan los saldos que ya se ven
+                if (!silent) {
+                    setBalances([]);
+                    shownQueryRef.current = null;
+                }
+            }
         } finally {
-            setLoading(false);
+            if (isLatest()) {
+                setLoading(false);
+                setRefreshing(false);
+                setInitialized(true);
+                // Antes el detalle abierto se remontaba aquí y volvía a pedir el saldo del
+                // cliente; ahora sigue montado y lo pide en su lugar al ver este número nuevo
+                setBalancesVersion((v) => v + 1);
+            }
         }
     }, [toast, selectedVendedor, vendedores]);
 
@@ -186,9 +230,18 @@ function BalancesPage() {
         return '';
     };
 
-    if (loading) {
-        // Esqueleto con la forma de la página (título, estadísticas y lista de clientes).
-        // aria-busy: solo aparece con fade; al cargar, el contenido entra con la subida.
+    // Valor de una tarjeta de resumen mientras llegan los saldos de otra vendedora
+    const statSkeleton = (
+        <>
+            <span className="ui-skeleton ui-skeleton--text bp-stat-skeleton" aria-hidden="true" />
+            <span className="ui-sr-only">Cargando</span>
+        </>
+    );
+
+    if (loading && !initialized) {
+        // Esqueleto con la forma de la página (título, estadísticas y lista de clientes), solo
+        // en la primera carga. aria-busy: solo aparece con fade; al cargar, el contenido entra
+        // con la subida.
         return (
             <div className="balances-page">
                 <div className="bp-skeleton" role="status" aria-busy="true">
@@ -317,8 +370,16 @@ function BalancesPage() {
                         </div>
                     )}
 
-                    <button type="button" className="ui-btn ui-btn--secondary bp-refresh" onClick={fetchBalances}>
-                        <span className="material-icons-round" aria-hidden="true">refresh</span>
+                    {/* Recarga silenciosa: la lista y el detalle abierto se quedan; spinner aquí */}
+                    <button
+                        type="button"
+                        className={`ui-btn ui-btn--secondary bp-refresh${refreshing ? ' is-loading' : ''}`}
+                        onClick={fetchBalances}
+                        aria-busy={refreshing || undefined}
+                    >
+                        {refreshing
+                            ? <span className="ui-spinner" aria-hidden="true" />
+                            : <span className="material-icons-round" aria-hidden="true">refresh</span>}
                         Actualizar
                     </button>
 
@@ -344,14 +405,18 @@ function BalancesPage() {
             </div>
 
             {/* Summary Stats: el número va en el color de su significado
-                (clientes = azul, pendiente = ámbar, pagado = verde) */}
-            <div className="bp-stats ui-stagger">
+                (clientes = azul, pendiente = ámbar, pagado = verde).
+                Al elegir otra vendedora (loading después de la carga inicial) los saldos que hay
+                en memoria son de la vendedora anterior: los totales van en esqueleto hasta que
+                llegan los nuevos, igual que la lista, para no leer un pendiente que no
+                corresponde. Las recargas silenciosas (misma consulta) los cambian en su lugar. */}
+            <div className="bp-stats ui-stagger" aria-busy={loading || undefined}>
                 <div className="ui-stat">
                     <span className="ui-stat-icon ui-stat-icon--primary" aria-hidden="true">
                         <span className="material-icons-round">people</span>
                     </span>
                     <div className="ui-stat-content">
-                        <span className="ui-stat-value ui-text-primary">{balances.length}</span>
+                        <span className="ui-stat-value ui-text-primary">{loading ? statSkeleton : balances.length}</span>
                         <span className="ui-stat-label">Clientes</span>
                     </div>
                 </div>
@@ -361,7 +426,7 @@ function BalancesPage() {
                     </span>
                     <div className="ui-stat-content">
                         <span className="ui-stat-value ui-text-warning">
-                            ${formatCurrency(totalPending)}
+                            {loading ? statSkeleton : `$${formatCurrency(totalPending)}`}
                         </span>
                         <span className="ui-stat-label">Total Pendiente</span>
                     </div>
@@ -372,7 +437,7 @@ function BalancesPage() {
                     </span>
                     <div className="ui-stat-content">
                         <span className="ui-stat-value ui-text-success">
-                            ${formatCurrency(totalPaidAll)}
+                            {loading ? statSkeleton : `$${formatCurrency(totalPaidAll)}`}
                         </span>
                         <span className="ui-stat-label">Total Pagado</span>
                     </div>
@@ -384,8 +449,9 @@ function BalancesPage() {
                 {/* Clients List */}
                 <div className="bp-list-panel">
                     <div className="bp-list-head">
+                        {/* Sin número mientras llegan los saldos de otra vendedora */}
                         <h2 className="bp-panel-title">
-                            Clientes ({filteredBalances.length})
+                            {loading ? 'Clientes' : `Clientes (${filteredBalances.length})`}
                         </h2>
 
                         <button
@@ -399,7 +465,22 @@ function BalancesPage() {
                         </button>
                     </div>
 
-                    {filteredBalances.length === 0 ? (
+                    {loading ? (
+                        // Otra vendedora (lo pidió el usuario): esqueleto solo en la lista; el
+                        // buscador, los filtros y el detalle abierto siguen en su lugar
+                        <div className="bp-list-skeleton" role="status" aria-busy="true">
+                            <span className="ui-sr-only">Cargando saldos de clientes...</span>
+                            {[0, 1, 2, 3, 4].map((i) => (
+                                <div key={i} className="bp-skeleton-row" aria-hidden="true">
+                                    <span className="ui-skeleton ui-skeleton--circle bp-skeleton-avatar" />
+                                    <div className="ui-skeleton-stack bp-skeleton-lines">
+                                        <span className="ui-skeleton ui-skeleton--title" />
+                                        <span className="ui-skeleton ui-skeleton--text bp-skeleton-short" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : filteredBalances.length === 0 ? (
                         <div className="ui-empty ui-empty--plain">
                             <span className="material-icons-round ui-empty-icon" aria-hidden="true">search_off</span>
                             <p className="ui-empty-title">No se encontraron clientes</p>
@@ -476,6 +557,7 @@ function BalancesPage() {
                             client={selectedClient}
                             onRefresh={fetchBalances}
                             userRole={userRole}
+                            refreshKey={balancesVersion}
                         />
                     ) : (
                         <div className="ui-empty ui-empty--plain bp-no-selection">
@@ -508,7 +590,7 @@ function invoicePaidPct(paid, total) {
 // ============================================
 // CLIENT DETAIL VIEW COMPONENT
 // ============================================
-function ClientDetailView({ client, onRefresh, userRole }) {
+function ClientDetailView({ client, onRefresh, userRole, refreshKey }) {
     const [clientDetail, setClientDetail] = useState(null);
     const [loading, setLoading] = useState(true);
     const [creditLimit, setCreditLimit] = useState('');
@@ -516,8 +598,10 @@ function ClientDetailView({ client, onRefresh, userRole }) {
     const [balanceFavorAmount, setBalanceFavorAmount] = useState('');
     const [saving, setSaving] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
-    const [sortBy, setSortBy] = useState('date'); // 'invoice' or 'date'
+    // Se recuerdan por usuario y valen para todos los clientes (antes volvían a Fecha/Desc al
+    // recargar o al volver a abrir el detalle)
+    const [sortOrder, setSortOrder] = usePersistentState('balances.invoices.sortDir', 'desc', { allowed: SORT_DIRECTIONS, sync: true });
+    const [sortBy, setSortBy] = usePersistentState('balances.invoices.sort', 'date', { allowed: INVOICE_SORT_FIELDS, sync: true });
 
     // Modal States
     const [selectedOrderForModal, setSelectedOrderForModal] = useState(null);
@@ -532,17 +616,45 @@ function ClientDetailView({ client, onRefresh, userRole }) {
     const confirm = useConfirm();
     const isOwner = userRole === 'ROLE_OWNER';
 
+    // Actualización silenciosa del detalle: el esqueleto solo sale al abrir otro cliente. Las
+    // recargas del MISMO cliente (después de un pago, cupo, saldo inicial o saldo a favor, o al
+    // actualizar la lista) cambian los números en su lugar: los modales abiertos (historial de
+    // pagos, registrar pago, detalle de la orden) siguen abiertos y no salta el scroll.
+    const detailRequestSeqRef = useRef(0);
+    const shownClientIdRef = useRef(null);
+    // Límite de crédito tal como llegó del servidor: si el usuario lo está cambiando (el campo ya
+    // no coincide), una recarga silenciosa no le borra lo que escribió
+    const loadedCreditLimitRef = useRef('');
+    // Sube con cada recarga terminada: el detalle de orden abierto vuelve a pedir lo suyo en su
+    // lugar (antes se remontaba con todo el detalle del cliente y se cerraba)
+    const [detailVersion, setDetailVersion] = useState(0);
+
     const fetchClientDetail = useCallback(async () => {
+        const requestId = ++detailRequestSeqRef.current;
+        const isLatest = () => requestId === detailRequestSeqRef.current;
+        const silent = shownClientIdRef.current === client.clientId;
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const response = await balanceService.getClientBalance(client.clientId);
+            if (!isLatest()) return; // se abrió otro cliente mientras llegaba
+            const serverCreditLimit = response.data?.creditLimit?.toString() || '';
             setClientDetail(response.data);
-            setCreditLimit(response.data?.creditLimit?.toString() || '');
+            if (silent) {
+                setCreditLimit((typed) => (typed === loadedCreditLimitRef.current ? serverCreditLimit : typed));
+            } else {
+                setCreditLimit(serverCreditLimit);
+            }
+            loadedCreditLimitRef.current = serverCreditLimit;
+            shownClientIdRef.current = client.clientId;
         } catch (error) {
             console.error('Error fetching client detail:', error);
-            toast.error('Error al cargar detalles del cliente');
+            // Si falla una recarga silenciosa se queda el detalle que ya se ve
+            if (isLatest()) toast.error('Error al cargar detalles del cliente');
         } finally {
-            setLoading(false);
+            if (isLatest()) {
+                setLoading(false);
+                setDetailVersion((v) => v + 1);
+            }
         }
     }, [client.clientId, toast]);
 
@@ -550,15 +662,27 @@ function ClientDetailView({ client, onRefresh, userRole }) {
         fetchClientDetail();
     }, [fetchClientDetail]);
 
+    // La lista de saldos recargó (refreshKey cambió): se pide de nuevo el saldo de este cliente,
+    // en silencio (antes lo pedía porque toda la página se remontaba)
+    const lastRefreshKeyRef = useRef(refreshKey);
+    useEffect(() => {
+        if (refreshKey === lastRefreshKeyRef.current) return;
+        lastRefreshKeyRef.current = refreshKey;
+        fetchClientDetail();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshKey]);
+
     // FETCH FULL ORDER DETAILS FOR MODAL
-    const handleManageOrder = async (orderId) => {
+    // silent: recarga de la orden que ya está abierta (después de un cambio hecho en ella): sin
+    // el aviso "Cargando orden..." encima del modal, y solo si ese modal sigue abierto
+    const handleManageOrder = async (orderId, { silent = false } = {}) => {
         if (!orderId) {
             toast.error('ID de orden no válido');
             return;
         }
 
         try {
-            setLoadingOrder(true);
+            if (!silent) setLoadingOrder(true);
             let response;
             let foundOrder = null;
 
@@ -576,7 +700,11 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                 foundOrder = response.data.find(o => String(o.id) === String(orderId));
             }
 
-            if (foundOrder) {
+            if (foundOrder && silent) {
+                setSelectedOrderForModal((open) => (
+                    open && String(open.id || open.orderId) === String(orderId) ? foundOrder : open
+                ));
+            } else if (foundOrder) {
                 setSelectedOrderForModal(foundOrder);
             } else {
                 console.warn(`Order ${orderId} not found in full list`);
@@ -586,7 +714,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
             console.error('Error fetching orders:', error);
             toast.error('Error al cargar detalles de la orden');
         } finally {
-            setLoadingOrder(false);
+            if (!silent) setLoadingOrder(false);
         }
     };
 
@@ -1220,8 +1348,9 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                             // Refresh client detail to update balances
                             fetchClientDetail();
                             // Also refresh the specific order to update totals/discounts
-                            handleManageOrder(selectedOrderForModal.id || selectedOrderForModal.orderId);
+                            handleManageOrder(selectedOrderForModal.id || selectedOrderForModal.orderId, { silent: true });
                         }}
+                        refreshKey={detailVersion}
                     />
                 </Suspense>
                 </LazyErrorBoundary>

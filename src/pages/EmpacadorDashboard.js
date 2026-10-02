@@ -1,9 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import productService from '../api/productService';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import { bodegaInfo } from '../utils/inventoryMovements';
+import usePersistentState from '../hooks/usePersistentState';
 import '../styles/EmpacadorDashboard.css';
+
+// Preferencias de CÓMO VER el inventario que se recuerdan (usePersistentState): exactamente las
+// opciones de cada control; lo guardado que no esté aquí vuelve al valor por defecto.
+const VIEW_MODE_OPTIONS = ['cards', 'list']; // botones "Vista tarjetas" / "Vista lista"
+const SORT_OPTIONS = ['nombre', 'stock_desc', 'stock_asc', 'alerta']; // select "Ordenar productos"
 
 // ============================================================
 //  EMPACADOR DASHBOARD — Solo visor de inventario (mobile-first)
@@ -53,9 +59,13 @@ function EmpacadorDashboard() {
                 </button>
             </header>
 
-            {/* ── Main Content ── */}
+            {/* ── Main Content ──
+                Actualización silenciosa: con cada INVENTORY_UPDATE o "Actualizar" el panel vuelve
+                a pedir el inventario y lo reemplaza en su lugar (antes key={refreshTrigger} lo
+                montaba de cero: se borraba la búsqueda, filtros, vista y orden, y el scroll
+                volvía arriba). */}
             <main className="emp-main">
-                <InventarioPanel key={refreshTrigger} onRefresh={handleRefresh} />
+                <InventarioPanel refreshTrigger={refreshTrigger} onRefresh={handleRefresh} />
             </main>
         </div>
     );
@@ -64,32 +74,50 @@ function EmpacadorDashboard() {
 // ============================================================
 //  PANEL PRINCIPAL DE INVENTARIO
 // ============================================================
-function InventarioPanel() {
+function InventarioPanel({ refreshTrigger }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [filter, setFilter] = useState('all');   // 'all' | 'alerts' | 'committed'
-    const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'list'
-    const [sortBy, setSortBy] = useState('nombre'); // 'nombre' | 'stock_asc' | 'stock_desc' | 'alerta'
+    const [filter, setFilter] = useState('all');   // 'all' | 'alerts' | 'committed' (no se recuerda)
+    // Vista y orden se recuerdan al recargar (por usuario); la búsqueda y el filtro no
+    const [viewMode, setViewMode] = usePersistentState('empacador.inventory.view', 'cards', {
+        allowed: VIEW_MODE_OPTIONS,
+        sync: true,
+    });
+    const [sortBy, setSortBy] = usePersistentState('empacador.inventory.sort', 'nombre', {
+        allowed: SORT_OPTIONS,
+        sync: true,
+    });
     const toast = useToast();
+    // Recarga silenciosa: solo la última petición aplica su respuesta (ráfagas de
+    // INVENTORY_UPDATE) y el esqueleto solo se ve en la carga inicial
+    const reqRef = useRef(0);
+    const loadedRef = useRef(false);
 
     const fetchInventario = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++reqRef.current;
+        if (!loadedRef.current) setLoading(true);
         try {
             // Endpoint propio del empacador (requiere ROLE_EMPACADOR)
             const response = await productService.getStockReportForEmpacador();
+            if (reqId !== reqRef.current) return; // llegó una petición más nueva
             setItems(response.data || []);
         } catch (error) {
+            if (reqId !== reqRef.current) return;
+            // Si falla, el inventario que ya se ve se conserva (el aviso es el mismo de antes)
             console.error('Error al cargar inventario:', error);
             toast.error('Error al cargar inventario: ' + (error.response?.data?.message || error.message));
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) {
+                loadedRef.current = true;
+                setLoading(false);
+            }
         }
     }, [toast]);
 
     useEffect(() => {
         fetchInventario();
-    }, [fetchInventario]);
+    }, [fetchInventario, refreshTrigger]);
 
     // ── Derived data ──
     const totalProductos = items.length;

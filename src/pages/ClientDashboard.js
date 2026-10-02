@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { CartProvider, useCart } from '../context/CartContext';
 import { clientService } from '../api/client';
 import { tagService } from '../api/tagService';
@@ -10,7 +10,11 @@ import {
     ShoppingListsView,
     ClientProfile
 } from '../components/ClientComponents';
+import usePersistentState from '../hooks/usePersistentState';
 import '../styles/ClientDashboard.css';
+
+// Opciones del selector de columnas del catálogo; lo guardado fuera de ellas vuelve al defecto
+const GRID_COLUMN_OPTIONS = [1, 2, 3];
 
 // Wrapper to provide CartContext
 const ClientDashboard = () => {
@@ -26,9 +30,11 @@ const ClientDashboardContent = () => {
     const [activeTab, setActiveTab] = useState('catalog');
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [gridColumns, setGridColumns] = useState(() => {
-        const saved = localStorage.getItem('clientGridColumns');
-        return saved ? parseInt(saved) : 2;
+    // Columnas del catálogo: se recuerdan al recargar (por usuario). "Solo en stock", la búsqueda
+    // y la etiqueta no.
+    const [gridColumns, setGridColumns] = usePersistentState('cliente.catalog.columns', 2, {
+        allowed: GRID_COLUMN_OPTIONS,
+        sync: true,
     });
     // ✅ Refresh Trigger
     const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -39,9 +45,6 @@ const ClientDashboardContent = () => {
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
 
-    useEffect(() => {
-        localStorage.setItem('clientGridColumns', gridColumns.toString());
-    }, [gridColumns]);
     const [tags, setTags] = useState([]);
     const [activeTagId, setActiveTagId] = useState(null);
 
@@ -58,17 +61,31 @@ const ClientDashboardContent = () => {
         fetchTags();
     }, []);
 
+    // Recarga silenciosa del catálogo: cada petición lleva un número y solo la última aplica su
+    // respuesta (el efecto inmediato y el de 400 ms piden lo mismo; una respuesta vieja no pisa a
+    // la nueva). Si los parámetros son los de la última petición ("Actualizar", la segunda de las
+    // dos peticiones o volver a la pestaña) la grilla se actualiza en su lugar, sin esqueleto: no
+    // se pierde la cantidad elegida en cada tarjeta ni el scroll.
+    const catalogReqRef = useRef(0);
+    const catalogParamsRef = useRef(null);
+
     // Load products
     const fetchProducts = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++catalogReqRef.current;
+        const paramsKey = JSON.stringify([page, search, inStockOnly, activeTagId]);
+        const silent = catalogParamsRef.current === paramsKey;
+        catalogParamsRef.current = paramsKey;
+        if (!silent) setLoading(true);
         try {
             const response = await clientService.getProductsPage(page, 24, search, inStockOnly ? true : null, activeTagId);
+            if (reqId !== catalogReqRef.current) return; // llegó una petición más nueva
             setProducts(response.data.content || []);
             setTotalPages(response.data.totalPages || 0);
         } catch (error) {
+            // Si falla, el catálogo que ya se ve se conserva
             console.error('Error fetching products:', error);
         } finally {
-            setLoading(false);
+            if (reqId === catalogReqRef.current) setLoading(false);
         }
     }, [page, search, inStockOnly, activeTagId]); // Removed refreshTrigger from dependency
 
@@ -204,7 +221,7 @@ const ClientDashboardContent = () => {
                                 </label>
                             </div>
                             <div className="grid-columns-selector ui-tabs" role="group" aria-label="Columnas del catálogo">
-                                {[1, 2, 3].map(cols => (
+                                {GRID_COLUMN_OPTIONS.map(cols => (
                                     <button
                                         key={cols}
                                         type="button"
@@ -300,13 +317,17 @@ const ClientDashboardContent = () => {
                     </>
                 )}
 
+                {/* Actualización silenciosa: "Actualizar" (refreshTrigger) hace que cada vista vuelva
+                    a pedir sus datos y los reemplace en su lugar. Antes key={refreshTrigger} las
+                    montaba de cero: se borraban las notas del pedido, la lista expandida y la
+                    edición del perfil en curso. El carrito no pide nada al servidor. */}
                 {activeTab === 'cart' && (
                     <div className="ui-rise-in">
                         <h2 className="client-section-title">
                             <span className="ui-icon-tile" aria-hidden="true"><span className="material-icons-round">shopping_cart</span></span>
                             Mi Carrito
                         </h2>
-                        <CartView onOrderPlaced={() => setActiveTab('orders')} key={refreshTrigger} />
+                        <CartView onOrderPlaced={() => setActiveTab('orders')} />
                     </div>
                 )}
 
@@ -316,7 +337,7 @@ const ClientDashboardContent = () => {
                             <span className="ui-icon-tile ui-icon-tile--success" aria-hidden="true"><span className="material-icons-round">receipt_long</span></span>
                             Mis Pedidos
                         </h2>
-                        <OrdersView key={refreshTrigger} />
+                        <OrdersView refreshTrigger={refreshTrigger} />
                     </div>
                 )}
 
@@ -330,14 +351,14 @@ const ClientDashboardContent = () => {
                             onConvertToOrder={() => setActiveTab('orders')}
                             productToAdd={productToAdd}
                             onProductAdded={() => setProductToAdd(null)}
-                            key={refreshTrigger}
+                            refreshTrigger={refreshTrigger}
                         />
                     </div>
                 )}
 
                 {activeTab === 'profile' && (
                     <div className="ui-rise-in">
-                        <ClientProfile key={refreshTrigger} />
+                        <ClientProfile refreshTrigger={refreshTrigger} />
                     </div>
                 )}
 

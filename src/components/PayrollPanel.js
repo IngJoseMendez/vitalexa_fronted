@@ -1,6 +1,6 @@
 // src/components/PayrollPanel.js
 // Panel completo de Nómina para el Owner
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import {
   getAllPayrollConfigs,
@@ -81,7 +81,11 @@ function VendorAvatar({ name, size = '' }) {
 }
 
 // ─── Componente principal ───────────────────────────────────
-export default function PayrollPanel({ vendedores = [] }) {
+// refreshTrigger (dueño: INVENTORY_UPDATE o "Actualizar" del menú): la sub-pestaña que se ve
+// vuelve a pedir sus datos y los reemplaza en su lugar, sin esqueletos. Antes el dashboard
+// entero se remontaba y Nóminas volvía a pedir las del mes actual (perdiendo el mes elegido, la
+// sub-pestaña, las notas y el detalle abierto); ahora todo eso se conserva.
+export default function PayrollPanel({ vendedores = [], refreshTrigger }) {
   const [activeTab, setActiveTab] = useState('nominas'); // 'nominas' | 'config'
   const toast = useToast();
   const askConfirm = useConfirm();
@@ -119,14 +123,14 @@ export default function PayrollPanel({ vendedores = [] }) {
         ))}
       </div>
 
-      {activeTab === 'nominas' && <NominasTab toast={toast} askConfirm={askConfirm} />}
-      {activeTab === 'config' && <ConfigTab vendedores={vendedores} toast={toast} />}
+      {activeTab === 'nominas' && <NominasTab toast={toast} askConfirm={askConfirm} refreshTrigger={refreshTrigger} />}
+      {activeTab === 'config' && <ConfigTab vendedores={vendedores} toast={toast} refreshTrigger={refreshTrigger} />}
     </div>
   );
 }
 
 // ─── Tab Nóminas ────────────────────────────────────────────
-function NominasTab({ toast, askConfirm }) {
+function NominasTab({ toast, askConfirm, refreshTrigger }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -146,23 +150,44 @@ function NominasTab({ toast, askConfirm }) {
   const [calcNotes, setCalcNotes] = useState('');
   const [generalCommissionThreshold, setGeneralCommissionThreshold] = useState('');
 
+  // Recarga silenciosa: los esqueletos solo salen la primera vez y al elegir otro mes o año (lo
+  // pide el dueño). Las recargas del mismo período (refreshTrigger, recalcular una nómina)
+  // reemplazan las tarjetas en su lugar: el detalle o el historial abiertos, las notas y el
+  // umbral escritos siguen como estaban. Solo la última petición aplica su respuesta (cambiar de
+  // mes mientras llega una recarga no deja en pantalla las nóminas del mes anterior).
+  const requestSeqRef = useRef(0);
+  const shownPeriodRef = useRef(null); // "mes-año" de las nóminas que se ven
+  const currentPeriodRef = useRef(`${month}-${year}`); // "mes-año" elegido ahora en los selectores
+  useEffect(() => { currentPeriodRef.current = `${month}-${year}`; }, [month, year]);
+
   const fetchNominas = useCallback(async () => {
-    setLoading(true);
+    const period = `${month}-${year}`;
+    // Recalcular una nómina llama a la versión de cuando se pulsó: si el dueño ya eligió otro
+    // mes, esa recarga no aplica (la del mes elegido ya salió desde su propio efecto)
+    if (period !== currentPeriodRef.current) return;
+    const requestId = ++requestSeqRef.current;
+    const isLatest = () => requestId === requestSeqRef.current;
+    if (shownPeriodRef.current !== period) setLoading(true);
     try {
       const res = await getAllPayrolls(month, year);
+      if (!isLatest()) return;
       setNominas(res.data || []);
+      shownPeriodRef.current = period;
     } catch (err) {
+      if (!isLatest()) return;
       if (err.response?.status !== 404) {
+        // Las nóminas que ya se ven se conservan (el aviso es el mismo de antes)
         toast.error('Error al cargar nóminas');
       } else {
         setNominas([]);
+        shownPeriodRef.current = period;
       }
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
   }, [month, year, toast]);
 
-  useEffect(() => { fetchNominas(); }, [fetchNominas]);
+  useEffect(() => { fetchNominas(); }, [fetchNominas, refreshTrigger]);
 
   useEffect(() => { if (!exporting) setExportingKey(null); }, [exporting]);
 
@@ -177,10 +202,19 @@ function NominasTab({ toast, askConfirm }) {
     });
     if (!ok) return;
     setCalculating(true);
+    const calcPeriod = `${month}-${year}`;
     try {
       const threshold = generalCommissionThreshold !== '' ? parseFloat(generalCommissionThreshold) : null;
       const res = await calculateAllPayrolls(month, year, threshold);
-      setNominas(res.data || []);
+      if (currentPeriodRef.current === calcPeriod) {
+        // Una recarga en segundo plano que salió antes del cálculo ya no aplica: traería las
+        // nóminas sin recalcular y pisaría estas
+        requestSeqRef.current += 1;
+        setLoading(false);
+        setNominas(res.data || []);
+        shownPeriodRef.current = calcPeriod;
+      }
+      // Si el dueño ya eligió otro mes, se quedan las nóminas de ese mes (su propia petición)
       toast.success(`Nóminas calculadas: ${res.data?.length || 0} vendedores`);
     } catch (err) {
       toast.error('Error al calcular nóminas: ' + (err.response?.data?.message || err.message));
@@ -705,26 +739,40 @@ function HistoryModal({ vendedorUsername, history, loading, onClose, onView }) {
 }
 
 // ─── Tab Configuración ───────────────────────────────────────
-function ConfigTab({ vendedores, toast }) {
+function ConfigTab({ vendedores, toast, refreshTrigger }) {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingConfig, setEditingConfig] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Recarga silenciosa: "Cargando configuraciones..." solo la primera vez; las recargas
+  // (refreshTrigger, guardar) cambian las tarjetas en su lugar y el modal de edición abierto
+  // sigue con lo escrito. Solo la última petición aplica su respuesta.
+  const requestSeqRef = useRef(0);
+  const loadedRef = useRef(false);
 
   const fetchConfigs = useCallback(async () => {
-    setLoading(true);
+    const requestId = ++requestSeqRef.current;
+    const isLatest = () => requestId === requestSeqRef.current;
+    const silent = loadedRef.current;
+    if (!silent) setLoading(true);
     try {
       const res = await getAllPayrollConfigs();
+      if (!isLatest()) return;
       setConfigs(res.data || []);
     } catch (err) {
+      if (!isLatest()) return;
       if (err.response?.status !== 404) toast.error('Error al cargar configuraciones');
-      setConfigs([]);
+      // Si falla una recarga silenciosa se quedan las configuraciones que ya se ven
+      if (!silent || err.response?.status === 404) setConfigs([]);
     } finally {
-      setLoading(false);
+      if (isLatest()) {
+        loadedRef.current = true;
+        setLoading(false);
+      }
     }
   }, [toast]);
 
-  useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
+  useEffect(() => { fetchConfigs(); }, [fetchConfigs, refreshTrigger]);
 
   const handleEdit = async (vendedorId) => {
     try {

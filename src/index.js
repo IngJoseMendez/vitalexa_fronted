@@ -8,6 +8,11 @@ import './index.css';
 import './styles/Dashboard.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { installStaggerSettle } from './utils/staggerSettle';
+
+// Las listas .ui-stagger entran escalonadas solo al montarse; una recarga de datos que cambia
+// las posiciones no vuelve a animar tarjetas (ver utils/staggerSettle.js)
+installStaggerSettle();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

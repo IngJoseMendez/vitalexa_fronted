@@ -1,6 +1,6 @@
 // src/components/PaymentTransferPanel.js
 // Panel de gestión de transferencias de pagos entre vendedores (solo Owner)
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import paymentTransferService from '../api/paymentTransferService';
 import paymentService from '../api/paymentService';
 import apiClient from '../api/client';
@@ -34,7 +34,11 @@ const keepFilteredOrder = () => true;
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
-export default function PaymentTransferPanel({ vendedores = [] }) {
+// refreshTrigger (dueño: INVENTORY_UPDATE o "Actualizar" del menú): con una vendedora elegida en
+// el historial, vuelve a pedir sus transferencias y las cambia en su lugar. Los filtros, el
+// formulario de revocación abierto (con su motivo) y la vista "Nueva Transferencia" a medio
+// llenar se conservan (antes el dashboard se remontaba y todo eso se perdía).
+export default function PaymentTransferPanel({ vendedores = [], refreshTrigger }) {
     const toast = useToast();
     const [view, setView] = useState('history'); // 'history' | 'create'
     const [transfers, setTransfers] = useState([]);
@@ -52,26 +56,48 @@ export default function PaymentTransferPanel({ vendedores = [] }) {
     const [revokeReason, setRevokeReason] = useState('');
     const [revokeLoading, setRevokeLoading] = useState(false);
 
+    // Recarga silenciosa: "Cargando transferencias…" solo al cambiar un filtro (lo pide el dueño).
+    // Con los mismos filtros (refreshTrigger, después de revocar o de crear) la tabla se cambia en
+    // su lugar y no se borra el aviso que se está leyendo. Solo la última petición aplica su
+    // respuesta: cambiar de vendedora mientras llega una recarga no deja la tabla de la anterior.
+    const requestSeqRef = useRef(0);
+    const shownFiltersRef = useRef(null); // filtros de las transferencias que se ven
+
     const loadTransfers = useCallback(async () => {
-        if (!filterVendedor) { setTransfers([]); return; }
-        setLoading(true);
-        setError('');
+        const requestId = ++requestSeqRef.current;
+        const isLatest = () => requestId === requestSeqRef.current;
+        if (!filterVendedor) {
+            shownFiltersRef.current = null;
+            setLoading(false);
+            setTransfers([]);
+            return;
+        }
+        const filtersKey = JSON.stringify([filterVendedor, filterDirection, filterStatus]);
+        const silent = shownFiltersRef.current === filtersKey;
+        if (!silent) {
+            setLoading(true);
+            setError('');
+        }
         try {
             const fn = filterDirection === 'origin'
                 ? paymentTransferService.getTransfersByOrigin
                 : paymentTransferService.getTransfersByDest;
             const res = await fn(filterVendedor);
+            if (!isLatest()) return;
             let data = res.data;
             if (filterStatus === 'active') data = data.filter(t => !t.isRevoked);
             setTransfers(data);
+            shownFiltersRef.current = filtersKey;
         } catch (e) {
+            if (!isLatest()) return;
+            // Mismo aviso de siempre; si era una recarga silenciosa, la tabla que se ve se queda
             setError('Error al cargar transferencias: ' + (e.response?.data?.message || e.message));
         } finally {
-            setLoading(false);
+            if (isLatest()) setLoading(false);
         }
     }, [filterVendedor, filterDirection, filterStatus]);
 
-    useEffect(() => { loadTransfers(); }, [loadTransfers]);
+    useEffect(() => { loadTransfers(); }, [loadTransfers, refreshTrigger]);
 
     const handleRevoke = async (transferId) => {
         if (!revokeReason.trim()) { toast.warning('Debes ingresar el motivo de revocación'); return; }
@@ -79,6 +105,9 @@ export default function PaymentTransferPanel({ vendedores = [] }) {
         try {
             await paymentTransferService.revokeTransfer(transferId, revokeReason.trim());
             setSuccess('Transferencia revocada exitosamente');
+            // Antes la recarga de abajo borraba el aviso de error anterior; ahora es silenciosa
+            // (no toca el aviso), así que se borra aquí
+            setError('');
             setRevokingId(null);
             setRevokeReason('');
             loadTransfers();
@@ -172,7 +201,7 @@ export default function PaymentTransferPanel({ vendedores = [] }) {
                 {view === 'create' && (
                     <CreateTransferView
                         vendedores={vendedores}
-                        onSuccess={(msg) => { setSuccess(msg); setView('history'); loadTransfers(); }}
+                        onSuccess={(msg) => { setSuccess(msg); setError(''); setView('history'); loadTransfers(); }}
                         onError={(msg) => setError(msg)}
                     />
                 )}

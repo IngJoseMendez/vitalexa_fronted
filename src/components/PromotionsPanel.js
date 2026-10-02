@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
@@ -17,9 +17,15 @@ import PromotionFormModal from './modals/PromotionFormModal';
 import PromotionListToolbar from './PromotionListToolbar';
 import '../styles/Promotions.css';
 
-function PromotionsPanel() {
+// refreshTrigger (INVENTORY_UPDATE o "Actualizar" del panel de admin): vuelve a pedir las
+// promociones y las reemplaza en su lugar, sin cerrar el formulario abierto ni perder la
+// búsqueda o la pestaña (Activas/Inactivas/Todas). handleFormSuccess/handleFormClose ya cierran
+// y limpian el formulario de forma explícita.
+function PromotionsPanel({ refreshTrigger }) {
     const [promotions, setPromotions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
+    const loadedRef = useRef(false); // ya terminó la carga inicial: las siguientes son silenciosas
     const [showForm, setShowForm] = useState(false);
     const [editingPromotion, setEditingPromotion] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -40,21 +46,28 @@ function PromotionsPanel() {
     );
 
     const fetchPromotions = useCallback(async () => {
+        const reqId = ++reqRef.current;
         try {
-            setLoading(true);
+            if (!loadedRef.current) setLoading(true);
             const response = await promotionService.getAll();
+            if (reqId !== reqRef.current) return;
             setPromotions(response.data || []);
         } catch (error) {
+            if (reqId !== reqRef.current) return;
+            // Si falla, las promociones que ya se ven se conservan (el aviso es el mismo de antes)
             console.error('Error al cargar promociones:', error);
             toast.error('Error al cargar promociones');
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) {
+                loadedRef.current = true;
+                setLoading(false);
+            }
         }
     }, [toast]);
 
     useEffect(() => {
         fetchPromotions();
-    }, [fetchPromotions]);
+    }, [fetchPromotions, refreshTrigger]);
 
     const handleToggleStatus = async (id, currentStatus) => {
         try {
@@ -119,6 +132,7 @@ function PromotionsPanel() {
         });
     };
 
+    // Solo en la carga inicial (las recargas no vuelven a poner loading en true)
     if (loading) {
         return (
             <div className="ui-loading">

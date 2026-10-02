@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { tagService } from '../api/tagService';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
 import '../styles/areas/Inventory.css';
 
-export default function TagsPanel() {
+// refreshTrigger (INVENTORY_UPDATE o "Actualizar" del panel de admin): vuelve a pedir las
+// etiquetas y las reemplaza en su lugar. El modal de crear/editar etiqueta y lo escrito en él
+// siguen como estaban (después de guardar, handleSubmit lo cierra y lo limpia).
+export default function TagsPanel({ refreshTrigger }) {
     const [tags, setTags] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -12,22 +15,31 @@ export default function TagsPanel() {
     const [formData, setFormData] = useState({ name: '' });
     const toast = useToast();
     const confirm = useConfirm();
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
+    const loadedRef = useRef(false); // ya terminó la carga inicial: las siguientes son silenciosas
 
     const fetchTags = useCallback(async () => {
+        const reqId = ++reqRef.current;
         try {
-            setLoading(true);
+            if (!loadedRef.current) setLoading(true);
             const res = await tagService.getAll();
+            if (reqId !== reqRef.current) return;
             setTags(res.data);
         } catch (error) {
+            if (reqId !== reqRef.current) return;
+            // Si falla, las etiquetas que ya se ven se conservan (el aviso es el mismo de antes)
             toast.error('Error al cargar etiquetas');
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) {
+                loadedRef.current = true;
+                setLoading(false);
+            }
         }
     }, [toast]);
 
     useEffect(() => {
         fetchTags();
-    }, [fetchTags]);
+    }, [fetchTags, refreshTrigger]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

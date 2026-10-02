@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
 import specialPromotionService from '../api/specialPromotionService';
@@ -40,19 +40,29 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
     const toast = useToast();
     const askConfirm = useConfirm();
 
+    // Recarga silenciosa: "Cargando..." solo en la carga inicial. Las recargas (INVENTORY_UPDATE,
+    // "Actualizar" del admin, guardar en el modal, eliminar) reemplazan la grilla en su lugar: el
+    // buscador no se desmonta (no se pierde el foco ni lo escrito), la pestaña y el modal abierto
+    // siguen como estaban, no salta el scroll ni se repiten las animaciones de entrada.
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
+    const loadedRef = useRef(false); // ya terminó la carga inicial: las siguientes son silenciosas
+
     const fetchPromotions = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++reqRef.current;
+        if (!loadedRef.current) setLoading(true);
         try {
             const [specialsRes, parentsRes] = await Promise.allSettled([
                 specialPromotionService.getAll(0, MAX_SPECIAL_PROMOTIONS),
                 promotionService.getAll(),
             ]);
+            if (reqId !== reqRef.current) return; // llegó una petición más nueva
 
             if (specialsRes.status === 'fulfilled') {
                 const data = specialsRes.value?.data;
                 const list = Array.isArray(data?.content) ? data.content : (Array.isArray(data) ? data : []);
                 setPromotions(sortByName(list));
             } else {
+                // Si falla, las promociones que ya se ven se conservan (el aviso es el mismo de antes)
                 console.error('Error loading special promotions:', specialsRes.reason);
                 toast.error('Error al cargar promociones especiales');
             }
@@ -66,7 +76,10 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
                 console.warn('No se pudieron cargar las promociones base:', parentsRes.reason);
             }
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) {
+                loadedRef.current = true;
+                setLoading(false);
+            }
         }
     }, [toast]);
 
@@ -245,7 +258,8 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
                 </div>
             </header>
 
-            {!loading && promotions.length > 0 && (
+            {/* No depende de "loading": una recarga no desmonta el buscador mientras se escribe */}
+            {promotions.length > 0 && (
                 <PromotionListToolbar
                     searchTerm={searchTerm}
                     onSearchChange={setSearchTerm}
@@ -257,7 +271,7 @@ export default function SpecialPromotionsPanel({ refreshTrigger }) {
                 />
             )}
 
-            {/* Grid */}
+            {/* Grid ("Cargando..." solo en la carga inicial: las recargas no ponen loading en true) */}
             {loading ? (
                 <div className="ui-loading">
                     <span className="ui-spinner" aria-hidden="true" />

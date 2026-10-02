@@ -84,7 +84,8 @@ test('filtro de vendedor de órdenes: se escribe, se elige y las órdenes se pid
   await waitFor(() => expect(client.get).toHaveBeenCalledWith('/admin/orders/paginated', {
     params: expect.objectContaining({ vendedor: 'YicelaSandoval', page: 0 }),
   }));
-  expect(client.get).toHaveBeenCalledWith('/admin/clients/seller/v2');
+  // Filtro del historial: también trae los clientes eliminados (archivados), sus ventas siguen ahí
+  expect(client.get).toHaveBeenCalledWith('/admin/clients/seller/v2', { params: { includeArchived: true } });
   await screen.findByRole('button', { name: /Detalle/ });
 
   // "Todos los vendedores" sigue en la lista (vuelve a todas las órdenes)

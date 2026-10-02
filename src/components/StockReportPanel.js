@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from './ToastContainer';
 import productService from '../api/productService';
 import PhysicalCountModal from './modals/PhysicalCountModal';
@@ -16,33 +16,50 @@ import '../styles/areas/StockReportPanel.css';
  *
  * @param {'admin'|'owner'} role  - Used to build the API URL
  */
-export default function StockReportPanel({ role = 'admin' }) {
+export default function StockReportPanel({ role = 'admin', refreshTrigger }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
+    // Recarga con datos ya visibles ("Actualizar", después de un conteo físico o refreshTrigger):
+    // spinner solo en el botón; la tabla, los filtros, la búsqueda y el modal siguen como estaban
+    const [refreshing, setRefreshing] = useState(false);
     // 'all' | 'alerts' (sistema negativo) | 'missing' (faltan por registrar) | 'committed'
     const [viewMode, setViewMode] = useState('all');
     const [search, setSearch] = useState('');
     const [countProduct, setCountProduct] = useState(null);
     const toast = useToast();
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
+    const loadedRef = useRef(false); // ya terminó la carga inicial
 
     // Siempre el reporte completo: los filtros son locales, así las tarjetas y "Todos (N)"
     // no cambian al filtrar (antes "Solo Alertas" reemplazaba la lista y los totales)
     const fetchData = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++reqRef.current;
+        if (loadedRef.current) setRefreshing(true);
+        else setLoading(true);
         try {
             const response = await productService.getStockReport(role);
+            if (reqId !== reqRef.current) return;
             setItems(response.data || []);
         } catch (error) {
+            if (reqId !== reqRef.current) return;
+            // Si falla, el reporte que ya se ve se conserva (el aviso es el mismo de antes)
             console.error('Error al cargar reporte de stock:', error);
             toast.error('Error al cargar el reporte de inventario');
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) {
+                loadedRef.current = true;
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, [role, toast]);
 
+    // refreshTrigger es opcional: si el dashboard lo pasa, cada cambio recarga en silencio
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [fetchData, refreshTrigger]);
+
+    const busy = loading || refreshing;
 
     const isAlert = (i) => i.alertaCritica === true || Number(i.stockEnBD) < 0;
     const isMissing = (i) => bodegaInfo(i).faltante > 0;
@@ -105,11 +122,11 @@ export default function StockReportPanel({ role = 'admin' }) {
                     <button
                         type="button"
                         className="ui-btn ui-btn--secondary"
-                        aria-busy={loading || undefined}
+                        aria-busy={busy || undefined}
                         onClick={fetchData}
                         title="Actualizar datos"
                     >
-                        {loading
+                        {busy
                             ? <span className="ui-spinner" aria-hidden="true" />
                             : <span className="material-icons-round isr-icon--primary" aria-hidden="true">sync</span>}
                         Actualizar

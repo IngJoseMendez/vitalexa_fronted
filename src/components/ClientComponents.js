@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useCart } from '../context/CartContext';
 import { clientService } from '../api/client';
 import { useConfirm } from './ConfirmDialog';
@@ -318,28 +318,39 @@ export const CartView = ({ onOrderPlaced }) => {
 };
 
 // === ORDERS LIST ===
-export const OrdersView = () => {
+// refreshTrigger: botón "Actualizar" del portal. Cada recarga después de la primera (también tras
+// cancelar o reordenar) reemplaza la lista en su lugar, sin esqueleto ni salto de scroll.
+export const OrdersView = ({ refreshTrigger }) => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const confirm = useConfirm();
     const toast = useToast();
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
+    const loadedRef = useRef(false); // ya terminó la carga inicial
 
     const loadOrders = useCallback(async () => {
-        setLoading(true);
+        const reqId = ++reqRef.current;
+        if (!loadedRef.current) setLoading(true);
         try {
             const res = await clientService.getOrders();
+            if (reqId !== reqRef.current) return;
             setOrders(res.data);
         } catch (error) {
+            if (reqId !== reqRef.current) return;
+            // Si falla, los pedidos que ya se ven se conservan (el aviso es el mismo de antes)
             console.error(error);
             toast.error('Error cargando pedidos');
         } finally {
-            setLoading(false);
+            if (reqId === reqRef.current) {
+                loadedRef.current = true;
+                setLoading(false);
+            }
         }
     }, [toast]);
 
     useEffect(() => {
         loadOrders();
-    }, [loadOrders]);
+    }, [loadOrders, refreshTrigger]);
 
     const handleCancel = async (id) => {
         if (await confirm({ title: 'Cancelar', message: '¿Seguro que deseas cancelar este pedido?' })) {
@@ -448,16 +459,21 @@ export const OrdersView = () => {
 };
 
 // === SHOPPING LISTS ===
-export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdded }) => {
+// refreshTrigger: botón "Actualizar" del portal; las listas se reemplazan en su lugar (no se
+// pierden la lista expandida ni el nombre de la lista nueva a medio escribir)
+export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdded, refreshTrigger }) => {
     const [lists, setLists] = useState([]);
     const [newName, setNewName] = useState('');
     const [expandedListId, setExpandedListId] = useState(null);
     const confirm = useConfirm();
     const toast = useToast();
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
 
     const loadLists = useCallback(async () => {
+        const reqId = ++reqRef.current;
         try {
             const res = await clientService.getLists();
+            if (reqId !== reqRef.current) return;
             setLists(res.data);
         } catch (error) {
             console.error(error);
@@ -466,7 +482,7 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
 
     useEffect(() => {
         loadLists();
-    }, [loadLists]);
+    }, [loadLists, refreshTrigger]);
 
     const handleCreate = async (e) => {
         e.preventDefault();
@@ -639,24 +655,34 @@ export const ShoppingListsView = ({ onConvertToOrder, productToAdd, onProductAdd
 };
 
 // === PROFILE ===
-export const ClientProfile = () => {
+// refreshTrigger: botón "Actualizar" del portal. El perfil se vuelve a pedir y se reemplaza en su
+// lugar; si el cliente está editando, lo que escribió no se pisa (Cancelar vuelve al perfil nuevo).
+export const ClientProfile = ({ refreshTrigger }) => {
     const [profile, setProfile] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState({});
     const toast = useToast();
+    const reqRef = useRef(0); // solo la última petición aplica su respuesta
+    const isEditingRef = useRef(false);
 
     useEffect(() => {
+        isEditingRef.current = isEditing;
+    }, [isEditing]);
+
+    useEffect(() => {
+        const reqId = ++reqRef.current;
         const fetchProfile = async () => {
             try {
                 const res = await clientService.getProfile();
+                if (reqId !== reqRef.current) return;
                 setProfile(res.data);
-                setFormData(res.data);
+                if (!isEditingRef.current) setFormData(res.data);
             } catch (error) {
                 console.error(error);
             }
         };
         fetchProfile();
-    }, []);
+    }, [refreshTrigger]);
 
     const handleSave = async () => {
         try {

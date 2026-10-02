@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import client from '../api/client';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
@@ -10,8 +10,10 @@ import '../styles/areas/AdminDiscountSection.css';
  *   orderId      – UUID de la orden
  *   orderStatus  – estado actual de la orden (e.g. 'COMPLETADO')
  *   onDiscountChange – callback para refrescar la orden padre
+ *   refreshKey   – cambia con cada recarga de la lista de órdenes: los descuentos se vuelven a
+ *                  pedir en su lugar (antes la tarjeta se remontaba y los pedía al montar)
  */
-const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
+const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange, refreshKey }) => {
     const [discounts, setDiscounts] = useState([]);
     const [loading, setLoading] = useState(false);
     const [revoking, setRevoking] = useState(null); // id del descuento en proceso de revocación
@@ -19,23 +21,32 @@ const AdminDiscountSection = ({ orderId, orderStatus, onDiscountChange }) => {
     const [customReason, setCustomReason] = useState('');
     const toast = useToast();
     const confirm = useConfirm();
+    // Número de la última petición: dos recargas seguidas (aplicar descuento + recarga de la
+    // lista) pueden responder en desorden y la más vieja no debe dejar chips desactualizados
+    const requestSeqRef = useRef(0);
 
     // Si la orden está completada, el admin no puede revocar descuentos
     const canRevoke = orderStatus !== 'COMPLETADO';
 
+    // Silenciosa: no toca "loading" (los botones y lo escrito en el descuento personalizado
+    // siguen igual); si falla, se quedan los chips que ya se ven
     const fetchDiscounts = useCallback(async () => {
         if (!orderId) return;
+        const requestId = ++requestSeqRef.current;
         try {
             const res = await client.get(`/admin/discounts/order/${orderId}`);
+            if (requestId !== requestSeqRef.current) return;
             setDiscounts(res.data || []);
         } catch (error) {
             console.error('Error fetching discounts:', error);
         }
     }, [orderId]);
 
+    // Al montar y con cada recarga de la lista de órdenes (refreshKey): un descuento aplicado o
+    // revocado por otro admin, el dueño o desde el detalle de la orden se ve sin remontar la tarjeta
     useEffect(() => {
         fetchDiscounts();
-    }, [fetchDiscounts]);
+    }, [fetchDiscounts, refreshKey]);
 
     const applyPreset = async (percent) => {
         setLoading(true);

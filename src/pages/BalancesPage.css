@@ -80,6 +80,25 @@
     width: 40%;
 }
 
+/* Esqueleto dentro de la lista de clientes (al elegir otra vendedora): la tarjeta de la lista
+   ya tiene borde y fondo, aquí solo las filas */
+.balances-page .bp-list-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-4);
+}
+
+/* Valor de una tarjeta de resumen mientras llegan los saldos de otra vendedora: una barra del
+   alto de una línea del número (no se muestran los totales de la vendedora anterior) */
+.balances-page .bp-stat-skeleton {
+    display: inline-block;
+    width: 6.5em;
+    max-width: 100%;
+    height: 0.9em;
+    vertical-align: middle;
+}
+
 /* ============================================
    ENCABEZADO
    ============================================ */

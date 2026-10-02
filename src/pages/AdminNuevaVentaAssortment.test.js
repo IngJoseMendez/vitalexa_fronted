@@ -57,6 +57,9 @@ const productos = [
 ];
 
 beforeEach(() => {
+    // "Ordenar A-Z" se recuerda en localStorage (CONVENTIONS §10.3, regla 8): cada test arranca
+    // sin preferencias guardadas, así el orden de los clientes no depende del test anterior
+    localStorage.clear();
     client.get.mockImplementation((url) => {
         if (url === '/admin/clients/vendedores') return Promise.resolve({ data: [{ id: 'v1', username: 'NinaTorres' }] });
         if (url === '/admin/products') return Promise.resolve({ data: productos });

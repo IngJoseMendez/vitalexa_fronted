@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { formatCurrency, formatOrderLabel, orderReferenceMatches } from '../utils/formatters';
 import { PLACEHOLDER_IMAGE } from '../utils/placeholderImage';
 import client from '../api/client';
@@ -6,6 +6,7 @@ import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
 import NotificationService from '../services/NotificationService';
 import useSidebarCollapsed from '../hooks/useSidebarCollapsed';
+import usePersistentState from '../hooks/usePersistentState';
 import SidebarToggle from '../components/SidebarToggle';
 import { tagService } from '../api/tagService'; // Added Tag Service
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
@@ -57,6 +58,10 @@ const ORDER_STATUS_BADGE = {
   CANCELADO: 'danger',
 };
 const orderStatusBadgeClass = (estado) => `ui-badge ui-badge--${ORDER_STATUS_BADGE[estado || 'PENDIENTE'] || 'neutral'}`;
+
+// Productos: columnas de la cuadrícula que ofrece el selector (números, como el estado). Es
+// también la lista de valores permitidos de la preferencia que se recuerda (usePersistentState).
+const OWNER_PRODUCT_COLUMNS = [1, 2, 3];
 
 // ----- Solo presentación (premium-polish-SPEC §1): colores con significado. Ninguno de estos
 // ayudantes cambia un cálculo, un dato enviado ni una validación. -----
@@ -121,39 +126,58 @@ function OwnerDashboard() {
   const [tags, setTags] = useState([]); // Added Tags State
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showHistoricalModal, setShowHistoricalModal] = useState(false); // Added State
+  // Botón "Actualizar" del menú: spinner en el propio botón mientras llega la recarga que pidió
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  // Sube cada vez que termina una recarga: el detalle de orden abierto vuelve a pedir lo suyo
+  // en su lugar (antes lo hacía porque se remontaba, perdiendo lo que tuviera abierto)
+  const [dataVersion, setDataVersion] = useState(0);
   const [sidebarCollapsed, toggleSidebar] = useSidebarCollapsed('owner');
   const toast = useToast();
+  // Número de la última recarga: las ráfagas de INVENTORY_UPDATE lanzan varias a la vez y una
+  // respuesta más vieja no debe pisar a la más nueva
+  const requestSeqRef = useRef(0);
 
+  // Actualización silenciosa: "Cargando dashboard..." (que reemplaza TODO el panel) solo se ve
+  // en la primera carga. Las recargas (INVENTORY_UPDATE, "Actualizar", y lo que hace el dueño
+  // en órdenes, productos o metas) cambian los datos en su lugar: el menú, la pestaña, sus
+  // filtros y los modales abiertos siguen como estaban. Mismas peticiones que antes.
   const fetchData = useCallback(async () => {
+    const requestId = ++requestSeqRef.current;
+    const isLatest = () => requestId === requestSeqRef.current;
     try {
-      setLoading(true);
-
       const [ordersRes, productsRes, salesRes] = await Promise.all([
         client.get('/admin/orders'),
         client.get('/admin/products'),
         client.get('/owner/reports/sales')
       ]);
 
-      setOrders(ordersRes.data);
-      setProducts(productsRes.data);
-      calculateStats(productsRes.data, salesRes.data);
+      if (isLatest()) {
+        setOrders(ordersRes.data);
+        setProducts(productsRes.data);
+        calculateStats(productsRes.data, salesRes.data);
+      }
 
       const tagsRes = await tagService.getAll();
-      setTags(tagsRes.data);
+      if (isLatest()) setTags(tagsRes.data);
 
       try {
         const vendedoresRes = await client.get('/admin/sale-goals/vendedores');
-        setVendedores(vendedoresRes.data);
+        if (isLatest()) setVendedores(vendedoresRes.data);
       } catch (vendedorError) {
+        // Se conservan las vendedoras que ya se ven (al inicio la lista ya está vacía)
         console.warn('Error al cargar vendedores:', vendedorError);
-        setVendedores([]);
       }
 
     } catch (error) {
       console.error('Error al cargar datos:', error);
-      toast.error('Error al cargar datos del dashboard');
+      // Los datos que ya se ven se quedan; solo el aviso de siempre
+      if (isLatest()) toast.error('Error al cargar datos del dashboard');
     } finally {
-      setLoading(false);
+      if (isLatest()) {
+        setLoading(false);
+        setManualRefreshing(false);
+        setDataVersion((v) => v + 1);
+      }
     }
   }, [toast]);
 
@@ -195,6 +219,7 @@ function OwnerDashboard() {
     });
   };
 
+  // Solo la primera carga: fetchData ya no vuelve a poner loading en true
   if (loading) {
     return (
       <div className="owner-dashboard">
@@ -255,13 +280,17 @@ function OwnerDashboard() {
           </button>
         </nav>
 
+        {/* Recarga silenciosa: la pantalla no se vacía; mientras llega, spinner en el botón */}
         <button
           type="button"
-          className="sidebar-refresh"
-          onClick={() => setRefreshTrigger(Date.now())}
+          className={`sidebar-refresh${manualRefreshing ? ' is-refreshing' : ''}`}
+          onClick={() => { setRefreshTrigger(Date.now()); setManualRefreshing(true); }}
           title="Actualizar datos"
+          aria-busy={manualRefreshing || undefined}
         >
-          <span className="material-icons-round" aria-hidden="true">sync</span>
+          {manualRefreshing
+            ? <span className="ui-spinner" aria-hidden="true"></span>
+            : <span className="material-icons-round" aria-hidden="true">sync</span>}
           <span className="sidebar-label">Actualizar</span>
         </button>
       </aside>
@@ -298,10 +327,15 @@ function OwnerDashboard() {
                 toast={toast}
               />
             )}
-            {activeTab === 'reports' && <ReportsTab orders={orders} products={products} vendedores={vendedores} />}
-            {activeTab === 'stock-report' && <StockReportPanel role="owner" />}
-            {activeTab === 'nomina' && <PayrollPanel vendedores={vendedores} />}
-            {activeTab === 'transferencias' && <PaymentTransferPanel vendedores={vendedores} />}
+            {/* Antes estas pestañas volvían a pedir sus datos porque el panel entero se remontaba
+                en cada recarga (perdiendo fechas, formularios y pasos a medio llenar). Ahora
+                reciben refreshTrigger y recargan en su lugar, conservando lo que el dueño usa:
+                Reportes (mismas fechas), Stock, Nómina (la sub-pestaña que se ve, mismo mes) y
+                Transferencias (el historial de la vendedora elegida). */}
+            {activeTab === 'reports' && <ReportsTab orders={orders} products={products} vendedores={vendedores} refreshTrigger={refreshTrigger} />}
+            {activeTab === 'stock-report' && <StockReportPanel role="owner" refreshTrigger={refreshTrigger} />}
+            {activeTab === 'nomina' && <PayrollPanel vendedores={vendedores} refreshTrigger={refreshTrigger} />}
+            {activeTab === 'transferencias' && <PaymentTransferPanel vendedores={vendedores} refreshTrigger={refreshTrigger} />}
           </React.Suspense>
           </LazyErrorBoundary>
         </div>
@@ -315,6 +349,7 @@ function OwnerDashboard() {
             userRole="ROLE_OWNER"
             onClose={() => setSelectedOrder(null)}
             onRefresh={fetchData}
+            refreshKey={dataVersion}
           />
         </React.Suspense>
         </LazyErrorBoundary>
@@ -645,20 +680,33 @@ function ProductsTab({ products, tags, onRefresh }) {
   const [activeTagId, setActiveTagId] = useState(null);
   const [localProducts, setLocalProducts] = useState(products);
   const [loading, setLoading] = useState(false);
-  const [gridColumns, setGridColumns] = useState(() => {
-    const saved = localStorage.getItem('ownerGridColumns');
-    return saved ? parseInt(saved) : 2;
-  });
+  // Columnas de la cuadrícula: se recuerdan por usuario (CONVENTIONS §10). Antes se leía
+  // 'ownerGridColumns' pero nunca se escribía, por eso al recargar volvía siempre a 2.
+  // El filtro (Todos/Activos/Stock Bajo) y la etiqueta son filtros de datos: no se recuerdan.
+  const [gridColumns, setGridColumns] = usePersistentState('owner.products.columns', 2, { allowed: OWNER_PRODUCT_COLUMNS, sync: true });
+
+  // Etiqueta cuyos productos se ven ahora y número de la última petición (al cambiar de etiqueta
+  // mientras llega una recarga, la respuesta de la etiqueta anterior no pisa a la nueva)
+  const shownTagRef = useRef(null);
+  const tagRequestSeqRef = useRef(0);
 
   const fetchProductsByTag = useCallback(async () => {
+    const requestId = ++tagRequestSeqRef.current;
+    const isLatest = () => requestId === tagRequestSeqRef.current;
+    // "Filtrando productos..." solo al elegir otra etiqueta; si el dashboard recargó los
+    // productos con la misma etiqueta, la cuadrícula se actualiza en su lugar
+    const silent = shownTagRef.current === activeTagId;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await client.get(`/admin/products/tag/${activeTagId}`);
-      setLocalProducts(res.data);
+      if (isLatest()) {
+        setLocalProducts(res.data);
+        shownTagRef.current = activeTagId;
+      }
     } catch (error) {
       console.error("Error filtering by tag");
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
   }, [activeTagId]);
 
@@ -666,6 +714,9 @@ function ProductsTab({ products, tags, onRefresh }) {
     if (activeTagId) {
       fetchProductsByTag();
     } else {
+      tagRequestSeqRef.current += 1; // una petición de etiqueta en vuelo ya no aplica
+      shownTagRef.current = null;
+      setLoading(false);
       setLocalProducts(products);
     }
   }, [activeTagId, products, fetchProductsByTag]);
@@ -718,7 +769,7 @@ function ProductsTab({ products, tags, onRefresh }) {
         </div>
         <span className="ui-toolbar-spacer" aria-hidden="true"></span>
         <div className="ui-tabs own-grid-selector" role="group" aria-label="Columnas de la cuadrícula">
-          {[1, 2, 3].map(cols => (
+          {OWNER_PRODUCT_COLUMNS.map(cols => (
             <button
               key={cols}
               type="button"
@@ -802,9 +853,12 @@ function ProductsTab({ products, tags, onRefresh }) {
 
 // ===== REPORTS TAB =====
 // ===== REPORTS TAB =====
-function ReportsTab({ orders, products, vendedores }) {
+function ReportsTab({ orders, products, vendedores, refreshTrigger }) {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
+  // "Actualizar" de esta pestaña: spinner en el botón; el reporte que se ve no se vacía
+  const [refreshing, setRefreshing] = useState(false);
+  const reportRequestSeqRef = useRef(0);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 1))
       .toISOString()
@@ -823,28 +877,52 @@ function ReportsTab({ orders, products, vendedores }) {
     if (!exporting) setExportingKey(null);
   }, [exporting]);
 
+  // Al abrir la pestaña y al cambiar las fechas (lo pide el dueño): esqueletos
   useEffect(() => {
-    fetchReportData();
+    loadReport('dates');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange.startDate, dateRange.endDate]);
 
-  const fetchReportData = async () => {
+  // Recarga del dashboard (INVENTORY_UPDATE o "Actualizar" del menú): mismo reporte, mismas
+  // fechas que eligió el dueño, en silencio (antes la pestaña se remontaba y volvía al último mes)
+  const lastRefreshTriggerRef = useRef(refreshTrigger);
+  useEffect(() => {
+    if (refreshTrigger === lastRefreshTriggerRef.current) return;
+    lastRefreshTriggerRef.current = refreshTrigger;
+    loadReport('background');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
+
+  // mode: 'dates' (primera carga o fechas nuevas: esqueletos), 'manual' (botón Actualizar de
+  // la pestaña: spinner en el botón) o 'background' (recarga del dashboard: sin indicador).
+  // Solo la última petición se aplica: cambiar las fechas mientras llega una recarga no deja
+  // en pantalla el reporte del rango anterior.
+  const loadReport = async (mode) => {
+    const requestId = ++reportRequestSeqRef.current;
+    const isLatest = () => requestId === reportRequestSeqRef.current;
     try {
-      setLoading(true);
+      if (mode === 'dates') setLoading(true);
+      if (mode === 'manual') setRefreshing(true);
       const response = await client.get('/owner/reports/complete', {
         params: {
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
         },
       });
-      setReportData(response.data);
+      if (isLatest()) setReportData(response.data);
     } catch (error) {
       console.error('Error al cargar reportes:', error);
-      toast.error('Error al cargar reportes');
+      // El reporte que ya se ve se queda; el aviso de siempre
+      if (isLatest()) toast.error('Error al cargar reportes');
     } finally {
-      setLoading(false);
+      if (isLatest()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
+
+  const fetchReportData = () => loadReport('manual');
 
   const handleDateChange = (field, value) => {
     setDateRange((prev) => ({ ...prev, [field]: value }));
@@ -1023,29 +1101,33 @@ function ReportsTab({ orders, products, vendedores }) {
   // Solo el botón pulsado muestra la carga (los demás quedan deshabilitados por `exporting`)
   const isExportBusy = (key) => exporting && exportingKey === key;
 
-  if (loading) {
-    // Esqueletos con la forma del reporte (tarjetas de estadística y gráfico) bajo el aviso
-    // "Generando reportes..." de siempre
-    return (
-      <div className="ui-loading own-tab own-report-loading" role="status">
-        <p className="own-report-loading-label">
-          <span className="ui-spinner" aria-hidden="true"></span>
-          Generando reportes...
-        </p>
-        <div className="ui-stat-grid own-stat-grid" aria-hidden="true">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="ui-stat own-stat own-stat--skeleton">
-              <span className="ui-skeleton own-skeleton-tile" />
-              <div className="ui-skeleton-stack own-skeleton-lines">
-                <span className="ui-skeleton ui-skeleton--text" style={{ width: '60%' }} />
-                <span className="ui-skeleton ui-skeleton--title" style={{ width: '80%' }} />
-              </div>
+  // Esqueletos con la forma del reporte (tarjetas de estadística y gráfico) bajo el aviso
+  // "Generando reportes..." de siempre
+  const reportSkeleton = (
+    <div className="ui-loading own-tab own-report-loading" role="status">
+      <p className="own-report-loading-label">
+        <span className="ui-spinner" aria-hidden="true"></span>
+        Generando reportes...
+      </p>
+      <div className="ui-stat-grid own-stat-grid" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="ui-stat own-stat own-stat--skeleton">
+            <span className="ui-skeleton own-skeleton-tile" />
+            <div className="ui-skeleton-stack own-skeleton-lines">
+              <span className="ui-skeleton ui-skeleton--text" style={{ width: '60%' }} />
+              <span className="ui-skeleton ui-skeleton--title" style={{ width: '80%' }} />
             </div>
-          ))}
-        </div>
-        <span className="ui-skeleton ui-skeleton--block own-skeleton-chart" aria-hidden="true" />
+          </div>
+        ))}
       </div>
-    );
+      <span className="ui-skeleton ui-skeleton--block own-skeleton-chart" aria-hidden="true" />
+    </div>
+  );
+
+  // Toda la pestaña en esqueleto solo mientras no hay reporte todavía. Con fechas nuevas el
+  // esqueleto va solo en el contenido: las fechas que se están eligiendo siguen montadas.
+  if (loading && !reportData) {
+    return reportSkeleton;
   }
 
   if (!reportData) {
@@ -1118,8 +1200,16 @@ function ReportsTab({ orders, products, vendedores }) {
               />
             </label>
 
-            <button type="button" onClick={fetchReportData} className="ui-btn ui-btn--secondary own-date-refresh" disabled={loading || exporting}>
-              <span className="material-icons-round" aria-hidden="true">sync</span>
+            <button
+              type="button"
+              onClick={fetchReportData}
+              className={`ui-btn ui-btn--secondary own-date-refresh${refreshing ? ' is-loading' : ''}`}
+              disabled={loading || refreshing || exporting}
+              aria-busy={refreshing || undefined}
+            >
+              {refreshing
+                ? <span className="ui-spinner" aria-hidden="true"></span>
+                : <span className="material-icons-round" aria-hidden="true">sync</span>}
               Actualizar
             </button>
           </div>
@@ -1225,6 +1315,7 @@ function ReportsTab({ orders, products, vendedores }) {
         </button>
       </nav>
 
+      {loading ? reportSkeleton : (
       <div className="own-report-content">
         {activeReportTab === 'overview' && <OverviewReport data={reportData} />}
 
@@ -1293,6 +1384,7 @@ function ReportsTab({ orders, products, vendedores }) {
           </>
         )}
       </div>
+      )}
 
       {/* Tarjeta flotante mientras se genera la descarga (no bloquea la pantalla): spinner en
           el color del formato, qué archivo se genera y una barra indeterminada */}

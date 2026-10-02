@@ -25,6 +25,7 @@ import vendedorInitService from '../api/vendedorInitService';
 import { mergeVendorPromotions } from '../utils/vendorPromotionCatalog';
 import { buildAssortmentSelections, isAssortmentPromotion } from '../utils/assortmentPromotion';
 import { avatarTone, avatarInitials } from '../utils/avatarTone';
+import usePersistentState from '../hooks/usePersistentState';
 import '../styles/VendedorDashboard.css';
 
 // Carga bajo demanda ("prefetch": se descarga en segundo plano cuando el navegador está libre,
@@ -73,6 +74,13 @@ const ESTADO_ICON = {
 
 const estadoTone = (estado) => ESTADO_TONE[estado || 'PENDIENTE'] || 'neutral';
 
+// Preferencias de CÓMO VER que se recuerdan al recargar y al volver a entrar (usePersistentState,
+// por usuaria). Cada lista es exactamente la de opciones de su control: lo guardado que no esté
+// aquí vuelve al valor por defecto. La búsqueda, la fecha y la etiqueta NO se recuerdan.
+const GRID_COLUMN_OPTIONS = [1, 2, 3]; // columnas del catálogo de Nueva Venta
+const DATE_SORT_OPTIONS = ['desc', 'asc']; // "Más recientes primero" / "Más antiguas primero"
+const PAGE_SIZE_OPTIONS = [10, 20, 50]; // ventas por página
+
 // Progreso de una meta (0–100, protegido contra valores no numéricos) y su tono:
 // meta cumplida = verde, desde 25 % = azul, arrancando = ámbar.
 const goalProgressValue = (percentage) => {
@@ -90,11 +98,13 @@ const goalTone = (percentage, completed) => {
 // Esqueletos de carga con la forma del contenido (premium-polish-SPEC §2). El texto
 // "Cargando..." se conserva para lectores de pantalla; aria-busy hace que el panel entre
 // solo con fade y el contenido, al llegar, con la subida.
-function PanelSkeleton({ label, text = 'Cargando...', variant = 'cards', count = 4 }) {
+// showHeading={false}: esqueleto solo de la lista (el encabezado y el buscador del panel siguen
+// montados mientras se piden otra página, búsqueda o filtro).
+function PanelSkeleton({ label, text = 'Cargando...', variant = 'cards', count = 4, showHeading = true }) {
   return (
     <div className="vd-skeleton" role="status" aria-busy="true" aria-label={label}>
       <span className="ui-sr-only">{text}</span>
-      <span className="ui-skeleton ui-skeleton--title vd-skeleton-heading" />
+      {showHeading && <span className="ui-skeleton ui-skeleton--title vd-skeleton-heading" />}
       {variant === 'stats' ? (
         <div className="vd-skeleton-stats">
           {[0, 1, 2].map(i => (
@@ -244,11 +254,15 @@ function VendedorDashboard() {
             se pudo descargar, un aviso con "Reintentar" (las demás pestañas siguen funcionando) */}
         <LazyErrorBoundary resetKey={activeTab}>
         <React.Suspense fallback={<PanelFallback />}>
+          {/* Actualización silenciosa: refreshTrigger (INVENTORY_UPDATE o "Actualizar") hace que
+              cada panel vuelva a pedir sus datos y los reemplace EN SU LUGAR. Antes 4 paneles
+              usaban key={refreshTrigger} y se montaban de cero: se cerraban formularios y
+              "Ver productos", se perdían búsqueda/página y la lista volvía a animarse. */}
           {activeTab === 'nueva-venta' && <NuevaVentaPanel refreshTrigger={refreshTrigger} />}
-          {activeTab === 'mis-ventas' && <MisVentasPanel key={refreshTrigger} />}
-          {activeTab === 'ventas-completadas' && <VentasCompletadasPanel key={refreshTrigger} />}
-          {activeTab === 'mis-metas' && <MisMetasPanel key={refreshTrigger} />}
-          {activeTab === 'clientes' && <ClientesPanel key={refreshTrigger} />}
+          {activeTab === 'mis-ventas' && <MisVentasPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'ventas-completadas' && <VentasCompletadasPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'mis-metas' && <MisMetasPanel refreshTrigger={refreshTrigger} />}
+          {activeTab === 'clientes' && <ClientesPanel refreshTrigger={refreshTrigger} />}
           {activeTab === 'productos' && <ProductosPanel refreshTrigger={refreshTrigger} />}
           {activeTab === 'special-products' && <VendorSpecialProductsPanel refreshTrigger={refreshTrigger} />}
           {activeTab === 'mi-nomina' && <MiNominaPanel />}
@@ -275,9 +289,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [allowNoClient, setAllowNoClient] = useState(false);
   const [notas, setNotas] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [gridColumns, setGridColumns] = useState(() => {
-    const saved = localStorage.getItem('vendedorGridColumns');
-    return saved ? parseInt(saved) : 2;
+  const [gridColumns, setGridColumns] = usePersistentState('vendedora.newSale.columns', 2, {
+    allowed: GRID_COLUMN_OPTIONS,
+    sync: true,
   });
   const [includeFreight, setIncludeFreight] = useState(false);
   // ✅ Custom Freight State
@@ -304,6 +318,15 @@ function NuevaVentaPanel({ refreshTrigger }) {
   // ✅ Datos del endpoint unificado /vendedor/init (1 sola petición al iniciar)
   const [initPromociones, setInitPromociones] = useState(null);
   const [promosLoading, setPromosLoading] = useState(true); // ✅ Estado de carga INDEPENDIENTE para promociones
+  // Cambio de etiqueta (lo pide la vendedora): "Cargando" solo en la grilla de productos; el
+  // carrito, el cliente elegido y lo escrito siguen montados.
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  // Recarga silenciosa: cada petición lleva un número; solo la última aplica su respuesta (una
+  // recarga vieja no pisa la de otra etiqueta). initLoadedRef: ya terminó la carga inicial.
+  const initReqRef = useRef(0);
+  const initLoadedRef = useRef(false);
+  const lastInitTagRef = useRef(undefined);
+  const clientsReqRef = useRef(0);
 
   // Check if user is Admin or Owner
   const isAdminOrOwner = userRole === 'ROLE_ADMIN' || userRole === 'ROLE_OWNER';
@@ -313,10 +336,6 @@ function NuevaVentaPanel({ refreshTrigger }) {
   const [selectedPromotion, setSelectedPromotion] = useState(null);
   // Catálogo completo (sin el filtro de etiqueta): los gratis del surtido son "de cualquier tipo"
   const [catalogProducts, setCatalogProducts] = useState([]);
-
-  useEffect(() => {
-    localStorage.setItem('vendedorGridColumns', gridColumns.toString());
-  }, [gridColumns]);
 
   const fetchTags = useCallback(async () => {
     try {
@@ -338,8 +357,10 @@ function NuevaVentaPanel({ refreshTrigger }) {
   }, [isAdminOrOwner]);
 
   const fetchClients = useCallback(async () => {
+    const reqId = ++clientsReqRef.current;
     try {
       const response = await apiClient.get('/vendedor/clients');
+      if (reqId !== clientsReqRef.current) return; // llegó una petición más nueva
       setClients(response.data);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
@@ -364,36 +385,59 @@ function NuevaVentaPanel({ refreshTrigger }) {
 
   // ✅ Carga inicial unificada: 1 sola petición para productos + promociones + promos especiales
   // Con caché local para funcionar con internet débil o sin conexión
+  //
+  // Tres modos, mismas peticiones en todos:
+  //  - 'initial': primera carga (sin datos todavía) → "Cargando..." en todo el panel.
+  //  - 'tag': la vendedora cambió de etiqueta → "Cargando" solo en la grilla de productos.
+  //  - 'silent': INVENTORY_UPDATE o "Actualizar" con el catálogo ya visible → los datos se
+  //    reemplazan en su lugar, sin desmontar nada (modal de surtido, selectores de cliente,
+  //    notas, cantidades, hoja del carrito y scroll quedan como estaban).
   const fetchInitData = useCallback(async () => {
-    setLoading(true);
-    setPromosLoading(true); // ✅ Indicar que las promociones también están cargando
+    const reqId = ++initReqRef.current;
+    const isCurrent = () => reqId === initReqRef.current;
+    const tagChanged = lastInitTagRef.current !== activeTagId;
+    lastInitTagRef.current = activeTagId;
+    const mode = !initLoadedRef.current ? 'initial' : (tagChanged ? 'tag' : 'silent');
+    if (mode === 'initial') {
+      setLoading(true);
+      setPromosLoading(true); // ✅ Indicar que las promociones también están cargando
+    } else if (mode === 'tag') {
+      setCatalogLoading(true);
+    }
     try {
       const datos = await vendedorInitService.cargarDatosInicio();
-      setCatalogProducts(datos.productos || []);
+      if (isCurrent()) setCatalogProducts(datos.productos || []);
       if (activeTagId) {
         const tagRes = await apiClient.get(`/vendedor/products/tag/${activeTagId}`);
-        setProducts(tagRes.data.content || tagRes.data || []);
-      } else {
+        if (isCurrent()) setProducts(tagRes.data.content || tagRes.data || []);
+      } else if (isCurrent()) {
         setProducts(datos.productos || []);
       }
       // Normales + especiales asignadas (marcadas isSpecial). La venta envía el id de la
       // especial en promotionIds y el backend la reconoce y valida que le corresponda.
-      setInitPromociones(mergeVendorPromotions(datos.promociones, datos.promocionesEspeciales));
+      if (isCurrent()) setInitPromociones(mergeVendorPromotions(datos.promociones, datos.promocionesEspeciales));
     } catch (error) {
       console.error('❌ [VendedorInit] Error al cargar datos de inicio:', error);
       // Fallback silencioso: intentar cargar al menos los productos (lógica inline, sin dependencia extra)
       try {
         let url = activeTagId ? `/vendedor/products/tag/${activeTagId}` : '/vendedor/products';
         const response = await apiClient.get(url);
-        setProducts(response.data.content || response.data || []);
+        if (isCurrent()) setProducts(response.data.content || response.data || []);
       } catch (e) {
         console.error('Error al cargar productos en fallback:', e);
       }
-      // En caso de error de red, dejar las promociones vacías para no bloquear la UI
-      setInitPromociones([]);
+      // En la carga inicial, ante un error de red, dejar las promociones vacías para no
+      // bloquear la UI. Si ya se veían promociones, se conservan (no se borra lo visible).
+      if (isCurrent() && mode === 'initial') setInitPromociones([]);
     } finally {
-      setLoading(false);
-      setPromosLoading(false); // ✅ Siempre marcar como terminado
+      // Solo la petición vigente apaga los indicadores (una silenciosa que reemplazó a otra
+      // también los apaga, para que nunca quede "Cargando" pegado)
+      if (isCurrent()) {
+        initLoadedRef.current = true;
+        setLoading(false);
+        setPromosLoading(false); // ✅ Siempre marcar como terminado
+        setCatalogLoading(false);
+      }
     }
   }, [activeTagId]); // ✅ SIN fetchProducts en dependencias — evita bucle infinito
 
@@ -678,6 +722,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
     }
   };
 
+  // Solo la carga inicial reemplaza todo el panel (las recargas posteriores son silenciosas)
   if (loading) {
     return <div className="ui-loading vd-loading" role="status"><span className="ui-spinner" aria-hidden="true" />Cargando...</div>;
   }
@@ -733,7 +778,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
               {/* Selector de columnas (solo aplica a la vista de productos) */}
               {catalogView === 'productos' && (
                 <div className="grid-columns-selector ui-tabs" role="group" aria-label="Columnas del catálogo">
-                  {[1, 2, 3].map(cols => (
+                  {GRID_COLUMN_OPTIONS.map(cols => (
                     <button
                       type="button"
                       key={cols}
@@ -788,6 +833,9 @@ function NuevaVentaPanel({ refreshTrigger }) {
               />
 
               {/* El número de columnas viaja como variable CSS; en teléfonos el CSS fuerza 1 columna */}
+              {catalogLoading ? (
+                <div className="ui-loading vd-loading" role="status"><span className="ui-spinner" aria-hidden="true" />Cargando productos...</div>
+              ) : (
               <div
                 className={`productos-grid ${gridColumns === 1 ? 'vpc-grid--row' : ''}`}
                 style={{ '--vd-grid-cols': gridColumns }}
@@ -808,6 +856,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                   ))
                 )}
               </div>
+              )}
             </>
           )}
         </div>
@@ -1421,21 +1470,40 @@ function NuevaVentaPanel({ refreshTrigger }) {
 // ============================================
 // PANEL VENTAS COMPLETADAS
 // ============================================
-function VentasCompletadasPanel() {
+function VentasCompletadasPanel({ refreshTrigger }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false); // ya terminó la primera carga
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateSort, setDateSort] = useState('desc');
+  // Orden y ventas por página se recuerdan (la primera petición ya usa el tamaño guardado); la
+  // búsqueda y la fecha no. Sin `sync`: el tamaño va en la consulta paginada y su handler vuelve
+  // a la página 1, así que otra pestaña no lo cambia aquí (dejaría esta en una página que ya no
+  // existe y sin paginación para volver); lo último elegido se usa al recargar.
+  const [dateSort, setDateSort] = usePersistentState('vendedora.completed.sortDir', 'desc', {
+    allowed: DATE_SORT_OPTIONS,
+  });
   const [filterDate, setFilterDate] = useState(''); // fecha exacta de completado (yyyy-MM-dd)
 
   // ── PAGINACIÓN ──
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = usePersistentState('vendedora.completed.pageSize', 20, {
+    allowed: PAGE_SIZE_OPTIONS,
+  });
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Recarga silenciosa: número de petición (solo la última aplica su respuesta, así una vieja no
+  // devuelve a la página anterior) y parámetros de la última petición (si son los mismos, solo
+  // llegó INVENTORY_UPDATE o "Actualizar": se reemplaza la lista sin esqueleto).
+  const reqRef = useRef(0);
+  const lastParamsRef = useRef(null);
+
   const fetchCompletedOrders = useCallback(async (page = 0, size = 20, search = "", completedDate = "") => {
-    setLoading(true);
+    const reqId = ++reqRef.current;
+    const paramsKey = JSON.stringify([page, size, search, completedDate]);
+    const silent = lastParamsRef.current === paramsKey;
+    lastParamsRef.current = paramsKey;
+    if (!silent) setLoading(true);
     try {
       const p = { statusGroup: 'completed', page, size };
       if (search && search.trim() !== '') p.search = search.trim();
@@ -1443,15 +1511,20 @@ function VentasCompletadasPanel() {
       const response = await apiClient.get('/vendedor/orders/my/paginated', {
         params: p
       });
+      if (reqId !== reqRef.current) return; // llegó una petición más nueva
       const data = response.data;
       setOrders(data.content || []);
       setTotalPages(data.totalPages || 0);
       setTotalElements(data.totalElements || 0);
       setCurrentPage(data.number || 0);
     } catch (error) {
+      // Si falla, la lista que ya se ve se conserva
       console.error('Error al cargar ventas completadas:', error);
     } finally {
-      setLoading(false);
+      if (reqId === reqRef.current) {
+        setLoading(false);
+        setHasLoaded(true);
+      }
     }
   }, []);
 
@@ -1462,7 +1535,7 @@ function VentasCompletadasPanel() {
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize, searchTerm, filterDate, fetchCompletedOrders]);
+  }, [currentPage, pageSize, searchTerm, filterDate, fetchCompletedOrders, refreshTrigger]);
 
   const filteredAndSortedOrders = [...orders]
     .sort((a, b) => {
@@ -1471,7 +1544,9 @@ function VentasCompletadasPanel() {
       return dateSort === 'desc' ? dateB - dateA : dateA - dateB;
     });
 
-  if (loading) {
+  // Esqueleto de todo el panel solo en la primera carga; después (otra página, búsqueda o
+  // fecha) solo la lista, para que el buscador y la fecha no se desmonten mientras se escribe.
+  if (loading && !hasLoaded) {
     return <PanelSkeleton label="Cargando ventas completadas" />;
   }
 
@@ -1529,7 +1604,9 @@ function VentasCompletadasPanel() {
         </div>
       </div>
 
-      {filteredAndSortedOrders.length === 0 ? (
+      {loading ? (
+        <PanelSkeleton label="Cargando ventas completadas" showHeading={false} />
+      ) : filteredAndSortedOrders.length === 0 ? (
         <div className="ui-empty vd-list-empty">
           <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
           <p className="ui-empty-text">{(searchTerm || filterDate) ? 'No se encontraron ventas con esos filtros' : 'No tienes ventas completadas aún'}</p>
@@ -1598,7 +1675,7 @@ function VentasCompletadasPanel() {
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
               aria-label="Ventas por página"
             >
-              {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             por página &bull; {totalElements} total
           </div>
@@ -1633,25 +1710,32 @@ function VentasCompletadasPanel() {
 // ============================================
 // PANEL CLIENTES
 // ============================================
-function ClientesPanel() {
+function ClientesPanel({ refreshTrigger }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const reqRef = useRef(0); // solo la última petición aplica su respuesta
 
+  // Recarga en su lugar con cada refreshTrigger: "loading" solo es true en la carga inicial,
+  // así los modales de crear/editar cliente y la búsqueda siguen como estaban.
   useEffect(() => {
     fetchClients();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
 
   const fetchClients = async () => {
+    const reqId = ++reqRef.current;
     try {
       const response = await apiClient.get('/vendedor/clients');
+      if (reqId !== reqRef.current) return; // llegó una petición más nueva
       setClients(response.data);
     } catch (error) {
+      // Si falla, la lista que ya se ve se conserva
       console.error('Error al cargar clientes:', error);
     } finally {
-      setLoading(false);
+      if (reqId === reqRef.current) setLoading(false);
     }
   };
 
@@ -2170,35 +2254,54 @@ function ClientEditModal({ clientData, onClose, onSuccess }) {
 // ============================================
 // PANEL MIS VENTAS
 // ============================================
-function MisVentasPanel() {
+function MisVentasPanel({ refreshTrigger }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false); // ya terminó la primera carga
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateSort, setDateSort] = useState('desc');
+  // Orden y ventas por página se recuerdan, sin `sync` (ver VentasCompletadasPanel); la búsqueda no
+  const [dateSort, setDateSort] = usePersistentState('vendedora.myOrders.sortDir', 'desc', {
+    allowed: DATE_SORT_OPTIONS,
+  });
 
   // ── PAGINACIÓN ──
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = usePersistentState('vendedora.myOrders.pageSize', 20, {
+    allowed: PAGE_SIZE_OPTIONS,
+  });
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
+  // Recarga silenciosa (ver VentasCompletadasPanel): número de petición + parámetros de la última
+  const reqRef = useRef(0);
+  const lastParamsRef = useRef(null);
+
   const fetchMyOrders = useCallback(async (page = 0, size = 20, search = '') => {
-    setLoading(true);
+    const reqId = ++reqRef.current;
+    const paramsKey = JSON.stringify([page, size, search]);
+    const silent = lastParamsRef.current === paramsKey;
+    lastParamsRef.current = paramsKey;
+    if (!silent) setLoading(true);
     try {
       const p = { statusGroup: 'pending', page, size };
       if (search && search.trim() !== '') p.search = search.trim();
       const response = await apiClient.get('/vendedor/orders/my/paginated', {
         params: p
       });
+      if (reqId !== reqRef.current) return; // llegó una petición más nueva
       const data = response.data;
       setOrders(data.content || []);
       setTotalPages(data.totalPages || 0);
       setTotalElements(data.totalElements || 0);
       setCurrentPage(data.number || 0);
     } catch (error) {
+      // Si falla, la lista que ya se ve se conserva
       console.error('Error al cargar mis ventas:', error);
     } finally {
-      setLoading(false);
+      if (reqId === reqRef.current) {
+        setLoading(false);
+        setHasLoaded(true);
+      }
     }
   }, []);
 
@@ -2209,7 +2312,7 @@ function MisVentasPanel() {
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize, searchTerm, fetchMyOrders]);
+  }, [currentPage, pageSize, searchTerm, fetchMyOrders, refreshTrigger]);
 
   const filteredAndSortedOrders = [...orders]
     .sort((a, b) => {
@@ -2218,7 +2321,9 @@ function MisVentasPanel() {
       return dateSort === 'desc' ? dateB - dateA : dateA - dateB;
     });
 
-  if (loading) {
+  // Esqueleto de todo el panel solo en la primera carga; después, solo en la lista (el
+  // buscador no se desmonta: no se pierde el foco ni se cierra el teclado del celular)
+  if (loading && !hasLoaded) {
     return <PanelSkeleton label="Cargando mis ventas" />;
   }
 
@@ -2261,7 +2366,9 @@ function MisVentasPanel() {
         </div>
       </div>
 
-      {filteredAndSortedOrders.length === 0 ? (
+      {loading ? (
+        <PanelSkeleton label="Cargando mis ventas" showHeading={false} />
+      ) : filteredAndSortedOrders.length === 0 ? (
         <div className="ui-empty vd-list-empty">
           <span className="material-icons-round ui-empty-icon" aria-hidden="true">receipt_long</span>
           <p className="ui-empty-text">{searchTerm ? 'No se encontraron ventas con esa búsqueda' : 'No tienes ventas en proceso'}</p>
@@ -2364,7 +2471,7 @@ function MisVentasPanel() {
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
               aria-label="Ventas por página"
             >
-              {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
+              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
             por página &bull; {totalElements} total
           </div>
@@ -2521,39 +2628,60 @@ function ProductosPanel() {
 // ============================================
 // PANEL MIS METAS
 // ============================================
-function MisMetasPanel() {
+function MisMetasPanel({ refreshTrigger }) {
   const [currentGoal, setCurrentGoal] = useState(null);
   const [goalHistory, setGoalHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  // Recarga silenciosa: solo la última petición aplica su respuesta; goalLoadedRef = ya terminó
+  // la carga inicial (las siguientes no muestran el esqueleto ni cierran el historial)
+  const goalReqRef = useRef(0);
+  const historyReqRef = useRef(0);
+  const goalLoadedRef = useRef(false);
 
   useEffect(() => {
     fetchCurrentGoal();
     fetchGoalHistory();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
 
   const fetchCurrentGoal = async () => {
+    const reqId = ++goalReqRef.current;
+    const silent = goalLoadedRef.current;
     try {
-      setLoading(true);
-      setError(null);
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
       const response = await apiClient.get('/vendedor/sale-goals/my');
+      if (reqId !== goalReqRef.current) return; // llegó una petición más nueva
       setCurrentGoal(response.data);
+      setError(null);
     } catch (error) {
+      if (reqId !== goalReqRef.current) return;
       console.error('Error al cargar meta actual:', error);
       if (error.response?.status === 404) {
+        // Respuesta del servidor (no un fallo): no hay meta este mes, p. ej. al empezar un mes nuevo
+        setCurrentGoal(null);
         setError('No tienes una meta asignada para este mes');
-      } else {
+      } else if (!silent) {
         setError('Error al cargar tu meta actual');
       }
+      // Recarga silenciosa que falla: se conserva lo que ya se ve (meta o aviso)
     } finally {
-      setLoading(false);
+      if (reqId === goalReqRef.current) {
+        goalLoadedRef.current = true;
+        setLoading(false);
+      }
     }
   };
 
   const fetchGoalHistory = async () => {
+    const reqId = ++historyReqRef.current;
     try {
       const response = await apiClient.get('/vendedor/sale-goals/history');
+      if (reqId !== historyReqRef.current) return;
       setGoalHistory(response.data);
     } catch (error) {
       console.error('Error al cargar historial:', error);

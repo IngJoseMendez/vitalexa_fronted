@@ -26,6 +26,13 @@
   min-height: 60vh;
 }
 
+/* "Actualizar" del menú mientras llega la recarga: el spinner ocupa la caja del icono (18px)
+   para que el botón no cambie de tamaño */
+.owner-dashboard .sidebar-refresh .ui-spinner {
+  width: 18px;
+  height: 18px;
+}
+
 /* ---------- Ritmo de cada pestaña: 24px entre bloques ---------- */
 .owner-dashboard .own-tab {
   display: flex;

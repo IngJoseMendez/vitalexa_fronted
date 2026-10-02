@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import client from '../api/client';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
@@ -12,10 +12,28 @@ import StockArrivalModal from './modals/StockArrivalModal';
 import PhysicalCountModal from './modals/PhysicalCountModal';
 import BulkStockArrivalForm from './BulkStockArrivalForm';
 import SearchableSelect from './SearchableSelect';
+import usePersistentState, { migrateLegacyViewPref } from '../hooks/usePersistentState';
 import '../styles/areas/Inventory.css';
 
 // Icono de cada opción del selector de columnas (antes las 4 mostraban el mismo icono)
 const GRID_COLUMN_ICONS = { 1: 'view_agenda', 2: 'grid_view', 3: 'view_module', 4: 'view_comfy' };
+
+// Preferencias de vista que se recuerdan (por usuario, aunque se recargue o se cierre sesión).
+// El filtro Todos/Activos/Inactivos, la etiqueta y la búsqueda NO: al volver se ve todo.
+const GRID_COLUMN_OPTIONS = [1, 2, 3, 4];
+const DEFAULT_GRID_COLUMNS = 3;
+const SORT_OPTIONS = ['name_asc', 'name_desc', 'date_desc', 'date_asc']; // = value del <select>
+
+// Antes las columnas se guardaban en 'adminGridCols' (sin usuario; cerrar sesión lo borraba). Se
+// pasan una sola vez a la preferencia de quien abre Productos (sin pisar una ya guardada) y se
+// borra la clave vieja, igual que 'adminOrdersColumns' en Órdenes: así quien ya las había elegido
+// no las pierde con esta versión ni en el siguiente cierre de sesión. Casi siempre es de esa misma
+// persona; si antes una sesión venció sin cerrarse (el 401 solo borra token y usuario) puede venir
+// de quien usó el equipo antes: son solo las columnas, y cada quien las cambia con el selector.
+const migrateLegacyGridColumns = () => migrateLegacyViewPref('adminGridCols', 'admin.products.columns', {
+    parse: (raw) => parseInt(raw, 10), // se guardaba como texto ('4'); el estado es número
+    allowed: GRID_COLUMN_OPTIONS,
+});
 
 
 export default function ProductsPanel({ refreshTrigger }) {
@@ -24,11 +42,18 @@ export default function ProductsPanel({ refreshTrigger }) {
     const [loading, setLoading] = useState(true);
     const [activeTagId, setActiveTagId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [gridColumns, setGridColumns] = useState(() => parseInt(localStorage.getItem('adminGridCols')) || 3);
+    useState(migrateLegacyGridColumns); // una sola vez y ANTES del hook de columnas, que ya la lee
+    const [gridColumns, setGridColumns] = usePersistentState('admin.products.columns', DEFAULT_GRID_COLUMNS, {
+        allowed: GRID_COLUMN_OPTIONS,
+        sync: true,
+    });
 
     // New Filters/Sort
     const [statusFilter, setStatusFilter] = useState('all'); // all, active, inactive
-    const [sortOption, setSortOption] = useState('name_asc'); // name_asc, name_desc, date_desc, date_asc
+    const [sortOption, setSortOption] = usePersistentState('admin.products.sort', 'name_asc', {
+        allowed: SORT_OPTIONS,
+        sync: true,
+    }); // name_asc, name_desc, date_desc, date_asc
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,9 +89,21 @@ export default function ProductsPanel({ refreshTrigger }) {
         }
     };
 
+    // Recarga silenciosa: cada petición lleva un número y solo la última aplica su respuesta (los
+    // dos efectos de abajo piden a la vez al cambiar etiqueta/búsqueda; un resultado viejo no pisa
+    // al nuevo). Si la etiqueta y la búsqueda son las de la última petición (INVENTORY_UPDATE,
+    // "Actualizar", guardar en un modal, eliminar...) la grilla se reemplaza en su lugar: sin
+    // esqueleto, sin salto de scroll y sin volver a animar las tarjetas.
+    const productsReqRef = useRef(0);
+    const lastProductsParamsRef = useRef(null);
+
     const fetchProducts = useCallback(async () => {
+        const reqId = ++productsReqRef.current;
+        const paramsKey = JSON.stringify([activeTagId, searchTerm]);
+        const silent = lastProductsParamsRef.current === paramsKey;
+        lastProductsParamsRef.current = paramsKey;
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             let url = '/admin/products';
             // Request a large size to ensure we get all products for bulk operations and client-side search
             let params = { size: 2000 };
@@ -87,6 +124,7 @@ export default function ProductsPanel({ refreshTrigger }) {
             }
 
             const res = await client.get(url, { params });
+            if (reqId !== productsReqRef.current) return; // llegó una petición más nueva
             // SAFE ARRAY EXTRACTION: Handle PageImpl, List, or null
             let data = res.data;
             if (data && !Array.isArray(data) && Array.isArray(data.content)) {
@@ -107,10 +145,12 @@ export default function ProductsPanel({ refreshTrigger }) {
 
             setProducts(data);
         } catch (error) {
+            if (reqId !== productsReqRef.current) return;
+            // Si falla, los productos que ya se ven se conservan (el aviso es el mismo de antes)
             console.error('Error loading products:', error);
             toast.error('Error al cargar productos');
         } finally {
-            setLoading(false);
+            if (reqId === productsReqRef.current) setLoading(false);
         }
     }, [activeTagId, searchTerm, toast]);
 
@@ -443,13 +483,13 @@ export default function ProductsPanel({ refreshTrigger }) {
 
                         {/* Column Toggle */}
                         <div className="inv-cols" role="group" aria-label="Columnas de la grilla">
-                            {[1, 2, 3, 4].map(c => (
+                            {GRID_COLUMN_OPTIONS.map(c => (
                                 <button
                                     key={c}
                                     type="button"
                                     className={`ui-icon-btn${gridColumns === c ? ' is-active' : ''}`}
                                     aria-pressed={gridColumns === c}
-                                    onClick={() => { setGridColumns(c); localStorage.setItem('adminGridCols', c); }}
+                                    onClick={() => setGridColumns(c)}
                                     title={`${c} Columna(s)`}
                                 >
                                     <span className="material-icons-round" aria-hidden="true">{GRID_COLUMN_ICONS[c]}</span>

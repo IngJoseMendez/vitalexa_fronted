@@ -1,11 +1,69 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import apiClient from '../api/client';
+import adminClientService, { CLIENT_STATUS, DELETE_RESULT } from '../api/clientService';
 import { useToast } from './ToastContainer';
+import { useConfirm } from './ConfirmDialog';
 import SearchableSelect from './SearchableSelect';
 import { EXPORT_FORMATS } from './ExportButton';
 import { avatarTone, avatarInitials } from '../utils/avatarTone';
+import usePersistentState from '../hooks/usePersistentState';
 import '../styles/areas/AdminClientsPanel.css';
+
+// Solo Admin y Owner pueden eliminar, ver "Eliminados" y restaurar (el backend también lo exige)
+const ROLES_CAN_DELETE = ['ROLE_ADMIN', 'ROLE_OWNER'];
+
+// Valores que alterna el botón A-Z / Z-A (los permitidos de la preferencia que se recuerda)
+const SORT_DIRECTIONS = ['asc', 'desc'];
+
+// Duración de la salida de una tarjeta (eliminada o restaurada); igual a la transición del CSS
+const CARD_LEAVE_MS = 200;
+
+const prefersReducedMotion = () => {
+    try {
+        return typeof window !== 'undefined'
+            && typeof window.matchMedia === 'function'
+            && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch {
+        return false;
+    }
+};
+
+const readRole = () => {
+    try {
+        return localStorage.getItem('role');
+    } catch {
+        return null;
+    }
+};
+
+// Mensaje del servidor ({ message } o texto) si es legible; null si no hay o es una traza larga
+const getServerMessage = (error) => {
+    const data = error?.response?.data;
+    const message = typeof data === 'string' ? data : data?.message;
+    return message && message.length < 300 ? message : null;
+};
+
+// La lista normal es de activos; si llegara alguno archivado (active === false) no se muestra.
+// En "Eliminados" solo van los que el servidor marca active === false.
+const onlyActiveClients = (data) => (Array.isArray(data) ? data.filter(c => c?.active !== false) : []);
+const onlyArchivedClients = (data) => (Array.isArray(data) ? data.filter(c => c?.active === false) : []);
+
+// Contenido de un botón de acción con carga (icono o spinner + etiqueta). Mientras carga, la
+// etiqueta normal queda invisible debajo del texto de carga para que el botón no se encoja.
+function ActionButtonContent({ icon, busy, label, loadingLabel }) {
+    return (
+        <>
+            {busy
+                ? <span className="ui-spinner" aria-hidden="true" />
+                : <span className="material-icons-round" aria-hidden="true">{icon}</span>}
+            <span className="ui-btn-label">
+                {busy && <span className="ui-btn-label-sizer" aria-hidden="true">{label}</span>}
+                <span>{busy ? loadingLabel : label}</span>
+            </span>
+        </>
+    );
+}
 
 // Contenido de un botón de exportación con el mismo marcado que ExportButton: icono del formato
 // (o spinner mientras exporta) y etiqueta; mientras carga, la etiqueta normal queda invisible
@@ -28,6 +86,25 @@ function ExportButtonContent({ kind, busy, label, loadingLabel = 'Exportando...'
 // Esqueletos con la forma de las tarjetas de cliente (solo mientras carga)
 const SKELETON_CARDS = [0, 1, 2, 3, 4, 5];
 
+function ClientCardSkeletons({ count = SKELETON_CARDS.length }) {
+    return SKELETON_CARDS.slice(0, count).map(i => (
+        <div key={`skeleton-${i}`} className="acp-card acp-card--skeleton" aria-hidden="true">
+            <div className="acp-card-head">
+                <span className="ui-skeleton ui-skeleton--circle acp-skeleton-avatar" />
+                <div className="ui-skeleton-stack acp-card-heading">
+                    <span className="ui-skeleton ui-skeleton--title acp-skeleton-title" />
+                    <span className="ui-skeleton ui-skeleton--text acp-skeleton-chip" />
+                </div>
+            </div>
+            <div className="ui-skeleton-stack acp-skeleton-rows">
+                <span className="ui-skeleton ui-skeleton--text" />
+                <span className="ui-skeleton ui-skeleton--text acp-skeleton-short" />
+                <span className="ui-skeleton ui-skeleton--text" />
+            </div>
+        </div>
+    ));
+}
+
 /**
  * AdminClientsPanel - Panel for Admin/Owner to manage clients
  * Allows creating clients assigned to specific vendors
@@ -41,29 +118,72 @@ function AdminClientsPanel({ refreshTrigger }) {
     const [showEditModal, setShowEditModal] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedVendedor, setSelectedVendedor] = useState(''); // Filter by vendor
-    const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+    // Orden A-Z / Z-A: se recuerda por usuario (CONVENTIONS §10). Una sola clave para Admin y Owner:
+    // el panel es el mismo y la clave ya es por usuario. Búsqueda, vendedora y la pestaña
+    // Activos/Eliminados son filtros de datos: no se recuerdan.
+    const [sortOrder, setSortOrder] = usePersistentState('clientsPanel.sortDir', 'asc', { allowed: SORT_DIRECTIONS, sync: true });
     const [exporting, setExporting] = useState(false);
     // Qué botón inició la exportación ('seller' | 'route' | 'all'): solo ese muestra la carga;
     // "exporting" sigue siendo la única guarda y el disabled de todos
     const [exportingKey, setExportingKey] = useState(null);
     const [exportKeyword, setExportKeyword] = useState('');
     const [selectedExportVendor, setSelectedExportVendor] = useState('');
+    // Eliminar / restaurar (solo Admin y Owner)
+    const [canDelete] = useState(() => ROLES_CAN_DELETE.includes(readRole()));
+    const [view, setView] = useState(CLIENT_STATUS.ACTIVE); // 'active' | 'archived' (pestaña "Eliminados")
+    const [archivedClients, setArchivedClients] = useState([]);
+    const [archivedLoading, setArchivedLoading] = useState(false);
+    const [pendingById, setPendingById] = useState({}); // id -> 'delete' | 'restore'
+    const [leavingKeys, setLeavingKeys] = useState({}); // 'active:id' | 'archived:id' -> true (animación de salida)
+    const hasLoadedRef = useRef(false);
+    // Número de la última petición de cada lista: una respuesta más vieja (ráfaga de refrescos, o
+    // pedida antes de eliminar/restaurar) no pisa la lista actual ni revive una tarjeta ya quitada
+    const listRequestRef = useRef(0);
+    const archivedRequestRef = useRef(0);
+    const viewRef = useRef(view);
+    const leaveTimersRef = useRef([]);
     const toast = useToast();
+    const confirm = useConfirm();
 
     const fetchData = useCallback(async () => {
+        const requestId = ++listRequestRef.current;
         try {
-            setLoading(true); // Show loading state on refresh
+            // Solo la primera carga muestra los esqueletos. Los refrescos (botón Actualizar, avisos
+            // de inventario del servidor, después de crear o editar) actualizan la lista en su lugar:
+            // antes el panel se cambiaba por los esqueletos y se cerraba el modal que estuviera abierto
+            // (Crear / Editar cliente), perdiendo lo escrito.
+            if (!hasLoadedRef.current) setLoading(true);
             const [clientsRes, vendedoresRes] = await Promise.all([
                 apiClient.get('/admin/clients'),
                 apiClient.get('/admin/clients/vendedores')
             ]);
-            setClients(clientsRes.data);
+            if (requestId !== listRequestRef.current) return;
+            setClients(onlyActiveClients(clientsRes.data));
             setVendedores(vendedoresRes.data);
+            hasLoadedRef.current = true;
         } catch (error) {
+            if (requestId !== listRequestRef.current) return;
             console.error('Error al cargar datos:', error);
             toast.error('Error al cargar datos: ' + (error.response?.data?.message || error.message));
         } finally {
-            setLoading(false);
+            if (requestId === listRequestRef.current || hasLoadedRef.current) setLoading(false);
+        }
+    }, [toast]);
+
+    // Clientes eliminados (archivados). silent = refresco sin esqueletos (ya se están mostrando)
+    const fetchArchived = useCallback(async ({ silent = false } = {}) => {
+        const requestId = ++archivedRequestRef.current;
+        if (!silent) setArchivedLoading(true);
+        try {
+            const res = await adminClientService.getArchivedClients();
+            if (requestId !== archivedRequestRef.current) return; // llegó una respuesta más nueva
+            setArchivedClients(onlyArchivedClients(res.data));
+        } catch (error) {
+            if (requestId !== archivedRequestRef.current) return;
+            console.error('Error al cargar clientes eliminados:', error);
+            toast.error('Error al cargar clientes eliminados: ' + (getServerMessage(error) || error.message));
+        } finally {
+            if (requestId === archivedRequestRef.current) setArchivedLoading(false);
         }
     }, [toast]);
 
@@ -72,8 +192,144 @@ function AdminClientsPanel({ refreshTrigger }) {
     }, [fetchData, refreshTrigger]);
 
     useEffect(() => {
+        viewRef.current = view;
+    }, [view]);
+
+    // Refresco desde el dashboard estando en "Eliminados": también se actualiza esa lista
+    useEffect(() => {
+        if (viewRef.current === CLIENT_STATUS.ARCHIVED) fetchArchived({ silent: true });
+    }, [refreshTrigger, fetchArchived]);
+
+    // Al salir del panel se cancelan las animaciones de salida pendientes
+    useEffect(() => () => {
+        leaveTimersRef.current.forEach(clearTimeout);
+        leaveTimersRef.current = [];
+    }, []);
+
+    useEffect(() => {
         if (!exporting) setExportingKey(null);
     }, [exporting]);
+
+    const changeView = (nextView) => {
+        if (nextView === view) return;
+        setView(nextView);
+        if (nextView === CLIENT_STATUS.ARCHIVED) fetchArchived();
+    };
+
+    const setPending = (id, action) => {
+        setPendingById(prev => {
+            const next = { ...prev };
+            if (action) next[id] = action;
+            else delete next[id];
+            return next;
+        });
+    };
+
+    // Tras eliminar o restaurar, las listas pedidas antes ya no valen (traerían la tarjeta de
+    // vuelta): se ignoran y el refresco siguiente trae lo nuevo
+    const invalidateInFlightLists = ({ archived = false } = {}) => {
+        listRequestRef.current += 1;
+        if (archived) archivedRequestRef.current += 1;
+    };
+
+    // Saca la tarjeta de su lista con una salida corta (opacidad + escala) sin recargar ni
+    // desmontar el resto: las demás tarjetas, los filtros y lo que esté abierto siguen igual.
+    const removeCard = (list, id, onRemoved) => {
+        const key = `${list}:${id}`;
+        const setList = list === CLIENT_STATUS.ARCHIVED ? setArchivedClients : setClients;
+        const finish = () => {
+            setList(prev => prev.filter(c => c.id !== id));
+            setLeavingKeys(prev => {
+                const next = { ...prev };
+                delete next[key];
+                return next;
+            });
+            setPending(id, null);
+            if (onRemoved) onRemoved();
+        };
+        if (prefersReducedMotion()) {
+            finish();
+            return;
+        }
+        setLeavingKeys(prev => ({ ...prev, [key]: true }));
+        leaveTimersRef.current.push(setTimeout(finish, CARD_LEAVE_MS));
+    };
+
+    const handleDeleteClient = async (cliente) => {
+        if (!canDelete || pendingById[cliente.id]) return;
+        const ok = await confirm({
+            title: 'Eliminar cliente',
+            message: (
+                <>
+                    <strong>{cliente.nombre}</strong>
+                    <br />
+                    Si el cliente no tiene pedidos ni pagos se borrará definitivamente. Si tiene historial,
+                    se archivará: dejará de aparecer en listas y buscadores, pero sus facturas y pagos se
+                    conservan y podrás restaurarlo desde “Eliminados”.
+                </>
+            ),
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar'
+        });
+        if (!ok) return;
+
+        setPending(cliente.id, 'delete');
+        try {
+            const res = await adminClientService.deleteClient(cliente.id);
+            invalidateInFlightLists();
+            if (res?.data?.result === DELETE_RESULT.ARCHIVED) {
+                toast.success('Cliente archivado: tenía historial, se conserva y puedes restaurarlo desde Eliminados', 6000);
+            } else {
+                toast.success('Cliente eliminado');
+            }
+            removeCard(CLIENT_STATUS.ACTIVE, cliente.id);
+        } catch (error) {
+            console.error('Error al eliminar cliente:', error);
+            const status = error.response?.status;
+            const serverMessage = getServerMessage(error);
+            setPending(cliente.id, null);
+            if (status === 404) {
+                // Ya no existe (p. ej. otra persona lo eliminó): se quita de la lista
+                invalidateInFlightLists();
+                toast.error(serverMessage || 'El cliente ya no existe.');
+                removeCard(CLIENT_STATUS.ACTIVE, cliente.id);
+            } else if ((status === 409 || status === 400) && serverMessage) {
+                // Bloqueado (saldo pendiente o pedidos sin completar): la tarjeta se queda
+                toast.error(serverMessage, 6000);
+            } else {
+                toast.error('Error al eliminar cliente: ' + (serverMessage || error.message));
+            }
+        }
+    };
+
+    const handleRestoreClient = async (cliente) => {
+        if (!canDelete || pendingById[cliente.id]) return;
+        setPending(cliente.id, 'restore');
+        try {
+            const res = await adminClientService.restoreClient(cliente.id);
+            invalidateInFlightLists({ archived: true });
+            const restored = res?.data?.id ? res.data : { ...cliente, active: true };
+            toast.success('Cliente restaurado');
+            // Vuelve a "Activos" sin recargar esa lista (al terminar la salida de la tarjeta)
+            removeCard(CLIENT_STATUS.ARCHIVED, cliente.id, () => {
+                setClients(prev => [...prev.filter(c => c.id !== restored.id), restored]);
+            });
+        } catch (error) {
+            console.error('Error al restaurar cliente:', error);
+            const status = error.response?.status;
+            const serverMessage = getServerMessage(error);
+            setPending(cliente.id, null);
+            if (status === 404) {
+                invalidateInFlightLists({ archived: true });
+                toast.error(serverMessage || 'El cliente ya no existe.');
+                removeCard(CLIENT_STATUS.ARCHIVED, cliente.id);
+            } else if ((status === 409 || status === 400) && serverMessage) {
+                toast.error(serverMessage, 6000);
+            } else {
+                toast.error('Error al restaurar cliente: ' + (serverMessage || error.message));
+            }
+        }
+    };
 
     const exportBusy = (key) => exporting && exportingKey === key;
 
@@ -168,8 +424,12 @@ function AdminClientsPanel({ refreshTrigger }) {
         }
     };
 
+    // Lista visible: activos o, en la pestaña "Eliminados", los archivados (mismos filtros y orden)
+    const isArchivedView = canDelete && view === CLIENT_STATUS.ARCHIVED;
+    const visibleClients = isArchivedView ? archivedClients : clients;
+
     // Filter clients by search term AND vendor
-    const filteredClients = useMemo(() => clients.filter(c => {
+    const filteredClients = useMemo(() => visibleClients.filter(c => {
         // Vendor filter
         if (selectedVendedor && c.vendedorAsignadoNombre !== selectedVendedor) {
             return false;
@@ -198,7 +458,7 @@ function AdminClientsPanel({ refreshTrigger }) {
         return sortOrder === 'asc'
             ? nameA.localeCompare(nameB)
             : nameB.localeCompare(nameA);
-    }), [clients, selectedVendedor, searchTerm, sortOrder]);
+    }), [visibleClients, selectedVendedor, searchTerm, sortOrder]);
 
     // Opciones de los selectores con buscador (mismos value/texto que tenían las <option>):
     // exportar usa el id de la vendedora; el filtro de la lista, su username
@@ -221,22 +481,7 @@ function AdminClientsPanel({ refreshTrigger }) {
                     Cargando clientes...
                 </div>
                 <div className="acp-grid" aria-hidden="true">
-                    {SKELETON_CARDS.map(i => (
-                        <div key={i} className="acp-card acp-card--skeleton">
-                            <div className="acp-card-head">
-                                <span className="ui-skeleton ui-skeleton--circle acp-skeleton-avatar" />
-                                <div className="ui-skeleton-stack acp-card-heading">
-                                    <span className="ui-skeleton ui-skeleton--title acp-skeleton-title" />
-                                    <span className="ui-skeleton ui-skeleton--text acp-skeleton-chip" />
-                                </div>
-                            </div>
-                            <div className="ui-skeleton-stack acp-skeleton-rows">
-                                <span className="ui-skeleton ui-skeleton--text" />
-                                <span className="ui-skeleton ui-skeleton--text acp-skeleton-short" />
-                                <span className="ui-skeleton ui-skeleton--text" />
-                            </div>
-                        </div>
-                    ))}
+                    <ClientCardSkeletons />
                 </div>
             </div>
         );
@@ -395,6 +640,36 @@ function AdminClientsPanel({ refreshTrigger }) {
                     />
                 </div>
 
+                {/* Activos / Eliminados (solo Admin y Owner) */}
+                {canDelete && (
+                    <div className="ui-tabs acp-tabs" role="tablist" aria-label="Clientes activos o eliminados">
+                        <button
+                            type="button"
+                            role="tab"
+                            id="acp-tab-active"
+                            aria-selected={!isArchivedView}
+                            aria-controls="acp-client-grid"
+                            className={`ui-tab${!isArchivedView ? ' is-active' : ''}`}
+                            onClick={() => changeView(CLIENT_STATUS.ACTIVE)}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">people</span>
+                            Activos
+                        </button>
+                        <button
+                            type="button"
+                            role="tab"
+                            id="acp-tab-archived"
+                            aria-selected={isArchivedView}
+                            aria-controls="acp-client-grid"
+                            className={`ui-tab${isArchivedView ? ' is-active' : ''}`}
+                            onClick={() => changeView(CLIENT_STATUS.ARCHIVED)}
+                        >
+                            <span className="material-icons-round" aria-hidden="true">inventory_2</span>
+                            Eliminados
+                        </button>
+                    </div>
+                )}
+
                 {/* Vendor Filter Dropdown */}
                 <div className="acp-vendor-filter">
                     <SearchableSelect
@@ -440,22 +715,61 @@ function AdminClientsPanel({ refreshTrigger }) {
 
             {/* Clients Grid */}
             {/* ui-stagger: solo las primeras 8 tarjetas entran escalonadas */}
-            <div className="acp-grid ui-stagger">
-                {filteredClients.length === 0 ? (
-                    <div className="ui-empty acp-empty">
-                        <span className="material-icons-round ui-empty-icon" aria-hidden="true">person_search</span>
-                        <p className="ui-empty-title">No se encontraron clientes</p>
-                    </div>
+            {/* En "Eliminados": tarjetas atenuadas con "Archivado" y solo "Restaurar" */}
+            <div
+                id="acp-client-grid"
+                className="acp-grid ui-stagger"
+                role={canDelete ? 'tabpanel' : undefined}
+                aria-labelledby={canDelete ? (isArchivedView ? 'acp-tab-archived' : 'acp-tab-active') : undefined}
+                aria-busy={isArchivedView && archivedLoading ? 'true' : undefined}
+            >
+                {isArchivedView && archivedLoading ? (
+                    <>
+                        <div className="ui-loading acp-loading acp-grid-loading" role="status">
+                            <span className="ui-spinner" aria-hidden="true"></span>
+                            Cargando clientes eliminados...
+                        </div>
+                        <ClientCardSkeletons count={3} />
+                    </>
+                ) : filteredClients.length === 0 ? (
+                    isArchivedView && archivedClients.length === 0 ? (
+                        <div className="ui-empty acp-empty">
+                            <span className="material-icons-round ui-empty-icon" aria-hidden="true">inventory_2</span>
+                            <p className="ui-empty-title">No hay clientes eliminados</p>
+                            <p className="ui-empty-text">
+                                Aquí aparecen los clientes archivados (con historial). Puedes restaurarlos cuando quieras.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="ui-empty acp-empty">
+                            <span className="material-icons-round ui-empty-icon" aria-hidden="true">person_search</span>
+                            <p className="ui-empty-title">No se encontraron clientes</p>
+                        </div>
+                    )
                 ) : (
-                    filteredClients.map(cliente => (
-                        <article key={cliente.id} className="acp-card">
+                    filteredClients.map(cliente => {
+                        const pending = pendingById[cliente.id];
+                        const leaving = !!leavingKeys[`${isArchivedView ? CLIENT_STATUS.ARCHIVED : CLIENT_STATUS.ACTIVE}:${cliente.id}`];
+                        const clientName = cliente.nombre || '';
+                        return (
+                        <article
+                            key={cliente.id}
+                            className={`acp-card${isArchivedView ? ' is-archived' : ''}${leaving ? ' is-leaving' : ''}`}
+                            aria-hidden={leaving || undefined}
+                        >
                             <div className="acp-card-head">
-                                {/* Avatar de iniciales: mismo tono para el mismo cliente en toda la app */}
-                                <span className={`ui-avatar ui-avatar--${avatarTone(cliente.nombre)}`} aria-hidden="true">
+                                {/* Avatar de iniciales: mismo tono para el mismo cliente en toda la app (gris si está archivado) */}
+                                <span className={`ui-avatar ui-avatar--${isArchivedView ? 'neutral' : avatarTone(cliente.nombre)}`} aria-hidden="true">
                                     {avatarInitials(cliente.nombre)}
                                 </span>
                                 <div className="acp-card-heading">
                                     <h3 className="acp-card-title">{cliente.nombre}</h3>
+                                    {isArchivedView && (
+                                        <span className="ui-badge ui-badge--neutral acp-archived-badge">
+                                            <span className="material-icons-round" aria-hidden="true">archive</span>
+                                            Archivado
+                                        </span>
+                                    )}
                                     <span className={`ui-badge ${cliente.vendedorAsignadoNombre ? 'ui-badge--primary' : 'ui-badge--neutral'} acp-vendor-badge`}>
                                         <span className="material-icons-round" aria-hidden="true">badge</span>
                                         Vendedor: {cliente.vendedorAsignadoNombre || 'N/A'}
@@ -515,21 +829,54 @@ function AdminClientsPanel({ refreshTrigger }) {
                                         ${formatCurrency(cliente.totalCompras || 0)}
                                     </span>
                                 </span>
-                                <button
-                                    type="button"
-                                    className="ui-btn ui-btn--secondary ui-btn--sm"
-                                    onClick={() => {
-                                        setEditingClient(cliente);
-                                        setShowEditModal(true);
-                                    }}
-                                    title="Editar cliente"
-                                >
-                                    <span className="material-icons-round" aria-hidden="true">edit</span>
-                                    Editar
-                                </button>
+                                {isArchivedView ? (
+                                    <div className="acp-card-actions">
+                                        <button
+                                            type="button"
+                                            className={`ui-btn ui-btn--secondary ui-btn--sm${pending === 'restore' ? ' is-loading' : ''}`}
+                                            onClick={() => handleRestoreClient(cliente)}
+                                            disabled={!!pending}
+                                            aria-busy={pending === 'restore' || undefined}
+                                            title="Restaurar cliente"
+                                            aria-label={`${pending === 'restore' ? 'Restaurando' : 'Restaurar'} cliente ${clientName}`.trim()}
+                                        >
+                                            <ActionButtonContent icon="unarchive" busy={pending === 'restore'} label="Restaurar" loadingLabel="Restaurando..." />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="acp-card-actions">
+                                        <button
+                                            type="button"
+                                            className="ui-btn ui-btn--secondary ui-btn--sm"
+                                            onClick={() => {
+                                                setEditingClient(cliente);
+                                                setShowEditModal(true);
+                                            }}
+                                            disabled={!!pending}
+                                            title="Editar cliente"
+                                        >
+                                            <span className="material-icons-round" aria-hidden="true">edit</span>
+                                            Editar
+                                        </button>
+                                        {canDelete && (
+                                            <button
+                                                type="button"
+                                                className={`ui-btn ui-btn--danger-ghost ui-btn--sm acp-delete-btn${pending === 'delete' ? ' is-loading' : ''}`}
+                                                onClick={() => handleDeleteClient(cliente)}
+                                                disabled={!!pending}
+                                                aria-busy={pending === 'delete' || undefined}
+                                                title="Eliminar cliente"
+                                                aria-label={`${pending === 'delete' ? 'Eliminando' : 'Eliminar'} cliente ${clientName}`.trim()}
+                                            >
+                                                <ActionButtonContent icon="delete_outline" busy={pending === 'delete'} label="Eliminar" loadingLabel="Eliminando..." />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </article>
-                    ))
+                        );
+                    })
                 )}
             </div>
 

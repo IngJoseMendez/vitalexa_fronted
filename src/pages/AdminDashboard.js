@@ -5,6 +5,7 @@ import { idempotencyKeyFor } from '../utils/idempotency';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
 import useSidebarCollapsed from '../hooks/useSidebarCollapsed';
+import usePersistentState, { migrateLegacyViewPref } from '../hooks/usePersistentState';
 import SidebarToggle from '../components/SidebarToggle';
 // Las pestañas (salvo Órdenes y Nueva venta) y los modales de órdenes se cargan bajo demanda:
 // ver los lazyWithRetry() debajo de los imports. Sus hojas de estilo se importan AQUÍ, en el mismo orden
@@ -99,6 +100,31 @@ function ExportButtonContent({ kind, label, busy, loadingLabel = 'Exportando...'
 
 // Órdenes: tarjetas de esqueleto mientras cargan (misma forma que la tarjeta de orden)
 const ORDER_SKELETONS = [0, 1, 2, 3, 4, 5];
+
+// Preferencias de CÓMO VER que se recuerdan al recargar (usePersistentState, CONVENTIONS §10).
+// Cada lista es exactamente la de los value de su control, con el mismo tipo que guarda el
+// estado: así lo guardado que ya no sea una opción vuelve al valor por defecto.
+const ORDER_SORT_OPTIONS = [
+  { value: 'fecha', label: 'Fecha' },
+  { value: 'cliente', label: 'Nombre Cliente' },
+  { value: 'total', label: 'Precio Total' },
+  { value: 'invoiceNumber', label: 'Número de Factura' },
+  { value: 'orderNumber', label: 'Número de Pedido' },
+];
+const ORDER_SORT_VALUES = ORDER_SORT_OPTIONS.map((o) => o.value);
+const SORT_DIRECTIONS = ['asc', 'desc'];
+const ORDER_PAGE_SIZES = [10, 20, 50, 100]; // números: el select hace Number(e.target.value)
+const ORDER_COLUMN_OPTIONS = ['auto', '1', '2', '3', '4', '5', '6']; // texto, como el value del select
+
+// Antes las columnas de órdenes se guardaban en 'adminOrdersColumns', sin usuario (y cerrar
+// sesión las borraba). Se pasa una sola vez a la preferencia de quien abre Órdenes (sin pisar una
+// ya guardada) y se borra la clave vieja, para que el cambio de formato no le reinicie las
+// columnas a nadie. Casi siempre es de esa misma persona; si antes una sesión venció sin cerrarse
+// (el 401 solo borra token y usuario) puede venir de quien usó el equipo antes: son solo las
+// columnas, y cada quien las cambia con el selector.
+const migrateLegacyOrdersColumns = () => migrateLegacyViewPref('adminOrdersColumns', 'admin.orders.columns', {
+  allowed: ORDER_COLUMN_OPTIONS, // se guardaba como texto, igual que el estado: sin conversión
+});
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
@@ -201,8 +227,10 @@ function AdminDashboard() {
             {activeTab === 'inventory-history' && <InventoryHistoryPanel />}
             {activeTab === 'stock-report' && <StockReportPanel role="admin" />}
             {activeTab === 'clients' && <AdminClientsPanel refreshTrigger={refreshTrigger} />}
-            {activeTab === 'tags' && <TagsPanel key={refreshTrigger} />}
-            {activeTab === 'promotions' && <PromotionsPanel key={refreshTrigger} />}
+            {/* refreshTrigger como prop (no como key): el panel recarga sus datos en su lugar sin
+                remontarse, así no se cierra el formulario abierto ni se pierde la búsqueda */}
+            {activeTab === 'tags' && <TagsPanel refreshTrigger={refreshTrigger} />}
+            {activeTab === 'promotions' && <PromotionsPanel refreshTrigger={refreshTrigger} />}
             {activeTab === 'reports' && <AdminReportsPanel toast={toast} />}
             {activeTab === 'nomina' && <PayrollPanel />}
           </Suspense>
@@ -224,9 +252,13 @@ function OrdersPanel({ refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [viewingOrder, setViewingOrder] = useState(null);
-  const [filter, setFilter] = useState('pending');
-  const [sortBy, setSortBy] = useState('fecha');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [filter, setFilter] = useState('pending'); // pestaña de estado: no se recuerda (§10.1)
+  // Orden, por página y columnas se recuerdan por usuario; la primera petición ya usa lo guardado.
+  // Orden, sentido y por página van en la consulta paginada y su handler vuelve a la página 1: sin
+  // `sync`, otra pestaña no los cambia aquí (dejaría esta en una página que ya no existe). Las
+  // columnas son solo presentación y sí se sincronizan.
+  const [sortBy, setSortBy] = usePersistentState('admin.orders.sort', 'fecha', { allowed: ORDER_SORT_VALUES });
+  const [sortOrder, setSortOrder] = usePersistentState('admin.orders.sortDir', 'desc', { allowed: SORT_DIRECTIONS });
   const [downloadingPdf, setDownloadingPdf] = useState(null);
   const [invoiceSearch, setInvoiceSearch] = useState('');
   const [invoiceSearchInput, setInvoiceSearchInput] = useState(''); // UI state (not debounced)
@@ -239,8 +271,9 @@ function OrdersPanel({ refreshTrigger }) {
 
   // ── PAGINACIÓN ──
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
-  const [ordersColumns, setOrdersColumns] = useState(() => localStorage.getItem('adminOrdersColumns') || 'auto');
+  const [pageSize, setPageSize] = usePersistentState('admin.orders.pageSize', 20, { allowed: ORDER_PAGE_SIZES });
+  useState(migrateLegacyOrdersColumns); // una sola vez y ANTES del hook de columnas, que ya la lee
+  const [ordersColumns, setOrdersColumns] = usePersistentState('admin.orders.columns', 'auto', { allowed: ORDER_COLUMN_OPTIONS, sync: true });
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
@@ -254,6 +287,22 @@ function OrdersPanel({ refreshTrigger }) {
 
   const toast = useToast();
 
+  // ── Actualización silenciosa ──
+  // Las recargas de la MISMA consulta que ya se ve (notificación de pedido nuevo o completado,
+  // INVENTORY_UPDATE, "Actualizar", o lo que hace el admin: confirmar, completar, editar,
+  // descuentos) reemplazan las tarjetas en su lugar: no hay esqueletos, así no se cierran los
+  // "Ver productos" abiertos, no se pierde lo escrito en los descuentos, no salta el scroll ni se
+  // repiten las animaciones de entrada. Los esqueletos quedan para la primera carga y para lo que
+  // pide el admin (página, estado, búsqueda, vendedor, cliente, orden, tamaño de página).
+  // requestSeqRef: número de la última petición; una respuesta más vieja no pisa a la nueva (ni
+  // devuelve al admin a la página anterior). shownQueryRef: la consulta de las órdenes que se ven.
+  const requestSeqRef = useRef(0);
+  const shownQueryRef = useRef(null);
+  // Sube con cada carga aplicada: las tarjetas (que ya no se remontan) vuelven a pedir sus
+  // descuentos (AdminDiscountSection lo recibe como refreshKey y recarga en su lugar), una
+  // petición por tarjeta y por recarga, igual que cuando se remontaban
+  const [ordersVersion, setOrdersVersion] = useState(0);
+
   const fetchOrders = useCallback(async (page, size, status, search, vendedor, cliente, sortB, sortO) => {
     const p = page !== undefined ? page : currentPage;
     const s = size !== undefined ? size : pageSize;
@@ -264,31 +313,41 @@ function OrdersPanel({ refreshTrigger }) {
     const sby = sortB !== undefined ? sortB : sortBy;
     const so = sortO !== undefined ? sortO : sortOrder;
 
-    setLoading(true);
-    try {
-      const params = { 
-        page: p, 
-        size: s, 
-        status: st,
-        sortBy: sby,
-        sortOrder: so
-      };
-      if (sr && sr.trim() !== '') params.search = sr.trim();
-      if (vd && vd.trim() !== '') params.vendedor = vd.trim();
-      if (cl && cl.trim() !== '') params.cliente = cl.trim();
+    const params = {
+      page: p,
+      size: s,
+      status: st,
+      sortBy: sby,
+      sortOrder: so
+    };
+    if (sr && sr.trim() !== '') params.search = sr.trim();
+    if (vd && vd.trim() !== '') params.vendedor = vd.trim();
+    if (cl && cl.trim() !== '') params.cliente = cl.trim();
 
+    const requestId = ++requestSeqRef.current;
+    const silent = shownQueryRef.current === JSON.stringify(params);
+    if (!silent) setLoading(true);
+    try {
       const response = await client.get('/admin/orders/paginated', { params });
+      if (requestId !== requestSeqRef.current) return; // llegó otra petición después: esta ya no vale
       const data = response.data;
+      const shownPage = data.number || 0;
       setOrders(data.content || []);
       setTotalPages(data.totalPages || 0);
       setTotalElements(data.totalElements || 0);
-      setCurrentPage(data.number || 0);
+      setCurrentPage(shownPage);
+      shownQueryRef.current = JSON.stringify({ ...params, page: shownPage });
+      setOrdersVersion((v) => v + 1);
       console.log(`✅ Órdenes actualizadas: p${data.number + 1}/${data.totalPages}, ${data.totalElements} total`);
     } catch (error) {
       console.error('Error al cargar órdenes:', error);
-      toast.error('Error al cargar órdenes: ' + (error.response?.data?.message || error.message));
+      // Las órdenes que ya se ven se quedan (también si falla una recarga silenciosa)
+      if (requestId === requestSeqRef.current) {
+        toast.error('Error al cargar órdenes: ' + (error.response?.data?.message || error.message));
+      }
     } finally {
-      setLoading(false);
+      // Siempre la última (aunque sea silenciosa): si reemplazó a una con esqueletos, los quita
+      if (requestId === requestSeqRef.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast, currentPage, pageSize, filter, invoiceSearch, selectedVendedor, selectedCliente, sortBy, sortOrder]);
@@ -314,8 +373,11 @@ function OrdersPanel({ refreshTrigger }) {
         return;
       }
 
-      // Use new endpoint logic
-      const response = await client.get(`/admin/clients/seller/${vendorId}`);
+      // Use new endpoint logic. includeArchived: este filtro es del historial de pedidos y
+      // facturas, donde las ventas de los clientes eliminados (archivados) siguen apareciendo
+      const response = await client.get(`/admin/clients/seller/${vendorId}`, {
+        params: { includeArchived: true }
+      });
       setClientes(response.data || []);
     } catch (error) {
       console.error('Error al cargar clientes:', error);
@@ -654,7 +716,9 @@ function OrdersPanel({ refreshTrigger }) {
                           onMouseEnter={(e) => e.target.style.background = 'var(--color-surface-hover)'}
                           onMouseLeave={(e) => e.target.style.background = selectedCliente === c.nombre ? 'var(--color-primary-soft)' : 'transparent'}
                         >
-                          <div className="adm-dropdown-title">{c.nombre}</div>
+                          <div className="adm-dropdown-title">
+                            {c.nombre}{c.active === false && ' (eliminado)'}
+                          </div>
                           {c.representanteLegal && (
                             <div className="adm-dropdown-meta">
                               <span className="material-icons-round" aria-hidden="true">badge</span> {c.representanteLegal}
@@ -703,11 +767,7 @@ function OrdersPanel({ refreshTrigger }) {
         <div className="sorting-controls adm-viewbar-group">
           <span className="material-icons-round adm-viewbar-icon" aria-hidden="true">sort</span>
           <select value={sortBy} onChange={(e) => { setSortBy(e.target.value); setCurrentPage(0); }} className="sort-select ui-select" aria-label="Ordenar por">
-            <option value="fecha">Fecha</option>
-            <option value="cliente">Nombre Cliente</option>
-            <option value="total">Precio Total</option>
-            <option value="invoiceNumber">Número de Factura</option>
-            <option value="orderNumber">Número de Pedido</option>
+            {ORDER_SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
           <button
             type="button"
@@ -731,7 +791,7 @@ function OrdersPanel({ refreshTrigger }) {
             value={pageSize}
             onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}
           >
-            {[10, 20, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+            {ORDER_PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
           por página
         </label>
@@ -741,16 +801,10 @@ function OrdersPanel({ refreshTrigger }) {
           <select
             className="ui-select adm-viewbar-select"
             value={ordersColumns}
-            onChange={(e) => { const v = e.target.value; setOrdersColumns(v); localStorage.setItem('adminOrdersColumns', v); }}
+            onChange={(e) => setOrdersColumns(e.target.value)}
             title="Tarjetas por fila"
           >
-            <option value="auto">Auto</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
+            {ORDER_COLUMN_OPTIONS.map((v) => <option key={v} value={v}>{v === 'auto' ? 'Auto' : v}</option>)}
           </select>
         </label>
         <span className="adm-viewbar-total">
@@ -951,6 +1005,7 @@ function OrdersPanel({ refreshTrigger }) {
                   orderId={order.id}
                   orderStatus={order.estado}
                   onDiscountChange={fetchOrders}
+                  refreshKey={ordersVersion}
                 />
 
                 {/* ✅ BOTONES DE GESTIÓN DE ORDEN */}
@@ -1186,7 +1241,8 @@ export function AdminNuevaVentaPanel() {
 
   const [clientSearch, setClientSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
-  const [sortOrder, setSortOrder] = useState('asc'); // Sort state for clients
+  // Orden A-Z / Z-A de los clientes del selector: se recuerda por usuario (CONVENTIONS §10)
+  const [sortOrder, setSortOrder] = usePersistentState('admin.newSaleClients.sortDir', 'asc', { allowed: SORT_DIRECTIONS, sync: true });
   const [clientsLoading, setClientsLoading] = useState(false); // Add specific loading state for clients
   const toast = useToast();
 
