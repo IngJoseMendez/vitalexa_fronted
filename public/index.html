@@ -7,6 +7,9 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+    <!-- favicon.ico (logo Vitalexa 32x32) es el respaldo para navegadores sin favicon SVG;
+         con sizes="32x32" los que sí soportan SVG siguen usando el de abajo -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="https://res.cloudinary.com/dxl97cptv/image/upload/v1776020554/Dise%C3%B1o_sin_t%C3%ADtulo_2_og1h5m.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#1e293b" />
@@ -14,7 +17,8 @@
       name="description"
       content="Vitalexa Management System"
     />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!-- iOS rellena con negro lo transparente: este va con fondo blanco y en 180x180 -->
+    <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
     <!--
       manifest.json provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/

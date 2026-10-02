@@ -1,10 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import promotionService from '../api/promotionService';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
 import { getPromotionTypeLabel, isPromotionValid, PromotionType } from '../utils/types';
+import {
+    PROMO_TABS,
+    matchesPromotionSearch,
+    filterByTab,
+    countByTab,
+    getPromotionDateState,
+    getDateStateLabel,
+    isVisibleToAll,
+} from '../utils/promotionFilters';
 import PromotionFormModal from './modals/PromotionFormModal';
+import PromotionListToolbar from './PromotionListToolbar';
 import '../styles/Promotions.css';
 
 function PromotionsPanel() {
@@ -12,10 +22,22 @@ function PromotionsPanel() {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingPromotion, setEditingPromotion] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusTab, setStatusTab] = useState(PROMO_TABS.ACTIVE);
     const toast = useToast();
     const confirm = useConfirm();
 
-
+    // Búsqueda en el cliente (GET /admin/promotions ya trae todas, activas e inactivas).
+    // Los contadores de las pestañas reflejan la búsqueda para ver dónde quedaron los resultados.
+    const searchedPromotions = useMemo(
+        () => promotions.filter(p => matchesPromotionSearch(p, searchTerm)),
+        [promotions, searchTerm]
+    );
+    const tabCounts = useMemo(() => countByTab(searchedPromotions), [searchedPromotions]);
+    const visiblePromotions = useMemo(
+        () => filterByTab(searchedPromotions, statusTab),
+        [searchedPromotions, statusTab]
+    );
 
     const fetchPromotions = useCallback(async () => {
         try {
@@ -51,7 +73,7 @@ function PromotionsPanel() {
     const handleDelete = async (promotion) => {
         const confirmed = await confirm({
             title: '¿Eliminar promoción?',
-            message: `¿Estás seguro de eliminar "${promotion.nombre}"? Esta acción no se puede deshacer.`
+            message: `¿Estás seguro de eliminar "${promotion.nombre}"? Esta acción no se puede deshacer. Si solo quieres que deje de venderse, usa "Desactivar".`
         });
 
         if (!confirmed) return;
@@ -126,9 +148,43 @@ function PromotionsPanel() {
                     </p>
                 </div>
             ) : (
+                <>
+                <PromotionListToolbar
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    tab={statusTab}
+                    onTabChange={setStatusTab}
+                    counts={tabCounts}
+                    shownCount={visiblePromotions.length}
+                    placeholder="Buscar por nombre, producto, regalo o vendedora..."
+                />
+
+                {visiblePromotions.length === 0 ? (
+                    <div className="promo-no-results">
+                        <span className="material-icons-round" aria-hidden="true">search_off</span>
+                        <p>
+                            {searchTerm.trim()
+                                ? `No hay promociones ${statusTab === PROMO_TABS.ACTIVE ? 'activas ' : statusTab === PROMO_TABS.INACTIVE ? 'inactivas ' : ''}que coincidan con "${searchTerm.trim()}".`
+                                : statusTab === PROMO_TABS.ACTIVE ? 'No hay promociones activas.' : 'No hay promociones inactivas.'}
+                        </p>
+                        {statusTab !== PROMO_TABS.ALL && tabCounts.all > 0 && (
+                            <button type="button" className="promo-link-btn" onClick={() => setStatusTab(PROMO_TABS.ALL)}>
+                                Ver en Todas ({tabCounts.all})
+                            </button>
+                        )}
+                        {searchTerm && (statusTab === PROMO_TABS.ALL || tabCounts.all === 0) && (
+                            <button type="button" className="promo-link-btn" onClick={() => setSearchTerm('')}>
+                                Limpiar búsqueda
+                            </button>
+                        )}
+                    </div>
+                ) : (
                 <div className="promotions-grid">
-                    {promotions.map(promotion => {
+                    {visiblePromotions.map(promotion => {
                         const isValid = isPromotionValid(promotion);
+                        // Vencida / Programada solo tiene sentido en las activas (las inactivas no se venden igual)
+                        const dateLabel = promotion.active ? getDateStateLabel(getPromotionDateState(promotion)) : null;
+                        const vendorNames = Array.isArray(promotion.allowedVendorNames) ? promotion.allowedVendorNames : [];
 
                         return (
                             <div
@@ -139,7 +195,7 @@ function PromotionsPanel() {
                                     <div>
                                         <h3 className="promotion-title">{promotion.nombre}</h3>
                                         <div className="promotion-badges">
-                                            <span className={`promotion-badge type-${promotion.type.toLowerCase().replace('_', '-')}`}>
+                                            <span className={`promotion-badge type-${(promotion.type || '').toLowerCase().replace(/_/g, '-')}`}>
                                                 {getPromotionTypeLabel(promotion.type)}
                                             </span>
                                             <span className={`promotion-badge status-${promotion.active ? 'active' : 'inactive'}`}>
@@ -151,6 +207,14 @@ function PromotionsPanel() {
                                                     Válida Ahora
                                                 </span>
                                             )}
+                                            {dateLabel && (
+                                                <span className={`promotion-badge date-${dateLabel === 'Vencida' ? 'expired' : 'scheduled'}`}>
+                                                    <span className="material-icons-round" style={{ fontSize: '14px' }}>
+                                                        {dateLabel === 'Vencida' ? 'event_busy' : 'schedule'}
+                                                    </span>
+                                                    {dateLabel}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -158,6 +222,23 @@ function PromotionsPanel() {
                                 {promotion.descripcion && (
                                     <p className="promotion-description">{promotion.descripcion}</p>
                                 )}
+
+                                {/* Quién la ve: "Todas" o las vendedoras asignadas */}
+                                <div className="promo-vendors">
+                                    <span className="promo-vendors-label">
+                                        <span className="material-icons-round" aria-hidden="true">visibility</span>
+                                        Vendedoras:
+                                    </span>
+                                    {isVisibleToAll(promotion) ? (
+                                        <span className="promo-chip all">Todas</span>
+                                    ) : vendorNames.length > 0 ? (
+                                        vendorNames.map((name, i) => (
+                                            <span key={`${name}-${i}`} className="promo-chip">{name}</span>
+                                        ))
+                                    ) : (
+                                        <span className="promo-chip none">Ninguna (solo admin)</span>
+                                    )}
+                                </div>
 
                                 <div className="promotion-info">
                                     <div className="promotion-info-row">
@@ -182,15 +263,18 @@ function PromotionsPanel() {
                                                 )
                                             ) : (
                                                 <span className="promotion-quantities">
-                                                    {promotion.freeQuantity} Unidades a Elección
+                                                    {/* Un backend anterior no envía freeQuantity: no mostrar "undefined" */}
+                                                    {promotion.freeQuantity != null
+                                                        ? `Hasta ${promotion.freeQuantity} a elección`
+                                                        : 'Unidades a elección'}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
 
-                                    {promotion.packPrice && (
-                                        <div className="promotion-info-row">
-                                            <span className="promotion-info-label">Precio del Pack:</span>
+                                    {promotion.packPrice != null && promotion.packPrice !== '' && (
+                                        <div className="promotion-info-row price-row">
+                                            <span className="promotion-info-label">Precio del paquete:</span>
                                             <span className="promotion-price">${formatCurrency(promotion.packPrice)}</span>
                                         </div>
                                     )}
@@ -286,6 +370,8 @@ function PromotionsPanel() {
                         );
                     })}
                 </div>
+                )}
+                </>
             )
             }
 

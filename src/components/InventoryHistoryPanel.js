@@ -1,6 +1,36 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContainer';
 import productService from '../api/productService';
+import { formatOrderLabel } from '../utils/formatters';
+import {
+    MOVEMENT_TYPES,
+    movementTypeLabel,
+    movementDelta,
+    formatDelta,
+    deltaTone,
+    historyDateParams,
+} from '../utils/inventoryMovements';
+
+// Colores por sentido del cambio real de stock (no por el tipo)
+const TONE_STYLES = {
+    in: { color: '#059669', badgeBg: '#dcfce7', badgeColor: '#166534' },
+    out: { color: '#dc2626', badgeBg: '#fee2e2', badgeColor: '#991b1b' },
+    none: { color: '#6b7280', badgeBg: '#f3f4f6', badgeColor: '#374151' },
+};
+
+/** Mensaje del backend cuando la respuesta es un blob (descargas) o JSON */
+async function errorMessage(error, fallback) {
+    const data = error?.response?.data;
+    if (data instanceof Blob) {
+        try {
+            const json = JSON.parse(await data.text());
+            return json.message || fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+    return data?.message || fallback;
+}
 
 export default function InventoryHistoryPanel() {
     const [history, setHistory] = useState([]);
@@ -15,7 +45,7 @@ export default function InventoryHistoryPanel() {
     const [productNameSearch, setProductNameSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    
+
     // Product search suggestions
     const [productSuggestions, setProductSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -23,24 +53,16 @@ export default function InventoryHistoryPanel() {
 
     const toast = useToast();
 
-    // Movement Types Enum
-    const movementTypes = [
-        { value: 'CREATION', label: 'Creación' },
-        { value: 'UPDATE', label: 'Actualización' },
-        { value: 'STOCK_ADJUSTMENT', label: 'Ajuste Stock' },
-        { value: 'SALE', label: 'Venta' },
-        { value: 'RESTOCK', label: 'Reabastecimiento' },
-        { value: 'DELETION', label: 'Eliminación' },
-        { value: 'RETURN', label: 'Devolución' },
-        { value: 'ORDER_ITEM_REMOVAL', label: 'Eliminación de Item' },
-        { value: 'ORDER_EDIT_RESTORE', label: 'Restauración por Edición' },
-        { value: 'ANNULMENT_REVERSAL', label: 'Reversión de Anulación' }
-    ];
-
-    // Tipos que SUMAN stock (entrada) → se muestran con "+" y en verde.
-    const positiveTypes = ['CREATION', 'RESTOCK', 'RETURN', 'ORDER_ITEM_REMOVAL', 'ORDER_EDIT_RESTORE'];
+    // "Desde" posterior a "Hasta": no se consulta (el backend respondería 400)
+    const invalidRange = Boolean(startDate && endDate && startDate > endDate);
 
     const fetchHistory = useCallback(async () => {
+        if (invalidRange) {
+            setHistory([]);
+            setTotalPages(0);
+            setTotalElements(0);
+            return;
+        }
         setLoading(true);
         try {
             const params = {
@@ -49,33 +71,32 @@ export default function InventoryHistoryPanel() {
                 sort: 'timestamp,desc',
                 type: type || null,
                 productId: productId || null,
-                startDate: startDate ? new Date(startDate).toISOString() : null,
-                endDate: endDate ? new Date(endDate).toISOString() : null
+                ...historyDateParams(startDate, endDate)
             };
 
             const response = await productService.getInventoryHistory(params);
-            setHistory(response.data.content);
+            setHistory(response.data.content || []);
             setTotalPages(response.data.totalPages);
             setTotalElements(response.data.totalElements);
         } catch (error) {
             console.error('Error fetching history:', error);
-            toast.error('Error al cargar historial');
+            toast.error(await errorMessage(error, 'Error al cargar historial'));
         } finally {
             setLoading(false);
         }
-    }, [page, type, productId, startDate, endDate, toast]);
+    }, [page, type, productId, startDate, endDate, invalidRange, toast]);
 
     useEffect(() => {
         fetchHistory();
     }, [fetchHistory]);
 
-    // Debounced Product Search
+    // Debounced Product Search (incluye productos inactivos: también se auditan)
     useEffect(() => {
         if (productNameSearch.length > 2 && !productId) {
             const timer = setTimeout(async () => {
                 setSearchLoading(true);
                 try {
-                    const response = await productService.searchProducts(productNameSearch);
+                    const response = await productService.searchProductsForHistory(productNameSearch);
                     setProductSuggestions(response.data.content || []);
                     setShowSuggestions(true);
                 } catch (e) {
@@ -90,9 +111,26 @@ export default function InventoryHistoryPanel() {
             setShowSuggestions(false);
             if (productId && productNameSearch === '') {
                 setProductId('');
+                setPage(0);
             }
         }
     }, [productNameSearch, productId]);
+
+    const clearProduct = () => {
+        setProductNameSearch('');
+        setProductId('');
+        setProductSuggestions([]);
+        setPage(0);
+    };
+
+    const clearFilters = () => {
+        setType('');
+        setStartDate('');
+        setEndDate('');
+        clearProduct();
+    };
+
+    const hasFilters = Boolean(type || productId || productNameSearch || startDate || endDate);
 
     const handleDownloadPdf = async (id) => {
         try {
@@ -106,17 +144,20 @@ export default function InventoryHistoryPanel() {
             link.parentNode.removeChild(link);
         } catch (error) {
             console.error('Error downloading PDF:', error);
-            toast.error('Error al descargar PDF');
+            toast.error(await errorMessage(error, 'Error al descargar PDF'));
         }
     };
 
     const handleExportReport = async () => {
+        if (invalidRange) {
+            toast.warning("La fecha 'Desde' es posterior a 'Hasta'");
+            return;
+        }
         try {
             const params = {
                 type: type || null,
                 productId: productId || null,
-                startDate: startDate ? new Date(startDate).toISOString() : null,
-                endDate: endDate ? new Date(endDate).toISOString() : null
+                ...historyDateParams(startDate, endDate)
             };
             const response = await productService.exportInventoryHistory(params);
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -129,20 +170,20 @@ export default function InventoryHistoryPanel() {
             toast.success('Reporte descargado correctamente');
         } catch (error) {
             console.error('Error exporting report:', error);
-            toast.error('Error al exportar reporte');
+            toast.error(await errorMessage(error, 'Error al exportar reporte'));
         }
     };
 
     return (
         <div style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
                         <span className="material-icons-round" style={{ color: 'var(--primary)' }}>history</span>
                         Historial de Inventario
                     </h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                        Auditoría y trazabilidad de movimientos
+                        Auditoría y trazabilidad de movimientos (más reciente primero)
                     </p>
                 </div>
                 <button
@@ -158,20 +199,22 @@ export default function InventoryHistoryPanel() {
             {/* Filters */}
             <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'end', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Tipo de Movimiento</label>
+                    <label htmlFor="ih-type" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Tipo de Movimiento</label>
                     <select
+                        id="ih-type"
                         value={type}
                         onChange={e => { setType(e.target.value); setPage(0); }}
                         style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)', minWidth: '150px' }}
                     >
                         <option value="">Todos</option>
-                        {movementTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        {MOVEMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Desde</label>
+                    <label htmlFor="ih-start" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Desde</label>
                     <input
+                        id="ih-start"
                         type="date"
                         value={startDate}
                         onChange={e => { setStartDate(e.target.value); setPage(0); }}
@@ -180,26 +223,32 @@ export default function InventoryHistoryPanel() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hasta</label>
+                    <label htmlFor="ih-end" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Hasta (incluido)</label>
                     <input
+                        id="ih-end"
                         type="date"
                         value={endDate}
                         onChange={e => { setEndDate(e.target.value); setPage(0); }}
-                        style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border)' }}
+                        style={{ padding: '0.5rem', borderRadius: '6px', border: `1px solid ${invalidRange ? '#ef4444' : 'var(--border)'}` }}
                     />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', position: 'relative', flex: 1, minWidth: '200px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Producto</label>
+                    <label htmlFor="ih-product" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Producto (incluye inactivos)</label>
                     <div style={{ display: 'flex', alignItems: 'center', background: 'white', borderRadius: '6px', border: '1px solid var(--border)', padding: '0 0.5rem', transition: 'box-shadow 0.2s', boxShadow: showSuggestions ? '0 0 0 2px var(--primary-light)' : 'none' }}>
                         <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>search</span>
                         <input
+                            id="ih-product"
                             type="text"
                             placeholder="Buscar producto por nombre..."
                             value={productNameSearch}
                             onChange={(e) => {
                                 setProductNameSearch(e.target.value);
-                                if (productId) setProductId('');
+                                // Cambiar el texto quita el producto elegido: volver a la página 1
+                                if (productId) {
+                                    setProductId('');
+                                    setPage(0);
+                                }
                             }}
                             onFocus={() => {
                                 if (productSuggestions.length > 0) setShowSuggestions(true);
@@ -209,12 +258,9 @@ export default function InventoryHistoryPanel() {
                         />
                         {productNameSearch && (
                             <button
-                                onClick={() => {
-                                    setProductNameSearch('');
-                                    setProductId('');
-                                    setProductSuggestions([]);
-                                    setPage(0);
-                                }}
+                                type="button"
+                                aria-label="Quitar producto"
+                                onClick={clearProduct}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
                             >
                                 <span className="material-icons-round" style={{ fontSize: '1.1rem' }}>close</span>
@@ -255,13 +301,19 @@ export default function InventoryHistoryPanel() {
                                             borderBottom: '1px solid #f3f4f6',
                                             display: 'flex',
                                             justifyContent: 'space-between',
-                                            alignItems: 'center'
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
                                         }}
                                         onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
                                         onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
                                     >
-                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{product.nombre}</span>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', background: '#f3f4f6', padding: '0.1rem 0.4rem', borderRadius: '99px' }}>
+                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                                            <span>{product.nombre}</span>
+                                            {product.active === false && (
+                                                <span style={{ marginLeft: '0.4rem', fontSize: '0.72rem', color: '#9ca3af', fontWeight: 600 }}>(inactivo)</span>
+                                            )}
+                                        </span>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', background: '#f3f4f6', padding: '0.1rem 0.4rem', borderRadius: '99px', whiteSpace: 'nowrap' }}>
                                             Stock: {product.stock}
                                         </span>
                                     </div>
@@ -270,7 +322,19 @@ export default function InventoryHistoryPanel() {
                         </div>
                     )}
                 </div>
+
+                {hasFilters && (
+                    <button type="button" onClick={clearFilters} className="btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+                        Limpiar filtros
+                    </button>
+                )}
             </div>
+
+            {invalidRange && (
+                <div role="alert" style={{ background: '#fef2f2', color: '#b91c1c', padding: '0.6rem 0.9rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                    La fecha "Desde" es posterior a "Hasta".
+                </div>
+            )}
 
             {/* Table */}
             <div style={{ flex: 1, overflow: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -281,6 +345,7 @@ export default function InventoryHistoryPanel() {
                             <th style={{ padding: '1rem', fontWeight: 600 }}>Producto</th>
                             <th style={{ padding: '1rem', fontWeight: 600 }}>Tipo</th>
                             <th style={{ padding: '1rem', fontWeight: 600 }}>Razón</th>
+                            <th style={{ padding: '1rem', fontWeight: 600 }}>Orden</th>
                             <th style={{ padding: '1rem', fontWeight: 600 }}>Usuario</th>
                             <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'right' }}>Stock Ant.</th>
                             <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'center' }}>Cambio</th>
@@ -290,50 +355,63 @@ export default function InventoryHistoryPanel() {
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan="9" style={{ padding: '2rem', textAlign: 'center' }}>Cargando...</td></tr>
+                            <tr><td colSpan="10" style={{ padding: '2rem', textAlign: 'center' }}>Cargando...</td></tr>
                         ) : history.length === 0 ? (
-                            <tr><td colSpan="9" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No se encontraron movimientos.</td></tr>
+                            <tr><td colSpan="10" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No se encontraron movimientos.</td></tr>
                         ) : (
-                            history.map(item => (
-                                <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                                    <td style={{ padding: '1rem' }}>{new Date(item.timestamp).toLocaleString()}</td>
-                                    <td style={{ padding: '1rem', fontWeight: 500 }}>{item.productName || 'Producto Eliminado'}</td>
-                                    <td style={{ padding: '1rem' }}>
-                                        <span style={{
-                                            padding: '0.2rem 0.6rem',
-                                            borderRadius: '99px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600,
-                                            background: item.type === 'CREATION' ? '#dcfce7' : item.type === 'DELETION' ? '#fee2e2' : '#f3f4f6',
-                                            color: item.type === 'CREATION' ? '#166534' : item.type === 'DELETION' ? '#991b1b' : '#374151'
-                                        }}>
-                                            {movementTypes.find(t => t.value === item.type)?.label || item.type}
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{item.reason || '-'}</td>
-                                    <td style={{ padding: '1rem' }}>{item.username}</td>
-                                    <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.previousStock}</td>
-                                    <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: positiveTypes.includes(item.type) ? '#10b981' : '#ef4444' }}>
-                                        {positiveTypes.includes(item.type) ? '+' : '-'}{item.quantity}
-                                    </td>
-                                    <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.newStock}</td>
-                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                        <button
-                                            onClick={() => handleDownloadPdf(item.id)}
-                                            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}
-                                            title="Descargar Comprobante"
+                            history.map(item => {
+                                const delta = movementDelta(item);
+                                const tone = TONE_STYLES[deltaTone(delta)];
+                                return (
+                                    <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                        <td style={{ padding: '1rem', whiteSpace: 'nowrap' }}>{item.timestamp ? new Date(item.timestamp).toLocaleString('es-CO') : '-'}</td>
+                                        <td style={{ padding: '1rem', fontWeight: 500 }}>{item.productName || 'Producto Eliminado'}</td>
+                                        <td style={{ padding: '1rem' }}>
+                                            <span style={{
+                                                padding: '0.2rem 0.6rem',
+                                                borderRadius: '99px',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                whiteSpace: 'nowrap',
+                                                background: tone.badgeBg,
+                                                color: tone.badgeColor
+                                            }}>
+                                                {movementTypeLabel(item.type)}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{item.reason || '-'}</td>
+                                        <td style={{ padding: '1rem', whiteSpace: 'nowrap' }} title={item.orderId || ''}>
+                                            {/* orderLabel viene del backend ("Factura #N · Pedido P-N") */}
+                                            {item.orderLabel || formatOrderLabel({ orderId: item.orderId }) || '-'}
+                                        </td>
+                                        <td style={{ padding: '1rem' }}>{item.username || '-'}</td>
+                                        <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.previousStock ?? '-'}</td>
+                                        <td
+                                            data-testid="movement-delta"
+                                            style={{ padding: '1rem', textAlign: 'center', fontWeight: 'bold', color: tone.color }}
                                         >
-                                            <span className="material-icons-round">description</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
+                                            {formatDelta(delta)}
+                                        </td>
+                                        <td style={{ padding: '1rem', textAlign: 'right', fontFamily: 'monospace' }}>{item.newStock ?? '-'}</td>
+                                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                            <button
+                                                onClick={() => handleDownloadPdf(item.id)}
+                                                style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}
+                                                title="Descargar Comprobante"
+                                                aria-label="Descargar comprobante"
+                                            >
+                                                <span className="material-icons-round">description</span>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
             </div>
 
-            {/* Pagination Controls could go here */}
+            {/* Pagination */}
             <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '1rem', alignItems: 'center' }}>
                 <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="btn-secondary">Anterior</button>
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Página {page + 1} de {totalPages || 1} (Total: {totalElements})</span>

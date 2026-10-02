@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatOrderLabel, orderReferenceMatches } from '../utils/formatters';
 import client from '../api/client';
 import { useToast } from '../components/ToastContainer';
 import { useConfirm } from '../components/ConfirmDialog';
 import NotificationService from '../services/NotificationService';
+import useSidebarCollapsed from '../hooks/useSidebarCollapsed';
+import SidebarToggle from '../components/SidebarToggle';
 import { tagService } from '../api/tagService'; // Added Tag Service
 import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
@@ -35,6 +37,7 @@ function OwnerDashboard() {
   const [tags, setTags] = useState([]); // Added Tags State
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showHistoricalModal, setShowHistoricalModal] = useState(false); // Added State
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapsed('owner');
   const toast = useToast();
 
   const fetchData = useCallback(async () => {
@@ -73,8 +76,8 @@ function OwnerDashboard() {
   useEffect(() => {
     fetchData();
 
-    // Connect with role 'owner'
-    NotificationService.connect((notification) => {
+    // Connect with role 'owner'. Al desmontar se quita solo este oyente: la conexión es compartida con la campana
+    const unsubscribe = NotificationService.connect((notification) => {
       if (notification.type === 'INVENTORY_UPDATE') {
         console.log("📦 Inventory update received, refreshing dashboard...");
         // Trigger re-fetch of main data
@@ -82,9 +85,7 @@ function OwnerDashboard() {
       }
     }, 'owner');
 
-    return () => {
-      NotificationService.disconnect();
-    };
+    return unsubscribe;
   }, [fetchData]);
 
   useEffect(() => {
@@ -119,13 +120,14 @@ function OwnerDashboard() {
   }
 
   return (
-    <div className="owner-dashboard">
+    <div className={`owner-dashboard${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
 
-      {/* ── SIDEBAR IZQUIERDA ── */}
+      {/* ── SIDEBAR IZQUIERDA (plegable a solo iconos en escritorio) ── */}
       <aside className="owner-sidebar">
         <div className="sidebar-brand">
-          <span className="material-icons-round" style={{ color: '#f59e0b', fontSize: '26px' }}>verified_user</span>
+          <span className="material-icons-round" style={{ color: '#f59e0b', fontSize: '26px' }} aria-hidden="true">verified_user</span>
           <span className="sidebar-brand-name">Owner</span>
+          <SidebarToggle collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         </div>
 
         <nav className="sidebar-nav">
@@ -146,7 +148,7 @@ function OwnerDashboard() {
               onClick={() => setActiveTab(item.key)}
               title={item.label}
             >
-              <span className="material-icons-round sidebar-icon">{item.icon}</span>
+              <span className="material-icons-round sidebar-icon" aria-hidden="true">{item.icon}</span>
               <span className="sidebar-label">{item.label}</span>
             </button>
           ))}
@@ -158,7 +160,7 @@ function OwnerDashboard() {
             onClick={() => window.location.href = '/balances'}
             title="Saldos"
           >
-            <span className="material-icons-round sidebar-icon">account_balance_wallet</span>
+            <span className="material-icons-round sidebar-icon" aria-hidden="true">account_balance_wallet</span>
             <span className="sidebar-label">Saldos</span>
           </button>
         </nav>
@@ -168,7 +170,7 @@ function OwnerDashboard() {
           onClick={() => setRefreshTrigger(Date.now())}
           title="Actualizar datos"
         >
-          <span className="material-icons-round">sync</span>
+          <span className="material-icons-round" aria-hidden="true">sync</span>
           <span className="sidebar-label">Actualizar</span>
         </button>
       </aside>
@@ -311,8 +313,6 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
 
       // Search fields
       const clientName = String(order.cliente || '').toLowerCase();
-      const invoiceNum = String(order.invoiceNumber || '').toLowerCase();
-      const orderId = String(order.id || '').toLowerCase();
       const vendorName = String(order.vendedor || '').toLowerCase(); // If available in owner view
 
       // Additional client fields if available in order object (often flattened or joined)
@@ -329,8 +329,8 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
 
       searchMatch =
         clientName.includes(searchStr) ||
-        invoiceNum.includes(searchStr) ||
-        orderId.includes(searchStr) ||
+        // Factura ("1500", "#1500"), pedido ("123", "P-123", "p123") o parte del id
+        orderReferenceMatches(order, searchStr) ||
         vendorName.includes(searchStr) ||
         clientPhone.includes(searchStr) ||
         clientAddress.includes(searchStr) ||
@@ -379,7 +379,7 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
             }}>search</span>
             <input
               type="text"
-              placeholder="Buscar por cliente, representante, factura, NIT..."
+              placeholder="Buscar por cliente, representante, factura, pedido (P-123), NIT..."
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
               style={{
@@ -446,9 +446,10 @@ function OrdersTab({ orders, onSelectOrder, onOpenHistoricalModal }) {
             return (
               <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
                 <div className="order-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {/* wrap: con "Factura #N · Pedido P-N" los badges bajan de línea en vez de partir la etiqueta */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem 0.75rem', flexWrap: 'wrap' }}>
                     <span className="order-id">
-                      {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                      {formatOrderLabel(order)}
                     </span>
                     {order.isSROrder && (
                       <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>

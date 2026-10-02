@@ -1,5 +1,6 @@
 // src/api/client.js
 import axios from 'axios';
+import { clearAllInitCaches } from './vendedorInitCache';
 
 // Configuración base
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
@@ -47,6 +48,9 @@ apiClient.interceptors.response.use(
           // No autorizado - limpiar sesión
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          // El catálogo de la vendedora en caché depende de sus promociones asignadas:
+          // quien inicie sesión después no debe verlo
+          clearAllInitCaches();
           window.location.href = '/login';
           break;
         case 403:

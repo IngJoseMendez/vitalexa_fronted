@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContainer';
 import orderService from '../api/orderService';
-import { formatCurrency, formatDate, formatDateTime } from '../utils/formatters';
+import { formatCurrency, formatDate, formatDateTime, formatOrderLabel } from '../utils/formatters';
 
 // Etiquetas y colores para el tipo de línea de cada factura
 const ITEM_TYPE_META = {
@@ -48,14 +48,15 @@ function InvoiceRow({ sale }) {
                     chevron_right
                 </span>
 
-                {/* Número de factura */}
+                {/* Número de factura y de pedido ("Factura #1500 · Pedido P-123") */}
                 <span style={{
-                    fontWeight: 700, fontFamily: 'monospace', fontSize: '0.95rem',
+                    fontWeight: 700, fontFamily: 'monospace', fontSize: '0.85rem',
                     background: 'var(--primary)', color: '#fff',
-                    padding: '0.25rem 0.65rem', borderRadius: '8px', minWidth: '70px', textAlign: 'center',
+                    padding: '0.25rem 0.65rem', borderRadius: '8px', minWidth: '70px', maxWidth: '230px',
+                    textAlign: 'center', flexShrink: 0,
                     boxShadow: '0 1px 3px rgba(99, 102, 241, 0.3)', letterSpacing: '0.02em'
                 }}>
-                    #{sale.invoiceNumber ?? '—'}
+                    {formatOrderLabel(sale) || '—'}
                 </span>
 
                 {/* Cliente */}
@@ -186,7 +187,7 @@ export default function SalesHistoryPanel() {
                         <span className="material-icons-round" style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>search</span>
                         <input
                             type="text"
-                            placeholder="N° de factura, cliente o vendedor..."
+                            placeholder="N° de factura, pedido (P-123), cliente o vendedor..."
                             value={searchInput}
                             onChange={(e) => setSearchInput(e.target.value)}
                             style={{ flex: 1, padding: '0.5rem', border: 'none', background: 'transparent', outline: 'none' }}

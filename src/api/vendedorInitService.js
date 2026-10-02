@@ -4,8 +4,8 @@
 // Incluye caché local (localStorage) para funcionar con internet débil o sin conexión
 
 import apiClient from './client';
+import { INIT_CACHE_PREFIX, initCacheKey, perUserCatalogParams } from './vendedorInitCache';
 
-const CACHE_KEY = 'vendedor_init_data';
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos en milisegundos
 
 const vendedorInitService = {
@@ -15,10 +15,16 @@ const vendedorInitService = {
      * - Si no hay caché o expiró, va al servidor y guarda en localStorage
      * - Si falla la red, usa caché aunque esté vencida (modo offline)
      *
+     * La caché es POR USUARIA (el catálogo depende de las promociones asignadas a cada una):
+     * la clave se calcula en cada llamada con el username de la sesión actual.
+     *
      * @returns {{ productos, promociones, promocionesEspeciales, fromCache: boolean }}
      */
     cargarDatosInicio: async () => {
-        const cached = localStorage.getItem(CACHE_KEY);
+        const cacheKey = initCacheKey();
+        // La clave fija de la versión anterior era compartida entre usuarias: no se vuelve a usar
+        localStorage.removeItem(INIT_CACHE_PREFIX);
+        const cached = localStorage.getItem(cacheKey);
 
         // 1. Intentar usar caché local fresca
         if (cached) {
@@ -32,13 +38,15 @@ const vendedorInitService = {
                 }
             } catch (e) {
                 // Caché corrupta, ignorar
-                localStorage.removeItem(CACHE_KEY);
+                localStorage.removeItem(cacheKey);
             }
         }
 
         // 2. Ir al servidor
         try {
-            const response = await apiClient.get('/vendedor/init');
+            // ?u=<usuaria>: la caché HTTP del navegador no debe servirle a esta usuaria la
+            // respuesta guardada de otra (ver perUserCatalogParams)
+            const response = await apiClient.get('/vendedor/init', { params: perUserCatalogParams() });
             const datos = {
                 productos: response.data.productos || [],
                 promociones: response.data.promociones || [],
@@ -46,7 +54,7 @@ const vendedorInitService = {
             };
 
             // Guardar en localStorage para uso offline
-            localStorage.setItem(CACHE_KEY, JSON.stringify({
+            localStorage.setItem(cacheKey, JSON.stringify({
                 data: datos,
                 timestamp: Date.now()
             }));
@@ -72,20 +80,20 @@ const vendedorInitService = {
     },
 
     /**
-     * Invalida el caché local.
+     * Invalida el caché local de la usuaria actual.
      * Debe llamarse cuando el vendedor crea un pedido (el stock cambia).
      */
     invalidarCache: () => {
-        localStorage.removeItem(CACHE_KEY);
+        localStorage.removeItem(initCacheKey());
         console.log('🗑️ [VendedorInit] Caché invalidada (pedido creado)');
     },
 
     /**
-     * Verifica si hay caché guardada (aunque esté vencida).
+     * Verifica si hay caché guardada (aunque esté vencida) para la usuaria actual.
      * Útil para saber si hay datos offline disponibles.
      */
     tieneCache: () => {
-        return localStorage.getItem(CACHE_KEY) !== null;
+        return localStorage.getItem(initCacheKey()) !== null;
     },
 };
 

@@ -131,6 +131,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
     font-size: 0.9rem;
 }
 
@@ -204,8 +205,11 @@
     color: var(--text-secondary);
 }
 
+/* Las tres acciones no caben en una tarjeta de 280px: con flex:1 sin wrap el botón
+   "Eliminar" se salía de la tarjeta. Ahora pasan a otra línea y ocupan el ancho. */
 .promotion-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 1rem;
     padding-top: 1rem;
@@ -213,8 +217,10 @@
 }
 
 .btn-promo-action {
-    flex: 1;
-    padding: 0.6rem;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    box-sizing: border-box;
+    padding: 0.6rem 0.75rem;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: white;
@@ -668,4 +674,1127 @@
     background: #f9fafb;
     border-radius: 8px;
     border: 1px dashed #d1d5db;
+}
+
+
+/* ============================================
+   PANELES DE PROMOCIONES (admin/owner): búsqueda, pestañas y chips
+   Compartido por PromotionsPanel y SpecialPromotionsPanel
+   ============================================ */
+
+.promo-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.promo-search {
+    position: relative;
+    flex: 1 1 280px;
+    max-width: 420px;
+}
+
+.promo-search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 20px !important;
+    pointer-events: none;
+}
+
+.promo-search input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 2.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: #ffffff;
+    color: #0f172a;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.promo-search input:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.promo-search-clear {
+    position: absolute;
+    right: 0.35rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.promo-search-clear:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.promo-search-clear .material-icons-round {
+    font-size: 18px;
+}
+
+.promo-tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 4px;
+    background: #f1f5f9;
+    border-radius: 10px;
+}
+
+.promo-tab {
+    border: none;
+    background: transparent;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.promo-tab:hover {
+    color: #0f172a;
+}
+
+.promo-tab.is-active {
+    background: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+.promo-tab:focus-visible {
+    outline: 2px solid #4f46e5;
+    outline-offset: 1px;
+}
+
+.promo-result-count {
+    margin-left: auto;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.promo-no-results {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #64748b;
+}
+
+.promo-no-results .material-icons-round {
+    font-size: 40px;
+    color: #94a3b8;
+}
+
+.promo-no-results p {
+    margin: 0.5rem 0 0;
+}
+
+.promo-link-btn {
+    margin-top: 0.75rem;
+    border: none;
+    background: none;
+    color: #4f46e5;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* Etiquetas de vigencia dentro de "Activas" */
+.promotion-badge.date-expired {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.promotion-badge.date-scheduled {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+}
+
+/* Vendedoras que ven la promoción */
+.promo-vendors {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0 0 1rem;
+}
+
+.promo-vendors-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: 0.15rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.promo-vendors-label .material-icons-round {
+    font-size: 16px;
+}
+
+.promo-chip {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: #ede9fe;
+    color: #5b21b6;
+    font-weight: 600;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.promo-chip.all {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.promo-chip.none {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.promotions-panel .promotion-quantities {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+/* Las etiquetas ("Recibe Gratis:", "Precio del paquete:") no se parten palabra por palabra */
+.promotions-panel .promotion-info-label {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Si el precio no cabe junto a la etiqueta, baja a la siguiente línea alineado a la derecha */
+.promotions-panel .promotion-info-row.price-row {
+    flex-wrap: wrap;
+}
+
+.promotions-panel .promotion-info-row.price-row .promotion-price {
+    margin-left: auto;
+}
+
+/* Especiales: grilla adaptable y avisos */
+.sp-grid.promo-sp-grid {
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    align-content: start;
+}
+
+.promo-sp-meta {
+    margin-top: 0.5rem;
+    font-size: 0.88rem;
+    color: #4b5563;
+    line-height: 1.45;
+}
+
+.promo-sp-price {
+    margin-top: 0.35rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.promo-sp-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+}
+
+.promo-sp-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.55rem;
+    border-radius: 8px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.promo-sp-warning .material-icons-round {
+    font-size: 14px;
+}
+
+@media (max-width: 768px) {
+    .promotions-panel {
+        padding: 1rem;
+    }
+
+    .promotions-panel .panel-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .promo-search {
+        flex-basis: 100%;
+        max-width: none;
+    }
+
+    .promo-tabs {
+        width: 100%;
+    }
+
+    .promo-tab {
+        flex: 1;
+        padding: 0.5rem 0.4rem;
+    }
+
+    .promo-result-count {
+        margin-left: 0;
+    }
+
+    .sp-header-actions {
+        flex-wrap: wrap;
+    }
+}
+
+
+/* ============================================
+   FORMULARIO DE PROMOCIÓN (PromotionFormModal)
+   Prefijo pmf-: "pfm-" ya lo usa ProductFormModal.css y en CRA el CSS es global.
+   Colores propios para verse igual sin importar qué :root --primary esté cargado.
+   ============================================ */
+
+.pmf-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.pmf-modal {
+    --pmf-accent: #4f46e5;
+    --pmf-accent-strong: #4338ca;
+    --pmf-accent-soft: #eef2ff;
+    --pmf-text: #0f172a;
+    --pmf-text-2: #475569;
+    --pmf-muted: #64748b;
+    --pmf-border: #e2e8f0;
+    --pmf-input-border: #cbd5e1;
+    --pmf-subtle: #f8fafc;
+
+    width: 100%;
+    max-width: 760px;
+    max-height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 24px 60px -12px rgba(15, 23, 42, 0.35);
+    color: var(--pmf-text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    animation: pmf-in 0.2s ease-out;
+}
+
+@keyframes pmf-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.pmf-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--pmf-border);
+    background: #ffffff;
+}
+
+.pmf-header-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: var(--pmf-accent-soft);
+    color: var(--pmf-accent);
+}
+
+.pmf-header-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.pmf-header-text h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--pmf-text);
+}
+
+.pmf-header-text p {
+    margin: 0.2rem 0 0;
+    font-size: 0.875rem;
+    color: var(--pmf-muted);
+}
+
+.pmf-close {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--pmf-border);
+    border-radius: 10px;
+    background: #ffffff;
+    color: var(--pmf-muted);
+    cursor: pointer;
+}
+
+.pmf-close:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #dc2626;
+}
+
+.pmf-body {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    background: var(--pmf-subtle);
+}
+
+.pmf-section {
+    padding: 1.25rem;
+    background: #ffffff;
+    border: 1px solid var(--pmf-border);
+    border-radius: 14px;
+}
+
+.pmf-section-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    margin-bottom: 1.1rem;
+}
+
+.pmf-step {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--pmf-accent-soft);
+    color: var(--pmf-accent);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.pmf-section-head h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--pmf-text);
+}
+
+.pmf-section-head p {
+    margin: 0.15rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--pmf-muted);
+}
+
+.pmf-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+}
+
+.pmf-span-2 {
+    grid-column: 1 / -1;
+}
+
+.pmf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.pmf-field label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--pmf-text);
+}
+
+.pmf-req {
+    color: #dc2626;
+}
+
+.pmf-optional {
+    font-weight: 400;
+    color: var(--pmf-muted);
+}
+
+.pmf-field input,
+.pmf-field select,
+.pmf-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--pmf-input-border);
+    border-radius: 10px;
+    background: #ffffff;
+    color: var(--pmf-text);
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.pmf-field textarea {
+    min-height: 84px;
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.pmf-field input:focus,
+.pmf-field select:focus,
+.pmf-field textarea:focus {
+    outline: none;
+    border-color: var(--pmf-accent);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.pmf-help {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--pmf-muted);
+}
+
+.pmf-price-preview {
+    color: var(--pmf-text);
+    white-space: nowrap;
+}
+
+.pmf-skeleton {
+    padding: 0.65rem 0.8rem;
+    border: 1px dashed var(--pmf-input-border);
+    border-radius: 10px;
+    color: var(--pmf-muted);
+    font-size: 0.9rem;
+}
+
+.pmf-input-prefix {
+    position: relative;
+}
+
+.pmf-input-prefix > span {
+    position: absolute;
+    left: 0.8rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--pmf-muted);
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.pmf-field .pmf-input-prefix input {
+    padding-left: 1.75rem;
+}
+
+.pmf-field input.pmf-input-big {
+    max-width: 160px;
+    font-size: 1.35rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* Tarjetas de opción (tipo y visibilidad) */
+.pmf-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.pmf-choice {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1.5px solid var(--pmf-border);
+    border-radius: 12px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.pmf-choice.compact {
+    padding: 0.85rem 1rem;
+}
+
+.pmf-choice:hover {
+    border-color: #a5b4fc;
+}
+
+.pmf-choice.is-selected {
+    border-color: var(--pmf-accent);
+    background: var(--pmf-accent-soft);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+/* Radio/checkbox ocultos a la vista pero accesibles con teclado */
+.pmf-choice input,
+.pmf-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    pointer-events: none;
+}
+
+.pmf-choice:has(input:focus-visible),
+.pmf-switch:has(input:focus-visible) {
+    outline: 2px solid var(--pmf-accent);
+    outline-offset: 2px;
+}
+
+.pmf-choice-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--pmf-subtle);
+    color: var(--pmf-text-2);
+    font-size: 22px !important;
+}
+
+.pmf-choice.is-selected .pmf-choice-icon {
+    background: var(--pmf-accent);
+    color: #ffffff;
+}
+
+.pmf-choice-text,
+.pmf-switch-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.pmf-choice-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--pmf-text);
+}
+
+.pmf-choice-desc {
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--pmf-muted);
+}
+
+/* Regalos (promoción fija) */
+.pmf-gifts {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.pmf-gift-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--pmf-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.pmf-gift-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.85rem;
+    background: #ffffff;
+}
+
+.pmf-gift-item + .pmf-gift-item {
+    border-top: 1px solid var(--pmf-border);
+}
+
+.pmf-gift-qty {
+    min-width: 44px;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: var(--pmf-accent-soft);
+    color: var(--pmf-accent);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.pmf-gift-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.92rem;
+    overflow-wrap: anywhere;
+}
+
+.pmf-icon-btn {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--pmf-muted);
+    cursor: pointer;
+}
+
+.pmf-icon-btn.danger:hover {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.pmf-empty-note {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    border: 1px dashed var(--pmf-input-border);
+    border-radius: 12px;
+    color: var(--pmf-muted);
+    font-size: 0.88rem;
+    text-align: center;
+}
+
+.pmf-add-gift {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 110px auto;
+    align-items: end;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    border: 1px solid var(--pmf-border);
+    border-radius: 12px;
+    background: var(--pmf-subtle);
+}
+
+/* Surtido: aviso */
+.pmf-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    align-self: end;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: var(--pmf-accent-soft);
+    color: #3730a3;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.pmf-callout p {
+    margin: 0;
+}
+
+.pmf-callout .material-icons-round {
+    flex-shrink: 0;
+    font-size: 18px;
+    margin-top: 1px;
+}
+
+.pmf-vendors {
+    margin-top: 1rem;
+}
+
+/* Interruptor */
+.pmf-switch {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--pmf-border);
+    border-radius: 12px;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.pmf-switch-track {
+    position: relative;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    border-radius: 999px;
+    background: var(--pmf-input-border);
+    transition: background 0.15s;
+}
+
+.pmf-switch-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s;
+}
+
+.pmf-switch input:checked + .pmf-switch-track {
+    background: var(--pmf-accent);
+}
+
+.pmf-switch input:checked + .pmf-switch-track .pmf-switch-thumb {
+    transform: translateX(18px);
+}
+
+/* Pie con los botones */
+.pmf-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--pmf-border);
+    background: #ffffff;
+}
+
+/* .pmf-modal delante: Login.css define button[type="submit"] global (ancho 100%, sombra) */
+.pmf-modal .pmf-btn {
+    width: auto;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.7rem 1.25rem;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    box-shadow: none;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.pmf-modal .pmf-btn .material-icons-round {
+    font-size: 18px;
+}
+
+.pmf-modal .pmf-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.pmf-modal .pmf-btn:focus-visible {
+    outline: 2px solid var(--pmf-accent);
+    outline-offset: 2px;
+}
+
+.pmf-modal .pmf-btn-primary {
+    background: var(--pmf-accent);
+    color: #ffffff;
+}
+
+.pmf-modal .pmf-btn-primary:hover:not(:disabled) {
+    background: var(--pmf-accent-strong);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+
+.pmf-modal .pmf-btn-secondary {
+    background: #ffffff;
+    border-color: var(--pmf-input-border);
+    color: var(--pmf-text-2);
+}
+
+.pmf-modal .pmf-btn-secondary:hover {
+    background: var(--pmf-subtle);
+}
+
+.pmf-modal .pmf-btn-soft {
+    background: var(--pmf-accent-soft);
+    border-color: #c7d2fe;
+    color: var(--pmf-accent);
+}
+
+.pmf-modal .pmf-btn-soft:hover:not(:disabled) {
+    background: #e0e7ff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pmf-modal {
+        animation: none;
+    }
+}
+
+/* Móvil: pantalla completa, una columna y botones del pie a todo el ancho */
+@media (max-width: 640px) {
+    .pmf-overlay {
+        padding: 0;
+        align-items: stretch;
+    }
+
+    .pmf-modal {
+        max-width: none;
+        max-height: none;
+        height: 100%;
+        border-radius: 0;
+    }
+
+    .pmf-header {
+        padding: 1rem;
+    }
+
+    .pmf-header-icon {
+        display: none;
+    }
+
+    .pmf-body {
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .pmf-section {
+        padding: 1rem;
+    }
+
+    .pmf-grid,
+    .pmf-choice-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pmf-add-gift {
+        grid-template-columns: minmax(0, 1fr) 96px;
+    }
+
+    .pmf-modal .pmf-add-gift-btn {
+        grid-column: 1 / -1;
+    }
+
+    .pmf-field input.pmf-input-big {
+        max-width: none;
+    }
+
+    /* 16px evita que iOS haga zoom al enfocar */
+    .pmf-field input,
+    .pmf-field select,
+    .pmf-field textarea {
+        font-size: 16px;
+    }
+
+    .pmf-footer {
+        padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
+    }
+
+    /* Cancelar a su ancho y Guardar ocupa el resto (en dos mitades "Guardar cambios" se partía) */
+    .pmf-modal .pmf-footer .pmf-btn-secondary {
+        flex: 0 0 auto;
+    }
+
+    .pmf-modal .pmf-footer .pmf-btn-primary {
+        flex: 1;
+    }
+}
+
+
+/* ============================================
+   FORMULARIO DE PROMOCIÓN ESPECIAL (SpecialPromotionFormModal)
+   ============================================ */
+
+.spf-section {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.spf-section .sp-form-group:last-child {
+    margin-bottom: 0;
+}
+
+.spf-section-title {
+    margin: 0 0 0.85rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+/* "¿Quién la ve?": reutiliza las tarjetas de opción del formulario de promociones normales
+   (.pmf-choice), cuyos colores salen de las variables --pmf-* que solo define .pmf-modal */
+.spf-modal {
+    --pmf-accent: #4f46e5;
+    --pmf-accent-soft: #eef2ff;
+    --pmf-text: #0f172a;
+    --pmf-text-2: #475569;
+    --pmf-muted: #64748b;
+    --pmf-border: #e2e8f0;
+    --pmf-subtle: #f8fafc;
+}
+
+.spf-visibility {
+    margin-bottom: 1rem;
+}
+
+.spf-visibility .pmf-vendors {
+    margin: 1rem 0 0;
+}
+
+.spf-visibility .spf-visibility-note {
+    margin-top: 0.75rem;
+}
+
+.spf-readonly {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0 0 0.85rem;
+}
+
+.spf-readonly > div {
+    min-width: 0;
+}
+
+.spf-readonly dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #64748b;
+}
+
+.spf-readonly dd {
+    margin: 0.15rem 0 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+}
+
+.spf-note {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+.spf-block {
+    margin: 0 0 0.75rem;
+}
+
+.spf-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.spf-alert p {
+    margin: 0;
+}
+
+.spf-alert .material-icons-round {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.spf-help {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.sp-form-group label.spf-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 42px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.sp-form-group label.spf-checkbox input {
+    width: auto;
+}
+
+.spf-link-danger {
+    border: none;
+    background: none;
+    color: #dc2626;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+}
+
+@media (max-width: 640px) {
+    .spf-readonly {
+        grid-template-columns: 1fr;
+    }
+
+    .spf-modal .sp-form-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
 }

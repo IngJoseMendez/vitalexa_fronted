@@ -1,0 +1,210 @@
+/* Modal de conteo físico. Clases con prefijo propio (pcm-): el CSS de CRA es global y este
+   modal se abre desde Admin y Owner, que cargan hojas distintas. */
+.pcm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.pcm-modal {
+    background: #ffffff;
+    width: 100%;
+    max-width: 440px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 14px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.05);
+}
+
+.pcm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.pcm-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pcm-header h3 .material-icons-round {
+    color: #0ea5e9;
+}
+
+.pcm-product {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.pcm-close {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #64748b;
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+}
+
+.pcm-close:hover {
+    background: #f1f5f9;
+    color: #ef4444;
+}
+
+.pcm-body {
+    padding: 1.25rem 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.pcm-help {
+    margin: 0 0 0.25rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.pcm-current {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: #334155;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+}
+
+.pcm-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-top: 0.4rem;
+}
+
+.pcm-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.pcm-input:focus {
+    outline: none;
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+}
+
+.pcm-preview {
+    margin: 0.25rem 0 0;
+    font-size: 0.85rem;
+    color: #0f172a;
+    background: #f0f9ff;
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+}
+
+.pcm-error {
+    background: #fee2e2;
+    color: #b91c1c;
+    padding: 0.65rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.pcm-success {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #166534;
+    font-weight: 700;
+}
+
+.pcm-result {
+    margin: 0.25rem 0 0;
+    display: grid;
+    gap: 0.35rem;
+}
+
+.pcm-result > div {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed #e2e8f0;
+    padding: 0.3rem 0;
+    font-size: 0.9rem;
+}
+
+.pcm-result dt {
+    color: #64748b;
+}
+
+.pcm-result dd {
+    margin: 0;
+    font-weight: 700;
+    font-family: monospace;
+    color: #1e293b;
+}
+
+.pcm-in {
+    color: #059669 !important;
+}
+
+.pcm-out {
+    color: #dc2626 !important;
+}
+
+.pcm-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.pcm-btn {
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.pcm-btn-secondary {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+.pcm-btn-primary {
+    background: #0ea5e9;
+    color: #ffffff;
+}
+
+.pcm-btn-primary:hover {
+    background: #0284c7;
+}
+
+.pcm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

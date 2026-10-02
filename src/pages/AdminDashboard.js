@@ -4,6 +4,8 @@ import client from '../api/client';
 import { idempotencyKeyFor } from '../utils/idempotency';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
+import useSidebarCollapsed from '../hooks/useSidebarCollapsed';
+import SidebarToggle from '../components/SidebarToggle';
 import TagsPanel from '../components/TagsPanel';
 import PromotionsPanel from '../components/PromotionsPanel';
 import AdminClientsPanel from '../components/AdminClientsPanel';
@@ -18,40 +20,42 @@ import PayrollPanel from '../components/PayrollPanel';
 import { OrderDetailModal } from '../components/modals/OrderManagementModal';
 import EditOrderModal from '../components/modals/EditOrderModal';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
+import AssortmentCartDetail from '../components/AssortmentCartDetail';
 import CompleteOrderModal from '../components/modals/CompleteOrderModal';
 import AdminPromotionsCatalog from '../components/AdminPromotionsCatalog';
-import { getStatusLabel, getStatusBadgeClass, PromotionType } from '../utils/types';
-import { formatCurrency } from '../utils/formatters';
+import { getStatusLabel, getStatusBadgeClass } from '../utils/types';
+import { buildAssortmentSelections, isAssortmentPromotion } from '../utils/assortmentPromotion';
+import { formatCurrency, formatCreatedOrdersSummary, formatOrderLabel, orderPdfFileName } from '../utils/formatters';
 import '../styles/AdminDashboard.css';
 
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('orders');
   const [refreshTrigger, setRefreshTrigger] = useState(0); // State for refresh
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapsed('admin');
   const toast = useToast();
 
   useEffect(() => {
-    // Connect with role 'admin'
-    NotificationService.connect((notification) => {
+    // Connect with role 'admin'. Al desmontar se quita solo este oyente: la conexión es compartida con la campana
+    const unsubscribe = NotificationService.connect((notification) => {
       if (notification.type === 'INVENTORY_UPDATE') {
         console.log("📦 Inventory update received, refreshing data...");
         setRefreshTrigger(Date.now());
       }
     }, 'admin');
 
-    return () => {
-      NotificationService.disconnect();
-    };
+    return unsubscribe;
   }, []);
 
   return (
-    <div className="admin-dashboard">
+    <div className={`admin-dashboard${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
 
-      {/* ── SIDEBAR IZQUIERDA ── */}
+      {/* ── SIDEBAR IZQUIERDA (plegable a solo iconos en escritorio) ── */}
       <aside className="admin-sidebar">
         {/* Logo / Marca */}
         <div className="sidebar-brand">
-          <span className="material-icons-round">admin_panel_settings</span>
+          <span className="material-icons-round" aria-hidden="true">admin_panel_settings</span>
           <span className="sidebar-brand-name">Admin</span>
+          <SidebarToggle collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         </div>
 
         {/* Items de navegación */}
@@ -77,7 +81,7 @@ function AdminDashboard() {
               onClick={() => setActiveTab(item.key)}
               title={item.label}
             >
-              <span className="material-icons-round sidebar-icon">{item.icon}</span>
+              <span className="material-icons-round sidebar-icon" aria-hidden="true">{item.icon}</span>
               <span className="sidebar-label">{item.label}</span>
             </button>
           ))}
@@ -89,7 +93,7 @@ function AdminDashboard() {
             onClick={() => window.location.href = '/balances'}
             title="Saldos"
           >
-            <span className="material-icons-round sidebar-icon">account_balance_wallet</span>
+            <span className="material-icons-round sidebar-icon" aria-hidden="true">account_balance_wallet</span>
             <span className="sidebar-label">Saldos</span>
           </button>
         </nav>
@@ -100,7 +104,7 @@ function AdminDashboard() {
           onClick={() => setRefreshTrigger(Date.now())}
           title="Actualizar datos"
         >
-          <span className="material-icons-round">sync</span>
+          <span className="material-icons-round" aria-hidden="true">sync</span>
           <span className="sidebar-label">Actualizar</span>
         </button>
       </aside>
@@ -299,7 +303,7 @@ function OrdersPanel({ refreshTrigger }) {
   };
 
   // ✅ NUEVA FUNCIÓN: Descargar factura PDF
-  const handleDownloadInvoice = async (orderId) => {
+  const handleDownloadInvoice = async (orderId, order) => {
     try {
       setDownloadingPdf(orderId);
       const response = await client.get(`/admin/orders/${orderId}/invoice/pdf`, {
@@ -309,7 +313,8 @@ function OrdersPanel({ refreshTrigger }) {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `factura_orden_${orderId.substring(0, 8)}.pdf`);
+      // "factura_1500_P-123.pdf" / "pedido_P-123.pdf" (igual que el backend)
+      link.setAttribute('download', orderPdfFileName(order || { id: orderId }));
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -433,7 +438,7 @@ function OrdersPanel({ refreshTrigger }) {
             <span className="material-icons-round" style={{ color: 'var(--text-secondary)' }}>search</span>
             <input
               type="text"
-              placeholder="Buscar orden, cliente, rep..."
+              placeholder="Buscar factura, pedido (P-123), cliente, rep..."
               value={invoiceSearchInput}
               onChange={(e) => setInvoiceSearchInput(e.target.value)}
             />
@@ -650,6 +655,7 @@ function OrdersPanel({ refreshTrigger }) {
             <option value="cliente">Nombre Cliente</option>
             <option value="total">Precio Total</option>
             <option value="invoiceNumber">Número de Factura</option>
+            <option value="orderNumber">Número de Pedido</option>
           </select>
           <button
             className="btn-sort-order"
@@ -725,9 +731,10 @@ function OrdersPanel({ refreshTrigger }) {
             return (
               <div key={order.id} className={`order-card ${order.isSROrder ? 'is-sr' : 'is-normal'} ${paymentStatusClass}`}>
                 <div className="order-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {/* wrap: con "Factura #N · Pedido P-N" los badges bajan de línea en vez de partir la etiqueta */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem 0.75rem', flexWrap: 'wrap' }}>
                     <span className="order-id">
-                      {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                      {formatOrderLabel(order)}
                     </span>
                     {order.isSROrder && (
                       <span className="tag-badge tag-sr" style={{ padding: '0.2rem 0.6rem', fontSize: '0.7rem' }}>S/N</span>
@@ -888,7 +895,7 @@ function OrdersPanel({ refreshTrigger }) {
 
                     <button
                       className="btn-invoice btn-download"
-                      onClick={() => handleDownloadInvoice(order.id)}
+                      onClick={() => handleDownloadInvoice(order.id, order)}
                       disabled={downloadingPdf === order.id}
                       title="Descargar archivo PDF"
                     >
@@ -1132,7 +1139,8 @@ function OrdersPanel({ refreshTrigger }) {
 // ============================================
 // PANEL NUEVA VENTA PARA ADMIN
 // ============================================
-function AdminNuevaVentaPanel() {
+// Exportado solo para tests (AdminNuevaVentaAssortment.test.js)
+export function AdminNuevaVentaPanel() {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
@@ -1155,6 +1163,9 @@ function AdminNuevaVentaPanel() {
   // Assortment Selection State
   const [showAssortmentModal, setShowAssortmentModal] = useState(false);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
+  // Surtido con cantidad > 1 en el catálogo: un paquete a la vez, cada uno con SUS gratis
+  // (current = paquete que se está armando, total = los pedidos)
+  const [assortmentPackages, setAssortmentPackages] = useState({ current: 1, total: 1 });
 
   const [clientSearch, setClientSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -1257,15 +1268,18 @@ function AdminNuevaVentaPanel() {
     // bonificada: pack a $0 (el inventario se descuenta igual en el backend).
     const bonified = isBonifiedMode;
 
-    // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
-    if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
+    const quantity = Math.max(1, parseInt(qty) || 1);
+
+    // Surtido: antes de agregar cada paquete se escogen SUS productos gratis. Con cantidad N
+    // el modal se abre N veces seguidas (antes se agregaba 1 solo y se perdía la cantidad).
+    if (isAssortmentPromotion(promotion)) {
       setSelectedPromotion({ ...promotion, isBonified: bonified });
+      setAssortmentPackages({ current: 1, total: quantity });
       setShowAssortmentModal(true);
       return;
     }
 
     // Create all instances at once using functional updater to avoid stale closure
-    const quantity = Math.max(1, parseInt(qty) || 1);
     const newInstances = Array.from({ length: quantity }, (_, i) => ({
       ...promotion,
       cartId: `promo-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1286,72 +1300,54 @@ function AdminNuevaVentaPanel() {
     }
   };
 
+  // Surtido = PAQUETE: los productos escogidos son GRATIS y viajan con su instancia de la
+  // promoción (freeItems → assortmentSelections), no como productos cobrados ni como
+  // bonificados sueltos. Pagada = precio del paquete; bonificada (modo Regalo) = todo a $0.
   const handleAssortmentConfirmation = (items) => {
     // ✅ ¿La promoción surtida se agregó en modo Regalo (bonificado)?
     const bonified = !!selectedPromotion?.isBonified;
+    const { current, total } = assortmentPackages;
 
-    if (bonified) {
-      // Promo surtida BONIFICADA: los productos elegidos también son regalo ($0).
-      // Van al carrito de bonificados (el inventario se descuenta igual en el backend).
-      const newBonified = [...bonifiedCart];
-      items.forEach(item => {
-        const idx = newBonified.findIndex(b => b.productId === item.productId);
-        if (idx >= 0) {
-          newBonified[idx].cantidad += item.cantidad;
-        } else {
-          newBonified.push({
-            productId: item.productId,
-            nombre: item.nombre,
-            precio: 0,
-            cantidad: item.cantidad,
-            isBonified: true,
-            isSpecialProduct: false
-          });
-        }
-      });
-      setBonifiedCart(newBonified);
-    } else {
-      // Process items to match cart structure (precio normal)
-      const newCartItems = [...cart];
-      items.forEach(item => {
-        const existingItemIndex = newCartItems.findIndex(cartItem => cartItem.productId === item.productId);
-
-        if (existingItemIndex >= 0) {
-          newCartItems[existingItemIndex].cantidad += item.cantidad;
-        } else {
-          newCartItems.push({
-            productId: item.productId,
-            nombre: item.nombre,
-            precio: item.precio, // NORMAL PRICE (These are the buy items)
-            cantidad: item.cantidad,
-            stockDisponible: item.stock || 9999,
-            allowOutOfStock: true,
-            promotionId: item.promotionId,
-            // ✅ Pass down specialPromotionId from the selected promotion
-            specialPromotionId: selectedPromotion?.isSpecial ? selectedPromotion.id : null
-          });
-        }
-      });
-      setCart(newCartItems);
-    }
-
-    // Add the promotion itself to track it (for the ID)
     if (selectedPromotion) {
       const promoInstance = {
         ...selectedPromotion,
         cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         // ✅ Capture Special Promotion ID
         specialPromotionId: selectedPromotion.isSpecial ? selectedPromotion.id : null,
-        isBonified: bonified
+        isBonified: bonified,
+        freeItems: items.map(item => ({ productId: item.productId, nombre: item.nombre, cantidad: item.cantidad }))
       };
-      setPromotionsCart([...promotionsCart, promoInstance]);
+      setPromotionsCart(prev => [...prev, promoInstance]);
+    }
+
+    // Faltan paquetes: el modal sigue abierto (vacío) para escoger los gratis del siguiente
+    if (current < total) {
+      setAssortmentPackages({ current: current + 1, total });
+      toast.success(`Paquete ${current} de ${total} agregado. Escoge los gratis del siguiente.`);
+      return;
     }
 
     setShowAssortmentModal(false);
     setSelectedPromotion(null);
-    toast.success(bonified
-      ? 'Promoción bonificada agregada (regalo)'
-      : 'Productos de la promoción agregados al carrito');
+    if (total > 1) {
+      toast.success(bonified
+        ? `${total} paquetes surtidos bonificados agregados (regalo)`
+        : `${total} paquetes surtidos agregados al carrito`);
+    } else {
+      toast.success(bonified
+        ? 'Paquete surtido bonificado agregado (regalo)'
+        : 'Paquete surtido agregado al carrito');
+    }
+  };
+
+  // Cancelar el modal: los paquetes ya confirmados quedan en el carrito, los demás no se agregan
+  const handleAssortmentCancel = () => {
+    const { current, total } = assortmentPackages;
+    setShowAssortmentModal(false);
+    setSelectedPromotion(null);
+    if (current > 1) {
+      toast.info(`Se agregaron ${current - 1} de ${total} paquetes surtidos`);
+    }
   };
 
   const removePromotionFromCart = (cartId) => {
@@ -1456,6 +1452,8 @@ function AdminNuevaVentaPanel() {
         })),
         promotionIds: promotionsCart.filter(p => !p.isBonified).map(p => p.id),
         bonifiedPromotionIds: promotionsCart.filter(p => p.isBonified).map(p => p.id),
+        // Gratis escogidos de cada surtido (en el orden del carrito, con su estado pagada/bonificada)
+        assortmentSelections: buildAssortmentSelections(promotionsCart),
         notas: notas.trim() || null,
         includeFreight: false,
         isFreightBonified: false,
@@ -1465,12 +1463,14 @@ function AdminNuevaVentaPanel() {
       };
 
       // La clave se conserva tras un envío sin confirmar: el reintento no duplica la venta
-      await client.post('/admin/orders', orderData, {
+      const res = await client.post('/admin/orders', orderData, {
         timeout: 45000,
         headers: { 'Idempotency-Key': idempotencyKeyFor(idempotencyRef) }
       });
       idempotencyRef.current = null;
-      toast.success('¡Venta registrada exitosamente!');
+      // "Pedido P-123" (o "Pedidos P-123, P-124" si se dividió); vacío con un backend anterior
+      const createdOrders = formatCreatedOrdersSummary(res?.data?.orders);
+      toast.success(createdOrders ? `¡Venta registrada exitosamente! ${createdOrders}` : '¡Venta registrada exitosamente!');
 
       setNotas('');
       setCart([]);
@@ -1734,6 +1734,7 @@ function AdminNuevaVentaPanel() {
                     ) : promo.packPrice ? (
                       <div className="cart-item-price" style={{ color: '#0ea5e9', fontWeight: 700 }}>${formatCurrency(promo.packPrice)}</div>
                     ) : null}
+                    {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
                   </div>
                   <button className="btn-remove-item" onClick={() => removePromotionFromCart(promo.cartId)}>
                     <span className="material-icons-round" style={{ fontSize: '18px' }}>close</span>
@@ -1840,14 +1841,19 @@ function AdminNuevaVentaPanel() {
       {
         showAssortmentModal && selectedPromotion && (
           <AssortmentSelectionModal
+            // Un modal nuevo (sin gratis escogidos) por cada paquete
+            key={`assortment-package-${assortmentPackages.current}`}
             orderId={null} // New order, so no ID yet
             promotion={selectedPromotion}
-            onClose={() => {
-              setShowAssortmentModal(false);
-              setSelectedPromotion(null);
-            }}
+            onClose={handleAssortmentCancel}
             onConfirm={handleAssortmentConfirmation}
+            // handleAssortmentConfirmation decide si cierra o pasa al siguiente paquete
+            closeOnConfirm={false}
+            progressLabel={assortmentPackages.total > 1
+              ? `Paquete ${assortmentPackages.current} de ${assortmentPackages.total}`
+              : null}
             isStandalone={true} // Mode for new sale (client-side selection)
+            existingProducts={products} // mismo catálogo de Nueva Venta (sin otra petición)
           />
         )
       }

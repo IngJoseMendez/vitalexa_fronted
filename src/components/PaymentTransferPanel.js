@@ -5,6 +5,7 @@ import paymentTransferService from '../api/paymentTransferService';
 import paymentService from '../api/paymentService';
 import apiClient from '../api/client';
 import { useToast } from './ToastContainer';
+import { formatOrderLabel, orderReferenceMatches } from '../utils/formatters';
 
 // ─── Utilidades ──────────────────────────────────────────────────────────────
 
@@ -436,15 +437,14 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
         }
     };
 
-    // Filtro client-side de las órdenes por número de factura, valor o cliente.
+    // Filtro client-side de las órdenes por número de factura o de pedido, valor o cliente.
     // No toca la carga ni la selección: solo reduce las opciones mostradas en el select.
     const orderQuery = orderSearch.trim().toLowerCase();
     const filteredOriginOrders = !orderQuery ? originOrders : originOrders.filter(o => {
-        const inv = o.invoiceNumber != null ? String(o.invoiceNumber) : '';
         const total = o.total != null ? String(o.total) : '';
         const cli = (o.cliente || '').toLowerCase();
-        const idShort = (o.id || '').slice(0, 8).toLowerCase();
-        return inv.includes(orderQuery) || total.includes(orderQuery) || cli.includes(orderQuery) || idShort.includes(orderQuery);
+        // Factura ("1500"), pedido ("P-123", "p123") o parte del id
+        return orderReferenceMatches(o, orderQuery) || total.includes(orderQuery) || cli.includes(orderQuery);
     });
 
     const steps = ['Vendedor Origen', 'Seleccionar Pago', 'Configurar'];
@@ -540,7 +540,7 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
                                 <input
                                     className="pt-input"
                                     type="text"
-                                    placeholder="N° de factura, valor o cliente…"
+                                    placeholder="N° de factura, pedido (P-123), valor o cliente…"
                                     value={orderSearch}
                                     onChange={e => setOrderSearch(e.target.value)}
                                     style={{ marginBottom: 10 }}
@@ -556,7 +556,7 @@ function CreateTransferView({ vendedores, onSuccess, onError }) {
                                     <option value="">— Selecciona una orden —</option>
                                     {filteredOriginOrders.map(o => (
                                         <option key={o.id} value={o.id}>
-                                            {o.invoiceNumber ? `Factura #${o.invoiceNumber}` : `#${o.id.slice(0, 8)}`}
+                                            {formatOrderLabel(o)}
                                             {' — '}{o.cliente || '(sin cliente)'}
                                             {' — '}{fmt(o.total)}
                                         </option>

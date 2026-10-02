@@ -2,8 +2,29 @@ import { useState, useEffect } from 'react';
 import client from '../../api/client';
 import promotionService from '../../api/promotionService';
 import { useToast } from '../ToastContainer';
+import { formatCurrency } from '../../utils/formatters';
+import {
+    getAssortmentConfigProblem,
+    getAssortmentFreeLimit,
+    getAssortmentPackPrice,
+    selectableFreeProducts,
+} from '../../utils/assortmentPromotion';
 
-function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onConfirm, isStandalone = false, existingProducts = [] }) {
+/**
+ * Selección de productos de una promoción Surtido.
+ *
+ * - isStandalone (Nueva Venta / carrito): el surtido es un PAQUETE a precio fijo. La vendedora
+ *   escoge HASTA freeQuantity productos GRATIS ($0) de cualquier producto regular activo (un
+ *   producto especial vinculado comparte el stock de su producto base: se escoge el base); el
+ *   producto principal x buyQuantity ya va dentro del paquete. Devuelve los escogidos con
+ *   onConfirm (no llama API).
+ * - Modo antiguo (orderId, pedidos PENDING_PROMOTION_COMPLETION): exactamente freeQuantity y se
+ *   guardan con completeAssortment.
+ *
+ * Opcionales (standalone): closeOnConfirm=false deja que el padre decida si cierra tras
+ * confirmar (p.ej. para encadenar varios paquetes); progressLabel muestra "Paquete 2 de 3".
+ */
+function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onConfirm, isStandalone = false, existingProducts = [], closeOnConfirm = true, progressLabel = null }) {
     const [selectedProducts, setSelectedProducts] = useState([]);
     const [products, setProducts] = useState(existingProducts);
     const [searchTerm, setSearchTerm] = useState('');
@@ -12,9 +33,13 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
     const [loadingProducts, setLoadingProducts] = useState(true);
     const toast = useToast();
 
+    // En el carrito solo se ofrecen productos regulares activos (el backend no acepta
+    // productos especiales como gratis)
+    const filterProducts = (list) => (isStandalone ? selectableFreeProducts(list) : list.filter(p => p.active));
+
     useEffect(() => {
         if (existingProducts && existingProducts.length > 0) {
-            setProducts(existingProducts.filter(p => p.active));
+            setProducts(filterProducts(existingProducts));
             setLoadingProducts(false);
             return;
         }
@@ -24,7 +49,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                 setLoadingProducts(true);
                 const response = await client.get('/admin/products');
                 const allProducts = response.data.content || response.data || [];
-                setProducts(allProducts.filter(p => p.active));
+                setProducts(filterProducts(allProducts));
             } catch (error) {
                 console.error('Error al cargar productos:', error);
                 toast.error('Error al cargar productos');
@@ -34,35 +59,35 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
         };
 
         fetchProducts();
-    }, [toast, existingProducts]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [toast, existingProducts, isStandalone]);
 
     const filteredProducts = products.filter(p =>
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        (p.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
         !selectedProducts.some(sp => sp.id === p.id)
     );
 
     const totalSelected = selectedProducts.reduce((sum, p) => sum + p.cantidad, 0);
-    // CORRECTION: Validate against buyQuantity (Main items), not freeQuantity
-    // If we are in "standalone" mode (VendedorDashboard), we usually want buyQuantity.
-    // But if we are in "complete promotion" mode (OrderManagement), it might be freeQuantity?
-    // The prompt says: "Modal de Promociones Surtidas... es para seleccionar los Productos que COMPONE la compra... El contador: Debe leer promotion.buyQuantity"
-    // We need to differentiate. Since we pass 'isStandalone' for VendedorDashboard, we assume that means "Buy Flow".
-    const targetQuantity = isStandalone ? promotion.buyQuantity : promotion.freeQuantity;
 
-    const isValid = totalSelected === targetQuantity;
+    // Paquete (standalone): HASTA freeLimit gratis, puede ser 0. Modo antiguo: exactamente freeQuantity.
+    const freeLimit = getAssortmentFreeLimit(promotion);
+    const configProblem = isStandalone ? getAssortmentConfigProblem(promotion, { bonified: !!promotion.isBonified }) : null;
+    const targetQuantity = isStandalone ? (freeLimit || 0) : promotion.freeQuantity;
     const remaining = targetQuantity - totalSelected;
+    const isValid = isStandalone
+        ? !configProblem && totalSelected <= targetQuantity
+        : totalSelected === targetQuantity;
+    const packPrice = getAssortmentPackPrice(promotion);
 
     const handleAddProduct = (product) => {
-        const maxToAdd = remaining;
-        if (maxToAdd <= 0) {
-            toast.warning('Ya has alcanzado la cantidad requerida');
+        if (remaining <= 0) {
+            toast.warning(isStandalone ? `Ya escogiste los ${targetQuantity} gratis del paquete` : 'Ya has alcanzado la cantidad requerida');
             return;
         }
 
         setSelectedProducts(prev => [...prev, {
             id: product.id,
             nombre: product.nombre,
-            precio: product.precio, // Include price
             stock: product.stock,
             cantidad: 1
         }]);
@@ -71,11 +96,17 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
     };
 
     const handleUpdateQuantity = (productId, newCantidad) => {
-        const cantidad = parseInt(newCantidad);
+        let cantidad = parseInt(newCantidad);
 
         if (isNaN(cantidad) || cantidad < 1) {
             handleRemoveProduct(productId);
             return;
+        }
+
+        if (isStandalone) {
+            // No pasar del máximo del paquete (lo que ya tiene este producto + lo que falta)
+            const current = selectedProducts.find(p => p.id === productId)?.cantidad || 0;
+            cantidad = Math.min(cantidad, current + Math.max(remaining, 0));
         }
 
         setSelectedProducts(prev => prev.map(p =>
@@ -89,22 +120,21 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
 
     const handleComplete = async () => {
         if (!isValid) {
-            toast.warning(`Debe seleccionar exactamente ${targetQuantity} productos`);
+            toast.warning(isStandalone
+                ? (configProblem ? `Esta promoción ${configProblem}. Pide al administrador que la revise.` : `Máximo ${targetQuantity} productos gratis`)
+                : `Debe seleccionar exactamente ${targetQuantity} productos`);
             return;
         }
 
-        // STANDALONE MODE: Return items to parent instead of calling API
+        // STANDALONE MODE: devuelve los gratis escogidos al carrito (no llama API)
         if (isStandalone && onConfirm) {
             const payload = selectedProducts.map(p => ({
                 productId: p.id,
-                nombre: p.nombre, // Include name for UI display in cart
-                precio: p.precio, // NORMAL PRICE
-                cantidad: p.cantidad,
-                // Remove isAssortmentItem tag as these are MAIN products
-                promotionId: promotion.id
+                nombre: p.nombre, // para mostrarlo en el carrito
+                cantidad: p.cantidad
             }));
             onConfirm(payload);
-            onClose();
+            if (closeOnConfirm) onClose();
             return;
         }
 
@@ -137,9 +167,9 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                         <span className="material-icons-round" style={{ verticalAlign: 'middle', marginRight: '0.5rem' }}>
                             inventory
                         </span>
-                        Seleccionar Productos Surtidos
+                        {isStandalone ? 'Escoger productos gratis' : 'Seleccionar Productos Surtidos'}
                     </h3>
-                    <button className="btn-close" onClick={onClose}>
+                    <button className="btn-close" onClick={onClose} aria-label="Cerrar">
                         <span className="material-icons-round">close</span>
                     </button>
                 </div>
@@ -148,108 +178,138 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                     {/* Promotion Info Header */}
                     <div className="assortment-header">
                         <h3>{promotion.nombre}</h3>
-                        <p style={{ color: 'var(--text-secondary)', margin: '0.5rem 0 0 0' }}>
-                            {promotion.descripcion}
-                        </p>
+                        {progressLabel && (
+                            <div style={{ marginTop: '0.25rem', fontWeight: 700, color: '#0369a1' }}>{progressLabel}</div>
+                        )}
+                        {promotion.descripcion && (
+                            <p style={{ color: 'var(--text-secondary)', margin: '0.5rem 0 0 0' }}>
+                                {promotion.descripcion}
+                            </p>
+                        )}
 
-                        <div className={`assortment-requirement ${isValid ? 'valid' : 'invalid'}`}>
-                            <div>
-                                <strong>Cantidad Requerida:</strong> {promotion.freeQuantity} unidades
+                        {isStandalone && (
+                            <div style={{ margin: '0.75rem 0 0', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                                <div>
+                                    <strong>Incluye:</strong> {promotion.buyQuantity} × {promotion.mainProduct?.nombre || 'producto principal'}
+                                    {freeLimit != null && <> + hasta <strong>{freeLimit}</strong> gratis a elección</>}
+                                </div>
+                                <div>
+                                    <strong>Precio del paquete:</strong>{' '}
+                                    {promotion.isBonified
+                                        ? 'GRATIS (bonificada)'
+                                        : (packPrice != null ? `$${formatCurrency(packPrice)}` : 'sin precio')}
+                                </div>
                             </div>
-                            <div>
-                                <strong>Seleccionadas:</strong> {totalSelected} unidades
-                                {remaining > 0 && (
-                                    <span style={{ color: '#f59e0b', marginLeft: '0.5rem' }}>
-                                        (Faltan {remaining})
-                                    </span>
-                                )}
-                                {remaining < 0 && (
-                                    <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>
-                                        (Excede en {Math.abs(remaining)})
-                                    </span>
-                                )}
-                                {isValid && (
-                                    <span style={{ color: '#10b981', marginLeft: '0.5rem' }}>
-                                        <span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
-                                            check_circle
-                                        </span> Completo
-                                    </span>
-                                )}
+                        )}
+
+                        {configProblem ? (
+                            <div className="assortment-requirement invalid" role="alert">
+                                Esta promoción {configProblem}. Pide al administrador que la revise antes de venderla.
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Product Search */}
-                    <div className="product-search">
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-                            Buscar Producto
-                        </label>
-                        <div style={{ position: 'relative' }}>
-                            <span className="material-icons-round" style={{
-                                position: 'absolute',
-                                left: '1rem',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: 'var(--text-muted)',
-                                fontSize: '20px'
-                            }}>
-                                search
-                            </span>
-                            <input
-                                type="text"
-                                placeholder="Buscar por nombre..."
-                                value={searchTerm}
-                                onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                    setShowResults(e.target.value.length > 0);
-                                }}
-                                onFocus={() => searchTerm && setShowResults(true)}
-                                disabled={loadingProducts || remaining <= 0}
-                            />
-                        </div>
-
-                        {showResults && filteredProducts.length > 0 && (
-                            <div className="product-search-results">
-                                {filteredProducts.slice(0, 10).map(product => (
-                                    <div
-                                        key={product.id}
-                                        className="product-search-item"
-                                        onClick={() => handleAddProduct(product)}
-                                    >
-                                        <div>
-                                            <div style={{ fontWeight: 600 }}>{product.nombre}</div>
-                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                                Stock: {product.stock}
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleAddProduct(product);
-                                            }}
-                                            style={{
-                                                padding: '0.4rem 0.8rem',
-                                                background: 'var(--primary)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '4px',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem'
-                                            }}
-                                        >
-                                            Agregar
-                                        </button>
-                                    </div>
-                                ))}
+                        ) : (
+                            <div className={`assortment-requirement ${isValid ? 'valid' : 'invalid'}`}>
+                                <div>
+                                    <strong>{isStandalone ? 'Gratis a elección:' : 'Cantidad Requerida:'}</strong>{' '}
+                                    {isStandalone ? `hasta ${targetQuantity}` : `${targetQuantity} unidades`}
+                                </div>
+                                <div>
+                                    <strong>Seleccionadas:</strong> {totalSelected} unidades
+                                    {remaining > 0 && (
+                                        <span style={{ color: '#f59e0b', marginLeft: '0.5rem' }}>
+                                            {isStandalone ? `(puedes escoger ${remaining} más)` : `(Faltan ${remaining})`}
+                                        </span>
+                                    )}
+                                    {remaining < 0 && (
+                                        <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>
+                                            (Excede en {Math.abs(remaining)})
+                                        </span>
+                                    )}
+                                    {!isStandalone && isValid && (
+                                        <span style={{ color: '#10b981', marginLeft: '0.5rem' }}>
+                                            <span className="material-icons-round" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+                                                check_circle
+                                            </span> Completo
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
 
+                    {/* Product Search */}
+                    {!configProblem && (
+                        <div className="product-search">
+                            <label htmlFor="assortment-product-search" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                                Buscar Producto
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <span className="material-icons-round" style={{
+                                    position: 'absolute',
+                                    left: '1rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    color: 'var(--text-muted)',
+                                    fontSize: '20px'
+                                }}>
+                                    search
+                                </span>
+                                <input
+                                    id="assortment-product-search"
+                                    type="text"
+                                    placeholder="Buscar por nombre..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setShowResults(e.target.value.length > 0);
+                                    }}
+                                    onFocus={() => searchTerm && setShowResults(true)}
+                                    disabled={loadingProducts || remaining <= 0}
+                                />
+                            </div>
+
+                            {showResults && filteredProducts.length > 0 && (
+                                <div className="product-search-results">
+                                    {filteredProducts.slice(0, 10).map(product => (
+                                        <div
+                                            key={product.id}
+                                            className="product-search-item"
+                                            onClick={() => handleAddProduct(product)}
+                                        >
+                                            <div>
+                                                <div style={{ fontWeight: 600 }}>{product.nombre}</div>
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                                    Stock: {product.stock}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleAddProduct(product);
+                                                }}
+                                                style={{
+                                                    padding: '0.4rem 0.8rem',
+                                                    background: 'var(--primary)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.85rem'
+                                                }}
+                                            >
+                                                Agregar
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Selected Products Table */}
                     {selectedProducts.length > 0 && (
                         <div>
-                            <h4 style={{ marginBottom: '1rem' }}>Productos Seleccionados</h4>
+                            <h4 style={{ marginBottom: '1rem' }}>{isStandalone ? 'Productos gratis escogidos' : 'Productos Seleccionados'}</h4>
                             <table className="selected-products-table">
                                 <thead>
                                     <tr>
@@ -262,7 +322,10 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                                 <tbody>
                                     {selectedProducts.map(product => (
                                         <tr key={product.id}>
-                                            <td style={{ fontWeight: 600 }}>{product.nombre}</td>
+                                            <td style={{ fontWeight: 600 }}>
+                                                {product.nombre}
+                                                {isStandalone && <span style={{ marginLeft: '6px', color: '#15803d', fontSize: '0.8rem' }}>$0</span>}
+                                            </td>
                                             <td>
                                                 <span className={`product-stock-badge ${product.stock < 10 ? 'low' : ''}`}>
                                                     {product.stock}
@@ -271,10 +334,13 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                                             <td style={{ textAlign: 'center' }}>
                                                 <input
                                                     type="number"
+                                                    aria-label={`Cantidad de ${product.nombre}`}
                                                     value={product.cantidad}
                                                     onChange={(e) => handleUpdateQuantity(product.id, e.target.value)}
                                                     min="1"
-                                                    max={Math.min(product.stock, promotion.freeQuantity)}
+                                                    max={isStandalone
+                                                        ? product.cantidad + Math.max(remaining, 0)
+                                                        : Math.min(product.stock, promotion.freeQuantity)}
                                                     onWheel={(e) => e.target.blur()}
                                                 />
                                             </td>
@@ -316,7 +382,7 @@ function AssortmentSelectionModal({ orderId, promotion, onClose, onSuccess, onCo
                                 cursor: isValid && !loading ? 'pointer' : 'not-allowed'
                             }}
                         >
-                            {loading ? 'Completando...' : 'Completar Promoción'}
+                            {loading ? 'Completando...' : (isStandalone ? 'Agregar paquete' : 'Completar Promoción')}
                         </button>
                     </div>
                 </div>

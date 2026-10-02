@@ -1,27 +1,35 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContainer';
 import productService from '../api/productService';
+import PhysicalCountModal from './modals/PhysicalCountModal';
+import { bodegaInfo, committedUnits, hasCommitted } from '../utils/inventoryMovements';
 
 /**
  * StockReportPanel
  * Shows the full inventory context: stockFisicoReal (en bodega),
  * stockComprometido (en pedidos activos), stockEnBD (lo que ve el sistema).
  *
+ * "En Bodega" nunca se muestra negativa: si el cálculo da menos de 0 (salió más de lo que se
+ * registró como entrada) se muestra 0 con "faltan N por registrar". Para corregir el número
+ * está el "Conteo físico" de cada producto.
+ *
  * @param {'admin'|'owner'} role  - Used to build the API URL
  */
 export default function StockReportPanel({ role = 'admin' }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [viewMode, setViewMode] = useState('all'); // 'all' | 'alerts'
+    // 'all' | 'alerts' (sistema negativo) | 'missing' (faltan por registrar) | 'committed'
+    const [viewMode, setViewMode] = useState('all');
     const [search, setSearch] = useState('');
+    const [countProduct, setCountProduct] = useState(null);
     const toast = useToast();
 
+    // Siempre el reporte completo: los filtros son locales, así las tarjetas y "Todos (N)"
+    // no cambian al filtrar (antes "Solo Alertas" reemplazaba la lista y los totales)
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const response = viewMode === 'alerts'
-                ? await productService.getStockAlerts(role)
-                : await productService.getStockReport(role);
+            const response = await productService.getStockReport(role);
             setItems(response.data || []);
         } catch (error) {
             console.error('Error al cargar reporte de stock:', error);
@@ -29,33 +37,49 @@ export default function StockReportPanel({ role = 'admin' }) {
         } finally {
             setLoading(false);
         }
-    }, [viewMode, role, toast]);
+    }, [role, toast]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    // Filtered by search
-    const filtered = items.filter(item =>
-        !search.trim() ||
-        (item.nombre || '').toLowerCase().includes(search.toLowerCase())
-    );
+    const isAlert = (i) => i.alertaCritica === true || Number(i.stockEnBD) < 0;
+    const isMissing = (i) => bodegaInfo(i).faltante > 0;
 
-    // Summary counts
-    const criticalCount = items.filter(i => i.alertaCritica).length;
-    const committedCount = items.filter(i => i.tieneStockComprometido).length;
+    // Summary counts (sobre TODO el inventario)
+    const criticalCount = items.filter(isAlert).length;
+    const missingCount = items.filter(isMissing).length;
+    const committedCount = items.filter(hasCommitted).length;
+
+    // Filtro de vista + búsqueda
+    const filtered = items.filter(item => {
+        if (viewMode === 'alerts' && !isAlert(item)) return false;
+        if (viewMode === 'missing' && !isMissing(item)) return false;
+        if (viewMode === 'committed' && !hasCommitted(item)) return false;
+        return !search.trim() || (item.nombre || '').toLowerCase().includes(search.toLowerCase());
+    });
 
     // Color for "Sistema" column
     const sistemaColor = (val) => {
+        if (val == null) return { color: 'var(--text-secondary)', fontWeight: 700 };
         if (val < 0) return { color: '#dc2626', fontWeight: 700 };
         if (val === 0) return { color: '#d97706', fontWeight: 700 };
         return { color: '#16a34a', fontWeight: 700 };
     };
 
     const sistemaIcon = (val) => {
+        if (val == null) return '';
         if (val < 0) return '🔴';
         if (val === 0) return '🟡';
         return '✅';
+    };
+
+    const emptyMessage = () => {
+        if (search) return `No se encontraron productos para "${search}"`;
+        if (viewMode === 'alerts') return '¡Sin alertas! Ningún producto tiene el sistema en negativo.';
+        if (viewMode === 'missing') return 'No hay unidades pendientes por registrar.';
+        if (viewMode === 'committed') return 'No hay productos en pedidos activos.';
+        return 'No hay datos de inventario.';
     };
 
     return (
@@ -100,15 +124,22 @@ export default function StockReportPanel({ role = 'admin' }) {
                     bg="#eef2ff"
                 />
                 <SummaryCard
+                    icon="report_problem"
+                    label="Faltan unidades por registrar"
+                    value={missingCount}
+                    color={missingCount > 0 ? '#b45309' : '#16a34a'}
+                    bg={missingCount > 0 ? '#fff7ed' : '#f0fdf4'}
+                />
+                <SummaryCard
                     icon="warning_amber"
-                    label="Alertas críticas (stock negativo)"
+                    label="Sistema en negativo (vendido sin stock)"
                     value={criticalCount}
                     color={criticalCount > 0 ? '#dc2626' : '#16a34a'}
                     bg={criticalCount > 0 ? '#fef2f2' : '#f0fdf4'}
                 />
                 <SummaryCard
                     icon="local_shipping"
-                    label="Con stock comprometido"
+                    label="Con pedidos activos"
                     value={committedCount}
                     color="#d97706"
                     bg="#fffbeb"
@@ -141,9 +172,18 @@ export default function StockReportPanel({ role = 'admin' }) {
                 </div>
 
                 {/* View filter toggle */}
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                     <FilterBtn active={viewMode === 'all'} onClick={() => setViewMode('all')} icon="list_alt">
                         Todos ({items.length})
+                    </FilterBtn>
+                    <FilterBtn
+                        active={viewMode === 'missing'}
+                        onClick={() => setViewMode('missing')}
+                        icon="report_problem"
+                        activeColor="#b45309"
+                        activeBackground="#fff7ed"
+                    >
+                        Faltan por registrar ({missingCount})
                     </FilterBtn>
                     <FilterBtn
                         active={viewMode === 'alerts'}
@@ -152,7 +192,16 @@ export default function StockReportPanel({ role = 'admin' }) {
                         activeColor="#dc2626"
                         activeBackground="#fef2f2"
                     >
-                        🔴 Solo Alertas ({criticalCount})
+                        Sistema negativo ({criticalCount})
+                    </FilterBtn>
+                    <FilterBtn
+                        active={viewMode === 'committed'}
+                        onClick={() => setViewMode('committed')}
+                        icon="local_shipping"
+                        activeColor="#92400e"
+                        activeBackground="#fef3c7"
+                    >
+                        En pedidos ({committedCount})
                     </FilterBtn>
                 </div>
             </div>
@@ -167,11 +216,9 @@ export default function StockReportPanel({ role = 'admin' }) {
                 ) : filtered.length === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                         <span className="material-icons-round" style={{ fontSize: '48px', display: 'block', marginBottom: '0.75rem' }}>
-                            {viewMode === 'alerts' ? 'check_circle' : 'search_off'}
+                            {viewMode === 'all' || search ? 'search_off' : 'check_circle'}
                         </span>
-                        {viewMode === 'alerts'
-                            ? '¡Sin alertas críticas! Todo el stock del sistema es positivo.'
-                            : search ? `No se encontraron productos para "${search}"` : 'No hay datos de inventario.'}
+                        {emptyMessage()}
                     </div>
                 ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -188,94 +235,101 @@ export default function StockReportPanel({ role = 'admin' }) {
                                     <span title="Lo que muestra el sistema (ya descontó todos los pedidos creados)">Sistema 💾</span>
                                 </th>
                                 <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Estado</th>
+                                <th style={{ padding: '0.875rem 1rem', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'center' }}>Acción</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filtered.map((item, idx) => (
-                                <tr
-                                    key={item.productId}
-                                    style={{
-                                        borderBottom: '1px solid #f3f4f6',
-                                        background: item.alertaCritica
-                                            ? 'rgba(254, 242, 242, 0.5)'
-                                            : idx % 2 === 0 ? 'white' : '#fafafa'
-                                    }}
-                                >
-                                    {/* Product name */}
-                                    <td style={{ padding: '0.875rem 1rem' }}>
-                                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.nombre}</div>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px', fontFamily: 'monospace' }}>
-                                            {item.productId?.substring(0, 8)}...
-                                        </div>
-                                    </td>
+                            {filtered.map((item, idx) => {
+                                const { bodega, faltante } = bodegaInfo(item);
+                                const comprometido = committedUnits(item);
+                                const alert = isAlert(item);
+                                const enPedidos = hasCommitted(item);
+                                return (
+                                    <tr
+                                        key={item.productId}
+                                        style={{
+                                            borderBottom: '1px solid #f3f4f6',
+                                            background: faltante > 0
+                                                ? 'rgba(255, 247, 237, 0.7)'
+                                                : idx % 2 === 0 ? 'white' : '#fafafa'
+                                        }}
+                                    >
+                                        {/* Product name */}
+                                        <td style={{ padding: '0.875rem 1rem' }}>
+                                            <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{item.nombre}</div>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '2px', fontFamily: 'monospace' }}>
+                                                {item.productId?.substring(0, 8)}...
+                                            </div>
+                                        </td>
 
-                                    {/* En Bodega = stockEnBD + stockComprometido (calculado en frontend
-                                         por si el backend no devuelve stockFisicoReal) */}
-                                    <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700 }}>
-                                        {(() => {
-                                            const bodega = item.stockFisicoReal != null
-                                                ? item.stockFisicoReal
-                                                : (Number(item.stockEnBD) || 0) + (Number(item.stockComprometido) || 0);
-                                            return bodega;
-                                        })()}
-                                    </td>
+                                        {/* En Bodega: nunca negativa; el faltante se avisa aparte */}
+                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                                            <div data-testid="bodega" style={{ fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700 }}>{bodega}</div>
+                                            {faltante > 0 && (
+                                                <div style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600, marginTop: '2px' }}>
+                                                    faltan {faltante} por registrar
+                                                </div>
+                                            )}
+                                        </td>
 
-                                    {/* En Pedidos = stockComprometido */}
-                                    <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem' }}>
-                                        {item.stockComprometido > 0 ? (
-                                            <span style={{ color: '#d97706', fontWeight: 700 }}>
-                                                {item.stockComprometido}
+                                        {/* En Pedidos = stockComprometido */}
+                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem' }}>
+                                            {comprometido > 0 ? (
+                                                <span style={{ color: '#d97706', fontWeight: 700 }}>{comprometido}</span>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-secondary)' }}>0</span>
+                                            )}
+                                        </td>
+
+                                        {/* Sistema = stockEnBD */}
+                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem' }}>
+                                            <span style={sistemaColor(item.stockEnBD)}>
+                                                {sistemaIcon(item.stockEnBD)} {item.stockEnBD ?? '-'}
                                             </span>
-                                        ) : (
-                                            <span style={{ color: 'var(--text-secondary)' }}>0</span>
-                                        )}
-                                    </td>
+                                        </td>
 
-                                    {/* Sistema = stockEnBD */}
-                                    <td style={{ padding: '0.875rem 1rem', textAlign: 'center', fontFamily: 'monospace', fontSize: '1rem' }}>
-                                        <span style={sistemaColor(item.stockEnBD)}>
-                                            {sistemaIcon(item.stockEnBD)} {item.stockEnBD}
-                                        </span>
-                                    </td>
+                                        {/* Estado badges */}
+                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                                            <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                                {faltante > 0 && (
+                                                    <Badge icon="report_problem" bg="#ffedd5" color="#9a3412">Faltan por registrar</Badge>
+                                                )}
+                                                {alert && (
+                                                    <Badge icon="warning" bg="#fee2e2" color="#991b1b">Sistema negativo</Badge>
+                                                )}
+                                                {enPedidos && (
+                                                    <Badge icon="local_shipping" bg="#fef3c7" color="#92400e">En pedidos</Badge>
+                                                )}
+                                                {faltante === 0 && !alert && !enPedidos && (
+                                                    <Badge bg="#dcfce7" color="#166534">✓ OK</Badge>
+                                                )}
+                                            </div>
+                                        </td>
 
-                                    {/* Estado badges */}
-                                    <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
-                                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-                                            {item.alertaCritica && (
-                                                <span style={{
-                                                    padding: '0.2rem 0.6rem', borderRadius: '99px',
-                                                    fontSize: '0.72rem', fontWeight: 700,
-                                                    background: '#fee2e2', color: '#991b1b',
-                                                    display: 'flex', alignItems: 'center', gap: '3px'
-                                                }}>
-                                                    <span className="material-icons-round" style={{ fontSize: '12px' }}>warning</span>
-                                                    Alerta crítica
-                                                </span>
-                                            )}
-                                            {item.tieneStockComprometido && (
-                                                <span style={{
-                                                    padding: '0.2rem 0.6rem', borderRadius: '99px',
-                                                    fontSize: '0.72rem', fontWeight: 700,
-                                                    background: '#fef3c7', color: '#92400e',
-                                                    display: 'flex', alignItems: 'center', gap: '3px'
-                                                }}>
-                                                    <span className="material-icons-round" style={{ fontSize: '12px' }}>local_shipping</span>
-                                                    En pedidos
-                                                </span>
-                                            )}
-                                            {!item.alertaCritica && !item.tieneStockComprometido && (
-                                                <span style={{
-                                                    padding: '0.2rem 0.6rem', borderRadius: '99px',
-                                                    fontSize: '0.72rem', fontWeight: 700,
-                                                    background: '#dcfce7', color: '#166534'
-                                                }}>
-                                                    ✓ OK
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                        <td style={{ padding: '0.875rem 1rem', textAlign: 'center' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCountProduct({
+                                                    id: item.productId,
+                                                    nombre: item.nombre,
+                                                    stockEnBD: item.stockEnBD,
+                                                    stockComprometido: comprometido,
+                                                })}
+                                                title="Ajustar el sistema a lo que hay en bodega"
+                                                style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                                    padding: '0.35rem 0.7rem', borderRadius: '6px', cursor: 'pointer',
+                                                    border: '1px solid #bae6fd', background: '#f0f9ff', color: '#0369a1',
+                                                    fontSize: '0.78rem', fontWeight: 600, whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <span className="material-icons-round" style={{ fontSize: '15px' }}>fact_check</span>
+                                                Conteo físico
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 )}
@@ -289,18 +343,40 @@ export default function StockReportPanel({ role = 'admin' }) {
                 border: '1px solid var(--border)'
             }}>
                 <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>Leyenda Sistema:</span>
-                <span>🔴 Stock BD negativo</span>
+                <span>🔴 Stock BD negativo (vendido sin stock)</span>
                 <span>🟡 Stock BD = 0</span>
                 <span>✅ Stock BD positivo</span>
                 <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>
-                    En Bodega = Sistema + Pedidos activos (lo real)
+                    En Bodega = Sistema + Pedidos activos (nunca menos de 0; si falta, se avisa)
                 </span>
             </div>
+
+            {countProduct && (
+                <PhysicalCountModal
+                    product={countProduct}
+                    onClose={() => setCountProduct(null)}
+                    onSuccess={() => fetchData()}
+                />
+            )}
         </div>
     );
 }
 
 // ── Helper sub-components ─────────────────────────────────────────────────────
+
+function Badge({ icon, bg, color, children }) {
+    return (
+        <span style={{
+            padding: '0.2rem 0.6rem', borderRadius: '99px',
+            fontSize: '0.72rem', fontWeight: 700,
+            background: bg, color,
+            display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap'
+        }}>
+            {icon && <span className="material-icons-round" style={{ fontSize: '12px' }}>{icon}</span>}
+            {children}
+        </span>
+    );
+}
 
 function SummaryCard({ icon, label, value, color, bg }) {
     return (
@@ -325,6 +401,7 @@ function FilterBtn({ active, onClick, icon, children, activeColor, activeBackgro
     return (
         <button
             onClick={onClick}
+            aria-pressed={active}
             style={{
                 display: 'flex', alignItems: 'center', gap: '0.35rem',
                 padding: '0.55rem 0.9rem', borderRadius: '8px', cursor: 'pointer',

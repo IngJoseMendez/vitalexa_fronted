@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCreatedOrdersSummary, formatCurrency, formatOrderLabel } from '../utils/formatters';
 import { idempotencyKeyFor } from '../utils/idempotency';
 import apiClient from '../api/client';
 import { tagService } from '../api/tagService';
@@ -8,11 +8,13 @@ import { TagBadge, TagFilterBar } from '../components/TagComponents';
 import NotificationService from '../services/NotificationService';
 import VendedorPromotionsCatalog from '../components/VendedorPromotionsCatalog';
 import AssortmentSelectionModal from '../components/modals/AssortmentSelectionModal';
-import { PromotionType } from '../utils/types';
+import AssortmentCartDetail from '../components/AssortmentCartDetail';
 import VendorSpecialProductsPanel from '../components/VendorSpecialProductsPanel';
 import VendorProductCard from '../components/VendorProductCard';
 import MiNominaPanel from '../components/MiNominaPanel';
 import vendedorInitService from '../api/vendedorInitService';
+import { mergeVendorPromotions } from '../utils/vendorPromotionCatalog';
+import { buildAssortmentSelections, isAssortmentPromotion } from '../utils/assortmentPromotion';
 import '../styles/VendedorDashboard.css';
 
 
@@ -40,17 +42,15 @@ function VendedorDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    // Connect with role 'vendedor'
-    NotificationService.connect((notification) => {
+    // Connect with role 'vendedor'. Al desmontar se quita solo este oyente: la conexión es compartida con la campana
+    const unsubscribe = NotificationService.connect((notification) => {
       if (notification.type === 'INVENTORY_UPDATE') {
         console.log("📦 Inventory update received, refreshing seller dashboard...");
         setRefreshTrigger(Date.now());
       }
     }, 'vendedor');
 
-    return () => {
-      NotificationService.disconnect();
-    };
+    return unsubscribe;
   }, []);
 
   // Menú lateral (móvil): cerrar con Escape y bloquear el scroll del fondo mientras está abierto.
@@ -204,6 +204,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
   // Assortment Selection State
   const [showAssortmentModal, setShowAssortmentModal] = useState(false);
   const [selectedPromotion, setSelectedPromotion] = useState(null);
+  // Catálogo completo (sin el filtro de etiqueta): los gratis del surtido son "de cualquier tipo"
+  const [catalogProducts, setCatalogProducts] = useState([]);
 
   useEffect(() => {
     localStorage.setItem('vendedorGridColumns', gridColumns.toString());
@@ -245,13 +247,16 @@ function NuevaVentaPanel({ refreshTrigger }) {
     setPromosLoading(true); // ✅ Indicar que las promociones también están cargando
     try {
       const datos = await vendedorInitService.cargarDatosInicio();
+      setCatalogProducts(datos.productos || []);
       if (activeTagId) {
         const tagRes = await apiClient.get(`/vendedor/products/tag/${activeTagId}`);
         setProducts(tagRes.data.content || tagRes.data || []);
       } else {
         setProducts(datos.productos || []);
       }
-      setInitPromociones(datos.promociones || []);
+      // Normales + especiales asignadas (marcadas isSpecial). La venta envía el id de la
+      // especial en promotionIds y el backend la reconoce y valida que le corresponda.
+      setInitPromociones(mergeVendorPromotions(datos.promociones, datos.promocionesEspeciales));
     } catch (error) {
       console.error('❌ [VendedorInit] Error al cargar datos de inicio:', error);
       // Fallback silencioso: intentar cargar al menos los productos (lógica inline, sin dependencia extra)
@@ -330,8 +335,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
   };
 
   const addPromotionToCart = (promotion) => {
-    // Check for Assortment Promotion (BUY_GET_FREE / Surtido)
-    if (promotion.type === PromotionType.BUY_GET_FREE || promotion.type === 'ASSORTMENT_PROMOTION') {
+    // Surtido: antes de agregar el paquete se escogen sus productos gratis
+    if (isAssortmentPromotion(promotion)) {
       setSelectedPromotion(promotion);
       setShowAssortmentModal(true);
       return;
@@ -347,42 +352,22 @@ function NuevaVentaPanel({ refreshTrigger }) {
     toast.success('Promoción agregada');
   };
 
+  // Surtido = PAQUETE: los productos escogidos son GRATIS y viajan con su instancia de la
+  // promoción (freeItems → assortmentSelections), NO como productos cobrados del carrito.
+  // El total de la instancia es el precio del paquete.
   const handleAssortmentConfirmation = (items) => {
-    // Process items to match cart structure
-    const newCartItems = [...cart];
-
-    items.forEach(item => {
-      const existingItemIndex = newCartItems.findIndex(cartItem => cartItem.productId === item.productId);
-
-      if (existingItemIndex >= 0) {
-        newCartItems[existingItemIndex].cantidad += item.cantidad;
-      } else {
-        newCartItems.push({
-          productId: item.productId,
-          nombre: item.nombre,
-          precio: item.precio, // NORMAL PRICE (These are the buy items)
-          cantidad: item.cantidad,
-          stockDisponible: item.stock || 9999,
-          allowOutOfStock: true,
-          promotionId: item.promotionId
-        });
-      }
-    });
-
-    setCart(newCartItems);
-
-    // Add the promotion itself to track it (for the ID)
     if (selectedPromotion) {
       const promoInstance = {
         ...selectedPromotion,
-        cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        cartId: `promo-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        freeItems: items.map(item => ({ productId: item.productId, nombre: item.nombre, cantidad: item.cantidad }))
       };
       setPromotionsCart([...promotionsCart, promoInstance]);
     }
 
     setShowAssortmentModal(false);
     setSelectedPromotion(null);
-    toast.success('Productos de la promoción agregados al carrito');
+    toast.success('Paquete surtido agregado al carrito');
   };
 
   const removePromotionFromCart = (cartId) => {
@@ -504,6 +489,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
           cantidad: item.cantidad
         })),
         promotionIds: promotionsCart.map(p => p.id),
+        // Gratis escogidos de cada surtido, en el mismo orden que promotionIds
+        assortmentSelections: buildAssortmentSelections(promotionsCart),
         notas: notas.trim() || null,
         includeFreight: includeFreight || false,
         isFreightBonified: includeFreight ? isFreightBonified : false,
@@ -523,10 +510,12 @@ function NuevaVentaPanel({ refreshTrigger }) {
       idempotencyRef.current = null;
 
       // Venta dividida: el backend devuelve { orders, wasSplit, message }
+      // "Pedido P-123" / "Pedidos P-123, P-124"; vacío con un backend anterior
+      const createdOrders = formatCreatedOrdersSummary(res.data?.orders);
       if (res.data?.orders?.length > 1) {
-        toast.info(`Venta registrada: se generaron ${res.data.orders.length} órdenes (S/R o promociones van por separado).`, 6000);
+        toast.info(`Venta registrada: se generaron ${res.data.orders.length} órdenes (S/R o promociones van por separado).${createdOrders ? ` ${createdOrders}` : ''}`, 6000);
       } else {
-        toast.success('¡Venta registrada exitosamente!');
+        toast.success(createdOrders ? `¡Venta registrada exitosamente! ${createdOrders}` : '¡Venta registrada exitosamente!');
       }
 
       // Limpiar formulario
@@ -927,7 +916,8 @@ function NuevaVentaPanel({ refreshTrigger }) {
                         <span className="material-icons-round" style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px' }}>local_offer</span>
                         {promo.nombre}
                       </h4>
-                      <p style={{ fontSize: '0.8rem' }}>{promo.type === 'PACK' ? 'Pack' : 'Oferta'}</p>
+                      <p style={{ fontSize: '0.8rem' }}>{promo.type === 'PACK' ? 'Pack' : isAssortmentPromotion(promo) ? 'Paquete surtido' : 'Oferta'}</p>
+                      {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
                     </div>
                     <div className="cart-item-controls">
                       {promo.packPrice && (
@@ -1075,7 +1065,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
           orderId={null} // Standalone mode
           promotion={selectedPromotion}
           isStandalone={true}
-          existingProducts={products}
+          existingProducts={catalogProducts.length > 0 ? catalogProducts : products}
           onClose={() => {
             setShowAssortmentModal(false);
             setSelectedPromotion(null);
@@ -1270,6 +1260,7 @@ function NuevaVentaPanel({ refreshTrigger }) {
                         <div className="cart-item-info">
                           <h5>🎁 {promo.nombre}</h5>
                           <p>${formatCurrency(parseFloat(promo.packPrice || 0))}</p>
+                          {isAssortmentPromotion(promo) && <AssortmentCartDetail promo={promo} />}
                         </div>
                         <button className="btn-remove" onClick={() => removePromotionFromCart(promo.cartId)}>
                           <span className="material-icons-round">delete_outline</span>
@@ -1410,7 +1401,7 @@ function VentasCompletadasPanel() {
           <input
             type="text"
             className="ventas-search-input"
-            placeholder="Buscar por cliente, factura, producto, estado, nota..."
+            placeholder="Buscar por cliente, factura, pedido (P-123), producto, estado, nota..."
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(0); }}
           />
@@ -1458,7 +1449,7 @@ function VentasCompletadasPanel() {
           {filteredAndSortedOrders.map(order => (
             <div key={order.id} className={`venta-card completed payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
-                <span className="venta-id">#{order.id.substring(0, 8)}</span>
+                <span className="venta-id">{formatOrderLabel(order)}</span>
                 <span className="venta-status status-completado">
                   <span className="material-icons-round" style={{ fontSize: '14px' }}>check_circle</span> COMPLETADO
                 </span>
@@ -2028,7 +2019,7 @@ function MisVentasPanel() {
           <input
             type="text"
             className="ventas-search-input"
-            placeholder="Buscar por cliente, factura, producto, estado, nota..."
+            placeholder="Buscar por cliente, factura, pedido (P-123), producto, estado, nota..."
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); setCurrentPage(0); }}
           />
@@ -2060,9 +2051,9 @@ function MisVentasPanel() {
           {filteredAndSortedOrders.map(order => (
             <div key={order.id} className={`venta-card ${order.isSROrder ? 'is-sr' : 'is-normal'} payment-${order.paymentStatus?.toLowerCase() || 'pending'}`}>
               <div className="venta-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem 0.75rem', flexWrap: 'wrap' }}>
                   <span className="venta-id">
-                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `#${order.id.substring(0, 8)}`}
+                    {formatOrderLabel(order)}
                   </span>
                   {order.isSROrder && (
                     <span className="tag-badge tag-sr" style={{ padding: '0.15rem 0.5rem', fontSize: '0.65rem' }}>S/N</span>

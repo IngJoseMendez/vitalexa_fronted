@@ -302,6 +302,122 @@
   }
 }
 
+/* ══════════════════════════════════════════
+   OWNER SIDEBAR PLEGABLE (solo escritorio)
+   Todo va bajo .owner-dashboard: los CSS de CRA son globales y el menú
+   del Admin usa las mismas clases .sidebar-*.
+══════════════════════════════════════════ */
+.owner-dashboard .owner-sidebar .sidebar-toggle {
+  display: none; /* en móvil el menú ya es una barra horizontal: no se pliega */
+}
+
+@media (min-width: 769px) {
+  /* El header global (App.css) es sticky, mide 71px (70 + 1 de borde) y va encima (z-index
+     1100). Con top:0 y 100vh el header tapaba la marca al hacer scroll y, sin scroll,
+     "Actualizar" quedaba 71px por debajo de la pantalla. */
+  .owner-dashboard .owner-sidebar {
+    top: 71px;
+    height: calc(100vh - 71px);
+    min-height: 0;
+    transition: width 0.2s ease;
+  }
+
+  .owner-dashboard .owner-sidebar .sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+
+  .owner-dashboard .owner-sidebar .sidebar-toggle:hover {
+    background: #fef3c7;
+    color: #d97706;
+  }
+
+  .owner-dashboard .owner-sidebar .sidebar-toggle:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: 2px;
+  }
+
+  .owner-dashboard .owner-sidebar .sidebar-brand .sidebar-toggle .material-icons-round {
+    font-size: 22px;
+    color: inherit;
+  }
+
+  /* ── Plegado: barra de solo iconos (el nombre y los contadores quedan en el tooltip) ── */
+  .owner-dashboard.sidebar-collapsed .owner-sidebar {
+    width: 68px;
+    /* Si los iconos no caben en alto sale la barra de scroll: se reserva el mismo espacio a
+       ambos lados para que los iconos sigan centrados */
+    scrollbar-gutter: stable both-edges;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-brand {
+    justify-content: center;
+    padding: 1.1rem 0 0.9rem;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-brand > .material-icons-round,
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-brand-name {
+    display: none;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-toggle {
+    margin-left: 0;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-nav {
+    padding: 0 0.25rem;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-item,
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-refresh {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-item:hover {
+    transform: none;
+  }
+
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-refresh {
+    position: relative;
+    width: auto;
+    margin: 0.5rem 0.25rem 1rem;
+  }
+
+  /* El texto se oculta solo a la vista: los lectores de pantalla siguen leyendo el nombre */
+  .owner-dashboard.sidebar-collapsed .owner-sidebar .sidebar-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (min-width: 769px) and (prefers-reduced-motion: reduce) {
+  .owner-dashboard .owner-sidebar {
+    transition: none;
+  }
+}
+
 
 
 /* 3. HEADER SECTION */

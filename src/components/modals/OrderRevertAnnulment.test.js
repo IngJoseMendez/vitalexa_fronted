@@ -102,3 +102,29 @@ test('si el backend rechaza la reversión se muestra su mensaje', async () => {
         'Error al revertir la anulación: La orden no está anulada'));
     expect(screen.getByText('Motivo de la reversión')).toBeInTheDocument(); // el modal sigue abierto
 });
+
+// Un pedido CANCELADO por el cliente ya devolvió su stock: "Editar Factura" lo dejaría
+// COMPLETADO (venta sin salida de inventario). El backend también lo rechaza.
+const cancelled = { ...annulled, invoiceNumber: null, estado: 'CANCELADO', cancellationReason: null };
+
+test('pedido cancelado por el cliente: sin Editar Factura ni Anular Venta', async () => {
+    client.get.mockResolvedValue({ data: cancelled });
+    orderService.getAnnulmentHistory.mockResolvedValue({ data: [] });
+    render(<OrderDetailModal order={cancelled} userRole="ROLE_OWNER" onClose={jest.fn()} onRefresh={jest.fn()} />);
+
+    await screen.findByText('ANULADO'); // pagos cargados
+    expect(screen.queryByRole('button', { name: /Editar Factura/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Anular Venta/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Revertir Anulación/ })).not.toBeInTheDocument();
+});
+
+test('un pedido pendiente sigue mostrando Editar Factura', async () => {
+    const pending = { ...cancelled, estado: 'PENDIENTE' };
+    client.get.mockResolvedValue({ data: pending });
+    orderService.getAnnulmentHistory.mockResolvedValue({ data: [] });
+    render(<OrderDetailModal order={pending} userRole="ROLE_ADMIN" onClose={jest.fn()} onRefresh={jest.fn()} />);
+
+    await screen.findByText('ANULADO');
+    expect(screen.getByRole('button', { name: /Editar Factura/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Anular Venta/ })).toBeInTheDocument();
+});

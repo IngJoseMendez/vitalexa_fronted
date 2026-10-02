@@ -4,10 +4,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import paymentService from '../../api/paymentService';
 import { useToast } from '../ToastContainer';
 import { useConfirm } from '../ConfirmDialog';
-import { formatCurrency, formatDate, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDate, formatDateTime, formatOrderLabel } from '../../utils/formatters';
 import './PaymentHistoryModal.css';
 
-export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, onPaymentUpdate, userRole }) {
+export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, orderNumber, onPaymentUpdate, userRole }) {
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showCancelled, setShowCancelled] = useState(true);
@@ -109,7 +109,7 @@ export function PaymentHistoryModal({ isOpen, onClose, orderId, invoiceNumber, o
                 <div className="modal-header">
                     <h2>
                         <span className="material-icons-round">history</span>
-                        Historial de Pagos - Factura #{invoiceNumber || orderId}
+                        Historial de Pagos - {formatOrderLabel({ invoiceNumber, orderNumber, orderId })}
                     </h2>
                     <button className="btn-close" onClick={onClose}>
                         <span className="material-icons-round">close</span>

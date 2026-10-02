@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import NotificationCenter from './components/NotificationCenter';
 import { ToastProvider } from './components/ToastContainer';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
+import { clearStorageKeepingSidebarPrefs } from './hooks/useSidebarCollapsed';
 import './App.css';
 
 // Code-splitting: cada dashboard se carga bajo demanda (reduce el bundle inicial).
@@ -84,7 +85,8 @@ function AppContent({ getRole, getToken, ProtectedRoute }) {
     });
 
     if (confirmed) {
-      localStorage.clear();
+      // Borra la sesión pero conserva la preferencia del menú lateral (es de la persona)
+      clearStorageKeepingSidebarPrefs();
       window.location.href = '/login';
     }
   };

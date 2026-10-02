@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import paymentService from '../../api/paymentService';
 import { useToast } from '../ToastContainer';
-import { formatCurrency, formatDateISO } from '../../utils/formatters';
+import { formatCurrency, formatDateISO, formatOrderLabel } from '../../utils/formatters';
 import './EnhancedPaymentFormModal.css';
 
 const PAYMENT_METHODS = [
@@ -149,8 +149,8 @@ export function EnhancedPaymentFormModal({
                         {/* Order Info */}
                         <div className="order-info-card">
                             <div className="info-row">
-                                <span className="label">Factura:</span>
-                                <span className="value">#{order?.invoiceNumber || order?.orderId}</span>
+                                <span className="label">Orden:</span>
+                                <span className="value">{formatOrderLabel(order)}</span>
                             </div>
                             <div className="info-row">
                                 <span className="label">Cliente:</span>

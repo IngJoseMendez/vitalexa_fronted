@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { formatCurrency } from '../../utils/formatters';
-import { PromotionType } from '../../utils/types';
+import { formatCurrency, formatOrderLabel } from '../../utils/formatters';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
 import { useConfirm } from '../ConfirmDialog';
 import PromotionBlockWrapper from '../orders/PromotionBlock';
+import AssortmentSelectionModal from './AssortmentSelectionModal';
+import AssortmentCartDetail from '../AssortmentCartDetail';
+import { buildAssortmentSelections, isAssortmentPromotion, promotionInstancePrice } from '../../utils/assortmentPromotion';
 import './EditOrderModal.css';
 
 export default function EditOrderModal({ order, onClose, onSuccess }) {
@@ -49,6 +51,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
     const [promoQueue, setPromoQueue] = useState([]); // [{ id, nombre, qty, bonified }]
     const [addingPromos, setAddingPromos] = useState(false);
     const [addAsBonified, setAddAsBonified] = useState(false); // Agregar promos como regalo (bonificadas)
+    // Surtido que se va a poner en la cola: primero se escogen sus productos gratis
+    const [assortmentPromo, setAssortmentPromo] = useState(null);
     const toast = useToast();
     const askConfirm = useConfirm();
 
@@ -162,7 +166,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                         isSpecialProduct: !!item.specialProductId,
                         // ✅ Rastrear estado bonificado (regalo) e ítem-de-promoción
                         isBonified: item.isBonified || false,
-                        isPromotionItem: item.isPromotionItem || false
+                        isPromotionItem: item.isPromotionItem || false,
+                        // Regalo de la promoción (PACK) o gratis escogido del surtido: no fija el precio
+                        isFreeItem: item.isFreeItem || false
                     };
 
                     // ✅ Solo los bonificados PUROS (producto regalo suelto) van a la lista de
@@ -432,28 +438,21 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
 
             if (isPromoOrder) {
                 // 🎯 ORDEN DE PROMOCIÓN
-
-                // Check for Assortment Promotions (Mix & Match)
-                const hasAssortmentPromotion = promotionsDetails.some(
-                    p => p.type === PromotionType.BUY_GET_FREE
-                );
-
+                // Sus productos (principal, regalos y gratis escogidos del surtido) no se reenvían:
+                // el backend conserva tal cual los items de la orden de promoción y no acepta
+                // productos cobrables nuevos en ella. Reenviarlos como items normales solo
+                // arriesgaba cobrarlos de nuevo.
                 payload.items = [];
 
-                // 1. Items de Surtido (Si aplica)
-                if (hasAssortmentPromotion) {
-                    const assortmentItems = formData.items.filter(i => !i.isFreightItem).map(item => ({
-                        productId: item.isSpecialProduct ? null : item.productId,
-                        specialProductId: item.isSpecialProduct ? (item.specialProductId || item.productId) : null,
-                        cantidad: item.cantidad,
-                        allowOutOfStock: true,
-                        specialPromotionId: item.specialPromotionId || null
-                    }));
-                    payload.items.push(...assortmentItems);
-                    console.log('✅ Incluyendo items de surtido:', assortmentItems.length);
-                }
+                // Instancias de promoción que siguen en la orden: si se quitó una, el backend
+                // sabe CUÁL (con varias de la misma promoción, p.ej. surtidos con gratis distintos)
+                payload.keptPromotionInstanceIds = [...new Set(
+                    formData.items
+                        .filter(i => i.isPromotionItem && i.promotionInstanceId)
+                        .map(i => i.promotionInstanceId)
+                )];
 
-                // 2. Items de flete (si están habilitados)
+                // Items de flete (si están habilitados)
                 if (formData.includeFreight) {
                     const freightItems = formData.items.filter(i => i.isFreightItem);
                     payload.items.push(...freightItems.map(item => ({
@@ -632,21 +631,11 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         // 1. Calculate Promotions Total
 
 
-        // Iterate over grouped promotions to find their price
-        itemsByPromo.forEach((items, key) => {
-            const firstItem = items[0];
-
-            // Check if it's a promotion with fixed price (pack price)
-            if (firstItem.promotionPackPrice) {
-                total += parseFloat(firstItem.promotionPackPrice);
-            } else {
-                // Legacy or non-fixed price: sum items
-                const groupSum = items.reduce((sum, item) => {
-                    const qty = parseFloat(item.cantidad) || 0;
-                    return sum + (item.precioUnitario * qty);
-                }, 0);
-                total += groupSum;
-            }
+        // Precio de cada instancia como lo cobra el backend: el paquete del item principal
+        // (no el del primer item: un regalo guarda 0 y un gratis del surtido nada), $0 si es
+        // bonificada y, sin precio fijo, la suma de los items cobrados.
+        itemsByPromo.forEach((items) => {
+            total += promotionInstancePrice(items);
         });
 
         // 2. Calculate Standalone Items
@@ -684,6 +673,26 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         return formatCurrency(total);
     };
 
+    // Surtido escogido en "Agregar Promociones": entra a la cola como UN paquete con sus
+    // gratis ($0). Se cobra el precio del paquete (o $0 si va como regalo).
+    const handleAssortmentQueued = (items) => {
+        const promo = assortmentPromo;
+        if (!promo) return;
+        setPromoQueue(prev => [...prev, {
+            key: `${promo.id}|${promo.isBonified ? 'bon' : 'paid'}|${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            id: promo.id,
+            nombre: promo.nombre,
+            qty: 1,
+            bonified: !!promo.isBonified,
+            type: promo.type,
+            buyQuantity: promo.buyQuantity,
+            mainProduct: promo.mainProduct,
+            freeItems: items.map(i => ({ productId: i.productId, nombre: i.nombre, cantidad: i.cantidad })),
+        }]);
+        setAssortmentPromo(null);
+        toast.success(`"${promo.nombre}" agregada a la cola${promo.isBonified ? ' (regalo)' : ''}`);
+    };
+
     // ── Agregar promociones al endpoint dedicado ────────────────
     const handleAddPromotions = async () => {
         if (promoQueue.length === 0) {
@@ -694,13 +703,26 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
         // promociones pagadas de bonificadas (regalo).
         const paidIds = promoQueue.filter(p => !p.bonified).flatMap(p => Array(p.qty).fill(p.id));
         const bonifiedIds = promoQueue.filter(p => p.bonified).flatMap(p => Array(p.qty).fill(p.id));
+        const hasAssortment = promoQueue.some(p => p.freeItems);
         setAddingPromos(true);
         try {
-            if (paidIds.length > 0) {
-                await client.post(`/admin/orders/${order.id}/promotions/add`, paidIds);
-            }
-            if (bonifiedIds.length > 0) {
-                await client.post(`/admin/orders/${order.id}/promotions/add-bonified`, bonifiedIds);
+            if (hasAssortment) {
+                // Con surtidos: UN envío con los gratis de cada paquete. El backend asigna la
+                // k-ésima selección de una promoción a su k-ésima instancia, por eso las
+                // selecciones van en el mismo orden de la cola que los ids.
+                const instances = promoQueue.flatMap(p => Array(p.qty).fill({ ...p, isBonified: p.bonified }));
+                await client.post(`/admin/orders/${order.id}/promotions/add-with-selections`, {
+                    promotionIds: paidIds,
+                    bonifiedPromotionIds: bonifiedIds,
+                    assortmentSelections: buildAssortmentSelections(instances),
+                });
+            } else {
+                if (paidIds.length > 0) {
+                    await client.post(`/admin/orders/${order.id}/promotions/add`, paidIds);
+                }
+                if (bonifiedIds.length > 0) {
+                    await client.post(`/admin/orders/${order.id}/promotions/add-bonified`, bonifiedIds);
+                }
             }
             toast.success(`${paidIds.length + bonifiedIds.length} instancia(s) de promoción agregada(s) correctamente`);
             setPromoQueue([]);
@@ -819,7 +841,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                 {/* Header */}
                 <div className="eo-header">
                     <div className="eo-header-info">
-                        <h2>Editar Orden #{order.invoiceNumber || order.id?.substring(0, 8)}</h2>
+                        <h2>Editar {formatOrderLabel(order)}</h2>
                         <span className={`status-badge ${order.estado}`}>{order.estado}</span>
                         {isPromoOrder && <span className="status-badge" style={{ background: '#ecfdf5', color: '#047857' }}>PROMOCIÓN</span>}
                     </div>
@@ -976,6 +998,12 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                     key={p.id}
                                                     className="eo-search-item"
                                                     onClick={() => {
+                                                        // Surtido: cada paquete lleva SUS gratis; se escogen antes de ponerlo en la cola
+                                                        if (isAssortmentPromotion(p)) {
+                                                            setAssortmentPromo({ ...p, isBonified: addAsBonified });
+                                                            setPromoSearch('');
+                                                            return;
+                                                        }
                                                         // Clave compuesta: la MISMA promo puede ir pagada Y bonificada
                                                         // (dos entradas distintas en la cola).
                                                         const qKey = `${p.id}|${addAsBonified ? 'bon' : 'paid'}`;
@@ -1017,17 +1045,24 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                                     {p.bonified && (
                                                         <span style={{ marginLeft: '6px', fontSize: '0.62rem', fontWeight: 700, color: '#15803d', background: '#dcfce7', borderRadius: '4px', padding: '1px 5px' }}>REGALO</span>
                                                     )}
+                                                    {/* Surtido: un paquete por entrada, con sus gratis escogidos */}
+                                                    {p.freeItems && <AssortmentCartDetail promo={p} />}
                                                 </span>
+                                                {!p.freeItems && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
+                                                            style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
+                                                        >−</button>
+                                                        <span style={{ fontWeight: 700, minWidth: '20px', textAlign: 'center', color: '#7c3aed' }}>{p.qty}</span>
+                                                        <button
+                                                            onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key ? { ...x, qty: x.qty + 1 } : x))}
+                                                            style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
+                                                        >+</button>
+                                                    </>
+                                                )}
                                                 <button
-                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key && x.qty > 1 ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}
-                                                    style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
-                                                >−</button>
-                                                <span style={{ fontWeight: 700, minWidth: '20px', textAlign: 'center', color: '#7c3aed' }}>{p.qty}</span>
-                                                <button
-                                                    onClick={() => setPromoQueue(prev => prev.map(x => x.key === p.key ? { ...x, qty: x.qty + 1 } : x))}
-                                                    style={{ background: '#e5e7eb', border: 'none', borderRadius: '4px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 700 }}
-                                                >+</button>
-                                                <button
+                                                    aria-label={`Quitar ${p.nombre} de la cola`}
                                                     onClick={() => setPromoQueue(prev => prev.filter(x => x.key !== p.key))}
                                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
                                                 ><span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span></button>
@@ -1076,12 +1111,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                                         const isInstanceBonified = items.some(i => i.isBonified);
                                         const name = isInstanceBonified ? `${baseName} (BONIFICADO)` : baseName;
 
-                                        // Determine price to show (Pack Price or Sum?). Bonificada = $0.
-                                        const price = isInstanceBonified
-                                            ? 0
-                                            : (firstItem.promotionPackPrice
-                                                ? firstItem.promotionPackPrice
-                                                : items.reduce((sum, i) => sum + (i.subtotal || i.precioUnitario * i.cantidad), 0));
+                                        // Precio de la instancia (paquete del principal; bonificada = $0)
+                                        const price = promotionInstancePrice(items);
 
                                         return (
                                             <PromotionBlockWrapper
@@ -1320,6 +1351,18 @@ export default function EditOrderModal({ order, onClose, onSuccess }) {
                     </div>
                 </div>
             </div>
+
+            {/* Dentro del overlay de la edición para quedar encima de ella */}
+            {assortmentPromo && (
+                <AssortmentSelectionModal
+                    orderId={null}
+                    promotion={assortmentPromo}
+                    isStandalone={true}
+                    existingProducts={Array.isArray(products) ? products : []}
+                    onClose={() => setAssortmentPromo(null)}
+                    onConfirm={handleAssortmentQueued}
+                />
+            )}
         </div>
     );
 }

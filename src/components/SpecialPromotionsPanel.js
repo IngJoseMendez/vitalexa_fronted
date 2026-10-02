@@ -1,18 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from './ToastContainer';
 import { useConfirm } from './ConfirmDialog';
 import specialPromotionService from '../api/specialPromotionService';
+import promotionService from '../api/promotionService';
 import SpecialPromotionFormModal from './modals/SpecialPromotionFormModal';
-import { getPromotionTypeLabel } from '../utils/types';
+import PromotionListToolbar from './PromotionListToolbar';
+import { getPromotionTypeLabel, PromotionType } from '../utils/types';
+import { formatCurrency } from '../utils/formatters';
+import {
+    PROMO_TABS,
+    matchesPromotionSearch,
+    filterByTab,
+    countByTab,
+    getPromotionDateState,
+    getDateStateLabel,
+    getParentBlockReason,
+    sortByName,
+    isSpecialVisibleToAll,
+} from '../utils/promotionFilters';
 import '../styles/SpecialProducts.css'; // Reuse styles
+import '../styles/Promotions.css';
 
-export default function SpecialPromotionsPanel() {
+// Se cargan todas de una vez y se filtran en el cliente: antes solo se veía la página 0 de 20
+// y la búsqueda del servidor (/search) excluía las inactivas.
+const MAX_SPECIAL_PROMOTIONS = 500;
+
+export default function SpecialPromotionsPanel({ refreshTrigger }) {
     const [promotions, setPromotions] = useState([]);
+    // Promociones normales por id: para saber si el PADRE de una especial está activo y vigente
+    const [parentsById, setParentsById] = useState({});
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [page, setPage] = useState(0);
-    // const [totalPages, setTotalPages] = useState(0); // Pagination not yet implemented
-    const [gridColumns] = useState(() => parseInt(localStorage.getItem('spIdxCols')) || 3);
+    const [statusTab, setStatusTab] = useState(PROMO_TABS.ACTIVE);
 
     // Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,35 +43,50 @@ export default function SpecialPromotionsPanel() {
     const fetchPromotions = useCallback(async () => {
         setLoading(true);
         try {
-            let res;
-            if (searchTerm.trim()) {
-                res = await specialPromotionService.search(searchTerm, page, 20);
+            const [specialsRes, parentsRes] = await Promise.allSettled([
+                specialPromotionService.getAll(0, MAX_SPECIAL_PROMOTIONS),
+                promotionService.getAll(),
+            ]);
+
+            if (specialsRes.status === 'fulfilled') {
+                const data = specialsRes.value?.data;
+                const list = Array.isArray(data?.content) ? data.content : (Array.isArray(data) ? data : []);
+                setPromotions(sortByName(list));
             } else {
-                res = await specialPromotionService.getAll(page, 20);
+                console.error('Error loading special promotions:', specialsRes.reason);
+                toast.error('Error al cargar promociones especiales');
             }
-            const data = res.data;
-            if (data && data.content) {
-                setPromotions(data.content);
-                // setTotalPages(data.totalPages || 0);
-            } else if (Array.isArray(data)) {
-                setPromotions(data);
-                // setTotalPages(1);
-            } else {
-                setPromotions([]);
+
+            // Si las normales no cargan, solo se pierde el aviso del padre: no se bloquea el panel
+            if (parentsRes.status === 'fulfilled' && Array.isArray(parentsRes.value?.data)) {
+                const map = {};
+                parentsRes.value.data.forEach(p => { if (p?.id) map[p.id] = p; });
+                setParentsById(map);
+            } else if (parentsRes.status === 'rejected') {
+                console.warn('No se pudieron cargar las promociones base:', parentsRes.reason);
             }
-        } catch (err) {
-            console.error('Error loading special promotions:', err);
-            toast.error('Error al cargar promociones especiales');
         } finally {
             setLoading(false);
         }
-    }, [searchTerm, page, toast]);
+    }, [toast]);
 
     useEffect(() => {
         fetchPromotions();
-    }, [fetchPromotions]);
+    }, [fetchPromotions, refreshTrigger]);
 
-    useEffect(() => { setPage(0); }, [searchTerm]);
+    const searchedPromotions = useMemo(() => promotions.filter(promo => {
+        // También se busca por el producto principal y los regalos del PADRE (son los que se venden)
+        const parent = promo.parentPromotionId ? parentsById[promo.parentPromotionId] : null;
+        const parentFields = parent
+            ? [parent.mainProduct?.nombre, ...(parent.giftItems || []).map(g => g?.product?.nombre)]
+            : [];
+        return matchesPromotionSearch(promo, searchTerm, parentFields);
+    }), [promotions, parentsById, searchTerm]);
+    const tabCounts = useMemo(() => countByTab(searchedPromotions), [searchedPromotions]);
+    const visiblePromotions = useMemo(
+        () => filterByTab(searchedPromotions, statusTab),
+        [searchedPromotions, statusTab]
+    );
 
     const handleToggleStatus = async (promotion) => {
         try {
@@ -66,7 +100,13 @@ export default function SpecialPromotionsPanel() {
     };
 
     const handleDelete = async (promotion) => {
-        const ok = await askConfirm({ title: 'Eliminar promoción', message: `¿Eliminar "${promotion.nombre}"?`, confirmText: 'Eliminar', cancelText: 'Cancelar' });
+        // El backend hace borrado lógico: la especial queda desactivada (pestaña Inactivas)
+        const ok = await askConfirm({
+            title: 'Eliminar promoción',
+            message: `¿Eliminar "${promotion.nombre}"? Quedará desactivada y pasará a Inactivas.`,
+            confirmText: 'Eliminar',
+            cancelText: 'Cancelar'
+        });
         if (!ok) return;
         try {
             await specialPromotionService.remove(promotion.id);
@@ -79,6 +119,110 @@ export default function SpecialPromotionsPanel() {
 
     const openCreate = () => { setEditingPromotion(null); setIsModalOpen(true); };
     const openEdit = (p) => { setEditingPromotion(p); setIsModalOpen(true); };
+
+    const renderCard = (promo) => {
+        const isLinked = !!promo.parentPromotionId;
+        const parent = isLinked ? parentsById[promo.parentPromotionId] : null;
+        // En una vinculada la venta usa tipo, cantidad, producto y regalos del PADRE
+        const type = parent?.type || promo.type;
+        const buyQuantity = parent?.buyQuantity ?? promo.buyQuantity;
+        const mainProductName = parent?.mainProduct?.nombre || promo.mainProductName;
+        const parentReason = parent ? getParentBlockReason(parent) : null;
+        // La vigencia propia de una vinculada no se valida al vender (manda la del padre):
+        // solo se etiqueta con sus fechas cuando no se conoce el padre.
+        const dateLabel = promo.active && !parent ? getDateStateLabel(getPromotionDateState(promo)) : null;
+        const vendorNames = Array.isArray(promo.allowedVendorNames) ? promo.allowedVendorNames : [];
+
+        return (
+            <div key={promo.id} className="sp-card">
+                {/* Badge */}
+                <span className={`sp-type-badge ${isLinked ? 'linked' : 'standalone'}`}>
+                    <span className="material-icons-round" style={{ fontSize: '12px' }}>
+                        {isLinked ? 'link' : 'add_circle'}
+                    </span>
+                    {isLinked ? 'Vinculada' : 'Standalone'}
+                </span>
+
+                <div className="sp-card-body" style={{ marginTop: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                        <h3>{promo.nombre}</h3>
+                        <label className="switch" onClick={e => e.stopPropagation()} title={promo.active ? 'Desactivar' : 'Activar'}>
+                            <input
+                                type="checkbox"
+                                checked={!!promo.active}
+                                onChange={() => handleToggleStatus(promo)}
+                                aria-label={`${promo.active ? 'Desactivar' : 'Activar'} ${promo.nombre}`}
+                            />
+                            <span className="slider round"></span>
+                        </label>
+                    </div>
+
+                    {isLinked && (
+                        <div className="sp-card-parent" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                            <span className="material-icons-round" style={{ fontSize: '14px', marginRight: '4px' }}>subdirectory_arrow_right</span>
+                            Base: {promo.parentPromotionName}
+                        </div>
+                    )}
+
+                    <div className="promo-sp-meta">
+                        <span style={{ fontWeight: 600 }}>{getPromotionTypeLabel(type)}</span>
+                        {' • '}Compra {buyQuantity} {mainProductName}
+                        {type === PromotionType.BUY_GET_FREE && parent?.freeQuantity != null && (
+                            <> + hasta {parent.freeQuantity} gratis</>
+                        )}
+                    </div>
+
+                    {promo.packPrice != null && (
+                        <div className="promo-sp-price">Precio: ${formatCurrency(promo.packPrice)}</div>
+                    )}
+
+                    {(parentReason || !isLinked || dateLabel) && (
+                        <div className="promo-sp-badges">
+                            {parentReason && (
+                                <span className="promo-sp-warning">
+                                    <span className="material-icons-round" aria-hidden="true">block</span>
+                                    {parentReason}
+                                </span>
+                            )}
+                            {!isLinked && (
+                                <span className="promo-sp-warning">
+                                    <span className="material-icons-round" aria-hidden="true">block</span>
+                                    Standalone: no se puede vender
+                                </span>
+                            )}
+                            {dateLabel && (
+                                <span className={`promotion-badge date-${dateLabel === 'Vencida' ? 'expired' : 'scheduled'}`}>
+                                    {dateLabel}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Vendors */}
+                    <div className="sp-card-vendors" style={{ marginTop: '1rem' }}>
+                        {isSpecialVisibleToAll(promo) ? (
+                            <span className="promo-chip all">Todas las vendedoras</span>
+                        ) : vendorNames.length > 0 ? (
+                            vendorNames.map((name, i) => (
+                                <span key={`${name}-${i}`} className="sp-vendor-chip">{name}</span>
+                            ))
+                        ) : (
+                            <span className="promo-chip none">Sin vendedoras</span>
+                        )}
+                    </div>
+                </div>
+
+                <div className="sp-card-actions">
+                    <button type="button" onClick={() => openEdit(promo)}>
+                        <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span> Editar
+                    </button>
+                    <button type="button" className="btn-delete" onClick={() => handleDelete(promo)} title="Eliminar" aria-label={`Eliminar ${promo.nombre}`}>
+                        <span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span>
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="special-products-panel">
@@ -94,10 +238,6 @@ export default function SpecialPromotionsPanel() {
                     </p>
                 </div>
                 <div className="sp-header-actions">
-                    <div className="sp-search-box">
-                        <span className="material-icons-round">search</span>
-                        <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                    </div>
                     <button className="sp-btn-create" onClick={openCreate}>
                         <span className="material-icons-round">add</span>
                         Nueva Promoción
@@ -105,70 +245,48 @@ export default function SpecialPromotionsPanel() {
                 </div>
             </div>
 
+            {!loading && promotions.length > 0 && (
+                <PromotionListToolbar
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    tab={statusTab}
+                    onTabChange={setStatusTab}
+                    counts={tabCounts}
+                    shownCount={visiblePromotions.length}
+                    placeholder="Buscar por nombre, promoción base, producto o vendedora..."
+                />
+            )}
+
             {/* Grid */}
             {loading ? (
                 <div className="loading">Cargando...</div>
             ) : promotions.length === 0 ? (
                 <div className="sp-empty">
                     <span className="material-icons-round">search_off</span>
-                    <p>No se encontraron promociones especiales.</p>
+                    <p>No hay promociones especiales creadas.</p>
+                </div>
+            ) : visiblePromotions.length === 0 ? (
+                <div className="promo-no-results">
+                    <span className="material-icons-round" aria-hidden="true">search_off</span>
+                    <p>
+                        {searchTerm.trim()
+                            ? `No hay promociones especiales ${statusTab === PROMO_TABS.ACTIVE ? 'activas ' : statusTab === PROMO_TABS.INACTIVE ? 'inactivas ' : ''}que coincidan con "${searchTerm.trim()}".`
+                            : statusTab === PROMO_TABS.ACTIVE ? 'No hay promociones especiales activas.' : 'No hay promociones especiales inactivas.'}
+                    </p>
+                    {statusTab !== PROMO_TABS.ALL && tabCounts.all > 0 && (
+                        <button type="button" className="promo-link-btn" onClick={() => setStatusTab(PROMO_TABS.ALL)}>
+                            Ver en Todas ({tabCounts.all})
+                        </button>
+                    )}
+                    {searchTerm && (statusTab === PROMO_TABS.ALL || tabCounts.all === 0) && (
+                        <button type="button" className="promo-link-btn" onClick={() => setSearchTerm('')}>
+                            Limpiar búsqueda
+                        </button>
+                    )}
                 </div>
             ) : (
-                <div className="sp-grid" style={{ gridTemplateColumns: `repeat(${gridColumns}, 1fr)` }}>
-                    {promotions.map(promo => {
-                        const isLinked = !!promo.parentPromotionId;
-                        return (
-                            <div key={promo.id} className="sp-card">
-                                {/* Badge */}
-                                <span className={`sp-type-badge ${isLinked ? 'linked' : 'standalone'}`}>
-                                    <span className="material-icons-round" style={{ fontSize: '12px' }}>
-                                        {isLinked ? 'link' : 'add_circle'}
-                                    </span>
-                                    {isLinked ? 'Vinculada' : 'Standalone'}
-                                </span>
-
-                                <div className="sp-card-body" style={{ marginTop: '2rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <h3>{promo.nombre}</h3>
-                                        <label className="switch" onClick={e => e.stopPropagation()}>
-                                            <input type="checkbox" checked={promo.active} onChange={() => handleToggleStatus(promo)} />
-                                            <span className="slider round"></span>
-                                        </label>
-                                    </div>
-
-                                    {isLinked && (
-                                        <div className="sp-card-parent" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                                            <span className="material-icons-round" style={{ fontSize: '14px', marginRight: '4px' }}>subdirectory_arrow_right</span>
-                                            Base: {promo.parentPromotionName}
-                                        </div>
-                                    )}
-
-                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#4b5563' }}>
-                                        <span style={{ fontWeight: 600 }}>{getPromotionTypeLabel(promo.type)}</span> •
-                                        Compra {promo.buyQuantity} {promo.mainProduct?.nombre}
-                                    </div>
-
-                                    {/* Vendors */}
-                                    {promo.allowedVendorNames && promo.allowedVendorNames.length > 0 && (
-                                        <div className="sp-card-vendors" style={{ marginTop: '1rem' }}>
-                                            {promo.allowedVendorNames.map((name, i) => (
-                                                <span key={i} className="sp-vendor-chip">{name}</span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="sp-card-actions">
-                                    <button onClick={() => openEdit(promo)}>
-                                        <span className="material-icons-round" style={{ fontSize: '16px' }}>edit</span> Editar
-                                    </button>
-                                    <button className="btn-delete" onClick={() => handleDelete(promo)}>
-                                        <span className="material-icons-round" style={{ fontSize: '18px' }}>delete</span>
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
+                <div className="sp-grid promo-sp-grid">
+                    {visiblePromotions.map(renderCard)}
                 </div>
             )}
 

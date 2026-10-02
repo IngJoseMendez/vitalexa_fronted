@@ -1,10 +1,45 @@
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../utils/formatters';
 import { getPromotionTypeLabel, PromotionType } from '../utils/types';
+import { describeAssortment, getAssortmentFreeLimit, isAssortmentPromotion } from '../utils/assortmentPromotion';
 import promotionService from '../api/promotionService';
 import specialPromotionService from '../api/specialPromotionService';
 import { useToast } from './ToastContainer';
+import { isSpecialVisibleToAll, isVisibleToAll } from '../utils/promotionFilters';
+import { toCatalogSpecialPromotion } from '../utils/vendorPromotionCatalog';
 import '../styles/Promotions.css';
+
+/**
+ * Vendedoras que ven la promoción en su panel.
+ * - Normal: "Todas" (visibleToAll, o backend anterior sin el campo) o las asignadas.
+ * - Especial: "Todas" solo si visibleToAll === true; si no, sus vendedoras asignadas (sin
+ *   ninguna, ninguna vendedora la ve).
+ */
+export function VendorChips({ promotion }) {
+    const names = Array.isArray(promotion?.allowedVendorNames) ? promotion.allowedVendorNames : [];
+    const showAll = promotion?.isSpecial ? isSpecialVisibleToAll(promotion) : isVisibleToAll(promotion);
+    let content;
+    if (showAll) {
+        content = <span className="promo-chip all">Todas</span>;
+    } else if (names.length > 0) {
+        content = names.map((name, i) => <span key={`${name}-${i}`} className="promo-chip">{name}</span>);
+    } else {
+        content = (
+            <span className="promo-chip none">
+                {promotion?.isSpecial ? 'Sin vendedoras' : 'Ninguna (solo admin)'}
+            </span>
+        );
+    }
+    return (
+        <div className="promo-vendors" style={{ margin: '0 0 6px' }}>
+            <span className="promo-vendors-label">
+                <span className="material-icons-round" aria-hidden="true">visibility</span>
+                Vendedoras:
+            </span>
+            {content}
+        </div>
+    );
+}
 
 function AdminPromotionsCatalog({ onAddToCart, searchTerm = '' }) {
     const [promotions, setPromotions] = useState([]);
@@ -53,8 +88,12 @@ function AdminPromotionsCatalog({ onAddToCart, searchTerm = '' }) {
                     specialPromos = spData.content;
                 }
 
-                // Add 'isSpecial' flag to special promotions for UI distinction
-                const markedSpecialPromos = specialPromos.map(p => ({ ...p, isSpecial: true }));
+                // Igual que en el catálogo de la vendedora: la especial toma tipo, cantidad,
+                // producto principal, regalos y gratis del surtido (freeQuantity) de su promoción
+                // base (parentPromotion), y conserva su id, nombre, precio, vendedoras e isSpecial.
+                // Sin esto el surtido de una especial no tenía mainProduct ni freeQuantity y el
+                // modal de gratis bloqueaba "Agregar paquete" (mal configurada).
+                const markedSpecialPromos = specialPromos.map(toCatalogSpecialPromotion).filter(Boolean);
 
                 setPromotions([...standardPromos, ...markedSpecialPromos]);
             } catch (error) {
@@ -118,28 +157,40 @@ function AdminPromotionsCatalog({ onAddToCart, searchTerm = '' }) {
                             )}
                         </div>
 
+                        {/* A qué vendedoras les aparece (admin/owner pueden venderla igual a nombre de cualquiera) */}
+                        <VendorChips promotion={promotion} />
+
                         <div className="promotion-desc-compact">
-                            <div style={{ marginBottom: '4px' }}>
-                                Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}
-                            </div>
-                            <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
-                                Recibe Gratis:
-                                {promotion.type === PromotionType.PACK ? (
-                                    promotion.giftItems && promotion.giftItems.length > 0 ? (
-                                        <ul style={{ margin: '4px 0 0 0', paddingLeft: '1.2rem', fontSize: '0.8rem' }}>
-                                            {promotion.giftItems.map((gift, idx) => (
-                                                <li key={idx}>
-                                                    {gift.quantity}x {gift.product ? gift.product.nombre : 'Producto'}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}> Sin regalos definidos</span>
-                                    )
-                                ) : (
-                                    <span> {promotion.freeQuantity} Unidades a Elección</span>
-                                )}
-                            </div>
+                            {isAssortmentPromotion(promotion) ? (
+                                // Surtido = paquete: el principal va incluido y se escogen los gratis
+                                <div style={{ color: getAssortmentFreeLimit(promotion) != null ? 'var(--success)' : 'var(--text-muted)', fontWeight: 'bold' }}>
+                                    {describeAssortment(promotion)}
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{ marginBottom: '4px' }}>
+                                        Compra {promotion.buyQuantity} {promotion.mainProduct?.nombre}
+                                    </div>
+                                    <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
+                                        Recibe Gratis:
+                                        {promotion.type === PromotionType.PACK ? (
+                                            promotion.giftItems && promotion.giftItems.length > 0 ? (
+                                                <ul style={{ margin: '4px 0 0 0', paddingLeft: '1.2rem', fontSize: '0.8rem' }}>
+                                                    {promotion.giftItems.map((gift, idx) => (
+                                                        <li key={idx}>
+                                                            {gift.quantity}x {gift.product ? gift.product.nombre : 'Producto'}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}> Sin regalos definidos</span>
+                                            )
+                                        ) : (
+                                            <span> {promotion.freeQuantity} Unidades a Elección</span>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {promotion.mainProduct && (

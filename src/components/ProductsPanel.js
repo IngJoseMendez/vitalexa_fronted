@@ -8,6 +8,7 @@ import productService from '../api/productService';
 import ProductFormModal from './modals/ProductFormModal';
 import { formatCurrency } from '../utils/formatters';
 import StockArrivalModal from './modals/StockArrivalModal';
+import PhysicalCountModal from './modals/PhysicalCountModal';
 import BulkStockArrivalForm from './BulkStockArrivalForm';
 
 // Placeholder for missing images
@@ -30,6 +31,7 @@ export default function ProductsPanel({ refreshTrigger }) {
     const [editingProduct, setEditingProduct] = useState(null);
     const [stockModalOpen, setStockModalOpen] = useState(false);
     const [selectedProductForStock, setSelectedProductForStock] = useState(null);
+    const [countProduct, setCountProduct] = useState(null);
 
     // Bulk Mode State
     // 'none', 'create', 'update'
@@ -706,6 +708,9 @@ export default function ProductsPanel({ refreshTrigger }) {
                         tags={tags}
                         onClose={() => setIsModalOpen(false)}
                         onSuccess={() => { fetchProducts(); setIsModalOpen(false); }}
+                        // El stock ya no se edita en el formulario: se cambia por Llegada o Conteo físico
+                        onAddStock={(p) => { setIsModalOpen(false); openStockModal(p); }}
+                        onPhysicalCount={(p) => { setIsModalOpen(false); setCountProduct(p); }}
                     />
                 )
             }
@@ -716,6 +721,17 @@ export default function ProductsPanel({ refreshTrigger }) {
                     <StockArrivalModal
                         product={selectedProductForStock}
                         onClose={() => setStockModalOpen(false)}
+                        onSuccess={() => { fetchProducts(); }}
+                    />
+                )
+            }
+
+            {/* CONTEO FÍSICO */}
+            {
+                countProduct && (
+                    <PhysicalCountModal
+                        product={countProduct}
+                        onClose={() => setCountProduct(null)}
                         onSuccess={() => { fetchProducts(); }}
                     />
                 )
@@ -894,7 +910,6 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                             const changes = editedRows[p.id] || {};
                             // Use changed value or original
                             const finalPrice = changes.precio !== undefined ? changes.precio : p.precio;
-                            const finalStock = changes.stock !== undefined ? changes.stock : p.stock;
 
                             return (
                                 <tr key={p.id} style={{ borderBottom: '1px solid #f3f4f6', background: editedRows[p.id] ? '#fefffa' : 'white' }}>
@@ -914,16 +929,11 @@ function BulkUpdateForm({ products, tags, onSuccess, onCancel }) {
                                             style={{ borderColor: changes.precio ? '#f59e0b' : '' }}
                                         />
                                     </td>
-                                    <td style={{ padding: '0.5rem' }}>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            className="form-input"
-                                            value={finalStock}
-                                            onChange={e => handleCellChange(p.id, 'stock', e.target.value)}
-                                            onWheel={(e) => e.target.blur()}
-                                            style={{ borderColor: changes.stock ? '#f59e0b' : '' }}
-                                        />
+                                    <td style={{ padding: '0.5rem', textAlign: 'center' }}
+                                        title="El stock se cambia con Llegada o Conteo físico (no aquí)">
+                                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: p.stock < 0 ? '#ef4444' : 'inherit' }}>
+                                            {p.stock}
+                                        </span>
                                     </td>
                                     <td style={{ padding: '0.5rem' }}>
                                         <input

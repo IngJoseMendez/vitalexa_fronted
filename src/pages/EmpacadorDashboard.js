@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import productService from '../api/productService';
 import { useToast } from '../components/ToastContainer';
 import NotificationService from '../services/NotificationService';
+import { bodegaInfo } from '../utils/inventoryMovements';
 import '../styles/EmpacadorDashboard.css';
 
 // ============================================================
@@ -13,14 +14,14 @@ function EmpacadorDashboard() {
     const [lastUpdate, setLastUpdate] = useState(new Date());
 
     useEffect(() => {
-        NotificationService.connect((notification) => {
+        // Al desmontar se quita solo este oyente: la conexión es compartida con la campana
+        return NotificationService.connect((notification) => {
             if (notification.type === 'INVENTORY_UPDATE') {
                 console.log('📦 Inventory update received, refreshing...');
                 setRefreshTrigger(Date.now());
                 setLastUpdate(new Date());
             }
         }, 'empacador');
-        return () => NotificationService.disconnect();
     }, []);
 
     const handleRefresh = () => {
@@ -88,12 +89,10 @@ function InventarioPanel() {
     const totalProductos = items.length;
     const alertasCriticas = items.filter(i => i.alertaCritica || i.stockEnBD < 0).length;
     const conComprometido = items.filter(i => i.stockComprometido > 0).length;
-    const totalUnidades = items.reduce((acc, i) => {
-        const f = i.stockFisicoReal != null
-            ? i.stockFisicoReal
-            : (Number(i.stockEnBD) || 0) + (Number(i.stockComprometido) || 0);
-        return acc + f;
-    }, 0);
+    // Unidades en bodega: cada producto aporta su bodega (nunca negativa), así un faltante no
+    // descuenta unidades de otros productos del total
+    const totalUnidades = items.reduce((acc, i) => acc + getBodega(i), 0);
+    const conFaltante = items.filter(i => bodegaInfo(i).faltante > 0).length;
 
     // ── Filter ──
     let filtered = items.filter(i => {
@@ -131,7 +130,7 @@ function InventarioPanel() {
             {/* ── Summary Cards ── */}
             <div className="emp-stats-row">
                 <StatCard icon="category" label="Productos" value={totalProductos} color="#6366f1" bg="#eef2ff" />
-                <StatCard icon="layers" label="Total Unidades" value={totalUnidades} color="#0ea5e9" bg="#e0f2fe" />
+                <StatCard icon="layers" label="Unidades en bodega" value={totalUnidades} color="#0ea5e9" bg="#e0f2fe" />
                 <StatCard
                     icon="warning_amber"
                     label="Alertas"
@@ -279,6 +278,12 @@ function InventarioPanel() {
                         <span className="material-icons-round" style={{ color: '#d97706', fontSize: '14px' }}>local_shipping</span>
                         En pedidos activos
                     </span>
+                    {conFaltante > 0 && (
+                        <span className="emp-legend-item">
+                            <span className="material-icons-round" style={{ color: '#b45309', fontSize: '14px' }}>report_problem</span>
+                            {conFaltante} con unidades por registrar (bodega en 0)
+                        </span>
+                    )}
                 </div>
             )}
         </div>
@@ -287,10 +292,19 @@ function InventarioPanel() {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// Bodega nunca negativa: si el cálculo da menos de 0 se muestra 0 y "faltan N por registrar"
 function getBodega(item) {
-    return item.stockFisicoReal != null
-        ? item.stockFisicoReal
-        : (Number(item.stockEnBD) || 0) + (Number(item.stockComprometido) || 0);
+    return bodegaInfo(item).bodega;
+}
+
+function FaltanteNote({ item }) {
+    const { faltante } = bodegaInfo(item);
+    if (faltante <= 0) return null;
+    return (
+        <div className="emp-faltante" style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: 600, marginTop: '4px' }}>
+            faltan {faltante} por registrar
+        </div>
+    );
 }
 
 function getSistemaIcon(val) {
@@ -392,6 +406,7 @@ function ProductCardMobile({ item }) {
                     </span>
                 </div>
             </div>
+            <FaltanteNote item={item} />
         </div>
     );
 }
@@ -410,6 +425,7 @@ function ProductRowMobile({ item }) {
                 <div>
                     <div className="emp-prow-name">{item.nombre}</div>
                     <div className="emp-prow-id">{item.productId?.substring(0, 8)}…</div>
+                    <FaltanteNote item={item} />
                 </div>
             </div>
             <div className="emp-prow-nums">

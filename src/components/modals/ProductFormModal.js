@@ -5,7 +5,18 @@ import productService from '../../api/productService';
 import { formatCurrency } from '../../utils/formatters';
 import './ProductFormModal.css';
 
-export default function ProductFormModal({ product, tags, onClose, onSuccess }) {
+/**
+ * Crear / editar producto.
+ *
+ * El stock solo se escribe al CREAR (stock inicial). Al editar ya no se puede escribir un
+ * número absoluto: pisaba las ventas hechas mientras el formulario estaba abierto y, con
+ * stock negativo (deuda de pedidos), obligaba a "arreglarlo" borrando la deuda. Los cambios
+ * de stock van por "Llegada" (suma mercancía) o "Conteo físico" (ajusta a lo contado).
+ *
+ * @param onAddStock       (producto) => abre "Llegada" (opcional)
+ * @param onPhysicalCount  (producto) => abre "Conteo físico" (opcional)
+ */
+export default function ProductFormModal({ product, tags, onClose, onSuccess, onAddStock, onPhysicalCount }) {
     const isEditing = !!product;
     const toast = useToast();
     const [loading, setLoading] = useState(false);
@@ -71,7 +82,7 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
         e.preventDefault();
 
         if (parseFloat(formData.precio) < 0) return toast.warning('El precio debe ser positivo');
-        if (parseInt(formData.stock) < 0) return toast.warning('El stock debe ser positivo');
+        if (!isEditing && parseInt(formData.stock) < 0) return toast.warning('El stock inicial no puede ser negativo');
 
         setLoading(true);
 
@@ -94,10 +105,7 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
                     data.append('precio', formData.precio);
                     hasChanges = true;
                 }
-                if (parseInt(formData.stock) !== parseInt(product.stock)) {
-                    data.append('stock', formData.stock);
-                    hasChanges = true;
-                }
+                // El stock NO se envía al editar (ver comentario del componente)
                 const originalRp = product.reorderPoint !== undefined ? product.reorderPoint : 10;
                 const newRp = formData.reorderPoint === '' ? 10 : parseInt(formData.reorderPoint);
                 if (newRp !== originalRp) {
@@ -231,18 +239,29 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
                                     </div>
                                 )}
                             </div>
-                            <div className="pfm-group">
-                                <label className="pfm-label">Stock *</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    required
-                                    className="pfm-input"
-                                    value={formData.stock}
-                                    onChange={e => setFormData({ ...formData, stock: e.target.value })}
-                                    onWheel={(e) => e.target.blur()}
-                                />
-                            </div>
+                            {isEditing ? (
+                                <div className="pfm-group">
+                                    <span className="pfm-label">Stock actual</span>
+                                    <div className="pfm-stock-readonly" data-testid="pfm-stock-actual"
+                                        style={{ color: Number(product.stock) < 0 ? '#ef4444' : 'var(--pfm-text-main)' }}>
+                                        {product.stock ?? 0}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="pfm-group">
+                                    <label className="pfm-label" htmlFor="pfm-stock">Stock inicial *</label>
+                                    <input
+                                        id="pfm-stock"
+                                        type="number"
+                                        min="0"
+                                        required
+                                        className="pfm-input"
+                                        value={formData.stock}
+                                        onChange={e => setFormData({ ...formData, stock: e.target.value })}
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                            )}
                             <div className="pfm-group">
                                 <label className="pfm-label" title="Alerta de stock bajo">Reorder Point</label>
                                 <input
@@ -256,6 +275,35 @@ export default function ProductFormModal({ product, tags, onClose, onSuccess }) 
                                 />
                             </div>
                         </div>
+
+                        {isEditing && (
+                            <div className="pfm-stock-note" role="note">
+                                <span className="material-icons-round" aria-hidden="true">info</span>
+                                <div>
+                                    <p>
+                                        El stock no se edita aquí: un número escrito a mano pisaba las ventas en curso.
+                                        Para sumar mercancía usa <strong>Llegada</strong>; para dejarlo igual a lo que hay en
+                                        bodega usa <strong>Conteo físico</strong> (descuenta solo lo que está en pedidos).
+                                    </p>
+                                    {(onAddStock || onPhysicalCount) && (
+                                        <div className="pfm-stock-actions">
+                                            {onAddStock && (
+                                                <button type="button" className="pfm-btn pfm-btn-secondary"
+                                                    onClick={() => onAddStock(product)}>
+                                                    Registrar llegada
+                                                </button>
+                                            )}
+                                            {onPhysicalCount && (
+                                                <button type="button" className="pfm-btn pfm-btn-secondary"
+                                                    onClick={() => onPhysicalCount(product)}>
+                                                    Conteo físico
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="pfm-group">
                             <label className="pfm-label">Categoría / Etiqueta</label>

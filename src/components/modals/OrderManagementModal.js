@@ -10,7 +10,7 @@ import orderService from '../../api/orderService';
 import client from '../../api/client';
 import { OrdenStatus, PromotionType, getStatusLabel } from '../../utils/types';
 import HistoricalInvoiceModal from './HistoricalInvoiceModal'; // Import for editing
-import { formatCurrency, formatDateISO, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDateISO, formatDateTime, formatOrderLabel } from '../../utils/formatters';
 import './OrderManagementModal.css';
 
 // ===== ORDER DETAIL MODAL - ENHANCED WITH PAYMENTS & DISCOUNTS =====
@@ -311,11 +311,14 @@ export function OrderDetailModal({ order, onClose, onRefresh, userRole }) {
                 <div className="modal-header">
                     <h3>
                         <span className="material-icons-round">receipt_long</span>
-                        Detalle de Orden #{order.invoiceNumber || (order.id || order.orderId)?.substring(0, 8)}
+                        {/* currentOrder: la versión recargada (refleja una factura recién editada) */}
+                        Detalle de {formatOrderLabel({ ...order, ...currentOrder })}
                     </h3>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {/* Editar deja la factura COMPLETADO: en una venta anulada primero hay que revertir */}
-                        {(isOwner || isAdmin) && !isAnnulled && (
+                        {/* Editar deja la factura COMPLETADO: en una venta anulada primero hay que revertir.
+                            Un pedido CANCELADO ya devolvió su stock: facturarlo sería una venta sin
+                            salida de inventario (el backend también lo rechaza) */}
+                        {(isOwner || isAdmin) && !isAnnulled && currentOrder.estado !== OrdenStatus.CANCELADO && (
                             <button
                                 className="btn-edit-invoice"
                                 onClick={() => setShowEditHistoryModal(true)}

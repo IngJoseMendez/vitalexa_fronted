@@ -1,8 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import promotionService from '../../api/promotionService';
 import client from '../../api/client';
 import { useToast } from '../ToastContainer';
+import { useConfirm } from '../ConfirmDialog';
 import { PromotionType } from '../../utils/types';
+import { formatCurrency } from '../../utils/formatters';
+// Promotions.css ANTES que VendorMultiSelect (que trae SpecialProducts.css): mismo orden que en el
+// panel de la vendedora. Con el orden contrario mini-css-extract-plugin avisa "Conflicting order"
+// y el build con CI=true (Vercel/Netlify) falla.
+import '../../styles/Promotions.css';
+import VendorMultiSelect from '../VendorMultiSelect';
+
+const newTempId = () => Math.random().toString(36).substr(2, 9);
 
 function PromotionFormModal({ promotion, onClose, onSuccess }) {
     const [formData, setFormData] = useState({
@@ -17,8 +26,14 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
         allowStackWithDiscounts: false,
         requiresAssortmentSelection: false,
         validFrom: '',
-        validUntil: ''
+        validUntil: '',
+        // Visibilidad por vendedora: por defecto la ven todas (igual que las promociones existentes)
+        visibleToAll: true,
+        allowedVendorIds: []
     });
+
+    // Nombres de las vendedoras ya asignadas (por si alguna ya no viene en /vendedores)
+    const [vendorNameHints, setVendorNameHints] = useState({});
 
     // Temporary state for adding a new gift item
     const [newGift, setNewGift] = useState({
@@ -30,6 +45,9 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
     const [loading, setLoading] = useState(false);
     const [loadingProducts, setLoadingProducts] = useState(true);
     const toast = useToast();
+    const confirm = useConfirm();
+    const uid = useId();
+    const fieldId = (name) => `${uid}-${name}`;
 
     useEffect(() => {
         const fetchProducts = async () => {
@@ -57,16 +75,22 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                 initialGifts = promotion.giftItems.map(item => ({
                     productId: item.product ? item.product.id : item.productId,
                     quantity: item.quantity,
-                    tempId: Math.random().toString(36).substr(2, 9)
+                    tempId: newTempId()
                 }));
             } else if (promotion.freeProduct && promotion.freeQuantity) {
                 // Legacy support
                 initialGifts = [{
                     productId: promotion.freeProduct.id,
                     quantity: promotion.freeQuantity,
-                    tempId: Math.random().toString(36).substr(2, 9)
+                    tempId: newTempId()
                 }];
             }
+
+            const allowedVendorIds = Array.isArray(promotion.allowedVendorIds) ? promotion.allowedVendorIds : [];
+            const allowedVendorNames = Array.isArray(promotion.allowedVendorNames) ? promotion.allowedVendorNames : [];
+            const hints = {};
+            allowedVendorIds.forEach((id, i) => { if (allowedVendorNames[i]) hints[id] = allowedVendorNames[i]; });
+            setVendorNameHints(hints);
 
             setFormData({
                 nombre: promotion.nombre || '',
@@ -80,7 +104,10 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                 allowStackWithDiscounts: promotion.allowStackWithDiscounts || false,
                 requiresAssortmentSelection: promotion.requiresAssortmentSelection || false,
                 validFrom: promotion.validFrom ? promotion.validFrom.substring(0, 16) : '',
-                validUntil: promotion.validUntil ? promotion.validUntil.substring(0, 16) : ''
+                validUntil: promotion.validUntil ? promotion.validUntil.substring(0, 16) : '',
+                // Un backend anterior no envía visibleToAll: la promoción la ven todas
+                visibleToAll: promotion.visibleToAll !== false,
+                allowedVendorIds
             });
         }
     }, [promotion]);
@@ -97,7 +124,7 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
 
         setFormData(prev => ({
             ...prev,
-            giftItems: [...prev.giftItems, { ...newGift, tempId: Math.random().toString(36).substr(2, 9) }]
+            giftItems: [...prev.giftItems, { ...newGift, tempId: newTempId() }]
         }));
 
         // Reset new gift input
@@ -125,10 +152,6 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
             return;
         }
 
-        if (formData.type === PromotionType.PACK && !formData.packPrice) {
-            // Price validation logic if needed
-        }
-
         if (!formData.mainProductId) {
             toast.warning('Debe seleccionar un producto principal');
             return;
@@ -144,6 +167,14 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
             return;
         }
 
+        // Surtido = PAQUETE a precio fijo: el principal y los gratis van dentro de ese precio.
+        // Sin precio el paquete no tendría valor que cobrar, por eso es obligatorio.
+        const packPriceNumber = parseFloat(formData.packPrice);
+        if (formData.type === PromotionType.BUY_GET_FREE && !(packPriceNumber > 0)) {
+            toast.warning('Ingrese el precio del paquete (Surtido)');
+            return;
+        }
+
         if (formData.validFrom && formData.validUntil) {
             const from = new Date(formData.validFrom);
             const until = new Date(formData.validUntil);
@@ -151,6 +182,16 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                 toast.warning('La fecha de fin debe ser posterior a la fecha de inicio');
                 return;
             }
+        }
+
+        if (!formData.visibleToAll && formData.allowedVendorIds.length === 0) {
+            const ok = await confirm({
+                title: '¿Ninguna vendedora la verá?',
+                message: 'Elegiste "Solo las seleccionadas" sin ninguna vendedora. Ninguna vendedora la verá ni podrá venderla; solo admin y owner. ¿Guardar así?',
+                confirmText: 'Guardar así',
+                cancelText: 'Volver'
+            });
+            if (!ok) return;
         }
 
         setLoading(true);
@@ -175,15 +216,28 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                 })) : [],
 
                 validFrom: formData.validFrom ? `${formData.validFrom}:00` : null,
-                validUntil: formData.validUntil ? `${formData.validUntil}:59` : null
+                validUntil: formData.validUntil ? `${formData.validUntil}:59` : null,
+
+                // Visibilidad: con "Todas" la lista no aplica y se envía vacía para no dejar
+                // una selección vieja escondida que reaparezca al restringir otra vez.
+                visibleToAll: formData.visibleToAll,
+                allowedVendorIds: formData.visibleToAll ? [] : formData.allowedVendorIds
             };
 
+            let response;
             if (promotion) {
-                await promotionService.update(promotion.id, payload);
+                response = await promotionService.update(promotion.id, payload);
                 toast.success('Promoción actualizada exitosamente');
             } else {
-                await promotionService.create(payload);
+                response = await promotionService.create(payload);
                 toast.success('Promoción creada exitosamente');
+            }
+
+            // Un backend anterior ignora la restricción (la promoción la siguen viendo todas):
+            // avisar en vez de dejar creer que quedó restringida.
+            const saved = response?.data;
+            if (!formData.visibleToAll && saved && typeof saved === 'object' && saved.visibleToAll === undefined) {
+                toast.warning('El servidor todavía no aplica la restricción por vendedora: por ahora esta promoción la ven todas.');
             }
 
             onSuccess();
@@ -201,105 +255,134 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const isAssortment = formData.type === PromotionType.BUY_GET_FREE;
+    // El producto ya elegido se lista aunque esté inactivo, para no vaciar el campo al editar
+    const selectableProducts = products.filter(p => p.active || p.id === formData.mainProductId);
+    const activeProducts = products.filter(p => p.active);
+    const buyQty = parseInt(formData.buyQuantity) || 0;
+    const freeQty = parseInt(formData.freeQuantity) || 0;
+
     return (
-        <div className="modal-overlay">
-            <div className="modal-content form-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                    <h3>{promotion ? '✏️ Editar Promoción' : '➕ Nueva Promoción'}</h3>
-                    <button className="btn-close" onClick={onClose}>
+        <div className="pmf-overlay">
+            <div
+                className="pmf-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={fieldId('title')}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <header className="pmf-header">
+                    <div className="pmf-header-icon" aria-hidden="true">
+                        <span className="material-icons-round">local_offer</span>
+                    </div>
+                    <div className="pmf-header-text">
+                        <h3 id={fieldId('title')}>{promotion ? 'Editar promoción' : 'Nueva promoción'}</h3>
+                        <p>Define el paquete, quién lo ve y cuándo está vigente.</p>
+                    </div>
+                    <button type="button" className="pmf-close" onClick={onClose} aria-label="Cerrar">
                         <span className="material-icons-round">close</span>
                     </button>
-                </div>
+                </header>
 
-                <form onSubmit={handleSubmit} className="promotion-form">
-                    {/* Basic Info */}
-                    <div className="form-section">
-                        <h4>Información Básica</h4>
-
-                        <div className="form-group">
-                            <label>Nombre *</label>
-                            <input
-                                type="text"
-                                value={formData.nombre}
-                                onChange={(e) => handleChange('nombre', e.target.value)}
-                                placeholder="Ej: Pack 40+10 Especial"
-                                required
-                            />
+                <form id={fieldId('form')} onSubmit={handleSubmit} className="pmf-body">
+                    {/* 1. Información básica */}
+                    <section className="pmf-section">
+                        <div className="pmf-section-head">
+                            <span className="pmf-step" aria-hidden="true">1</span>
+                            <div>
+                                <h4>Información básica</h4>
+                                <p>Así la verán las vendedoras en su catálogo.</p>
+                            </div>
                         </div>
-
-                        <div className="form-group">
-                            <label>Descripción</label>
-                            <textarea
-                                value={formData.descripcion}
-                                onChange={(e) => handleChange('descripcion', e.target.value)}
-                                rows="3"
-                                placeholder="Descripción detallada de la promoción"
-                            />
+                        <div className="pmf-grid">
+                            <div className="pmf-field pmf-span-2">
+                                <label htmlFor={fieldId('nombre')}>Nombre <span className="pmf-req">*</span></label>
+                                <input
+                                    id={fieldId('nombre')}
+                                    type="text"
+                                    value={formData.nombre}
+                                    onChange={(e) => handleChange('nombre', e.target.value)}
+                                    placeholder="Ej: Pack 40+10 Especial"
+                                    required
+                                />
+                            </div>
+                            <div className="pmf-field pmf-span-2">
+                                <label htmlFor={fieldId('descripcion')}>Descripción <span className="pmf-optional">(opcional)</span></label>
+                                <textarea
+                                    id={fieldId('descripcion')}
+                                    value={formData.descripcion}
+                                    onChange={(e) => handleChange('descripcion', e.target.value)}
+                                    rows="3"
+                                    placeholder="Detalles que la vendedora deba saber"
+                                />
+                            </div>
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Promotion Type */}
-                    <div className="form-section">
-                        <h4>Tipo de Promoción</h4>
-                        <div className="radio-group">
-                            <div
-                                className={`radio-option ${formData.type === PromotionType.PACK ? 'selected' : ''}`}
-                                onClick={() => handleChange('type', PromotionType.PACK)}
-                            >
+                    {/* 2. Tipo */}
+                    <section className="pmf-section">
+                        <div className="pmf-section-head">
+                            <span className="pmf-step" aria-hidden="true">2</span>
+                            <div>
+                                <h4>Tipo de promoción</h4>
+                                <p>Cómo se arma el regalo del paquete.</p>
+                            </div>
+                        </div>
+                        <div className="pmf-choice-grid" role="radiogroup" aria-label="Tipo de promoción">
+                            <label className={`pmf-choice ${formData.type === PromotionType.PACK ? 'is-selected' : ''}`}>
                                 <input
                                     type="radio"
-                                    name="type"
+                                    name={fieldId('type')}
                                     value={PromotionType.PACK}
                                     checked={formData.type === PromotionType.PACK}
                                     onChange={() => handleChange('type', PromotionType.PACK)}
                                 />
-                                <label>
-                                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🎁</div>
-                                    <div style={{ fontWeight: 700 }}>Concreta (Fija)</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                                        Regalos predefinidos (Ej: Compra A recibe B)
-                                    </div>
-                                </label>
-                            </div>
-
-                            <div
-                                className={`radio-option ${formData.type === PromotionType.BUY_GET_FREE ? 'selected' : ''}`}
-                                onClick={() => handleChange('type', PromotionType.BUY_GET_FREE)}
-                            >
+                                <span className="material-icons-round pmf-choice-icon" aria-hidden="true">redeem</span>
+                                <span className="pmf-choice-text">
+                                    <span className="pmf-choice-title">Concreta (Fija)</span>
+                                    <span className="pmf-choice-desc">Regalos definidos de antemano. Ej: compra A y recibe B.</span>
+                                </span>
+                            </label>
+                            <label className={`pmf-choice ${isAssortment ? 'is-selected' : ''}`}>
                                 <input
                                     type="radio"
-                                    name="type"
+                                    name={fieldId('type')}
                                     value={PromotionType.BUY_GET_FREE}
-                                    checked={formData.type === PromotionType.BUY_GET_FREE}
+                                    checked={isAssortment}
                                     onChange={() => handleChange('type', PromotionType.BUY_GET_FREE)}
                                 />
-                                <label>
-                                    <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔄</div>
-                                    <div style={{ fontWeight: 700 }}>Surtido (Variable)</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                                        Cantidad libre a elegir después (Ej: Compra A recibe 5 items a elección)
-                                    </div>
-                                </label>
+                                <span className="material-icons-round pmf-choice-icon" aria-hidden="true">dashboard_customize</span>
+                                <span className="pmf-choice-text">
+                                    <span className="pmf-choice-title">Surtido (Variable)</span>
+                                    <span className="pmf-choice-desc">Paquete a precio fijo: la vendedora escoge los productos gratis al vender.</span>
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+
+                    {/* 3. Paquete: producto principal, cantidad y precio */}
+                    <section className="pmf-section">
+                        <div className="pmf-section-head">
+                            <span className="pmf-step" aria-hidden="true">3</span>
+                            <div>
+                                <h4>Paquete</h4>
+                                <p>Producto principal, cuántas unidades incluye y su precio.</p>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Main Product and Price */}
-                    <div className="form-section">
-                        <h4>Producto Principal</h4>
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label>Producto Principal *</label>
+                        <div className="pmf-grid">
+                            <div className="pmf-field pmf-span-2">
+                                <label htmlFor={fieldId('mainProduct')}>Producto principal <span className="pmf-req">*</span></label>
                                 {loadingProducts ? (
-                                    <p>Cargando productos...</p>
+                                    <div className="pmf-skeleton">Cargando productos...</div>
                                 ) : (
                                     <select
+                                        id={fieldId('mainProduct')}
                                         value={formData.mainProductId}
                                         onChange={(e) => handleChange('mainProductId', e.target.value)}
                                         required
                                     >
                                         <option value="">Seleccione un producto</option>
-                                        {products.filter(p => p.active).map(product => (
+                                        {selectableProducts.map(product => (
                                             <option key={product.id} value={product.id}>
                                                 {product.nombre} - ${parseFloat(product.precio).toFixed(2)} (Stock: {product.stock})
                                             </option>
@@ -307,9 +390,10 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                     </select>
                                 )}
                             </div>
-                            <div className="form-group">
-                                <label>Cantidad a Comprar *</label>
+                            <div className="pmf-field">
+                                <label htmlFor={fieldId('buyQuantity')}>Cantidad a comprar <span className="pmf-req">*</span></label>
                                 <input
+                                    id={fieldId('buyQuantity')}
                                     type="number"
                                     value={formData.buyQuantity}
                                     onChange={(e) => handleChange('buyQuantity', e.target.value)}
@@ -317,212 +401,248 @@ function PromotionFormModal({ promotion, onClose, onSuccess }) {
                                     required
                                     onWheel={(e) => e.target.blur()}
                                 />
+                                <small className="pmf-help">Unidades del producto principal en el paquete.</small>
+                            </div>
+                            <div className="pmf-field">
+                                <label htmlFor={fieldId('packPrice')}>
+                                    Precio del paquete {isAssortment
+                                        ? <span className="pmf-req">*</span>
+                                        : <span className="pmf-optional">(opcional)</span>}
+                                </label>
+                                <div className="pmf-input-prefix">
+                                    <span aria-hidden="true">$</span>
+                                    <input
+                                        id={fieldId('packPrice')}
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={formData.packPrice}
+                                        onChange={(e) => handleChange('packPrice', e.target.value)}
+                                        placeholder={isAssortment ? '0' : 'Precio regular'}
+                                        required={isAssortment}
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                                <small className="pmf-help">
+                                    {isAssortment
+                                        ? `Precio total del paquete: incluye ${buyQty} del producto principal y hasta ${freeQty} productos gratis a elección`
+                                        : 'Déjalo vacío para usar el precio regular.'}
+                                    {formData.packPrice !== '' && formData.packPrice !== null && !isNaN(parseFloat(formData.packPrice)) && (
+                                        <strong className="pmf-price-preview"> ${formatCurrency(formData.packPrice)}</strong>
+                                    )}
+                                </small>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 4. Regalos (Fija) o productos gratis (Surtido) */}
+                    <section className="pmf-section">
+                        <div className="pmf-section-head">
+                            <span className="pmf-step" aria-hidden="true">4</span>
+                            <div>
+                                <h4>{isAssortment ? 'Productos gratis a elección' : 'Productos de regalo'}</h4>
+                                <p>{isAssortment
+                                    ? 'Van a $0 dentro del paquete y descuentan inventario.'
+                                    : 'Lo que el cliente recibe gratis con el paquete.'}</p>
                             </div>
                         </div>
 
-                        {(formData.type === PromotionType.PACK || formData.type === PromotionType.BUY_GET_FREE) && (
-                            <div className="form-group" style={{ marginTop: '1rem' }}>
-                                <label>Precio Promocional (Opcional)</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={formData.packPrice}
-                                    onChange={(e) => handleChange('packPrice', e.target.value)}
-                                    placeholder="Dejar vacío para usar precio regular"
-                                    onWheel={(e) => e.target.blur()}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Rewards Section */}
-                    <div className="form-section highlight-section">
-                        <h3>{formData.type === PromotionType.PACK ? 'Productos de Regalo' : 'Beneficio Surtido'}</h3>
-
-                        {formData.type === PromotionType.PACK ? (
-                            <div className="gift-items-builder">
-                                {formData.giftItems.length > 0 && (
-                                    <div className="gift-items-list" style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                                        {formData.giftItems.map((item, index) => {
+                        {!isAssortment ? (
+                            <div className="pmf-gifts">
+                                {formData.giftItems.length > 0 ? (
+                                    <ul className="pmf-gift-list">
+                                        {formData.giftItems.map(item => {
                                             const product = products.find(p => p.id === item.productId);
+                                            const name = product ? product.nombre : 'Producto desconocido';
                                             return (
-                                                <div key={item.tempId} style={{
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center',
-                                                    padding: '0.75rem',
-                                                    background: index % 2 === 0 ? 'white' : '#f8fafc',
-                                                    borderBottom: '1px solid var(--border)'
-                                                }}>
-                                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                                        <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{item.quantity}x</span>
-                                                        <span>{product ? product.nombre : 'Producto desconocido'}</span>
-                                                    </div>
+                                                <li key={item.tempId} className="pmf-gift-item">
+                                                    <span className="pmf-gift-qty">{item.quantity}x</span>
+                                                    <span className="pmf-gift-name">{name}</span>
                                                     <button
                                                         type="button"
+                                                        className="pmf-icon-btn danger"
                                                         onClick={() => handleRemoveGift(item.tempId)}
-                                                        style={{
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            color: 'var(--danger)',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center'
-                                                        }}
-                                                        title="Eliminar"
+                                                        title="Quitar regalo"
+                                                        aria-label={`Quitar ${name}`}
                                                     >
-                                                        <span className="material-icons-round">delete</span>
+                                                        <span className="material-icons-round">delete_outline</span>
                                                     </button>
-                                                </div>
+                                                </li>
                                             );
                                         })}
-                                    </div>
+                                    </ul>
+                                ) : (
+                                    <p className="pmf-empty-note">Aún no hay regalos. Agrega al menos uno.</p>
                                 )}
 
-                                {/* Add new gift form */}
-                                <div className="add-gift-row" style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '2fr 1fr auto',
-                                    gap: '1rem',
-                                    alignItems: 'end',
-                                    background: '#eff6ff',
-                                    padding: '1rem',
-                                    borderRadius: '8px'
-                                }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label style={{ fontSize: '0.85rem' }}>Añadir Producto Gratis</label>
+                                <div className="pmf-add-gift">
+                                    <div className="pmf-field">
+                                        <label htmlFor={fieldId('giftProduct')}>Añadir producto gratis</label>
                                         <select
+                                            id={fieldId('giftProduct')}
                                             value={newGift.productId}
                                             onChange={(e) => setNewGift(prev => ({ ...prev, productId: e.target.value }))}
-                                            style={{ background: 'white' }}
                                         >
                                             <option value="">Seleccione producto...</option>
-                                            {products.filter(p => p.active).map(product => (
+                                            {activeProducts.map(product => (
                                                 <option key={product.id} value={product.id}>
                                                     {product.nombre}
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label style={{ fontSize: '0.85rem' }}>Cantidad</label>
+                                    <div className="pmf-field pmf-field-qty">
+                                        <label htmlFor={fieldId('giftQty')}>Cantidad</label>
                                         <input
+                                            id={fieldId('giftQty')}
                                             type="number"
                                             value={newGift.quantity}
                                             onChange={(e) => setNewGift(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
                                             min="1"
-                                            style={{ background: 'white' }}
                                             onWheel={(e) => e.target.blur()}
                                         />
                                     </div>
                                     <button
                                         type="button"
                                         onClick={handleAddGift}
-                                        className="btn-primary-gradient"
-                                        style={{
-                                            padding: '0.6rem 0.6rem',
-                                            borderRadius: '6px',
-                                            height: '42px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
+                                        className="pmf-btn pmf-btn-soft pmf-add-gift-btn"
                                         disabled={!newGift.productId || newGift.quantity <= 0}
                                     >
                                         <span className="material-icons-round">add</span>
+                                        Agregar
                                     </button>
                                 </div>
-                                <small style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'block' }}>
-                                    Agregue uno o más productos a la lista de regalos.
-                                </small>
                             </div>
                         ) : (
-                            // Assortment View
-                            <div className="assortment-config" style={{ padding: '1.5rem', background: '#f0f9ff', borderRadius: '8px', border: '1px dashed var(--primary)' }}>
-                                <div className="form-group">
-                                    <label style={{ color: 'var(--primary-dark)', fontWeight: 'bold' }}>Cantidad Total a Bonificar *</label>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={formData.freeQuantity}
-                                            onChange={(e) => handleChange('freeQuantity', e.target.value)}
-                                            style={{
-                                                fontSize: '1.5rem',
-                                                fontWeight: 'bold',
-                                                width: '120px',
-                                                textAlign: 'center',
-                                                padding: '0.5rem',
-                                                borderColor: 'var(--primary)'
-                                            }}
-                                            placeholder="0"
-                                            required
-                                            onWheel={(e) => e.target.blur()}
-                                        />
-                                        <span style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Unidades a elección del vendedor</span>
-                                    </div>
-                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                        Esta promoción permitirá al vendedor elegir hasta <strong>{formData.freeQuantity || 0}</strong> productos de cualquier tipo del catálogo al momento de cerrar la venta.
+                            <div className="pmf-grid">
+                                <div className="pmf-field">
+                                    <label htmlFor={fieldId('freeQuantity')}>Cantidad Total a Bonificar <span className="pmf-req">*</span></label>
+                                    <input
+                                        id={fieldId('freeQuantity')}
+                                        type="number"
+                                        min="1"
+                                        className="pmf-input-big"
+                                        value={formData.freeQuantity}
+                                        onChange={(e) => handleChange('freeQuantity', e.target.value)}
+                                        placeholder="0"
+                                        required
+                                        onWheel={(e) => e.target.blur()}
+                                    />
+                                </div>
+                                <div className="pmf-callout">
+                                    <span className="material-icons-round" aria-hidden="true">info</span>
+                                    <p>
+                                        Al vender, la vendedora escoge <strong>hasta {freeQty}</strong> productos de cualquier
+                                        tipo del catálogo. No se cobran aparte: el total es el precio del paquete.
                                     </p>
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </section>
 
-                    {/* Options */}
-                    <div className="form-section">
-                        <h4>Opciones</h4>
-
-                        <div className="form-group">
-                            <label className="checkbox-label">
+                    {/* 5. Visibilidad por vendedora */}
+                    <section className="pmf-section">
+                        <div className="pmf-section-head">
+                            <span className="pmf-step" aria-hidden="true">5</span>
+                            <div>
+                                <h4>¿Quién ve esta promoción?</h4>
+                                <p>Admin y owner siempre la pueden usar.</p>
+                            </div>
+                        </div>
+                        <div className="pmf-choice-grid" role="radiogroup" aria-label="¿Quién ve esta promoción?">
+                            <label className={`pmf-choice compact ${formData.visibleToAll ? 'is-selected' : ''}`}>
                                 <input
-                                    type="checkbox"
-                                    checked={formData.allowStackWithDiscounts}
-                                    onChange={(e) => handleChange('allowStackWithDiscounts', e.target.checked)}
+                                    type="radio"
+                                    name={fieldId('visibility')}
+                                    checked={formData.visibleToAll}
+                                    onChange={() => handleChange('visibleToAll', true)}
                                 />
-                                Permitir combinar con descuentos
+                                <span className="material-icons-round pmf-choice-icon" aria-hidden="true">groups</span>
+                                <span className="pmf-choice-text">
+                                    <span className="pmf-choice-title">Todas las vendedoras</span>
+                                    <span className="pmf-choice-desc">Cualquier vendedora la ve y la puede vender.</span>
+                                </span>
+                            </label>
+                            <label className={`pmf-choice compact ${!formData.visibleToAll ? 'is-selected' : ''}`}>
+                                <input
+                                    type="radio"
+                                    name={fieldId('visibility')}
+                                    checked={!formData.visibleToAll}
+                                    onChange={() => handleChange('visibleToAll', false)}
+                                />
+                                <span className="material-icons-round pmf-choice-icon" aria-hidden="true">person_search</span>
+                                <span className="pmf-choice-text">
+                                    <span className="pmf-choice-title">Solo las seleccionadas</span>
+                                    <span className="pmf-choice-desc">Solo las vendedoras que elijas abajo.</span>
+                                </span>
                             </label>
                         </div>
-                    </div>
+                        {!formData.visibleToAll && (
+                            <div className="pmf-vendors">
+                                <VendorMultiSelect
+                                    selectedIds={formData.allowedVendorIds}
+                                    onChange={(ids) => handleChange('allowedVendorIds', ids)}
+                                    nameHints={vendorNameHints}
+                                    emptyWarning="Ninguna vendedora la verá; solo admin"
+                                    sharedUsersHint
+                                />
+                            </div>
+                        )}
+                    </section>
 
-                    {/* Validity Period */}
-                    <div className="form-section">
-                        <h4>Período de Vigencia</h4>
-
-                        <div className="form-row validity-row">
-                            <div className="form-group">
-                                <label>Fecha de Inicio</label>
+                    {/* 6. Vigencia y opciones */}
+                    <section className="pmf-section">
+                        <div className="pmf-section-head">
+                            <span className="pmf-step" aria-hidden="true">6</span>
+                            <div>
+                                <h4>Vigencia y opciones</h4>
+                                <p>Déjalas en blanco para que la promoción no venza.</p>
+                            </div>
+                        </div>
+                        <div className="pmf-grid">
+                            <div className="pmf-field">
+                                <label htmlFor={fieldId('validFrom')}>Fecha de inicio</label>
                                 <input
+                                    id={fieldId('validFrom')}
                                     type="datetime-local"
                                     value={formData.validFrom}
                                     onChange={(e) => handleChange('validFrom', e.target.value)}
                                 />
                             </div>
-
-                            <div className="form-group">
-                                <label>Fecha de Fin</label>
+                            <div className="pmf-field">
+                                <label htmlFor={fieldId('validUntil')}>Fecha de fin</label>
                                 <input
+                                    id={fieldId('validUntil')}
                                     type="datetime-local"
                                     value={formData.validUntil}
                                     onChange={(e) => handleChange('validUntil', e.target.value)}
                                 />
                             </div>
+                            <label className="pmf-switch pmf-span-2">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.allowStackWithDiscounts}
+                                    onChange={(e) => handleChange('allowStackWithDiscounts', e.target.checked)}
+                                />
+                                <span className="pmf-switch-track" aria-hidden="true"><span className="pmf-switch-thumb" /></span>
+                                <span className="pmf-switch-text">
+                                    <span className="pmf-choice-title">Permitir combinar con descuentos</span>
+                                    <span className="pmf-choice-desc">Marca informativa: se muestra en la tarjeta de la promoción.</span>
+                                </span>
+                            </label>
                         </div>
-                        <small style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            Deje en blanco para promoción sin límite de tiempo
-                        </small>
-                    </div>
-
-                    {/* Form Actions */}
-                    <div className="form-actions">
-                        <button type="button" onClick={onClose} className="btn-cancel">
-                            Cancelar
-                        </button>
-                        <button type="submit" disabled={loading} className="btn-save">
-                            {loading ? 'Guardando...' : (promotion ? 'Actualizar' : 'Crear Promoción')}
-                        </button>
-                    </div>
+                    </section>
                 </form>
+
+                <footer className="pmf-footer">
+                    <button type="button" onClick={onClose} className="pmf-btn pmf-btn-secondary">
+                        Cancelar
+                    </button>
+                    <button type="submit" form={fieldId('form')} disabled={loading} className="pmf-btn pmf-btn-primary">
+                        <span className="material-icons-round" aria-hidden="true">{loading ? 'hourglass_empty' : 'save'}</span>
+                        {loading ? 'Guardando...' : (promotion ? 'Guardar cambios' : 'Crear promoción')}
+                    </button>
+                </footer>
             </div>
         </div>
     );

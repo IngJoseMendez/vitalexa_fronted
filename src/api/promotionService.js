@@ -1,4 +1,5 @@
 import client from './client';
+import { perUserCatalogParams } from './vendedorInitCache';
 
 const promotionService = {
     // Admin endpoints
@@ -26,9 +27,9 @@ const promotionService = {
         return await client.delete(`/admin/promotions/${id}`);
     },
 
-    // Vendor endpoint
+    // Vendor endpoint (depende de la usuaria: ?u= evita que el navegador sirva la lista de otra)
     getValid: async () => {
-        return await client.get('/vendedor/promotions');
+        return await client.get('/vendedor/promotions', { params: perUserCatalogParams() });
     },
 
     // Admin endpoint for valid promotions (New Sale)

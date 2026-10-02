@@ -42,9 +42,25 @@ const productService = {
     },
 
     searchProducts: async (query) => {
-        return client.get('/admin/products/search', { 
-            params: { q: query, size: 15 } 
+        return client.get('/admin/products/search', {
+            params: { q: query, size: 15 }
         });
+    },
+
+    /**
+     * Buscador del filtro del historial: incluye productos INACTIVOS (también se auditan).
+     * Si el backend todavía no tiene el endpoint (desplegado antes que este frontend), usa el
+     * buscador de siempre (solo activos).
+     */
+    searchProductsForHistory: async (query) => {
+        try {
+            return await client.get('/admin/inventory/history/products', { params: { q: query } });
+        } catch (error) {
+            if (error?.response?.status === 404) {
+                return client.get('/admin/products/search', { params: { q: query, size: 15 } });
+            }
+            throw error;
+        }
     },
 
     // --- Stock Operations ---
@@ -62,6 +78,18 @@ const productService = {
             params,
             responseType: 'blob'
         });
+    },
+
+    /**
+     * Ajuste por conteo físico (ADMIN/OWNER). El backend guarda
+     * stock = unidades contadas - unidades en pedidos activos y responde
+     * { conteo, comprometido, stockAnterior, stockNuevo, diferencia, ... }.
+     * @param {string} id Product ID
+     * @param {number} conteo Unidades contadas en bodega (>= 0)
+     * @param {string} motivo Motivo del ajuste (obligatorio)
+     */
+    registerPhysicalCount: async (id, conteo, motivo) => {
+        return client.post(`/admin/products/${id}/stock/physical-count`, { conteo, motivo });
     },
 
     /**

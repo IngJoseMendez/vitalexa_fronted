@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useToast } from '../ToastContainer';
 import orderService from '../../api/orderService';
+import { formatOrderLabel } from '../../utils/formatters';
 import './CompleteOrderModal.css';
 
 /**
@@ -18,9 +19,8 @@ function CompleteOrderModal({ order, onClose, onSuccess }) {
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
 
-    const orderLabel = order?.invoiceNumber
-        ? `Factura #${order.invoiceNumber}`
-        : `#${(order?.id || '').substring(0, 8)}`;
+    // "Pedido P-123" (aún sin factura: la factura se asigna al completar)
+    const orderLabel = formatOrderLabel(order);
 
     const handleConfirm = async () => {
         setIsLoading(true);

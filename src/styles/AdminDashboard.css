@@ -292,6 +292,122 @@
 }
 
 /* ══════════════════════════════════════════
+   SIDEBAR PLEGABLE (solo escritorio)
+   Todo va bajo .admin-dashboard: los CSS de CRA son globales y el Owner
+   también entra a /admin, así no se cruza con el menú del Owner.
+══════════════════════════════════════════ */
+.admin-dashboard .sidebar-toggle {
+  display: none; /* en móvil el menú ya es una barra horizontal: no se pliega */
+}
+
+@media (min-width: 769px) {
+  /* El header global (App.css) es sticky, mide 71px (70 + 1 de borde) y va encima (z-index
+     1100). Con top:0 y 100vh el header tapaba la marca al hacer scroll y, sin scroll,
+     "Actualizar" quedaba 71px por debajo de la pantalla. */
+  .admin-dashboard .admin-sidebar {
+    top: 71px;
+    height: calc(100vh - 71px);
+    min-height: 0;
+    transition: width 0.2s ease;
+  }
+
+  .admin-dashboard .sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+
+  .admin-dashboard .sidebar-toggle:hover {
+    background: #f1f5f9;
+    color: var(--primary);
+  }
+
+  .admin-dashboard .sidebar-toggle:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .admin-dashboard .sidebar-brand .sidebar-toggle .material-icons-round {
+    font-size: 22px;
+    color: inherit;
+  }
+
+  /* ── Plegado: barra de solo iconos (el nombre queda en el tooltip de cada botón) ── */
+  .admin-dashboard.sidebar-collapsed .admin-sidebar {
+    width: var(--sidebar-collapsed);
+    /* Si los iconos no caben en alto sale la barra de scroll: se reserva el mismo espacio a
+       ambos lados para que los iconos sigan centrados */
+    scrollbar-gutter: stable both-edges;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-brand {
+    justify-content: center;
+    padding: 1.1rem 0 0.9rem;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-brand > .material-icons-round,
+  .admin-dashboard.sidebar-collapsed .sidebar-brand-name {
+    display: none;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-toggle {
+    margin-left: 0;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-nav {
+    padding: 0 0.25rem;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-item,
+  .admin-dashboard.sidebar-collapsed .sidebar-refresh {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-item:hover {
+    transform: none;
+  }
+
+  .admin-dashboard.sidebar-collapsed .sidebar-refresh {
+    position: relative;
+    width: auto;
+    margin: 0.5rem 0.25rem 1rem;
+  }
+
+  /* El texto se oculta solo a la vista: los lectores de pantalla siguen leyendo el nombre */
+  .admin-dashboard.sidebar-collapsed .sidebar-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (min-width: 769px) and (prefers-reduced-motion: reduce) {
+  .admin-dashboard .admin-sidebar {
+    transition: none;
+  }
+}
+
+/* ══════════════════════════════════════════
    PANEL HEADER
 ══════════════════════════════════════════ */
 .panel-header {

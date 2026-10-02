@@ -4,7 +4,7 @@ import { clientService } from '../api/client';
 import { useConfirm } from './ConfirmDialog';
 import { useToast } from './ToastContainer';
 import { TagBadge } from './TagComponents';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatOrderLabel } from '../utils/formatters';
 
 // === PRODUCT CARD ===
 export const ClientProductCard = ({ product, onAddToList, cart }) => {
@@ -272,7 +272,9 @@ export const OrdersView = () => {
                 toast.success('Pedido cancelado');
                 loadOrders();
             } catch (error) {
-                toast.error('No se pudo cancelar el pedido');
+                // El backend explica por qué (p. ej. el pedido ya no está pendiente)
+                toast.error(error.response?.data?.message || 'No se pudo cancelar el pedido');
+                loadOrders();
             }
         }
     };
@@ -300,7 +302,7 @@ export const OrdersView = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div>
                                 <div className="order-id">
-                                    {order.invoiceNumber ? `Factura #${order.invoiceNumber}` : `Orden #${order.id.slice(0, 8)}`}
+                                    {formatOrderLabel(order)}
                                 </div>
                                 <div className="order-date">{new Date(order.fechaCreacion).toLocaleDateString()}</div>
                             </div>
@@ -316,8 +318,10 @@ export const OrdersView = () => {
                     {order.notas && <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>"{order.notas}"</p>}
 
                     <div className="order-actions">
-                        {/* Solo permitir cancelar si no está completado ni cancelado */}
-                        {order.estado !== 'COMPLETADO' && order.estado !== 'CANCELADO' && (
+                        {/* Solo se cancela lo PENDIENTE (el backend rechaza el resto): cancelar devuelve el
+                            stock, y en un pedido ya confirmado, anulado o facturado eso lo devolvería dos
+                            veces o dejaría pagos huérfanos */}
+                        {order.estado === 'PENDIENTE' && (
                             <button className="btn-action" onClick={() => handleCancel(order.id)}>Cancelar</button>
                         )}
                         <button className="btn-action primary" onClick={() => handleReorder(order.id)}>Reordenar</button>

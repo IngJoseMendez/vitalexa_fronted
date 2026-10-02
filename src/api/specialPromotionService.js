@@ -27,8 +27,9 @@ const specialPromotionService = {
     update: (id, data) =>
         client.put(`/admin/special-promotions/${id}`, data),
 
-    toggleStatus: (id, activo) =>
-        client.patch(`/admin/special-promotions/${id}/status`, null, { params: { activo } }),
+    // El backend (SpecialPromotionAdminController.changeStatus) exige ?active=; con ?activo= respondía 400
+    toggleStatus: (id, active) =>
+        client.patch(`/admin/special-promotions/${id}/status`, null, { params: { active } }),
 
     remove: (id) =>
         client.delete(`/admin/special-promotions/${id}`),

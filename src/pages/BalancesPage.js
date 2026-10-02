@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { formatCurrency, formatDateISO } from '../utils/formatters';
+import { formatCurrency, formatDateISO, formatOrderLabel, orderReferenceMatches } from '../utils/formatters';
 import balanceService from '../api/balanceService';
 import clientApi from '../api/client';
 import { useToast } from '../components/ToastContainer';
@@ -896,7 +896,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                         <span className="material-icons-round">search</span>
                         <input
                             type="text"
-                            placeholder="Buscar por factura..."
+                            placeholder="Buscar por factura o pedido (P-123)..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -929,10 +929,8 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                 {clientDetail?.pendingOrders?.length > 0 ? (
                     <div className="orders-list">
                         {clientDetail.pendingOrders
-                            .filter(order => {
-                                const invoice = String(order.invoiceNumber || '');
-                                return invoice.toLowerCase().includes(searchTerm.toLowerCase());
-                            })
+                            // Factura ("1500", "#1500") o pedido ("123", "P-123", "p123")
+                            .filter(order => orderReferenceMatches(order, searchTerm))
                             .sort((a, b) => {
                                 if (sortBy === 'date') {
                                     const dateA = new Date(a.fecha || 0).getTime();
@@ -962,7 +960,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                                             title="Ver historial de pagos"
                                         >
                                             <div className="order-invoice-info">
-                                                <span className="order-id">#{order.invoiceNumber || (order.orderId || order.id)?.substring(0, 8)}</span>
+                                                <span className="order-id">{formatOrderLabel(order)}</span>
                                                 <span className="order-date">
                                                     {new Date(order.fecha).toLocaleDateString()}
                                                 </span>
@@ -1077,6 +1075,7 @@ function ClientDetailView({ client, onRefresh, userRole }) {
                     onClose={handleClosePaymentHistory}
                     orderId={selectedOrderForHistory.id || selectedOrderForHistory.orderId}
                     invoiceNumber={selectedOrderForHistory.invoiceNumber}
+                    orderNumber={selectedOrderForHistory.orderNumber}
                     onPaymentUpdate={handlePaymentUpdate}
                     userRole={userRole}
                 />

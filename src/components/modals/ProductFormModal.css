@@ -142,6 +142,51 @@
     gap: 1rem;
 }
 
+/* Stock en edición: solo lectura + accesos a Llegada / Conteo físico */
+.pfm-stock-readonly {
+    padding: 0.75rem 1rem;
+    border: 1px dashed var(--pfm-border);
+    border-radius: var(--pfm-radius-sm);
+    background: var(--pfm-bg-sec);
+    font-weight: 700;
+    font-size: 0.95rem;
+    font-family: monospace;
+}
+
+.pfm-stock-note {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.9rem 1rem;
+    border-radius: var(--pfm-radius-sm);
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0c4a6e;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.pfm-stock-note > .material-icons-round {
+    color: #0284c7;
+    font-size: 20px;
+}
+
+.pfm-stock-note p {
+    margin: 0;
+}
+
+.pfm-stock-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.6rem;
+}
+
+.pfm-stock-actions .pfm-btn {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+}
+
 /* Image Upload Area */
 .pfm-image-upload {
     border: 2px dashed var(--pfm-border);
