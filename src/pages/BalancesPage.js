@@ -1307,8 +1307,9 @@ function ClientDetailView({ client, onRefresh, userRole, refreshKey }) {
                                                 </button>
                                             )}
 
-                                            {/* Manage Button - Only for Owner */}
-                                            {isOwner && (
+                                            {/* Ver detalle de la factura (descuentos y pagos): Owner y Admin.
+                                                Dentro del detalle, registrar/anular pagos sigue siendo solo del Owner. */}
+                                            {(isOwner || userRole === 'ROLE_ADMIN') && (
                                                 <button
                                                     type="button"
                                                     className="ui-icon-btn ui-icon-btn--bordered ui-icon-btn--lg"
