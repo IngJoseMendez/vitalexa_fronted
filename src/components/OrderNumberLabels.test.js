@@ -31,7 +31,7 @@ const portalOrder = (overrides) => ({
     id: ID, estado: 'PENDIENTE', items: [{}], total: 1000, fechaCreacion: '2026-10-01T10:00:00', ...overrides,
 });
 
-test('portal del cliente: "Pedido P-N" sin factura y "Factura #N · Pedido P-N" con factura', async () => {
+test('portal del cliente: "Pedido P-N" sin factura y "Factura #N" con factura', async () => {
     clientService.getOrders.mockResolvedValue({
         data: [
             portalOrder({ id: `${ID}-a`, orderNumber: 123, invoiceNumber: null }),
@@ -42,7 +42,7 @@ test('portal del cliente: "Pedido P-N" sin factura y "Factura #N · Pedido P-N" 
     render(<OrdersView />);
 
     expect(await screen.findByText('Pedido P-123')).toBeInTheDocument();
-    expect(screen.getByText('Factura #1500 · Pedido P-124')).toBeInTheDocument();
+    expect(screen.getByText('Factura #1500')).toBeInTheDocument();
     // El UUID ya no se muestra cuando hay número de pedido
     expect(screen.queryByText(/ab12cd34/)).not.toBeInTheDocument();
 });
@@ -61,7 +61,7 @@ test('historial de pagos: título con factura y pedido', async () => {
             userRole="ROLE_OWNER" />
     );
 
-    expect(await screen.findByText(/Historial de Pagos - Factura #1020 · Pedido P-7/)).toBeInTheDocument();
+    expect(await screen.findByText(/Historial de Pagos - Factura #1020$/)).toBeInTheDocument();
     expect(paymentService.getOrderPayments).toHaveBeenCalledWith(ID);
 });
 

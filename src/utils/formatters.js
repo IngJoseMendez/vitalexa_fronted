@@ -144,9 +144,9 @@ export const formatOrderNumber = (orderNumber) => (hasValue(orderNumber) ? `P-${
 /**
  * Etiqueta de una orden:
  *  - sin factura: "Pedido P-123"
- *  - con factura: "Factura #1500 · Pedido P-123"
- * Con un backend anterior (sin orderNumber) cae a lo de antes: "Factura #1500" u
- * "Orden #ab12cd34" (inicio del id). Sirve para órdenes (id) y DTOs de cartera (orderId).
+ *  - con factura: solo "Factura #1500" (pedido del dueño: con los dos números las empleadas
+ *    se confundían; el número de pedido sigue sirviendo para buscar)
+ * Sin factura ni número de pedido (backend anterior): "Orden #ab12cd34" (inicio del id). Sirve para órdenes (id) y DTOs de cartera (orderId).
  * @param {object} order - { invoiceNumber, orderNumber, id | orderId }
  * @returns {string}
  */
@@ -154,7 +154,7 @@ export const formatOrderLabel = (order) => {
     if (!order) return '';
     const pedido = formatOrderNumber(order.orderNumber);
     if (hasValue(order.invoiceNumber)) {
-        return pedido ? `Factura #${order.invoiceNumber} · Pedido ${pedido}` : `Factura #${order.invoiceNumber}`;
+        return `Factura #${order.invoiceNumber}`;
     }
     if (pedido) return `Pedido ${pedido}`;
     const id = String(order.id || order.orderId || '');

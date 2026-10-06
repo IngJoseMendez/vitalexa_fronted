@@ -26,19 +26,19 @@ describe('formatOrderLabel', () => {
         expect(formatOrderLabel({ id: ID, orderNumber: 123, invoiceNumber: null })).toBe('Pedido P-123');
     });
 
-    test('con factura: "Factura #N · Pedido P-123"', () => {
+    test('con factura: solo "Factura #N" (sin el número de pedido)', () => {
         expect(formatOrderLabel({ id: ID, orderNumber: 123, invoiceNumber: 1500 }))
-            .toBe('Factura #1500 · Pedido P-123');
+            .toBe('Factura #1500');
     });
 
     test('pedido y factura con el mismo número: cada uno con su prefijo', () => {
         expect(formatOrderLabel({ id: ID, orderNumber: 1500, invoiceNumber: 1500 }))
-            .toBe('Factura #1500 · Pedido P-1500');
+            .toBe('Factura #1500');
     });
 
     test('DTOs de cartera (orderId en vez de id)', () => {
         expect(formatOrderLabel({ orderId: ID, orderNumber: 7, invoiceNumber: 1020 }))
-            .toBe('Factura #1020 · Pedido P-7');
+            .toBe('Factura #1020');
     });
 
     test('backend anterior (sin orderNumber): como antes, factura o inicio del id', () => {
