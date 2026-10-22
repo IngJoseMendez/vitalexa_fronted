@@ -230,3 +230,18 @@ test('vendedor y cliente se buscan escribiendo; el contador de clientes sigue la
     fireEvent.focus(cliente);
     expect(optionLabels()).toEqual(['Clínica Sur', 'Botica Central', 'Aroma Natural']);
 });
+
+test('un producto eliminado o desactivado en Inventario no sale en el catálogo de Nueva Venta', async () => {
+    client.get.mockImplementation((url) => {
+        if (url === '/admin/clients/vendedores') return Promise.resolve({ data: [{ id: 'v1', username: 'NinaTorres' }] });
+        // /admin/products devuelve también los inactivos (la eliminación es lógica: active=false)
+        if (url === '/admin/products') {
+            return Promise.resolve({ data: [...productos, { id: 'x', nombre: 'Crema Retirada', active: false, stock: 5, precio: 4000 }] });
+        }
+        return Promise.reject(new Error(`GET inesperado ${url}`));
+    });
+    render(<AdminNuevaVentaPanel />);
+
+    expect(await screen.findByText('Aceite', { selector: '.product-item-name' })).toBeInTheDocument();
+    expect(screen.queryByText('Crema Retirada')).not.toBeInTheDocument();
+});

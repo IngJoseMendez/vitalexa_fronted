@@ -1253,7 +1253,10 @@ export function AdminNuevaVentaPanel() {
         client.get('/admin/products')
       ]);
       setVendedores(vendRes.data || []);
-      setProducts(prodRes.data.content || prodRes.data || []);
+      // /admin/products trae también los inactivos (eliminados o desactivados en Inventario):
+      // esos no se pueden vender, igual que en el catálogo de la vendedora
+      const allProducts = prodRes.data.content || prodRes.data || [];
+      setProducts(allProducts.filter(p => p.active));
     } catch (error) {
       console.error('Error al cargar datos:', error);
       toast.error('Error al cargar datos');
